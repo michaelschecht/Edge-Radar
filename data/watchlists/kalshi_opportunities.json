@@ -1,0 +1,111 @@
+{
+  "generated_at": "2026-03-19T02:09:55.192131+00:00",
+  "min_edge": 0.03,
+  "count": 2,
+  "opportunities": [
+    {
+      "ticker": "KXNCAAMBTOTAL-26MAR18MOHSMU-146",
+      "title": "Over 146.5 points scored",
+      "category": "total",
+      "side": "yes",
+      "market_price": 0.51,
+      "fair_value": 0.7036,
+      "edge": 0.1936,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "medium",
+      "liquidity_score": 9.8,
+      "composite_score": 8.3,
+      "details": {
+        "n_books": 302,
+        "median_book_line": 151.0,
+        "kalshi_strike": 146.5,
+        "line_diff": 4.5,
+        "adjusted_prob": 0.7036,
+        "books": [
+          {
+            "book": "fanduel",
+            "line": 176.5,
+            "odds": 1.83,
+            "implied": 0.5464
+          },
+          {
+            "book": "betmgm",
+            "line": 178.5,
+            "odds": 1.85,
+            "implied": 0.5405
+          },
+          {
+            "book": "draftkings",
+            "line": 176.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "fanduel",
+            "line": 151.5,
+            "odds": 1.82,
+            "implied": 0.5495
+          },
+          {
+            "book": "draftkings",
+            "line": 151.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ]
+      }
+    },
+    {
+      "ticker": "KXNCAAMBTOTAL-26MAR18PVLEH-126",
+      "title": "Over 126.5 points scored",
+      "category": "total",
+      "side": "yes",
+      "market_price": 0.85,
+      "fair_value": 0.99,
+      "edge": 0.14,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "medium",
+      "liquidity_score": 0,
+      "composite_score": 6.3,
+      "details": {
+        "n_books": 302,
+        "median_book_line": 151.0,
+        "kalshi_strike": 126.5,
+        "line_diff": 24.5,
+        "adjusted_prob": 0.99,
+        "books": [
+          {
+            "book": "fanduel",
+            "line": 176.5,
+            "odds": 1.83,
+            "implied": 0.5464
+          },
+          {
+            "book": "betmgm",
+            "line": 178.5,
+            "odds": 1.85,
+            "implied": 0.5405
+          },
+          {
+            "book": "draftkings",
+            "line": 176.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "fanduel",
+            "line": 151.5,
+            "odds": 1.82,
+            "implied": 0.5495
+          },
+          {
+            "book": "draftkings",
+            "line": 151.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ]
+      }
+    }
+  ]
+}

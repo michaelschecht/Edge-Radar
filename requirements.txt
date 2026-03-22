@@ -1,0 +1,68 @@
+# FinAgent — Python Dependencies
+
+# === Core ===
+python-dotenv==1.0.0
+requests==2.31.0
+aiohttp==3.9.1
+asyncio==3.4.3
+pydantic==2.5.0
+python-dateutil==2.8.2
+
+# === Trading APIs ===
+alpaca-trade-api==3.2.0       # Stocks/options via Alpaca
+# coinbase-advanced-py==1.0.0  # Coinbase Advanced Trade
+
+# === Prediction Markets ===
+# py-clob-client==0.11.0       # Polymarket CLOB
+# kalshi-python==1.0.0         # Kalshi (install from their repo)
+
+# === Data & Analysis ===
+pandas==2.1.4
+numpy==1.26.2
+scipy==1.11.4
+scikit-learn==1.3.2
+statsmodels==0.14.1
+
+# === Optimization (DFS Lineups) ===
+pulp==2.7.0                    # Linear programming for DFS optimizer
+ortools==9.8.3296              # Google OR-Tools (alternative)
+
+# === Technical Analysis ===
+ta==0.11.0                     # Technical indicators
+# TA-Lib                        # Install separately: pip install TA-Lib (requires C library)
+
+# === Database ===
+sqlalchemy==2.0.23
+alembic==1.13.0                # Database migrations
+# psycopg2-binary==2.9.9       # PostgreSQL (uncomment when scaling)
+
+# === Scheduling ===
+apscheduler==3.10.4            # Cron-style job scheduler
+
+# === Notifications ===
+slack-sdk==3.26.1              # Slack alerts (optional)
+
+# === Web Scraping (for data sources without APIs) ===
+playwright==1.40.0             # Modern browser automation
+beautifulsoup4==4.12.2
+lxml==4.9.3
+
+# === Odds & Stats APIs ===
+# No official SDK — use requests directly with API keys
+
+# === Utilities ===
+rich==13.7.0                   # Beautiful terminal output
+loguru==0.7.2                  # Better logging
+uuid==1.30
+tqdm==4.66.1                   # Progress bars for backtests
+
+# === Testing ===
+pytest==7.4.3
+pytest-asyncio==0.23.8
+pytest-mock==3.12.0
+
+# === Dev Tools ===
+black==23.12.0
+flake8==6.1.0
+mypy==1.7.1
+pre-commit==3.6.0

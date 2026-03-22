@@ -1,0 +1,66 @@
+{
+  "mcpServers": {
+    "ax-gcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote@0.1.29",
+        "https://mcp.paxai.app/mcp/agents/mfs_claudecodecli_agent1",
+        "--transport",
+        "http-only",
+        "--oauth-server",
+        "https://api.paxai.app"
+      ]
+    },
+      "playwright": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "@playwright/mcp@latest"
+      ]
+    },
+      "nanobanana": {
+      "command": "uvx",
+      "args": [
+        "nanobanana-mcp-server@latest"
+      ],
+      "env": {
+        "GEMINI_API_KEY": "${GEMINI_API_KEY}"
+      }
+    },
+ "n8n-mcp": {
+        "command": "npx",
+        "args": ["n8n-mcp"],
+        "env": {
+          "MCP_MODE": "stdio",
+          "LOG_LEVEL": "error",
+          "DISABLE_CONSOLE_OUTPUT": "true",
+          "N8N_API_URL": "http://localhost:5678",
+          "N8N_API_KEY": "${N8N_API_KEY}"
+        }
+      },
+       "serper": {
+      "command": "uvx",
+      "args": [
+        "serper-mcp-server"
+      ]
+    },
+          "rube": {
+        "type": "http",
+        "url": "https://rube.app/mcp"
+      },
+      "github": {
+        "type": "http",
+        "url": "https://api.githubcopilot.com/mcp/",
+        "headers": {
+          "Authorization": "Bearer ${GITHUB_COPILOT_TOKEN}"
+        }
+      },
+      "context7": {
+        "command": "npx",
+        "args": ["-y", "@upstash/context7-mcp@latest"]
+      }
+    }
+  }

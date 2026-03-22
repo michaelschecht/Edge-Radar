@@ -1,0 +1,58 @@
+# === CRITICAL: NEVER COMMIT THESE ===
+.env
+*.env
+.env.local
+.env.production
+keys/
+*.key
+*.pem
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+venv/
+env/
+.venv/
+pip-wheel-metadata/
+
+# === Data files (live positions, trade history) ===
+data/positions/*.json
+data/history/*.json
+data/history/reports/
+!data/positions/.gitkeep
+!data/history/.gitkeep
+
+# === Database ===
+*.db
+*.sqlite
+*.sqlite3
+
+# === Logs ===
+logs/
+*.log
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Notebooks ===
+notebooks/.ipynb_checkpoints/
+notebooks/analysis/*.html
+
+# === API response caches ===
+.cache/
+cache/
+*.cache
