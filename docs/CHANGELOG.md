@@ -22,6 +22,18 @@
 - New `.claude/skills/financial-analysis/` -- research and analysis skill
 - Templates: stock analysis, earnings/corporate, global markets, market sentiment, investment strategy
 
+### Futures / Championship Edge Detector (`scripts/kalshi/futures_edge.py`)
+- N-way de-vigging of outright odds from 5-12 sportsbooks
+- Fuzzy name matching between Kalshi candidates and Odds API outcomes with alias table
+- Supported: NFL Super Bowl, NBA conference winners, NHL conference winners, MLB playoffs, NCAAB MOP, PGA golf
+- Filter shortcuts: `futures`, `nba-futures`, `nhl-futures`, `mlb-futures`, `ncaab-futures`, `golf-futures`, `nfl-futures`
+- Integrated routing from `edge_detector.py` -- `--filter nba-futures` auto-routes to futures scanner
+- Browse-only: NBA/NHL awards, Heisman, soccer leagues, F1, NASCAR, IPL
+
+### Unfiltered Scan Fix
+- Running the scanner without `--filter` now scans all known sport prefixes instead of pulling 5000 generic multi-event markets
+- Results: 959+ sport markets across NBA, NCAAB, MLB, NHL instead of 0
+
 ### Sport Filter Expansion
 - Expanded `FILTER_SHORTCUTS` from 5 to 27 sports based on live Kalshi market discovery
 - Added: NFL, NCAA women's basketball, NCAA football, MLS, Champions League, EPL, La Liga, Serie A, Bundesliga, Ligue 1, UFC, boxing, F1, NASCAR, PGA golf, IPL cricket, individual esports (CS2, LoL)
