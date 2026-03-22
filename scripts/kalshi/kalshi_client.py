@@ -52,7 +52,7 @@ class KalshiClient:
         # Resolve relative paths from project root
         key_file = Path(key_path)
         if not key_file.is_absolute():
-            key_file = Path(__file__).resolve().parent.parent / key_path.lstrip("/\\")
+            key_file = Path(__file__).resolve().parent.parent.parent / key_path.lstrip("/\\")
 
         if not key_file.exists():
             raise FileNotFoundError(

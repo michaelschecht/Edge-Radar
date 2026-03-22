@@ -26,20 +26,20 @@ Complete reference for placing bets, filtering by sport, managing positions, and
 
 ```bash
 # Preview opportunities (no money risked)
-python scripts/kalshi_executor.py run
+python scripts/kalshi/kalshi_executor.py run
 
 # Place up to 5 bets
-python scripts/kalshi_executor.py run --execute --max-bets 5
+python scripts/kalshi/kalshi_executor.py run --execute --max-bets 5
 
 # Bet on a specific sport
-python scripts/kalshi_executor.py run --filter nba --execute --max-bets 5
+python scripts/kalshi/kalshi_executor.py run --filter nba --execute --max-bets 5
 
 # Check your portfolio
-python scripts/kalshi_executor.py status
+python scripts/kalshi/kalshi_executor.py status
 
 # Settle completed bets and see results
-python scripts/kalshi_settler.py settle
-python scripts/kalshi_settler.py report
+python scripts/kalshi/kalshi_settler.py settle
+python scripts/kalshi/kalshi_settler.py report
 ```
 
 ---
@@ -51,9 +51,9 @@ Use the `--filter` flag to target a specific sport. This limits the market scan 
 ### NBA
 
 ```bash
-python scripts/kalshi_executor.py run --filter nba                          # Preview
-python scripts/kalshi_executor.py run --filter nba --execute --max-bets 5   # Execute
-python scripts/edge_detector.py scan --filter nba                           # Research only
+python scripts/kalshi/kalshi_executor.py run --filter nba                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter nba --execute --max-bets 5   # Execute
+python scripts/kalshi/edge_detector.py scan --filter nba                           # Research only
 ```
 
 **Markets:** Game winners, point spreads, totals, player props (3-pointers, rebounds, assists, steals, points, blocks), MVP, Rookie of the Year, Defensive Player of the Year.
@@ -61,8 +61,8 @@ python scripts/edge_detector.py scan --filter nba                           # Re
 ### NHL
 
 ```bash
-python scripts/kalshi_executor.py run --filter nhl                          # Preview
-python scripts/kalshi_executor.py run --filter nhl --execute --max-bets 3   # Execute
+python scripts/kalshi/kalshi_executor.py run --filter nhl                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter nhl --execute --max-bets 3   # Execute
 ```
 
 **Markets:** Game winners, spreads, totals, player props (goals, assists, points, first goal scorer), Hart Trophy, Norris Trophy, Calder Trophy.
@@ -70,8 +70,8 @@ python scripts/kalshi_executor.py run --filter nhl --execute --max-bets 3   # Ex
 ### MLB
 
 ```bash
-python scripts/kalshi_executor.py run --filter mlb                          # Preview
-python scripts/kalshi_executor.py run --filter mlb --execute --max-bets 5   # Execute
+python scripts/kalshi/kalshi_executor.py run --filter mlb                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter mlb --execute --max-bets 5   # Execute
 ```
 
 **Markets:** Game winners (moneyline), playoff qualifiers.
@@ -79,8 +79,8 @@ python scripts/kalshi_executor.py run --filter mlb --execute --max-bets 5   # Ex
 ### NFL
 
 ```bash
-python scripts/kalshi_executor.py run --filter nfl                          # Preview
-python scripts/kalshi_executor.py run --filter nfl --execute --max-bets 5   # Execute
+python scripts/kalshi/kalshi_executor.py run --filter nfl                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter nfl --execute --max-bets 5   # Execute
 ```
 
 **Markets:** Game winners, spreads, totals, draft. *(Seasonal -- active Aug through Feb.)*
@@ -88,9 +88,9 @@ python scripts/kalshi_executor.py run --filter nfl --execute --max-bets 5   # Ex
 ### NCAA Men's Basketball (March Madness)
 
 ```bash
-python scripts/kalshi_executor.py run --filter ncaamb                          # Preview
-python scripts/kalshi_executor.py run --filter ncaamb --execute --max-bets 5   # Execute
-python scripts/edge_detector.py scan --filter ncaamb --save                    # Save to watchlist
+python scripts/kalshi/kalshi_executor.py run --filter ncaamb                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter ncaamb --execute --max-bets 5   # Execute
+python scripts/kalshi/edge_detector.py scan --filter ncaamb --save                    # Save to watchlist
 ```
 
 **Markets:** Game winners, point spreads, totals, Most Outstanding Player.
@@ -98,8 +98,8 @@ python scripts/edge_detector.py scan --filter ncaamb --save                    #
 ### NCAA Women's Basketball
 
 ```bash
-python scripts/kalshi_executor.py run --filter ncaawb                          # Preview
-python scripts/kalshi_executor.py run --filter ncaawb --execute --max-bets 5   # Execute
+python scripts/kalshi/kalshi_executor.py run --filter ncaawb                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter ncaawb --execute --max-bets 5   # Execute
 ```
 
 **Markets:** Game winners.
@@ -107,8 +107,8 @@ python scripts/kalshi_executor.py run --filter ncaawb --execute --max-bets 5   #
 ### NCAA Football
 
 ```bash
-python scripts/kalshi_executor.py run --filter ncaafb                          # Preview
-python scripts/kalshi_executor.py run --filter ncaafb --execute --max-bets 5   # Execute
+python scripts/kalshi/kalshi_executor.py run --filter ncaafb                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter ncaafb --execute --max-bets 5   # Execute
 ```
 
 **Markets:** Game winners. *(Seasonal -- active Aug through Jan.)*
@@ -116,8 +116,8 @@ python scripts/kalshi_executor.py run --filter ncaafb --execute --max-bets 5   #
 ### MLS (Major League Soccer)
 
 ```bash
-python scripts/kalshi_executor.py run --filter mls                          # Preview
-python scripts/kalshi_executor.py run --filter mls --execute --max-bets 3   # Execute
+python scripts/kalshi/kalshi_executor.py run --filter mls                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter mls --execute --max-bets 3   # Execute
 ```
 
 **Markets:** Game winners, spreads, totals.
@@ -125,13 +125,13 @@ python scripts/kalshi_executor.py run --filter mls --execute --max-bets 3   # Ex
 ### European Soccer (Individual Leagues)
 
 ```bash
-python scripts/kalshi_executor.py run --filter soccer     # ALL soccer leagues combined
-python scripts/kalshi_executor.py run --filter ucl         # Champions League
-python scripts/kalshi_executor.py run --filter epl         # Premier League
-python scripts/kalshi_executor.py run --filter laliga      # La Liga (Spain)
-python scripts/kalshi_executor.py run --filter seriea      # Serie A (Italy)
-python scripts/kalshi_executor.py run --filter bundesliga  # Bundesliga (Germany)
-python scripts/kalshi_executor.py run --filter ligue1      # Ligue 1 (France)
+python scripts/kalshi/kalshi_executor.py run --filter soccer     # ALL soccer leagues combined
+python scripts/kalshi/kalshi_executor.py run --filter ucl         # Champions League
+python scripts/kalshi/kalshi_executor.py run --filter epl         # Premier League
+python scripts/kalshi/kalshi_executor.py run --filter laliga      # La Liga (Spain)
+python scripts/kalshi/kalshi_executor.py run --filter seriea      # Serie A (Italy)
+python scripts/kalshi/kalshi_executor.py run --filter bundesliga  # Bundesliga (Germany)
+python scripts/kalshi/kalshi_executor.py run --filter ligue1      # Ligue 1 (France)
 ```
 
 **Markets:** Outright league/tournament winners.
@@ -139,8 +139,8 @@ python scripts/kalshi_executor.py run --filter ligue1      # Ligue 1 (France)
 ### UFC / MMA
 
 ```bash
-python scripts/kalshi_executor.py run --filter ufc                          # Preview
-python scripts/kalshi_executor.py run --filter ufc --execute --max-bets 3   # Execute
+python scripts/kalshi/kalshi_executor.py run --filter ufc                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter ufc --execute --max-bets 3   # Execute
 ```
 
 **Markets:** Fight winners.
@@ -148,8 +148,8 @@ python scripts/kalshi_executor.py run --filter ufc --execute --max-bets 3   # Ex
 ### Boxing
 
 ```bash
-python scripts/kalshi_executor.py run --filter boxing                          # Preview
-python scripts/kalshi_executor.py run --filter boxing --execute --max-bets 3   # Execute
+python scripts/kalshi/kalshi_executor.py run --filter boxing                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter boxing --execute --max-bets 3   # Execute
 ```
 
 **Markets:** Fight winners.
@@ -157,8 +157,8 @@ python scripts/kalshi_executor.py run --filter boxing --execute --max-bets 3   #
 ### Formula 1
 
 ```bash
-python scripts/kalshi_executor.py run --filter f1                          # Preview
-python scripts/kalshi_executor.py run --filter f1 --execute --max-bets 3   # Execute
+python scripts/kalshi/kalshi_executor.py run --filter f1                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter f1 --execute --max-bets 3   # Execute
 ```
 
 **Markets:** Drivers championship, constructors championship.
@@ -166,8 +166,8 @@ python scripts/kalshi_executor.py run --filter f1 --execute --max-bets 3   # Exe
 ### NASCAR
 
 ```bash
-python scripts/kalshi_executor.py run --filter nascar                          # Preview
-python scripts/kalshi_executor.py run --filter nascar --execute --max-bets 3   # Execute
+python scripts/kalshi/kalshi_executor.py run --filter nascar                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter nascar --execute --max-bets 3   # Execute
 ```
 
 **Markets:** Individual race winners.
@@ -175,8 +175,8 @@ python scripts/kalshi_executor.py run --filter nascar --execute --max-bets 3   #
 ### PGA Golf
 
 ```bash
-python scripts/kalshi_executor.py run --filter pga                          # Preview
-python scripts/kalshi_executor.py run --filter pga --execute --max-bets 3   # Execute
+python scripts/kalshi/kalshi_executor.py run --filter pga                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter pga --execute --max-bets 3   # Execute
 ```
 
 **Markets:** Tournament winners.
@@ -184,8 +184,8 @@ python scripts/kalshi_executor.py run --filter pga --execute --max-bets 3   # Ex
 ### IPL Cricket
 
 ```bash
-python scripts/kalshi_executor.py run --filter ipl                          # Preview
-python scripts/kalshi_executor.py run --filter ipl --execute --max-bets 3   # Execute
+python scripts/kalshi/kalshi_executor.py run --filter ipl                          # Preview
+python scripts/kalshi/kalshi_executor.py run --filter ipl --execute --max-bets 3   # Execute
 ```
 
 **Markets:** Outright winner.
@@ -193,9 +193,9 @@ python scripts/kalshi_executor.py run --filter ipl --execute --max-bets 3   # Ex
 ### Esports
 
 ```bash
-python scripts/kalshi_executor.py run --filter esports   # All esports
-python scripts/kalshi_executor.py run --filter cs2       # Counter-Strike 2 only
-python scripts/kalshi_executor.py run --filter lol       # League of Legends only
+python scripts/kalshi/kalshi_executor.py run --filter esports   # All esports
+python scripts/kalshi/kalshi_executor.py run --filter cs2       # Counter-Strike 2 only
+python scripts/kalshi/kalshi_executor.py run --filter lol       # League of Legends only
 ```
 
 **Markets:** Map winners, match winners.
@@ -274,19 +274,19 @@ You can also pass any raw Kalshi ticker prefix directly for markets not covered 
 
 ```bash
 # NHL player goals only
-python scripts/edge_detector.py scan --filter KXNHLGOAL
+python scripts/kalshi/edge_detector.py scan --filter KXNHLGOAL
 
 # NBA 3-pointers only
-python scripts/edge_detector.py scan --filter KXNBA3PT
+python scripts/kalshi/edge_detector.py scan --filter KXNBA3PT
 
 # UFC fights
-python scripts/edge_detector.py scan --filter KXUFCFIGHT
+python scripts/kalshi/edge_detector.py scan --filter KXUFCFIGHT
 
 # Weather markets
-python scripts/edge_detector.py scan --filter KXHIGHNY
+python scripts/kalshi/edge_detector.py scan --filter KXHIGHNY
 
 # S&P 500 / financial markets
-python scripts/edge_detector.py scan --filter KXINX
+python scripts/kalshi/edge_detector.py scan --filter KXINX
 ```
 
 **Note:** Edge detection only works for market types with a mapped external odds source (see table above). Raw prefix filters on unsupported markets will scan but won't find edges.
@@ -315,11 +315,11 @@ The system cross-references Kalshi prices against these Odds API sport keys:
 Every Kalshi market is classified into a category. You can filter by category using the edge detector:
 
 ```bash
-python scripts/edge_detector.py scan --category game
-python scripts/edge_detector.py scan --category spread
-python scripts/edge_detector.py scan --category total
-python scripts/edge_detector.py scan --category player_prop
-python scripts/edge_detector.py scan --category esports
+python scripts/kalshi/edge_detector.py scan --category game
+python scripts/kalshi/edge_detector.py scan --category spread
+python scripts/kalshi/edge_detector.py scan --category total
+python scripts/kalshi/edge_detector.py scan --category player_prop
+python scripts/kalshi/edge_detector.py scan --category esports
 ```
 
 | Category | Description | Example |
@@ -335,10 +335,10 @@ You can combine `--filter` (sport) with `--category` on the edge detector:
 
 ```bash
 # Only NBA spread markets
-python scripts/edge_detector.py scan --filter nba --category spread
+python scripts/kalshi/edge_detector.py scan --filter nba --category spread
 
 # Only NHL game outcomes
-python scripts/edge_detector.py scan --filter nhl --category game
+python scripts/kalshi/edge_detector.py scan --filter nhl --category game
 ```
 
 ---
@@ -350,8 +350,8 @@ python scripts/edge_detector.py scan --filter nhl --category game
 Always preview first. This scans markets, finds edges, and shows what it *would* bet on without placing any orders:
 
 ```bash
-python scripts/kalshi_executor.py run
-python scripts/kalshi_executor.py run --filter nba
+python scripts/kalshi/kalshi_executor.py run
+python scripts/kalshi/kalshi_executor.py run --filter nba
 ```
 
 ### Execute Mode
@@ -359,7 +359,7 @@ python scripts/kalshi_executor.py run --filter nba
 Add `--execute` to actually place orders with real money:
 
 ```bash
-python scripts/kalshi_executor.py run --execute --max-bets 5
+python scripts/kalshi/kalshi_executor.py run --execute --max-bets 5
 ```
 
 ### From Saved Scan
@@ -368,13 +368,13 @@ If you already ran the edge detector and saved results, you can execute from tha
 
 ```bash
 # Step 1: Scan and save
-python scripts/edge_detector.py scan --filter ncaamb --save
+python scripts/kalshi/edge_detector.py scan --filter ncaamb --save
 
 # Step 2: Review the saved watchlist
 # (located at data/watchlists/kalshi_opportunities.json)
 
 # Step 3: Execute from saved file
-python scripts/kalshi_executor.py run --from-file --execute --max-bets 3
+python scripts/kalshi/kalshi_executor.py run --from-file --execute --max-bets 3
 ```
 
 ### Key Flags
@@ -411,16 +411,16 @@ Every bet targets a fixed dollar amount (the "unit size"). The system calculates
 
 ```bash
 # Default $1 bets
-python scripts/kalshi_executor.py run --execute
+python scripts/kalshi/kalshi_executor.py run --execute
 
 # $5 bets
-python scripts/kalshi_executor.py run --execute --unit-size 5
+python scripts/kalshi/kalshi_executor.py run --execute --unit-size 5
 
 # $0.50 bets (micro-sizing)
-python scripts/kalshi_executor.py run --execute --unit-size 0.50
+python scripts/kalshi/kalshi_executor.py run --execute --unit-size 0.50
 
 # $3 bets on NCAA only
-python scripts/kalshi_executor.py run --filter ncaamb --execute --unit-size 3
+python scripts/kalshi/kalshi_executor.py run --filter ncaamb --execute --unit-size 3
 ```
 
 The unit size is also configurable globally via `UNIT_SIZE` in `.env`. The `--unit-size` flag overrides it per run.
@@ -458,7 +458,7 @@ SKIP KXNHLGAME-...: REJECTED: confidence_too_low (low < medium)
 ### Portfolio Dashboard
 
 ```bash
-python scripts/kalshi_executor.py status
+python scripts/kalshi/kalshi_executor.py status
 ```
 
 Shows:
@@ -475,19 +475,19 @@ For more granular checks:
 
 ```bash
 # Account balance
-python scripts/kalshi_client.py balance
+python scripts/kalshi/kalshi_client.py balance
 
 # All open positions
-python scripts/kalshi_client.py positions
+python scripts/kalshi/kalshi_client.py positions
 
 # Resting (unfilled) orders
-python scripts/kalshi_client.py orders
+python scripts/kalshi/kalshi_client.py orders
 
 # Browse open markets
-python scripts/kalshi_client.py markets --limit 50 --status open
+python scripts/kalshi/kalshi_client.py markets --limit 50 --status open
 
 # Look up a specific market
-python scripts/kalshi_client.py market --ticker KXNBAGAME-26MAR22LALBOS-LAL
+python scripts/kalshi/kalshi_client.py market --ticker KXNBAGAME-26MAR22LALBOS-LAL
 ```
 
 ---
@@ -499,7 +499,7 @@ python scripts/kalshi_client.py market --ticker KXNBAGAME-26MAR22LALBOS-LAL
 After games/events complete, run the settler to pull results from Kalshi and update your local trade log:
 
 ```bash
-python scripts/kalshi_settler.py settle
+python scripts/kalshi/kalshi_settler.py settle
 ```
 
 This checks each open trade against the Kalshi API, determines if the market has resolved, and updates `net_pnl` and `closed_at` in `data/history/kalshi_trades.json`.
@@ -508,10 +508,10 @@ This checks each open trade against the Kalshi API, determines if the market has
 
 ```bash
 # Summary stats
-python scripts/kalshi_settler.py report
+python scripts/kalshi/kalshi_settler.py report
 
 # Per-trade breakdown
-python scripts/kalshi_settler.py report --detail
+python scripts/kalshi/kalshi_settler.py report --detail
 ```
 
 **Report includes:**
@@ -572,7 +572,7 @@ Only opportunities with score >= 6.0 are eligible for execution.
 ### Deep Dive on a Single Market
 
 ```bash
-python scripts/edge_detector.py detail KXNBAGAME-26MAR22LALBOS-LAL
+python scripts/kalshi/edge_detector.py detail KXNBAGAME-26MAR22LALBOS-LAL
 ```
 
 Shows the full breakdown: matched sportsbook odds, de-vigged probabilities, calculated fair value, and edge.
@@ -587,21 +587,21 @@ For more selective betting (fewer bets, higher conviction):
 
 ```bash
 # Only bet when edge >= 5%
-python scripts/kalshi_executor.py run --execute --min-edge 0.05
+python scripts/kalshi/kalshi_executor.py run --execute --min-edge 0.05
 
 # Only bet when edge >= 10% (very selective)
-python scripts/kalshi_executor.py run --execute --min-edge 0.10
+python scripts/kalshi/kalshi_executor.py run --execute --min-edge 0.10
 ```
 
 ### Combining Filters
 
 ```bash
 # NBA spreads only, 5% minimum edge, $3 bets
-python scripts/edge_detector.py scan --filter nba --category spread --min-edge 0.05
+python scripts/kalshi/edge_detector.py scan --filter nba --category spread --min-edge 0.05
 
 # Then execute from that saved scan
-python scripts/edge_detector.py scan --filter nba --category spread --min-edge 0.05 --save
-python scripts/kalshi_executor.py run --from-file --execute --unit-size 3
+python scripts/kalshi/edge_detector.py scan --filter nba --category spread --min-edge 0.05 --save
+python scripts/kalshi/kalshi_executor.py run --from-file --execute --unit-size 3
 ```
 
 ### Scanning Without Betting
@@ -610,13 +610,13 @@ Use the edge detector standalone to research without risking anything:
 
 ```bash
 # What does the system see right now?
-python scripts/edge_detector.py scan
+python scripts/kalshi/edge_detector.py scan
 
 # Save to file for later review
-python scripts/edge_detector.py scan --save
+python scripts/kalshi/edge_detector.py scan --save
 
 # Top 50 opportunities across all sports
-python scripts/edge_detector.py scan --top 50
+python scripts/kalshi/edge_detector.py scan --top 50
 ```
 
 ---
@@ -659,44 +659,44 @@ LOG_LEVEL=INFO                  # DEBUG for verbose output
 
 ```bash
 # 1. Check your balance and positions
-python scripts/kalshi_executor.py status
+python scripts/kalshi/kalshi_executor.py status
 
 # 2. Settle any overnight results
-python scripts/kalshi_settler.py settle
-python scripts/kalshi_settler.py report
+python scripts/kalshi/kalshi_settler.py settle
+python scripts/kalshi/kalshi_settler.py report
 
 # 3. Scan today's NCAA games
-python scripts/kalshi_executor.py run --filter ncaamb
+python scripts/kalshi/kalshi_executor.py run --filter ncaamb
 
 # 4. Looks good -- execute top 5
-python scripts/kalshi_executor.py run --filter ncaamb --execute --max-bets 5
+python scripts/kalshi/kalshi_executor.py run --filter ncaamb --execute --max-bets 5
 ```
 
 ### Evening: NBA Night
 
 ```bash
 # 1. Quick status check
-python scripts/kalshi_executor.py status
+python scripts/kalshi/kalshi_executor.py status
 
 # 2. Scan NBA games
-python scripts/kalshi_executor.py run --filter nba
+python scripts/kalshi/kalshi_executor.py run --filter nba
 
 # 3. Raise the bar -- only high conviction bets
-python scripts/kalshi_executor.py run --filter nba --execute --min-edge 0.05 --max-bets 3
+python scripts/kalshi/kalshi_executor.py run --filter nba --execute --min-edge 0.05 --max-bets 3
 
 # 4. After games finish, settle
-python scripts/kalshi_settler.py settle
-python scripts/kalshi_settler.py report --detail
+python scripts/kalshi/kalshi_settler.py settle
+python scripts/kalshi/kalshi_settler.py report --detail
 ```
 
 ### Multi-Sport Scan
 
 ```bash
 # Scan everything, see what's out there
-python scripts/edge_detector.py scan --top 30
+python scripts/kalshi/edge_detector.py scan --top 30
 
 # Or scan each sport individually
-python scripts/edge_detector.py scan --filter nba
-python scripts/edge_detector.py scan --filter nhl
-python scripts/edge_detector.py scan --filter ncaamb
+python scripts/kalshi/edge_detector.py scan --filter nba
+python scripts/kalshi/edge_detector.py scan --filter nhl
+python scripts/kalshi/edge_detector.py scan --filter ncaamb
 ```
