@@ -29,21 +29,33 @@ Bet on season-long outcomes: championship winners, conference winners, MVP award
 # Scan all futures markets with edge detection
 python scripts/kalshi/futures_edge.py scan
 
-# Scan by sport
+# NFL -- Super Bowl winner + MVP
+python scripts/kalshi/futures_edge.py scan --filter nfl-futures
+python scripts/kalshi/edge_detector.py scan --filter superbowl
+
+# NBA -- Conference winners
 python scripts/kalshi/futures_edge.py scan --filter nba-futures
+
+# NHL -- Conference winners
 python scripts/kalshi/futures_edge.py scan --filter nhl-futures
+
+# MLB -- Playoff qualifiers / World Series
 python scripts/kalshi/futures_edge.py scan --filter mlb-futures
+
+# Golf -- PGA tournament winners
 python scripts/kalshi/futures_edge.py scan --filter golf-futures
 
-# Also works through the main edge detector (routes automatically)
-python scripts/kalshi/edge_detector.py scan --filter nba-futures
+# All futures through the main edge detector (routes automatically)
 python scripts/kalshi/edge_detector.py scan --filter futures
 
 # Execute through the pipeline
+python scripts/kalshi/kalshi_executor.py run --filter nfl-futures --execute --max-bets 5
 python scripts/kalshi/kalshi_executor.py run --filter nba-futures --execute --max-bets 5
 
-# Browse award markets (no automated edge, but viewable)
-python scripts/kalshi/kalshi_client.py markets --limit 50 --status open
+# Browse award/trophy markets (no automated edge, but viewable)
+python scripts/kalshi/edge_detector.py scan --filter KXNFLMVP
+python scripts/kalshi/edge_detector.py scan --filter KXNBAMVP
+python scripts/kalshi/edge_detector.py scan --filter KXNHLHART
 ```
 
 ---
