@@ -384,6 +384,7 @@ python scripts/kalshi/kalshi_executor.py run --from-file --execute --max-bets 3
 | `--execute` | off | Actually place orders (without this, preview only) |
 | `--max-bets N` | 5 | Maximum number of bets per run |
 | `--filter SPORT` | none | Filter by sport shortcut or ticker prefix |
+| `--prediction` | off | Use prediction scanner (crypto, weather, S&P 500) instead of sports |
 | `--min-edge X` | 0.03 | Minimum edge threshold (e.g., 0.05 = 5%) |
 | `--unit-size X` | $1.00 | Dollar amount per bet |
 | `--from-file` | off | Use saved watchlist instead of fresh scan |
@@ -535,6 +536,16 @@ python scripts/kalshi/kalshi_settler.py report --detail
 
 Kalshi settles automatically once the outcome is confirmed. Your local log only updates when you run `settle`.
 
+### Reconciliation
+
+Compare your local trade log against what Kalshi's API shows:
+
+```bash
+python scripts/kalshi/kalshi_settler.py reconcile
+```
+
+Flags positions that exist locally but not on Kalshi (or vice versa), and quantity mismatches. Useful if you've placed manual bets on the Kalshi website.
+
 ---
 
 ## Edge Detection Explained
@@ -628,7 +639,7 @@ All configurable in `.env`:
 ```env
 # --- Connection ---
 KALSHI_API_KEY=<key-id>
-KALSHI_PRIVATE_KEY_PATH=\keys\live\kalshi_private.key
+KALSHI_PRIVATE_KEY_PATH=keys/live/kalshi_private.key
 KALSHI_BASE_URL=https://api.elections.kalshi.com/trade-api/v2
 
 # --- External Data ---

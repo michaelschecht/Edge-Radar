@@ -40,10 +40,9 @@ Place frequent, small-edge wagers on Kalshi prediction markets to generate consi
 
 ### Environment
 
-- Demo API: `demo-api.kalshi.co` -- real market data, demo funds
-- Demo keys: `keys/demo/`
-- Prod keys: `keys/live/` (not active)
-- `.env` points to demo
+- Live API: `api.elections.kalshi.com` -- real money trading
+- Keys: `keys/live/`
+- `DRY_RUN=false`, `MAX_BET_SIZE_PREDICTION=5`
 - `ODDS_API_KEY` configured (The Odds API, free tier, 500 req/month)
 
 ---

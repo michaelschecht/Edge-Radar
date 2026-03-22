@@ -1,15 +1,15 @@
 # Kalshi API Reference
 
-**Last updated:** 2026-03-18
+**Last updated:** 2026-03-22
 
 ---
 
 ## Environments
 
-| Environment | API Base URL | Web UI |
-|---|---|---|
-| Demo | `https://demo-api.kalshi.co/trade-api/v2` | https://demo.kalshi.co/ |
-| Production | `https://api.elections.kalshi.com/trade-api/v2` | https://kalshi.com/ |
+| Environment | API Base URL | Web UI | Status |
+|---|---|---|---|
+| **Production** | `https://api.elections.kalshi.com/trade-api/v2` | https://kalshi.com/ | **Active** |
+| Demo | `https://demo-api.kalshi.co/trade-api/v2` | https://demo.kalshi.co/ | Archived |
 
 Credentials are **not shared** between environments. Separate accounts, separate keys.
 
@@ -19,18 +19,16 @@ Credentials are **not shared** between environments. Separate accounts, separate
 
 **Location:**
 ```
-keys/demo/kalshi_private.key     # Demo RSA private key
 keys/live/kalshi_private.key     # Production RSA private key
 ```
 
-**`.env` config (currently demo):**
+**`.env` config (production):**
 ```env
 KALSHI_API_KEY=<key-id-uuid>
-KALSHI_PRIVATE_KEY_PATH=\keys\demo\kalshi_private.key
-KALSHI_BASE_URL=https://demo-api.kalshi.co/trade-api/v2
+KALSHI_PRIVATE_KEY_PATH=keys/live/kalshi_private.key
+KALSHI_BASE_URL=https://api.elections.kalshi.com/trade-api/v2
+DRY_RUN=false
 ```
-
-**To switch to production:** Change `KALSHI_PRIVATE_KEY_PATH` to `\keys\live\...`, update `KALSHI_API_KEY` and `KALSHI_BASE_URL`, and set `DRY_RUN=false`.
 
 ---
 
