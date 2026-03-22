@@ -42,7 +42,8 @@ from spx_edge import detect_edge_spx, fetch_spx_data
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
-log = logging.getLogger("prediction_scanner")
+from logging_setup import setup_logging
+log = setup_logging("prediction_scanner")
 console = Console()
 
 MIN_EDGE = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
@@ -297,7 +298,6 @@ def main():
                         help="Save results to watchlist")
 
     args = parser.parse_args()
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
     client = KalshiClient()
 

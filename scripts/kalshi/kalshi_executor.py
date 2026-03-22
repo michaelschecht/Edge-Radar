@@ -45,7 +45,8 @@ from edge_detector import scan_all_markets
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
-log = logging.getLogger("kalshi_executor")
+from logging_setup import setup_logging
+log = setup_logging("kalshi_executor")
 console = Console()
 
 TRADE_LOG_PATH = paths.TRADE_LOG_PATH
@@ -479,7 +480,6 @@ def main():
     sub.add_parser("status", help="Show portfolio status")
 
     args = parser.parse_args()
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
     # Client for execution and portfolio queries
     client = KalshiClient()

@@ -349,6 +349,85 @@ def generate_report(detail: bool = False):
         console.print(table)
 
 
+# ── Reconciliation ───────────────────────────────────────────────────────────
+
+def reconcile_positions(client: KalshiClient):
+    """
+    Compare local trade log against Kalshi API positions.
+    Flags discrepancies: trades in API but not local, or vice versa.
+    """
+    rprint("\n[bold]Reconciling local trade log vs Kalshi API...[/bold]")
+
+    trade_log = load_trade_log()
+    unsettled = [t for t in trade_log if not t.get("closed_at") and t.get("status") == "executed"]
+
+    # Local: unique tickers with open positions
+    local_tickers = {}
+    for t in unsettled:
+        ticker = t.get("ticker", "")
+        if ticker not in local_tickers:
+            local_tickers[ticker] = {"contracts": 0, "trades": []}
+        local_tickers[ticker]["contracts"] += t.get("contracts", 0)
+        local_tickers[ticker]["trades"].append(t.get("trade_id", "?")[:8])
+
+    # API: actual positions on Kalshi
+    api_positions = client.get_positions(limit=200, count_filter="position")
+    api_tickers = {}
+    for p in api_positions.get("market_positions", []):
+        ticker = p.get("ticker", "")
+        position = int(float(p.get("position_fp", "0")))
+        if position != 0:
+            api_tickers[ticker] = {
+                "position": position,
+                "exposure": p.get("market_exposure_dollars", "0"),
+            }
+
+    # Compare
+    only_local = set(local_tickers.keys()) - set(api_tickers.keys())
+    only_api = set(api_tickers.keys()) - set(local_tickers.keys())
+    in_both = set(local_tickers.keys()) & set(api_tickers.keys())
+
+    rprint(f"  Local unsettled: {len(local_tickers)} tickers")
+    rprint(f"  Kalshi API:      {len(api_tickers)} positions")
+
+    issues = False
+
+    if only_local:
+        issues = True
+        rprint(f"\n  [yellow]In local log but NOT on Kalshi ({len(only_local)}):[/yellow]")
+        rprint("  [dim](May have been settled, cancelled, or sold on Kalshi directly)[/dim]")
+        for ticker in sorted(only_local):
+            info = local_tickers[ticker]
+            rprint(f"    {ticker}  contracts={info['contracts']}")
+
+    if only_api:
+        issues = True
+        rprint(f"\n  [yellow]On Kalshi but NOT in local log ({len(only_api)}):[/yellow]")
+        rprint("  [dim](May have been placed manually on Kalshi website)[/dim]")
+        for ticker in sorted(only_api):
+            info = api_tickers[ticker]
+            rprint(f"    {ticker}  position={info['position']}  exposure=${info['exposure']}")
+
+    if in_both:
+        mismatches = []
+        for ticker in in_both:
+            local_qty = local_tickers[ticker]["contracts"]
+            api_qty = api_tickers[ticker]["position"]
+            if local_qty != api_qty:
+                mismatches.append((ticker, local_qty, api_qty))
+
+        if mismatches:
+            issues = True
+            rprint(f"\n  [yellow]Quantity mismatches ({len(mismatches)}):[/yellow]")
+            for ticker, local_qty, api_qty in mismatches:
+                rprint(f"    {ticker}  local={local_qty}  kalshi={api_qty}")
+
+    if not issues:
+        rprint("\n  [green]All positions match.[/green]")
+    else:
+        rprint(f"\n  [yellow]Run 'settle' to resolve stale local entries.[/yellow]")
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -360,6 +439,8 @@ def main():
     report_p = sub.add_parser("report", help="Performance report")
     report_p.add_argument("--detail", action="store_true", help="Show per-trade breakdown")
 
+    sub.add_parser("reconcile", help="Compare local trade log vs Kalshi API positions")
+
     args = parser.parse_args()
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
@@ -369,6 +450,10 @@ def main():
 
     elif args.command == "report":
         generate_report(detail=args.detail)
+
+    elif args.command == "reconcile":
+        client = KalshiClient()
+        reconcile_positions(client)
 
 
 if __name__ == "__main__":
