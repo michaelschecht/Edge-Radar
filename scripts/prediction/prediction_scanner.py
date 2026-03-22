@@ -21,16 +21,17 @@ import logging
 import argparse
 from datetime import datetime, timezone
 from pathlib import Path
-from dataclasses import dataclass, asdict
+from dataclasses import asdict
+
+# Shared imports
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
+import paths  # noqa: F401 -- configures sys.path
+from opportunity import Opportunity
 
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
-
-# Add kalshi scripts to path for KalshiClient import
-_script_dir = Path(__file__).resolve().parent
-sys.path.insert(0, str(_script_dir.parent / "kalshi"))
 
 from kalshi_client import KalshiClient
 
@@ -45,27 +46,7 @@ log = logging.getLogger("prediction_scanner")
 console = Console()
 
 MIN_EDGE = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
-OPPORTUNITIES_PATH = DATA_DIR / "watchlists" / "prediction_opportunities.json"
-OPPORTUNITIES_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-
-# ── Opportunity dataclass (mirrors kalshi edge_detector) ─────────────────────
-
-@dataclass
-class Opportunity:
-    ticker: str
-    title: str
-    category: str
-    side: str
-    market_price: float
-    fair_value: float
-    edge: float
-    edge_source: str
-    confidence: str
-    liquidity_score: float
-    composite_score: float
-    details: dict
+OPPORTUNITIES_PATH = paths.PREDICTION_OPPORTUNITIES_PATH
 
 
 # ── Filter Shortcuts ─────────────────────────────────────────────────────────

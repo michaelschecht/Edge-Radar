@@ -13,11 +13,21 @@ Usage:
 """
 
 import os
+import sys
 import json
 import logging
 import argparse
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Shared imports
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
+import paths  # noqa: F401 -- configures sys.path
+from trade_log import (
+    load_trade_log, save_trade_log,
+    load_settlement_log, save_settlement_log,
+    get_today_pnl,
+)
 
 from dotenv import load_dotenv
 from rich.console import Console
@@ -30,37 +40,6 @@ from kalshi_client import KalshiClient
 load_dotenv()
 log = logging.getLogger("kalshi_settler")
 console = Console()
-
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
-TRADE_LOG_PATH = DATA_DIR / "history" / "kalshi_trades.json"
-SETTLEMENT_LOG_PATH = DATA_DIR / "history" / "kalshi_settlements.json"
-SETTLEMENT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-
-# ── Trade Log I/O ─────────────────────────────────────────────────────────────
-
-def load_trade_log() -> list:
-    if TRADE_LOG_PATH.exists():
-        with open(TRADE_LOG_PATH) as f:
-            return json.load(f)
-    return []
-
-
-def save_trade_log(trades: list):
-    with open(TRADE_LOG_PATH, "w") as f:
-        json.dump(trades, f, indent=2, default=str)
-
-
-def load_settlement_log() -> list:
-    if SETTLEMENT_LOG_PATH.exists():
-        with open(SETTLEMENT_LOG_PATH) as f:
-            return json.load(f)
-    return []
-
-
-def save_settlement_log(settlements: list):
-    with open(SETTLEMENT_LOG_PATH, "w") as f:
-        json.dump(settlements, f, indent=2, default=str)
 
 
 # ── Settlement Logic ──────────────────────────────────────────────────────────

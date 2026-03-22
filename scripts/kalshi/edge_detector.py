@@ -20,12 +20,18 @@ Requires: ODDS_API_KEY in .env for sports edge detection.
 
 import os
 import re
+import sys
 import json
 import logging
 import argparse
 from datetime import datetime, timezone
 from pathlib import Path
-from dataclasses import dataclass, asdict
+from dataclasses import asdict
+
+# Shared imports
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
+import paths  # noqa: F401 -- configures sys.path
+from opportunity import Opportunity
 
 import requests
 from dotenv import load_dotenv
@@ -44,27 +50,7 @@ ODDS_API_KEY = os.getenv("ODDS_API_KEY", "")
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
 MIN_EDGE = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
-OPPORTUNITIES_PATH = DATA_DIR / "watchlists" / "kalshi_opportunities.json"
-OPPORTUNITIES_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-
-# ── Data Classes ──────────────────────────────────────────────────────────────
-
-@dataclass
-class Opportunity:
-    ticker: str
-    title: str
-    category: str
-    side: str               # "yes" or "no"
-    market_price: float     # current ask we'd pay
-    fair_value: float       # our estimated probability
-    edge: float             # fair_value - market_price (for yes side)
-    edge_source: str        # how we estimated fair value
-    confidence: str         # low / medium / high
-    liquidity_score: float  # 0-10 based on spread + volume
-    composite_score: float  # weighted overall score
-    details: dict           # extra context (matched odds, etc.)
+OPPORTUNITIES_PATH = paths.SPORTS_OPPORTUNITIES_PATH
 
 
 # ── Market Categorization ────────────────────────────────────────────────────
