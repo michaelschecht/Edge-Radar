@@ -39,6 +39,13 @@ from kalshi_client import KalshiClient
 from crypto_edge import detect_edge_crypto, CRYPTO_PREFIX_MAP, fetch_crypto_price, fetch_crypto_history
 from weather_edge import detect_edge_weather, TICKER_CITY_MAP
 from spx_edge import detect_edge_spx, fetch_spx_data
+from mentions_edge import (
+    MENTION_PREFIXES, get_mention_type,
+    fetch_historical_counts, fetch_historical_mention_rate,
+    detect_edge_lastword, detect_edge_binary_mention,
+)
+from companies_edge import detect_edge_bankruptcy, fetch_bankruptcy_data
+from politics_edge import detect_edge_political_event, EVENT_BASE_RATES
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -65,6 +72,22 @@ FILTER_SHORTCUTS = {
     # S&P 500
     "spx":     ["KXINX"],
     "sp500":   ["KXINX"],
+    # TV Mentions
+    "mentions": list(MENTION_PREFIXES.keys()),
+    "lastword": ["KXLASTWORDCOUNT"],
+    "politicsmention": ["KXPOLITICSMENTION"],
+    "foxnews": ["KXFOXNEWSMENTION"],
+    "nbamention": ["KXNBAMENTION"],
+    # Companies
+    "companies": ["KXBANKRUPTCY", "KXIPO"],
+    "bankruptcy": ["KXBANKRUPTCY"],
+    "ipo":     ["KXIPO"],
+    # Politics / Tech Events
+    "politics": ["KXIMPEACH"],
+    "impeach": ["KXIMPEACH"],
+    "techscience": ["KXQUANTUM", "KXFUSION"],
+    "quantum": ["KXQUANTUM"],
+    "fusion":  ["KXFUSION"],
 }
 
 
@@ -76,6 +99,9 @@ def get_all_prediction_prefixes() -> list[str]:
     prefixes.update(CRYPTO_PREFIX_MAP.keys())
     prefixes.update(TICKER_CITY_MAP.keys())
     prefixes.add("KXINX")
+    prefixes.update(MENTION_PREFIXES.keys())
+    prefixes.update(["KXBANKRUPTCY", "KXIPO"])
+    prefixes.update(EVENT_BASE_RATES.keys())
     return sorted(prefixes)
 
 
@@ -89,6 +115,14 @@ def categorize_prediction(ticker: str) -> str:
             return "weather"
     if ticker.startswith("KXINX"):
         return "spx"
+    for prefix in MENTION_PREFIXES:
+        if ticker.startswith(prefix):
+            return "mentions"
+    if ticker.startswith("KXBANKRUPTCY") or ticker.startswith("KXIPO"):
+        return "companies"
+    for prefix in EVENT_BASE_RATES:
+        if ticker.startswith(prefix):
+            return "politics"
     return "other"
 
 
@@ -128,6 +162,9 @@ def scan_prediction_markets(
             "crypto": list(CRYPTO_PREFIX_MAP.keys()),
             "weather": list(TICKER_CITY_MAP.keys()),
             "spx": ["KXINX"],
+            "mentions": list(MENTION_PREFIXES.keys()),
+            "companies": ["KXBANKRUPTCY", "KXIPO"],
+            "politics": list(EVENT_BASE_RATES.keys()),
         }
         filter_prefixes = cat_map.get(category_filter, [])
         if not filter_prefixes:
@@ -229,6 +266,73 @@ def scan_prediction_markets(
         else:
             rprint("  [red]Failed to fetch S&P 500 data[/red]")
 
+    # ── TV Mentions ──
+    mention_markets = categorized.get("mentions", [])
+    if mention_markets:
+        rprint(f"\n[bold]Analyzing {len(mention_markets)} mention markets...[/bold]")
+
+        # Separate LASTWORDCOUNT (numeric) from binary mention markets
+        lastword_markets = [m for m in mention_markets if m["ticker"].startswith("KXLASTWORDCOUNT")]
+        binary_markets = [m for m in mention_markets if not m["ticker"].startswith("KXLASTWORDCOUNT")]
+
+        # LASTWORDCOUNT: fetch historical counts
+        if lastword_markets:
+            counts = fetch_historical_counts(client, "KXLASTWORDCOUNT")
+            rprint(f"  LASTWORDCOUNT: {len(counts)} historical episodes, mean={sum(counts)/len(counts):.0f}" if counts else "  LASTWORDCOUNT: no historical data")
+            for m in lastword_markets:
+                result = detect_edge_lastword(m, counts)
+                if result and result["edge"] >= min_edge:
+                    opportunities.append(Opportunity(**result))
+
+        # Binary mentions: fetch historical YES rate per series
+        for series_prefix in ["KXPOLITICSMENTION", "KXFOXNEWSMENTION", "KXNBAMENTION"]:
+            series_markets = [m for m in binary_markets if m["ticker"].startswith(series_prefix)]
+            if series_markets:
+                rate = fetch_historical_mention_rate(client, series_prefix)
+                if rate is not None:
+                    rprint(f"  {series_prefix}: historical YES rate = {rate:.0%}")
+                    for m in series_markets:
+                        result = detect_edge_binary_mention(m, rate)
+                        if result and result["edge"] >= min_edge:
+                            opportunities.append(Opportunity(**result))
+                else:
+                    rprint(f"  {series_prefix}: insufficient historical data")
+
+        rprint(f"  Mention opportunities: {sum(1 for o in opportunities if o.category == 'mentions')}")
+
+    # ── Companies ──
+    company_markets = categorized.get("companies", [])
+    if company_markets:
+        rprint(f"\n[bold]Analyzing {len(company_markets)} company markets...[/bold]")
+
+        bankruptcy_markets = [m for m in company_markets if m["ticker"].startswith("KXBANKRUPTCY")]
+        ipo_markets = [m for m in company_markets if m["ticker"].startswith("KXIPO")]
+
+        if bankruptcy_markets:
+            bk_data = fetch_bankruptcy_data()
+            if bk_data:
+                rprint(f"  Bankruptcy data: {bk_data.get('source', 'fred')}")
+                for m in bankruptcy_markets:
+                    result = detect_edge_bankruptcy(m, bk_data)
+                    if result and result["edge"] >= min_edge:
+                        opportunities.append(Opportunity(**result))
+
+        if ipo_markets:
+            rprint(f"  IPO markets: {len(ipo_markets)} (browse only, no automated edge)")
+
+        rprint(f"  Company opportunities: {sum(1 for o in opportunities if o.category == 'companies')}")
+
+    # ── Politics / Tech Events ──
+    politics_markets = categorized.get("politics", [])
+    if politics_markets:
+        rprint(f"\n[bold]Analyzing {len(politics_markets)} political/tech event markets...[/bold]")
+        for m in politics_markets:
+            result = detect_edge_political_event(m)
+            if result and result["edge"] >= min_edge:
+                opportunities.append(Opportunity(**result))
+
+        rprint(f"  Political/tech opportunities: {sum(1 for o in opportunities if o.category == 'politics')}")
+
     # Sort by composite score
     opportunities.sort(key=lambda o: o.composite_score, reverse=True)
     return opportunities[:top_n]
@@ -290,7 +394,7 @@ def main():
                         help="Minimum edge threshold")
     scan_p.add_argument("--filter", dest="ticker_filter",
                         help="Filter: crypto, btc, eth, weather, spx, or raw ticker prefix")
-    scan_p.add_argument("--category", choices=["crypto", "weather", "spx"],
+    scan_p.add_argument("--category", choices=["crypto", "weather", "spx", "mentions", "companies", "politics"],
                         help="Filter by category")
     scan_p.add_argument("--top", type=int, default=20,
                         help="Number of top opportunities")
