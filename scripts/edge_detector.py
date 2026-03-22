@@ -634,10 +634,38 @@ def detect_edge_spread_analysis(market: dict) -> Opportunity | None:
 
 # Named ticker prefix shortcuts for --filter
 FILTER_SHORTCUTS = {
+    # --- US Major Leagues ---
+    "nba":     ["KXNBAGAME", "KXNBASPREAD", "KXNBATOTAL", "KXNBABLK", "KXNBA3PT", "KXNBAREB", "KXNBAAST", "KXNBASTL", "KXNBAPTS", "KXNBAMVP", "KXNBAROY", "KXNBADPOY"],
+    "nhl":     ["KXNHLGAME", "KXNHLSPREAD", "KXNHLTOTAL", "KXNHLGOAL", "KXNHLPTS", "KXNHLAST", "KXNHLFIRSTGOAL", "KXNHLHART", "KXNHLNORRIS", "KXNHLCALDER"],
+    "mlb":     ["KXMLBGAME", "KXMLBPLAYOFFS"],
+    "nfl":     ["KXNFLGAME", "KXNFLSPREAD", "KXNFLTOTAL", "KXNFLDRAFT"],
+    # --- College Sports ---
     "ncaamb":  ["KXNCAAMBGAME", "KXNCAAMBSPREAD", "KXNCAAMBTOTAL", "KXNCAAMBMOP"],
-    "nba":     ["KXNBAGAME", "KXNBASPREAD", "KXNBATOTAL", "KXNBABLK"],
-    "nhl":     ["KXNHLGAME", "KXNHLSPREAD", "KXNHLTOTAL", "KXNHLGOAL", "KXNHLPTS", "KXNHLAST", "KXNHLFIRSTGOAL"],
-    "mlb":     ["KXMLBGAME"],
+    "ncaabb":  ["KXNCAABBGAME"],
+    "ncaawb":  ["KXNCAAWBGAME"],
+    "ncaafb":  ["KXNCAAFBGAME"],
+    # --- Soccer / Football ---
+    "mls":     ["KXMLSGAME", "KXMLSSPREAD", "KXMLSTOTAL"],
+    "ucl":     ["KXUCL"],
+    "epl":     ["KXEPL"],
+    "laliga":  ["KXLALIGA"],
+    "seriea":  ["KXSERIEA"],
+    "bundesliga": ["KXBUNDESLIGA"],
+    "ligue1":  ["KXLIGUE1"],
+    "soccer":  ["KXMLSGAME", "KXMLSSPREAD", "KXMLSTOTAL", "KXUCL", "KXEPL", "KXLALIGA", "KXSERIEA", "KXBUNDESLIGA", "KXLIGUE1"],
+    # --- Combat Sports ---
+    "ufc":     ["KXUFCFIGHT"],
+    "boxing":  ["KXBOXING"],
+    # --- Motorsports ---
+    "f1":      ["KXF1", "KXF1CONSTRUCTORS"],
+    "nascar":  ["KXNASCARRACE"],
+    # --- Golf ---
+    "pga":     ["KXPGATOUR"],
+    # --- Cricket ---
+    "ipl":     ["KXIPL"],
+    # --- Esports ---
+    "cs2":     ["KXCS2MAP", "KXCS2GAME"],
+    "lol":     ["KXLOLMAP", "KXLOLGAME"],
     "esports": ["KXCS2MAP", "KXCS2GAME", "KXLOLMAP", "KXLOLGAME"],
 }
 
