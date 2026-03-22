@@ -47,8 +47,10 @@ Finance_Agent_Pro/
 │   │   ├── USER_GUIDE.md            # Daily workflow & system usage
 │   │   ├── KALSHI_API_REFERENCE.md  # API endpoints & auth
 │   │   └── KALSHI_STRATEGY_PLAN.md  # Architecture & roadmap
-│   └── kalshi-prediction-betting/   # Non-sports prediction markets
-│       └── PREDICTION_MARKETS_GUIDE.md
+│   ├── kalshi-prediction-betting/   # Non-sports prediction markets
+│   │   └── PREDICTION_MARKETS_GUIDE.md
+│   └── kalshi-futures-betting/      # Championship & season-long futures
+│       └── FUTURES_GUIDE.md
 ├── mcp-config/
 │   ├── claude_desktop_config.json   # MCP server config (Windows/WSL)
 │   └── mcp-servers.md               # MCP server reference & setup
