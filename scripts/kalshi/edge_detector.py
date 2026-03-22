@@ -717,8 +717,23 @@ def scan_all_markets(
                     break
         rprint(f"  Found {len(all_markets)} markets for {', '.join(filter_prefixes)}")
     else:
-        all_markets = client.get_all_open_markets(max_pages=5)
-        rprint(f"  Found {len(all_markets)} open markets")
+        # No filter: scan all known sport prefixes that have edge detection support.
+        # A generic scan returns 5000+ multi-event markets that bury the actual sports.
+        all_sport_prefixes = set()
+        for prefix in KALSHI_TO_ODDS_SPORT:
+            all_sport_prefixes.add(prefix)
+        rprint("[bold]No filter -- scanning all supported sport prefixes...[/bold]")
+        all_markets = []
+        for prefix in sorted(all_sport_prefixes):
+            cursor = None
+            for _ in range(3):
+                resp = client.get_markets(limit=1000, status="open", series_ticker=prefix, cursor=cursor)
+                batch = resp.get("markets", [])
+                all_markets.extend(batch)
+                cursor = resp.get("cursor", "")
+                if not cursor:
+                    break
+        rprint(f"  Found {len(all_markets)} markets across {len(all_sport_prefixes)} sport prefixes")
 
     # Remove markets past their expected expiration (game already started/ended)
     now = datetime.now(timezone.utc).isoformat()
