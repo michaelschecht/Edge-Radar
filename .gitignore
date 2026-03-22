@@ -6,6 +6,7 @@
 keys/
 *.key
 *.pem
+.mcp.json
 
 # === Python ===
 __pycache__/
