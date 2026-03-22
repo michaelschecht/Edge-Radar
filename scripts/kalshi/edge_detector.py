@@ -656,6 +656,7 @@ FILTER_SHORTCUTS = {
     # --- Futures (routed to futures_edge.py) ---
     "futures":       ["__FUTURES__"],
     "nfl-futures":   ["__FUTURES__nfl-futures"],
+    "superbowl":     ["__FUTURES__nfl-futures"],
     "nba-futures":   ["__FUTURES__nba-futures"],
     "nhl-futures":   ["__FUTURES__nhl-futures"],
     "mlb-futures":   ["__FUTURES__mlb-futures"],

@@ -73,15 +73,15 @@ python scripts/kalshi/futures_edge.py scan --filter nfl-futures
 python scripts/kalshi/edge_detector.py scan --filter nfl-futures
 ```
 
-**Kalshi prefix:** `KXSUPERBOWL`
+**Kalshi prefix:** `KXSB` (~32 markets)
 
 **Edge detection:** Yes -- compares against The Odds API's `americanfootball_nfl_super_bowl_winner` outrights from DraftKings, FanDuel, BetMGM, and others.
 
-**Example market:** "Will the Chiefs win the Super Bowl?"
+**Example market:** "Will Washington win the 2027 Pro Football Championship?"
 
 **Settlement:** After the Super Bowl game.
 
-**Seasonality:** NFL futures are most active August through February. Markets open after the draft and stay liquid through the playoffs.
+**Seasonality:** NFL Super Bowl futures are available year-round. NFL MVP markets (~45) are also available under `KXNFLMVP`.
 
 ### NFL MVP
 
@@ -317,7 +317,7 @@ python scripts/kalshi/edge_detector.py scan --filter KXIPL
 | Filter | Sport | What It Scans | Odds API Source |
 |--------|-------|---------------|-----------------|
 | `futures` | All | All supported futures | Multiple |
-| `nfl-futures` | NFL | Super Bowl winner | `americanfootball_nfl_super_bowl_winner` |
+| `nfl-futures` | NFL | Super Bowl winner + NFL MVP | `americanfootball_nfl_super_bowl_winner` |
 | `nba-futures` | NBA | Eastern + Western Conference winners | `basketball_nba_championship_winner` |
 | `nhl-futures` | NHL | Eastern + Western Conference winners | `icehockey_nhl_championship_winner` |
 | `mlb-futures` | MLB | Playoff qualifiers | `baseball_mlb_world_series_winner` |
@@ -354,8 +354,8 @@ Use the raw ticker prefix with the edge detector or client:
 
 | Sport | Futures Type | Markets | Edge Detection |
 |-------|-------------|---------|----------------|
-| **NFL** | Super Bowl winner | Seasonal | Yes |
-| **NFL** | MVP | ~45 | Browse only |
+| **NFL** | Super Bowl winner (KXSB) | ~32 | Yes |
+| **NFL** | MVP (KXNFLMVP) | ~45 | Browse only |
 | **NBA** | Conference winners | ~30 | Yes |
 | **NBA** | MVP, ROY, DPOY | ~143 | Browse only |
 | **NHL** | Conference winners | ~32 | Yes |

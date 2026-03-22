@@ -63,9 +63,8 @@ FUTURES_MAP = {
     "KXNCAAMBMOP":     ("basketball_ncaab_championship_winner", "outrights"),
     # Golf
     "KXPGATOUR":       ("golf_pga_championship_winner", "outrights"),
-    # Note: NFL Super Bowl (KXSUPERBOWL/KXNFLMVP) and FIFA World Cup
-    # are mapped but may not have active Kalshi markets outside their season.
-    "KXSUPERBOWL":     ("americanfootball_nfl_super_bowl_winner", "outrights"),
+    # NFL Super Bowl
+    "KXSB":            ("americanfootball_nfl_super_bowl_winner", "outrights"),
     # Note: European soccer outrights (EPL, La Liga, etc.) and UCL
     # are NOT available on The Odds API free tier.
 }
@@ -73,7 +72,7 @@ FUTURES_MAP = {
 # Filter shortcuts for CLI
 FUTURES_FILTER_SHORTCUTS = {
     "futures":       list(FUTURES_MAP.keys()),
-    "nfl-futures":   ["KXSUPERBOWL"],
+    "nfl-futures":   ["KXSB", "KXNFLMVP"],
     "nba-futures":   ["KXNBAEAST", "KXNBAWEST"],
     "nhl-futures":   ["KXNHLEAST", "KXNHLWEST"],
     "mlb-futures":   ["KXMLBPLAYOFFS"],
