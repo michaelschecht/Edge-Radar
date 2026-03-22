@@ -5,14 +5,21 @@
 
 ## 🎯 Project Purpose
 
-FinAgent is a multi-agent financial intelligence system capable of **taking real actions** across:
-- **Prediction markets** (Polymarket, Kalshi, Manifold)
-- **Sports & prop betting markets** (FanDuel, DraftKings, BetMGM via API where available)
-- **Stock & options markets** (Alpaca, Interactive Brokers, Tradier)
-- **DFS contests** (FanDuel DFS, DraftKings DFS)
-- **Crypto & DeFi markets** (Coinbase Advanced, Binance)
+FinAgent is a multi-agent financial intelligence system for prediction markets and sports betting on **Kalshi**.
 
 The system emphasizes **research-first, execute-second** discipline. No action is taken without a documented rationale, risk check, and position-size calculation.
+
+### Currently Implemented (Live)
+- **Kalshi Sports Betting** — NBA, NHL, MLB, NFL, NCAA, MLS, soccer, UFC, boxing, F1, NASCAR, PGA, IPL, esports (27 sport filters). Edge detection via sportsbook odds cross-referencing (The Odds API).
+- **Kalshi Prediction Markets** — Crypto (BTC, ETH, XRP, DOGE, SOL), weather (13 US cities), S&P 500. Edge detection via CoinGecko, NWS forecasts, Yahoo Finance + VIX.
+- **Unified Execution Pipeline** — scan, risk-check, size, and execute through a single executor with `--prediction` flag for prediction markets.
+
+### Planned (Not Yet Implemented)
+- Polymarket, Manifold prediction markets
+- Alpaca stocks/options trading
+- Coinbase/Binance crypto trading
+- FanDuel/DraftKings DFS + sportsbook APIs
+- Fed rate / CPI / GDP prediction market edge detection
 
 ---
 

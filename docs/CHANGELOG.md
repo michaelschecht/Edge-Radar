@@ -43,10 +43,25 @@
 - Updated all cross-references across CLAUDE.md, agents, skills, and docs
 - Removed local filesystem paths from all committed files
 
+### Architecture Optimization
+- **`scripts/shared/opportunity.py`** -- single Opportunity dataclass (was duplicated in edge_detector + prediction_scanner)
+- **`scripts/shared/trade_log.py`** -- centralized trade log I/O (was duplicated in executor, settler, edge_detector)
+- **`scripts/shared/paths.py`** -- standardized path setup replacing ad-hoc sys.path hacks
+- **`scripts/shared/config.py`** -- centralized config: risk limits, scoring weights, model params, all loaded from .env
+- **`scripts/shared/logging_setup.py`** -- dual logging to console (INFO+) and daily log file (DEBUG+) in `logs/`
+- **`--prediction` flag on executor** -- prediction scanner now feeds directly into the execution pipeline
+- **`reconcile` command on settler** -- compares local trade log vs Kalshi API positions, flags discrepancies
+- **CLAUDE.md** updated to reflect actual implementation status vs planned features
+- **`.env.example`** updated with all actually-used variables
+
+### New Skills
+- `market-mechanics-betting` -- betting theory, Kelly criterion, scoring rules
+- `polymarket` -- API reference, trading guides, getting started docs
+
 ### Documentation
 - `docs/kalshi-sports-betting/BETTING_GUIDE.md` -- comprehensive sport-by-sport guide with all 27 filters
 - `docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md` -- crypto, weather, S&P 500, economics, politics
-- Updated `CLAUDE.md` project structure tree
+- Updated all docs to reflect live trading (removed demo references), new script paths, and new commands
 
 ---
 

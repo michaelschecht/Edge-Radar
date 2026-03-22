@@ -29,22 +29,27 @@ from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import dataclass, asdict
 
+# Shared imports
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
+import paths  # noqa: F401 -- configures sys.path
+from opportunity import Opportunity
+from trade_log import load_trade_log, save_trade_log, get_today_pnl
+
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
 
 from kalshi_client import KalshiClient, KalshiAPIError, make_prod_client
-from edge_detector import scan_all_markets, Opportunity, OPPORTUNITIES_PATH
+from edge_detector import scan_all_markets
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
-log = logging.getLogger("kalshi_executor")
+from logging_setup import setup_logging
+log = setup_logging("kalshi_executor")
 console = Console()
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
-TRADE_LOG_PATH = DATA_DIR / "history" / "kalshi_trades.json"
-TRADE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+TRADE_LOG_PATH = paths.TRADE_LOG_PATH
 
 # ── Risk Parameters ───────────────────────────────────────────────────────────
 
@@ -155,26 +160,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
 
 
 # ── Trade Logging ─────────────────────────────────────────────────────────────
-
-def load_trade_log() -> list:
-    if TRADE_LOG_PATH.exists():
-        with open(TRADE_LOG_PATH) as f:
-            return json.load(f)
-    return []
-
-
-def save_trade_log(trades: list):
-    with open(TRADE_LOG_PATH, "w") as f:
-        json.dump(trades, f, indent=2, default=str)
-
-
-def get_today_pnl(trades: list) -> float:
-    """Calculate today's realized P&L from trade log."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return sum(
-        t.get("net_pnl", 0) for t in trades
-        if (t.get("closed_at") or "").startswith(today)
-    )
+# load_trade_log, save_trade_log, get_today_pnl imported from scripts.shared.trade_log
 
 
 def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
@@ -219,11 +205,17 @@ def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
 
 # ── Execution Pipeline ────────────────────────────────────────────────────────
 
-def load_opportunities_from_file() -> list[Opportunity]:
-    """Load opportunities from the saved watchlist file."""
-    if not OPPORTUNITIES_PATH.exists():
+def load_opportunities_from_file(prediction: bool = False) -> list[Opportunity]:
+    """Load opportunities from saved watchlist file(s).
+
+    Args:
+        prediction: If True, load prediction market opportunities.
+                    If False, load sports opportunities.
+    """
+    file_path = paths.PREDICTION_OPPORTUNITIES_PATH if prediction else paths.SPORTS_OPPORTUNITIES_PATH
+    if not file_path.exists():
         return []
-    with open(OPPORTUNITIES_PATH) as f:
+    with open(file_path) as f:
         data = json.load(f)
     return [
         Opportunity(**{k: v for k, v in o.items()})
@@ -472,8 +464,10 @@ def main():
                        help="Actually place orders (default: preview only)")
     run_p.add_argument("--from-file", action="store_true",
                        help="Use saved watchlist instead of fresh scan")
+    run_p.add_argument("--prediction", action="store_true",
+                       help="Use prediction market scanner (crypto, weather, S&P 500) instead of sports")
     run_p.add_argument("--filter", dest="ticker_filter",
-                       help="Filter by sport: ncaamb, nba, nhl, mlb, esports, or raw ticker prefix")
+                       help="Filter: ncaamb, nba, nhl, ... (sports) or crypto, btc, weather, spx (prediction)")
     run_p.add_argument("--min-edge", type=float, default=MIN_EDGE_THRESHOLD,
                        help="Minimum edge threshold")
     run_p.add_argument("--unit-size", type=float, default=UNIT_SIZE,
@@ -486,30 +480,43 @@ def main():
     sub.add_parser("status", help="Show portfolio status")
 
     args = parser.parse_args()
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
-    # Demo client for execution and portfolio queries
-    demo_client = KalshiClient()
+    # Client for execution and portfolio queries
+    client = KalshiClient()
 
     # Production client for market data (if configured)
     prod_client = make_prod_client()
     if prod_client:
-        rprint("[bold]Using PRODUCTION market data + DEMO execution[/bold]")
+        rprint("[bold]Using PRODUCTION market data for scanning[/bold]")
         scan_client = prod_client
     else:
-        scan_client = demo_client
+        scan_client = client
 
     if args.command == "status":
-        show_status(demo_client)
+        show_status(client)
 
     elif args.command == "run":
         # Get opportunities
         if args.from_file:
-            rprint("[bold]Loading opportunities from file...[/bold]")
-            opportunities = load_opportunities_from_file()
-            rprint(f"  Loaded {len(opportunities)} from {OPPORTUNITIES_PATH}")
+            rprint(f"[bold]Loading {'prediction' if args.prediction else 'sports'} opportunities from file...[/bold]")
+            opportunities = load_opportunities_from_file(prediction=args.prediction)
+            src = paths.PREDICTION_OPPORTUNITIES_PATH if args.prediction else paths.SPORTS_OPPORTUNITIES_PATH
+            rprint(f"  Loaded {len(opportunities)} from {src}")
+
+        elif args.prediction:
+            # Use prediction market scanner
+            rprint("[bold]Running prediction market scan...[/bold]")
+            from prediction_scanner import scan_prediction_markets
+            opportunities = scan_prediction_markets(
+                scan_client,
+                min_edge=args.min_edge,
+                ticker_filter=args.ticker_filter,
+                top_n=args.top,
+            )
+
         else:
-            rprint("[bold]Running fresh market scan...[/bold]")
+            # Use sports edge detector
+            rprint("[bold]Running fresh sports market scan...[/bold]")
             opportunities = scan_all_markets(
                 scan_client,
                 min_edge=args.min_edge,
@@ -522,7 +529,7 @@ def main():
             return
 
         execute_pipeline(
-            client=demo_client,
+            client=client,
             opportunities=opportunities,
             execute=args.execute,
             max_bets=args.max_bets,

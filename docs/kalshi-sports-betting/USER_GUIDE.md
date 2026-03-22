@@ -26,14 +26,15 @@ python scripts/kalshi/kalshi_settler.py report
 Before first run, verify these are in place:
 
 1. **Python virtual environment** -- activate with `.venv\Scripts\activate` (Windows)
-2. **`.env` file** -- must contain:
+2. **`.env` file** -- must contain (see `.env.example` for full template):
    ```env
    KALSHI_API_KEY=<your-key-id>
-   KALSHI_PRIVATE_KEY_PATH=\keys\demo\kalshi_private.key
-   KALSHI_BASE_URL=https://demo-api.kalshi.co/trade-api/v2
+   KALSHI_PRIVATE_KEY_PATH=keys/live/kalshi_private.key
+   KALSHI_BASE_URL=https://api.elections.kalshi.com/trade-api/v2
    ODDS_API_KEY=<your-odds-api-key>
+   DRY_RUN=false
    ```
-3. **API keys** -- RSA private keys in `keys/demo/` and `keys/live/`
+3. **API keys** -- RSA private key in `keys/live/`
 4. **Dependencies** -- `requests`, `cryptography`, `python-dotenv`, `rich`
 
 ---
@@ -294,23 +295,23 @@ All configurable parameters are in `.env`:
 ```env
 # --- Kalshi Connection ---
 KALSHI_API_KEY=<key-id>
-KALSHI_PRIVATE_KEY_PATH=\keys\demo\kalshi_private.key
-KALSHI_BASE_URL=https://demo-api.kalshi.co/trade-api/v2
+KALSHI_PRIVATE_KEY_PATH=keys/live/kalshi_private.key
+KALSHI_BASE_URL=https://api.elections.kalshi.com/trade-api/v2
 
 # --- External Data ---
 ODDS_API_KEY=<odds-api-key>
 
 # --- Risk Limits ---
-UNIT_SIZE=1.00                 # Fixed dollar amount per bet
-MAX_BET_SIZE_PREDICTION=100     # Max dollars per position
-MAX_DAILY_LOSS=250              # Hard stop for the day
-MAX_OPEN_POSITIONS=10           # Max concurrent positions
-MIN_EDGE_THRESHOLD=0.03        # 3% minimum edge
-MIN_COMPOSITE_SCORE=6.0        # Minimum opportunity score
-MIN_CONFIDENCE=medium          # low, medium, or high
+UNIT_SIZE=1.00                      # Fixed dollar amount per bet
+MAX_BET_SIZE_PREDICTION=5           # Hard cap per single bet
+MAX_DAILY_LOSS=250                  # Hard stop for the day
+MAX_OPEN_POSITIONS=10               # Max concurrent positions
+MIN_EDGE_THRESHOLD=0.03             # 3% minimum edge
+MIN_COMPOSITE_SCORE=6.0             # Minimum opportunity score
+MIN_CONFIDENCE=medium               # low, medium, or high
 
 # --- System ---
-DRY_RUN=true                   # Blocks live (non-demo) orders
+DRY_RUN=false                       # Set to true to block live orders
 LOG_LEVEL=INFO
 ```
 
@@ -352,20 +353,16 @@ docs/
 
 ---
 
-## Switching to Production
+## Production Status
 
-When ready to trade with real money:
+The system is configured for **live trading** on Kalshi's production API.
 
-1. Verify demo results meet go-live criteria (500+ bets, Sharpe > 0.5, edge realization > 75%)
-2. Update `.env`:
-   ```env
-   KALSHI_API_KEY=<live-key-id>
-   KALSHI_PRIVATE_KEY_PATH=\keys\live\kalshi_private.key
-   KALSHI_BASE_URL=https://api.elections.kalshi.com/trade-api/v2
-   DRY_RUN=false
-   ```
-3. Start with `--max-bets 1` and small Kelly fraction
-4. Monitor for a week before scaling
+Current risk settings:
+- `MAX_BET_SIZE_PREDICTION=5` (max $5 per bet)
+- `UNIT_SIZE=1.00` (default $1 per bet)
+- `DRY_RUN=false`
+
+To revert to dry-run mode, set `DRY_RUN=true` in `.env`.
 
 ---
 
