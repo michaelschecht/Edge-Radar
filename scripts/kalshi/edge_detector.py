@@ -653,6 +653,14 @@ FILTER_SHORTCUTS = {
     "cs2":     ["KXCS2MAP", "KXCS2GAME"],
     "lol":     ["KXLOLMAP", "KXLOLGAME"],
     "esports": ["KXCS2MAP", "KXCS2GAME", "KXLOLMAP", "KXLOLGAME"],
+    # --- Futures (routed to futures_edge.py) ---
+    "futures":       ["__FUTURES__"],
+    "nfl-futures":   ["__FUTURES__nfl-futures"],
+    "nba-futures":   ["__FUTURES__nba-futures"],
+    "nhl-futures":   ["__FUTURES__nhl-futures"],
+    "mlb-futures":   ["__FUTURES__mlb-futures"],
+    "ncaab-futures": ["__FUTURES__ncaab-futures"],
+    "golf-futures":  ["__FUTURES__golf-futures"],
 }
 
 
@@ -676,6 +684,14 @@ def scan_all_markets(
     filter_prefixes = None
     if ticker_filter:
         shortcut = ticker_filter.lower()
+
+        # Route futures filters to the dedicated futures scanner
+        if shortcut in FILTER_SHORTCUTS and FILTER_SHORTCUTS[shortcut][0].startswith("__FUTURES__"):
+            from futures_edge import scan_futures_markets
+            futures_filter = shortcut if shortcut != "futures" else None
+            return scan_futures_markets(client, min_edge=min_edge,
+                                        ticker_filter=futures_filter, top_n=top_n)
+
         if shortcut in FILTER_SHORTCUTS:
             filter_prefixes = FILTER_SHORTCUTS[shortcut]
             rprint(f"[bold]Filter: {shortcut} -> {', '.join(filter_prefixes)}[/bold]")
