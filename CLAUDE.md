@@ -19,16 +19,29 @@ The system emphasizes **research-first, execute-second** discipline. No action i
 ## 🗂️ Project Structure
 
 ```
-financial-agent-project/
-├── CLAUDE.md                    # This file — master instructions
-├── .env                         # API keys (NEVER commit)
-├── .env.example                 # Template for required env vars
-├── agents/
-│   ├── MARKET_RESEARCHER.md     # Market research & opportunity scanning
-│   ├── TRADE_EXECUTOR.md        # Order execution & position management
-│   ├── RISK_MANAGER.md          # Risk gating & portfolio limits
-│   ├── DATA_ANALYST.md          # Quant analysis, models, backtesting
-│   └── PORTFOLIO_MONITOR.md     # P&L tracking, alerts, reporting
+Finance_Agent_Pro/
+├── CLAUDE.md                        # This file — master instructions
+├── .env                             # API keys (NEVER commit)
+├── .env.example                     # Template for required env vars
+├── .claude/
+│   ├── agents/                      # Claude Code agent definitions
+│   │   ├── KALSHI_BETTOR.md         # Kalshi betting specialist
+│   │   ├── MARKET_RESEARCHER.md     # Market research & opportunity scanning
+│   │   ├── TRADE_EXECUTOR.md        # Order execution & position management
+│   │   ├── RISK_MANAGER.md          # Risk gating & portfolio limits
+│   │   ├── DATA_ANALYST.md          # Quant analysis, models, backtesting
+│   │   └── PORTFOLIO_MONITOR.md     # P&L tracking, alerts, reporting
+│   └── skills/
+│       └── kalshi-bet/SKILL.md      # /kalshi-bet slash command
+├── docs/
+│   ├── CHANGELOG.md                 # Project-wide changelog
+│   ├── kalshi-sports-betting/       # Sports betting guides
+│   │   ├── BETTING_GUIDE.md         # Sport-by-sport commands & filters
+│   │   ├── USER_GUIDE.md            # Daily workflow & system usage
+│   │   ├── KALSHI_API_REFERENCE.md  # API endpoints & auth
+│   │   └── KALSHI_STRATEGY_PLAN.md  # Architecture & roadmap
+│   └── kalshi-prediction-betting/   # Non-sports prediction markets
+│       └── PREDICTION_MARKETS_GUIDE.md
 ├── mcp-config/
 │   ├── claude_desktop_config.json   # MCP server config (Windows/WSL)
 │   └── mcp-servers.md               # MCP server reference & setup
@@ -39,15 +52,20 @@ financial-agent-project/
 │   ├── value-betting/
 │   └── prediction-market/
 ├── data/
-│   ├── positions/               # Current open positions (JSON)
-│   ├── history/                 # Trade history logs
-│   └── watchlists/              # Active watchlists per market
+│   ├── positions/                   # Current open positions (JSON)
+│   ├── history/                     # Trade history logs
+│   └── watchlists/                  # Active watchlists per market
 ├── notebooks/
-│   └── analysis/                # Research notebooks
+│   └── analysis/                    # Research notebooks
 └── scripts/
-    ├── fetch_odds.py
-    ├── fetch_market_data.py
-    └── risk_check.py
+    └── kalshi/                      # Kalshi betting scripts
+        ├── kalshi_client.py         # Authenticated Kalshi API client
+        ├── kalshi_executor.py       # Risk management & order execution
+        ├── kalshi_settler.py        # Settlement tracking & P&L reporting
+        ├── edge_detector.py         # Market scanning & edge detection
+        ├── fetch_odds.py            # The Odds API integration
+        ├── fetch_market_data.py     # Multi-asset market data fetcher
+        └── risk_check.py            # Portfolio risk dashboard
 ```
 
 ---
@@ -125,10 +143,10 @@ See `mcp-config/mcp-servers.md` for full setup. Quick reference:
 pip install -r requirements.txt
 
 # Run market scanner (dry run)
-python scripts/fetch_odds.py --market sports --dry-run
+python scripts/kalshi/fetch_odds.py --market sports --dry-run
 
 # Check current positions
-python scripts/risk_check.py --report positions
+python scripts/kalshi/risk_check.py --report positions
 
 # Run backtest for a strategy
 python strategies/value-betting/backtest.py --days 30

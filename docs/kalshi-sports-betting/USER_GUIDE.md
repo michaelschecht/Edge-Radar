@@ -6,17 +6,17 @@
 
 ```bash
 # 1. Check your balance
-python scripts/kalshi_executor.py status
+python scripts/kalshi/kalshi_executor.py status
 
 # 2. Scan for opportunities (preview only, no orders placed)
-python scripts/kalshi_executor.py run
+python scripts/kalshi/kalshi_executor.py run
 
 # 3. Execute top opportunities
-python scripts/kalshi_executor.py run --execute --max-bets 5
+python scripts/kalshi/kalshi_executor.py run --execute --max-bets 5
 
 # 4. After games resolve, settle and check results
-python scripts/kalshi_settler.py settle
-python scripts/kalshi_settler.py report
+python scripts/kalshi/kalshi_settler.py settle
+python scripts/kalshi/kalshi_settler.py report
 ```
 
 ---
@@ -44,10 +44,10 @@ Before first run, verify these are in place:
 
 ```bash
 # Preview what the system would bet on
-python scripts/kalshi_executor.py run
+python scripts/kalshi/kalshi_executor.py run
 
 # Review the output, then execute
-python scripts/kalshi_executor.py run --execute --max-bets 5
+python scripts/kalshi/kalshi_executor.py run --execute --max-bets 5
 ```
 
 The system will:
@@ -62,7 +62,7 @@ The system will:
 
 ```bash
 # Portfolio dashboard
-python scripts/kalshi_executor.py status
+python scripts/kalshi/kalshi_executor.py status
 ```
 
 Shows: balance, open positions, resting orders, today's wagering activity.
@@ -71,80 +71,80 @@ Shows: balance, open positions, resting orders, today's wagering activity.
 
 ```bash
 # Check for resolved markets and update P&L
-python scripts/kalshi_settler.py settle
+python scripts/kalshi/kalshi_settler.py settle
 
 # View performance
-python scripts/kalshi_settler.py report
-python scripts/kalshi_settler.py report --detail
+python scripts/kalshi/kalshi_settler.py report
+python scripts/kalshi/kalshi_settler.py report --detail
 ```
 
 ---
 
 ## Command Reference
 
-### Edge Detector (`scripts/edge_detector.py`)
+### Edge Detector (`scripts/kalshi/edge_detector.py`)
 
 Scans Kalshi markets and scores them against sportsbook consensus.
 
 ```bash
 # Full scan, show top 20 opportunities
-python scripts/edge_detector.py scan
+python scripts/kalshi/edge_detector.py scan
 
 # Raise minimum edge to 5%
-python scripts/edge_detector.py scan --min-edge 0.05
+python scripts/kalshi/edge_detector.py scan --min-edge 0.05
 
 # Only game outcome markets
-python scripts/edge_detector.py scan --category game
+python scripts/kalshi/edge_detector.py scan --category game
 
 # Save results to watchlist file
-python scripts/edge_detector.py scan --save
+python scripts/kalshi/edge_detector.py scan --save
 
 # Deep dive on a single market
-python scripts/edge_detector.py detail KXNBAGAME-26MAR20ATLHOU-ATL
+python scripts/kalshi/edge_detector.py detail KXNBAGAME-26MAR20ATLHOU-ATL
 ```
 
 **Categories:** `game`, `spread`, `total`, `player_prop`, `esports`, `other`
 
-### Executor (`scripts/kalshi_executor.py`)
+### Executor (`scripts/kalshi/kalshi_executor.py`)
 
 Runs the full pipeline: scan, risk-check, size, execute.
 
 ```bash
 # Preview mode (safe, no orders)
-python scripts/kalshi_executor.py run
+python scripts/kalshi/kalshi_executor.py run
 
 # Execute with fresh scan
-python scripts/kalshi_executor.py run --execute
+python scripts/kalshi/kalshi_executor.py run --execute
 
 # Execute from last saved scan (skips Odds API call)
-python scripts/kalshi_executor.py run --from-file --execute
+python scripts/kalshi/kalshi_executor.py run --from-file --execute
 
 # Limit to 3 bets per run
-python scripts/kalshi_executor.py run --execute --max-bets 3
+python scripts/kalshi/kalshi_executor.py run --execute --max-bets 3
 
 # Higher edge threshold
-python scripts/kalshi_executor.py run --execute --min-edge 0.05
+python scripts/kalshi/kalshi_executor.py run --execute --min-edge 0.05
 
 # Filter to a specific sport (see Filtering section below)
-python scripts/kalshi_executor.py run --filter ncaamb --execute
+python scripts/kalshi/kalshi_executor.py run --filter ncaamb --execute
 
 # Portfolio status
-python scripts/kalshi_executor.py status
+python scripts/kalshi/kalshi_executor.py status
 ```
 
-### Settlement Tracker (`scripts/kalshi_settler.py`)
+### Settlement Tracker (`scripts/kalshi/kalshi_settler.py`)
 
 Resolves settled positions and tracks P&L.
 
 ```bash
 # Check for settlements and update trade log
-python scripts/kalshi_settler.py settle
+python scripts/kalshi/kalshi_settler.py settle
 
 # Performance summary
-python scripts/kalshi_settler.py report
+python scripts/kalshi/kalshi_settler.py report
 
 # Per-trade breakdown table
-python scripts/kalshi_settler.py report --detail
+python scripts/kalshi/kalshi_settler.py report --detail
 ```
 
 **Report includes:**
@@ -154,16 +154,16 @@ python scripts/kalshi_settler.py report --detail
 - Edge calibration (estimated vs. realized)
 - Breakdowns by confidence level and market category
 
-### Kalshi Client (`scripts/kalshi_client.py`)
+### Kalshi Client (`scripts/kalshi/kalshi_client.py`)
 
 Direct API access for debugging and exploration.
 
 ```bash
-python scripts/kalshi_client.py balance
-python scripts/kalshi_client.py markets --limit 50 --status open
-python scripts/kalshi_client.py positions
-python scripts/kalshi_client.py orders
-python scripts/kalshi_client.py market --ticker KXTICKER
+python scripts/kalshi/kalshi_client.py balance
+python scripts/kalshi/kalshi_client.py markets --limit 50 --status open
+python scripts/kalshi/kalshi_client.py positions
+python scripts/kalshi/kalshi_client.py orders
+python scripts/kalshi/kalshi_client.py market --ticker KXTICKER
 ```
 
 ---
@@ -186,20 +186,20 @@ Use `--filter` on the executor or edge detector to focus on a specific sport. Th
 
 ```bash
 # NCAA tournament only -- preview
-python scripts/kalshi_executor.py run --filter ncaamb
+python scripts/kalshi/kalshi_executor.py run --filter ncaamb
 
 # NCAA tournament only -- execute
-python scripts/kalshi_executor.py run --filter ncaamb --execute --max-bets 5
+python scripts/kalshi/kalshi_executor.py run --filter ncaamb --execute --max-bets 5
 
 # NBA only
-python scripts/kalshi_executor.py run --filter nba --execute
+python scripts/kalshi/kalshi_executor.py run --filter nba --execute
 
 # NHL only with higher edge bar
-python scripts/kalshi_executor.py run --filter nhl --min-edge 0.05
+python scripts/kalshi/kalshi_executor.py run --filter nhl --min-edge 0.05
 
 # Edge detector scan with filter
-python scripts/edge_detector.py scan --filter ncaamb
-python scripts/edge_detector.py scan --filter nba --save
+python scripts/kalshi/edge_detector.py scan --filter ncaamb
+python scripts/kalshi/edge_detector.py scan --filter nba --save
 ```
 
 ### Raw Ticker Prefix
@@ -208,13 +208,13 @@ You can also pass any raw Kalshi ticker prefix to filter on markets that don't h
 
 ```bash
 # Weather markets for NYC
-python scripts/edge_detector.py scan --filter KXHIGHNY
+python scripts/kalshi/edge_detector.py scan --filter KXHIGHNY
 
 # S&P 500 markets
-python scripts/edge_detector.py scan --filter KXINX
+python scripts/kalshi/edge_detector.py scan --filter KXINX
 
 # All NCAA men's markets (basketball + wrestling + lacrosse)
-python scripts/edge_detector.py scan --filter KXNCAAM
+python scripts/kalshi/edge_detector.py scan --filter KXNCAAM
 ```
 
 Note: edge detection only works for market types that have an external odds source mapped. Currently that's game outcomes, spreads, and totals for NBA, NHL, MLB, and NCAAB.
@@ -276,13 +276,13 @@ Override per run with `--unit-size`:
 
 ```bash
 # $1 bets (default)
-python scripts/kalshi_executor.py run --execute
+python scripts/kalshi/kalshi_executor.py run --execute
 
 # $5 bets
-python scripts/kalshi_executor.py run --execute --unit-size 5
+python scripts/kalshi/kalshi_executor.py run --execute --unit-size 5
 
 # $0.50 bets
-python scripts/kalshi_executor.py run --execute --unit-size 0.50
+python scripts/kalshi/kalshi_executor.py run --execute --unit-size 0.50
 ```
 
 ---
@@ -320,30 +320,34 @@ LOG_LEVEL=INFO
 
 ```
 scripts/
-  kalshi_client.py          # Authenticated Kalshi API client
-  edge_detector.py          # Market scanning and edge detection
-  kalshi_executor.py        # Risk management and order execution
-  kalshi_settler.py         # Settlement tracking and P&L reporting
-  fetch_odds.py             # The Odds API integration
-  fetch_market_data.py      # Multi-asset market data fetcher
-  risk_check.py             # Portfolio risk dashboard
+  kalshi/                         # Kalshi betting scripts
+    kalshi_client.py              # Authenticated Kalshi API client
+    edge_detector.py              # Market scanning and edge detection
+    kalshi_executor.py            # Risk management and order execution
+    kalshi_settler.py             # Settlement tracking and P&L reporting
+    fetch_odds.py                 # The Odds API integration
+    fetch_market_data.py          # Multi-asset market data fetcher
+    risk_check.py                 # Portfolio risk dashboard
 
 data/
   watchlists/
-    kalshi_opportunities.json   # Latest scored opportunities
+    kalshi_opportunities.json     # Latest scored opportunities
   history/
-    kalshi_trades.json          # Trade log (all orders placed)
-    kalshi_settlements.json     # Settlement history with P&L
+    kalshi_trades.json            # Trade log (all orders placed)
+    kalshi_settlements.json       # Settlement history with P&L
 
 keys/
-  demo/kalshi_private.key       # Demo RSA key (never commit)
-  live/kalshi_private.key       # Production RSA key (never commit)
+  live/kalshi_private.key         # Production RSA key (never commit)
 
 docs/
-  USER_GUIDE.md                 # This file
-  KALSHI_STRATEGY_PLAN.md       # System architecture and roadmap
-  KALSHI_API_REFERENCE.md       # Kalshi API endpoints and auth
-  CHANGELOG.md                  # What was built and when
+  kalshi-sports-betting/
+    USER_GUIDE.md                 # This file
+    BETTING_GUIDE.md              # Sport-by-sport commands & filters
+    KALSHI_STRATEGY_PLAN.md       # System architecture and roadmap
+    KALSHI_API_REFERENCE.md       # Kalshi API endpoints and auth
+  kalshi-prediction-betting/
+    PREDICTION_MARKETS_GUIDE.md   # Economics, crypto, weather, politics
+  CHANGELOG.md                    # What was built and when
 ```
 
 ---
@@ -383,7 +387,7 @@ When ready to trade with real money:
 **Orders show "resting" instead of "executed"**
 - Limit order didn't find a match at your price
 - The order stays open until filled, cancelled, or the market closes
-- Check resting orders: `python scripts/kalshi_executor.py status`
+- Check resting orders: `python scripts/kalshi/kalshi_executor.py status`
 
 **Settlement shows 0 settled**
 - Markets haven't resolved yet -- check `expected_expiration_time` on the market

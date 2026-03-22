@@ -17,13 +17,13 @@ Place frequent, small-edge wagers on Kalshi prediction markets to generate consi
 
 | Component | File | Status |
 |---|---|---|
-| Kalshi API client | `scripts/kalshi_client.py` | Authenticated, tested, placing orders |
-| Edge detector | `scripts/edge_detector.py` | Scanning 5000+ markets, cross-referencing sportsbook odds |
-| Automated executor | `scripts/kalshi_executor.py` | Risk-checks, Kelly sizing, order placement, trade logging |
-| Settlement tracker | `scripts/kalshi_settler.py` | Settles positions, calculates P&L, performance reports |
-| Odds fetcher | `scripts/fetch_odds.py` | The Odds API integration for sports |
-| Market data fetcher | `scripts/fetch_market_data.py` | Multi-asset data (stocks, crypto, prediction markets) |
-| Risk dashboard | `scripts/risk_check.py` | Portfolio risk monitoring |
+| Kalshi API client | `scripts/kalshi/kalshi_client.py` | Authenticated, tested, placing orders |
+| Edge detector | `scripts/kalshi/edge_detector.py` | Scanning 5000+ markets, cross-referencing sportsbook odds |
+| Automated executor | `scripts/kalshi/kalshi_executor.py` | Risk-checks, Kelly sizing, order placement, trade logging |
+| Settlement tracker | `scripts/kalshi/kalshi_settler.py` | Settles positions, calculates P&L, performance reports |
+| Odds fetcher | `scripts/kalshi/fetch_odds.py` | The Odds API integration for sports |
+| Market data fetcher | `scripts/kalshi/fetch_market_data.py` | Multi-asset data (stocks, crypto, prediction markets) |
+| Risk dashboard | `scripts/kalshi/risk_check.py` | Portfolio risk monitoring |
 | Database schema | `scripts/sql/init_db.sql` | 8 tables, 2 views, ready to initialize |
 | Agent specs | `.claude/agents/*.md` | 5 agents fully documented |
 
@@ -82,30 +82,30 @@ Place frequent, small-edge wagers on Kalshi prediction markets to generate consi
 
 ```bash
 # --- Edge Detection ---
-python scripts/edge_detector.py scan                        # Scan all markets, show opportunities
-python scripts/edge_detector.py scan --min-edge 0.05        # Higher edge threshold
-python scripts/edge_detector.py scan --category game        # Filter by category
-python scripts/edge_detector.py scan --save                 # Save to watchlist file
-python scripts/edge_detector.py detail TICKER               # Deep dive on one market
+python scripts/kalshi/edge_detector.py scan                        # Scan all markets, show opportunities
+python scripts/kalshi/edge_detector.py scan --min-edge 0.05        # Higher edge threshold
+python scripts/kalshi/edge_detector.py scan --category game        # Filter by category
+python scripts/kalshi/edge_detector.py scan --save                 # Save to watchlist file
+python scripts/kalshi/edge_detector.py detail TICKER               # Deep dive on one market
 
 # --- Execution ---
-python scripts/kalshi_executor.py run                       # Scan + preview (no orders placed)
-python scripts/kalshi_executor.py run --execute             # Scan + place orders
-python scripts/kalshi_executor.py run --from-file --execute # Execute from last saved scan
-python scripts/kalshi_executor.py run --max-bets 3          # Limit bets per run
-python scripts/kalshi_executor.py status                    # Portfolio dashboard
+python scripts/kalshi/kalshi_executor.py run                       # Scan + preview (no orders placed)
+python scripts/kalshi/kalshi_executor.py run --execute             # Scan + place orders
+python scripts/kalshi/kalshi_executor.py run --from-file --execute # Execute from last saved scan
+python scripts/kalshi/kalshi_executor.py run --max-bets 3          # Limit bets per run
+python scripts/kalshi/kalshi_executor.py status                    # Portfolio dashboard
 
 # --- Settlement & Reporting ---
-python scripts/kalshi_settler.py settle                     # Check for settled markets, update P&L
-python scripts/kalshi_settler.py report                     # Performance summary
-python scripts/kalshi_settler.py report --detail            # Per-trade breakdown
+python scripts/kalshi/kalshi_settler.py settle                     # Check for settled markets, update P&L
+python scripts/kalshi/kalshi_settler.py report                     # Performance summary
+python scripts/kalshi/kalshi_settler.py report --detail            # Per-trade breakdown
 
 # --- Kalshi Client (direct) ---
-python scripts/kalshi_client.py balance                     # Account balance
-python scripts/kalshi_client.py markets --limit 50          # List markets
-python scripts/kalshi_client.py positions                   # Open positions
-python scripts/kalshi_client.py orders                      # Order history
-python scripts/kalshi_client.py market --ticker TICKER      # Single market detail
+python scripts/kalshi/kalshi_client.py balance                     # Account balance
+python scripts/kalshi/kalshi_client.py markets --limit 50          # List markets
+python scripts/kalshi/kalshi_client.py positions                   # Open positions
+python scripts/kalshi/kalshi_client.py orders                      # Order history
+python scripts/kalshi/kalshi_client.py market --ticker TICKER      # Single market detail
 ```
 
 ---
@@ -219,8 +219,10 @@ Price $0.76 ->  1 contract  ($0.76)
 
 ## Key Docs & Links
 
-- User guide: `docs/USER_GUIDE.md`
-- API reference: `docs/KALSHI_API_REFERENCE.md`
+- User guide: `docs/kalshi-sports-betting/USER_GUIDE.md`
+- Betting guide: `docs/kalshi-sports-betting/BETTING_GUIDE.md`
+- API reference: `docs/kalshi-sports-betting/KALSHI_API_REFERENCE.md`
+- Prediction markets: `docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md`
 - Changelog: `docs/CHANGELOG.md`
 - Kalshi API docs: https://docs.kalshi.com/welcome
 - The Odds API: https://the-odds-api.com

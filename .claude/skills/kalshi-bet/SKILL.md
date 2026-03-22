@@ -32,7 +32,7 @@ Parse the arguments to determine the action:
 
 All scripts must be run from the project root:
 ```
-cd D:\AI_Agents\Specialized_Agents\Finance_Agent_Pro
+cd /path/to/Finance_Agent_Pro  # run from repo root
 ```
 
 ## Action: Status
@@ -40,7 +40,7 @@ cd D:\AI_Agents\Specialized_Agents\Finance_Agent_Pro
 If the user requested status:
 
 ```bash
-python scripts/kalshi_executor.py status
+python scripts/kalshi/kalshi_executor.py status
 ```
 
 Report the balance, open positions, and today's activity. Done.
@@ -50,8 +50,8 @@ Report the balance, open positions, and today's activity. Done.
 If the user requested settlement:
 
 ```bash
-python scripts/kalshi_settler.py settle
-python scripts/kalshi_settler.py report --detail
+python scripts/kalshi/kalshi_settler.py settle
+python scripts/kalshi/kalshi_settler.py report --detail
 ```
 
 Summarize: wins, losses, net P&L, ROI, and highlight best/worst bets. Done.
@@ -63,7 +63,7 @@ Summarize: wins, losses, net P&L, ROI, and highlight best/worst bets. Done.
 Always start by checking current state:
 
 ```bash
-python scripts/kalshi_executor.py status
+python scripts/kalshi/kalshi_executor.py status
 ```
 
 If the daily loss limit is breached, **STOP** and inform the user. No betting today.
@@ -73,7 +73,7 @@ If the daily loss limit is breached, **STOP** and inform the user. No betting to
 Build the scan command from the parsed arguments:
 
 ```bash
-python scripts/kalshi_executor.py run \
+python scripts/kalshi/kalshi_executor.py run \
   [--filter <sport>] \
   [--min-edge <threshold>] \
   [--unit-size <amount>] \
@@ -82,9 +82,9 @@ python scripts/kalshi_executor.py run \
 ```
 
 **Examples:**
-- `/kalshi-bet nba` -> `python scripts/kalshi_executor.py run --filter nba`
-- `/kalshi-bet ncaamb --min-edge 0.05` -> `python scripts/kalshi_executor.py run --filter ncaamb --min-edge 0.05`
-- `/kalshi-bet all --unit-size 3` -> `python scripts/kalshi_executor.py run --unit-size 3`
+- `/kalshi-bet nba` -> `python scripts/kalshi/kalshi_executor.py run --filter nba`
+- `/kalshi-bet ncaamb --min-edge 0.05` -> `python scripts/kalshi/kalshi_executor.py run --filter ncaamb --min-edge 0.05`
+- `/kalshi-bet all --unit-size 3` -> `python scripts/kalshi/kalshi_executor.py run --unit-size 3`
 
 Run the command. This is preview-only (no `--execute` flag).
 
@@ -106,7 +106,7 @@ Unless `--execute` or `--go` was passed in the arguments, **ask the user to conf
 Once confirmed (or if `--execute`/`--go` was in arguments), re-run with `--execute`:
 
 ```bash
-python scripts/kalshi_executor.py run \
+python scripts/kalshi/kalshi_executor.py run \
   --execute \
   [--filter <sport>] \
   [--min-edge <threshold>] \
@@ -181,12 +181,12 @@ After execution, summarize:
 If the user just wants to research without the execution pipeline:
 
 ```bash
-python scripts/edge_detector.py scan [--filter <sport>] [--category <type>] [--min-edge <X>] [--top <N>] [--save]
+python scripts/kalshi/edge_detector.py scan [--filter <sport>] [--category <type>] [--min-edge <X>] [--top <N>] [--save]
 ```
 
 Categories: `game`, `spread`, `total`, `player_prop`, `esports`
 
 ```bash
 # Deep dive on a specific market
-python scripts/edge_detector.py detail <TICKER>
+python scripts/kalshi/edge_detector.py detail <TICKER>
 ```

@@ -31,7 +31,7 @@ load_dotenv()
 log = logging.getLogger("kalshi_settler")
 console = Console()
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 TRADE_LOG_PATH = DATA_DIR / "history" / "kalshi_trades.json"
 SETTLEMENT_LOG_PATH = DATA_DIR / "history" / "kalshi_settlements.json"
 SETTLEMENT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)

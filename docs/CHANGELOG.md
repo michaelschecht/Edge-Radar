@@ -4,7 +4,7 @@
 
 ## 2026-03-18 (Session 2) -- Settlement Tracker, Filters, Unit Sizing
 
-### Settlement Tracker (`scripts/kalshi_settler.py`)
+### Settlement Tracker (`scripts/kalshi/kalshi_settler.py`)
 - Polls Kalshi settlements API and matches results to trade log
 - Falls back to checking individual market status if settlement not yet posted
 - Calculates per-trade P&L: revenue, cost, fees, net P&L, ROI, win/loss
@@ -33,14 +33,14 @@
 - Added `get_settlements()` method for settlement history endpoint
 
 ### Documentation
-- `docs/USER_GUIDE.md` -- Complete usage guide with filtering and unit sizing sections
+- `docs/kalshi-sports-betting/USER_GUIDE.md` -- Complete usage guide with filtering and unit sizing sections
 - Updated all docs to reflect settlement tracker, filters, and unit sizing
 
 ---
 
 ## 2026-03-18 (Session 1) -- MVP Pipeline Complete
 
-### Kalshi API Client (`scripts/kalshi_client.py`)
+### Kalshi API Client (`scripts/kalshi/kalshi_client.py`)
 - Built authenticated API client with RSA-PSS request signing
 - Supports: get_markets, get_market, get_all_open_markets, get_balance, get_positions, get_fills, create_order, cancel_order, get_order, get_orders
 - CLI for quick testing (balance, markets, positions, orders, market detail)
@@ -48,7 +48,7 @@
 - Auto-resolves relative key paths from project root
 - Tested against demo env -- all endpoints confirmed working
 
-### Edge Detector (`scripts/edge_detector.py`)
+### Edge Detector (`scripts/kalshi/edge_detector.py`)
 - Scans 5000+ open Kalshi markets via paginated API calls
 - Categorizes markets by ticker prefix: game, spread, total, player_prop, esports, mention, other
 - Integrates with The Odds API for sportsbook consensus pricing
@@ -61,7 +61,7 @@
 - CLI: `scan` (batch scan) and `detail` (single market deep dive)
 - Saves scored opportunities to `data/watchlists/kalshi_opportunities.json`
 
-### Automated Executor (`scripts/kalshi_executor.py`)
+### Automated Executor (`scripts/kalshi/kalshi_executor.py`)
 - Full scan-to-execution pipeline in one command
 - Risk management gates before every order:
   - Daily loss limit check
@@ -89,8 +89,8 @@
 - Added `keys/`, `*.key`, `*.pem` to `.gitignore`
 
 ### Documentation
-- `docs/KALSHI_STRATEGY_PLAN.md` -- System overview, pipeline description, remaining work
-- `docs/KALSHI_API_REFERENCE.md` -- API endpoints, auth, rate limits, CLI reference
+- `docs/kalshi-sports-betting/KALSHI_STRATEGY_PLAN.md` -- System overview, pipeline description, remaining work
+- `docs/kalshi-sports-betting/KALSHI_API_REFERENCE.md` -- API endpoints, auth, rate limits, CLI reference
 - `docs/CHANGELOG.md` -- This file
 
 ---
@@ -100,9 +100,9 @@
 ### Existing Before This Session
 - `CLAUDE.md` -- Master project manifest with risk limits, agent roster, execution chain
 - `.claude/agents/` -- 5 agent specs (MARKET_RESEARCHER, TRADE_EXECUTOR, RISK_MANAGER, DATA_ANALYST, PORTFOLIO_MONITOR)
-- `scripts/fetch_odds.py` -- The Odds API integration for sports value betting
-- `scripts/fetch_market_data.py` -- Multi-asset data fetcher (stocks, prediction markets, crypto)
-- `scripts/risk_check.py` -- Portfolio risk dashboard
+- `scripts/kalshi/fetch_odds.py` -- The Odds API integration for sports value betting
+- `scripts/kalshi/fetch_market_data.py` -- Multi-asset data fetcher (stocks, prediction markets, crypto)
+- `scripts/kalshi/risk_check.py` -- Portfolio risk dashboard
 - `scripts/sql/init_db.sql` -- Database schema (8 tables, 2 views)
 - `.env.example` -- Environment variable template
 - `.gitignore` -- Configured for Python, data files, credentials

@@ -46,7 +46,7 @@ Three headers required on every request:
 
 **Signature:** `sign(timestamp_ms + HTTP_METHOD + path_without_query_params)`
 
-Implementation: `scripts/kalshi_client.py` -- `_sign()` and `_auth_headers()` methods.
+Implementation: `scripts/kalshi/kalshi_client.py` -- `_sign()` and `_auth_headers()` methods.
 
 ---
 
@@ -99,7 +99,7 @@ Write-limited: CreateOrder, CancelOrder, AmendOrder, DecreaseOrder, BatchCreateO
 
 ---
 
-## Our Client: `scripts/kalshi_client.py`
+## Our Client: `scripts/kalshi/kalshi_client.py`
 
 Wraps the raw API with:
 - RSA-PSS authentication and request signing
@@ -112,11 +112,11 @@ Wraps the raw API with:
 ### CLI
 
 ```bash
-python scripts/kalshi_client.py balance
-python scripts/kalshi_client.py markets --limit 50 --status open
-python scripts/kalshi_client.py positions
-python scripts/kalshi_client.py orders
-python scripts/kalshi_client.py market --ticker KXTICKER
+python scripts/kalshi/kalshi_client.py balance
+python scripts/kalshi/kalshi_client.py markets --limit 50 --status open
+python scripts/kalshi/kalshi_client.py positions
+python scripts/kalshi/kalshi_client.py orders
+python scripts/kalshi/kalshi_client.py market --ticker KXTICKER
 ```
 
 ---

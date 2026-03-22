@@ -44,7 +44,7 @@ ODDS_API_KEY = os.getenv("ODDS_API_KEY", "")
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
 MIN_EDGE = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 OPPORTUNITIES_PATH = DATA_DIR / "watchlists" / "kalshi_opportunities.json"
 OPPORTUNITIES_PATH.parent.mkdir(parents=True, exist_ok=True)
 

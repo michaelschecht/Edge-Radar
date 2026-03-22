@@ -42,7 +42,7 @@ load_dotenv()
 log = logging.getLogger("kalshi_executor")
 console = Console()
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 TRADE_LOG_PATH = DATA_DIR / "history" / "kalshi_trades.json"
 TRADE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 

@@ -33,20 +33,20 @@ You can:
 
 ## Tools & Scripts
 
-All operations use the scripts in `scripts/`. Run them via Bash.
+All operations use the scripts in `scripts/kalshi/`. Run them via Bash from the repo root.
 
 ### Core Commands
 
 | Action | Command |
 |--------|---------|
-| Check balance & positions | `python scripts/kalshi_executor.py status` |
-| Scan all sports (preview) | `python scripts/kalshi_executor.py run` |
-| Scan specific sport | `python scripts/kalshi_executor.py run --filter <sport>` |
-| Execute bets | `python scripts/kalshi_executor.py run --execute --max-bets <N>` |
-| Settle completed bets | `python scripts/kalshi_settler.py settle` |
-| Performance report | `python scripts/kalshi_settler.py report` |
-| Detailed P&L breakdown | `python scripts/kalshi_settler.py report --detail` |
-| Deep dive on a market | `python scripts/edge_detector.py detail <TICKER>` |
+| Check balance & positions | `python scripts/kalshi/kalshi_executor.py status` |
+| Scan all sports (preview) | `python scripts/kalshi/kalshi_executor.py run` |
+| Scan specific sport | `python scripts/kalshi/kalshi_executor.py run --filter <sport>` |
+| Execute bets | `python scripts/kalshi/kalshi_executor.py run --execute --max-bets <N>` |
+| Settle completed bets | `python scripts/kalshi/kalshi_settler.py settle` |
+| Performance report | `python scripts/kalshi/kalshi_settler.py report` |
+| Detailed P&L breakdown | `python scripts/kalshi/kalshi_settler.py report --detail` |
+| Deep dive on a market | `python scripts/kalshi/edge_detector.py detail <TICKER>` |
 
 ### Sport Filters
 
@@ -167,7 +167,7 @@ If the user asks to bet more than the max or override risk limits, **warn them c
 
 When the user starts a session with you, automatically:
 
-1. Run `python scripts/kalshi_executor.py status` to show current state
+1. Run `python scripts/kalshi/kalshi_executor.py status` to show current state
 2. Report: balance, open positions count, today's P&L
 3. Ask what sport or market they want to focus on
 
@@ -177,11 +177,11 @@ When the user starts a session with you, automatically:
 
 ```
 1. User says "let's bet on NBA tonight" (or similar)
-2. You run: python scripts/kalshi_executor.py run --filter nba
+2. You run: python scripts/kalshi/kalshi_executor.py run --filter nba
 3. Show the preview table to the user
 4. Explain the top opportunities briefly
 5. User says "go" or "execute" or adjusts parameters
-6. You run: python scripts/kalshi_executor.py run --filter nba --execute --max-bets <N>
+6. You run: python scripts/kalshi/kalshi_executor.py run --filter nba --execute --max-bets <N>
 7. Report results: orders placed, fill status, total cost
 8. Remind user to settle after games complete
 ```
@@ -190,8 +190,8 @@ When the user starts a session with you, automatically:
 
 ```
 1. User says "how did my bets do?" or "settle"
-2. Run: python scripts/kalshi_settler.py settle
-3. Run: python scripts/kalshi_settler.py report --detail
+2. Run: python scripts/kalshi/kalshi_settler.py settle
+3. Run: python scripts/kalshi/kalshi_settler.py report --detail
 4. Summarize: X wins, Y losses, net P&L of $Z, ROI of W%
 5. Highlight best and worst bets
 ```
@@ -200,7 +200,7 @@ When the user starts a session with you, automatically:
 
 ```
 1. User says "what does the system see right now?"
-2. Run: python scripts/edge_detector.py scan --filter <sport> --top 20
+2. Run: python scripts/kalshi/edge_detector.py scan --filter <sport> --top 20
 3. Present opportunities without any execution
 4. Discuss specific markets if user asks for detail
 ```
