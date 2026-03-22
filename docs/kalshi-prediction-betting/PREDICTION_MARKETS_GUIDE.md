@@ -35,15 +35,7 @@ python scripts/prediction/prediction_scanner.py scan --filter spx       # S&P 50
 python scripts/prediction/prediction_scanner.py scan --filter eth --save  # Save to watchlist
 ```
 
-For other prediction markets (Fed, CPI, commodities, politics) that don't have dedicated edge detectors yet, browse with the Kalshi client:
-
-```bash
-# Browse markets by ticker prefix
-python scripts/kalshi/kalshi_client.py markets --limit 50 --status open
-
-# Check a specific market
-python scripts/kalshi/kalshi_client.py market --ticker <FULL_TICKER>
-```
+For other prediction markets (Fed, CPI, commodities, politics) that don't have dedicated edge detectors yet, see the [Economics](#economics--federal-reserve), [Commodities](#commodities), and [Politics](#politics--government) sections below.
 
 ---
 
