@@ -41,15 +41,17 @@ For other prediction markets (Fed, CPI, commodities, politics) that don't have d
 
 ## Market Categories
 
-| Category | Ticker Prefixes | Edge Detection | Data Source |
-|----------|----------------|----------------|-------------|
-| Crypto | KXBTC, KXETH, KXXRP, KXDOGE, KXSOL | **Yes** | CoinGecko (free) |
-| Weather | KXHIGHNY, KXHIGHCHI, KXHIGHMIA, KXHIGHDEN | **Yes** | NWS API (free) |
-| S&P 500 | KXINX | **Yes** | Yahoo Finance + VIX (free) |
-| Economics / Fed | KXFED, KXCPI, KXGDP | Not yet | -- |
-| Commodities | KXWTI | Not yet | -- |
-| Politics | KXPOLITICSMENTION, KXFOXNEWSMENTION, KXLASTWORDCOUNT | Not yet | -- |
-| IPOs | KXIPO | Not yet | -- |
+| Category | Filter | Ticker Prefixes | Edge Detection | Data Source |
+|----------|--------|----------------|----------------|-------------|
+| Crypto | `crypto` | KXBTC, KXETH, KXXRP, KXDOGE, KXSOL | **Yes** | CoinGecko (free) |
+| Weather | `weather` | KXHIGHNY, KXHIGHCHI, KXHIGHMIA, KXHIGHDEN | **Yes** | NWS API (free) |
+| S&P 500 | `spx` | KXINX | **Yes** | Yahoo Finance + VIX (free) |
+| TV Mentions | `mentions` | KXLASTWORDCOUNT, KXPOLITICSMENTION, KXFOXNEWSMENTION, KXNBAMENTION | **Yes** | Historical settlement rates |
+| Companies | `companies` | KXBANKRUPTCY, KXIPO | **Partial** | Historical baseline (bankruptcy), browse only (IPO) |
+| Politics | `politics` | KXIMPEACH | **Yes** | Time-decay hazard model |
+| Tech/Science | `techscience` | KXQUANTUM, KXFUSION | **Yes** | Time-decay hazard model |
+| Economics / Fed | -- | KXFED, KXCPI, KXGDP | Not yet | -- |
+| Commodities | -- | KXWTI | Not yet | -- |
 
 ---
 
@@ -214,42 +216,110 @@ python scripts/kalshi/edge_detector.py scan --filter KXWTI
 
 ---
 
-## Politics & Government
+## TV Mention Markets
 
-> **Note:** No automated edge detection yet.
+Edge detection uses **historical settlement rates** from Kalshi's own settled markets. For KXLASTWORDCOUNT (numeric), a Poisson model is built from past episode word counts. For binary mention markets, the overall YES settlement rate is used as a baseline fair value.
 
-### TV Mention Markets
+### Lawrence O'Donnell Word Count (KXLASTWORDCOUNT)
+
+```bash
+python scripts/prediction/prediction_scanner.py scan --filter lastword
+```
+
+**Example market:** "How many times will Lawrence O'Donnell say Trump during next The Last Word?"
+
+**Settlement:** After the broadcast airs. Actual count is reported.
+
+**Edge model:** Poisson distribution fitted to historical episode counts. Compares P(count >= strike) to market price.
+
+### Binary Mention Markets
+
+```bash
+# All mention markets
+python scripts/prediction/prediction_scanner.py scan --filter mentions
+
+# Individual series
+python scripts/prediction/prediction_scanner.py scan --filter politicsmention
+python scripts/prediction/prediction_scanner.py scan --filter foxnews
+python scripts/prediction/prediction_scanner.py scan --filter nbamention
+```
 
 | Prefix | What It Tracks |
 |--------|---------------|
-| KXPOLITICSMENTION | Political keyword mentions on broadcast |
-| KXFOXNEWSMENTION | Fox News specific mentions |
-| KXLASTWORDCOUNT | Lawrence O'Donnell word counts |
-| KXNBAMENTION | NBA broadcast announcer mentions |
+| KXPOLITICSMENTION | Will speaker say keyword on political broadcast? |
+| KXFOXNEWSMENTION | Will keyword be said on Fox News? |
+| KXNBAMENTION | Will announcer say keyword during NBA game? |
 
-```bash
-python scripts/kalshi/edge_detector.py scan --filter KXPOLITICSMENTION
-python scripts/kalshi/edge_detector.py scan --filter KXFOXNEWSMENTION
-python scripts/kalshi/edge_detector.py scan --filter KXLASTWORDCOUNT
-```
+**Settlement:** After the broadcast airs (yes/no).
 
-**Settlement:** After the broadcast airs.
+**Edge model:** Historical YES rate across all settled markets in the series. Common political words (Trump, Republican, etc.) get a boosted fair value.
 
 ---
 
-## IPOs & Corporate
+## Companies
 
-> **Note:** No automated edge detection yet.
+### Corporate Bankruptcies (KXBANKRUPTCY)
+
+Edge detection uses a **historical baseline projection** (~750 corporate bankruptcies/year average) with normal distribution modeling.
+
+```bash
+python scripts/prediction/prediction_scanner.py scan --filter bankruptcy
+```
+
+**Example market:** "How many corporate bankruptcies will there be this year?"
+
+**Settlement:** Year-end based on official filing counts.
 
 ### IPO Markets (KXIPO)
 
+Browse only -- no automated edge detection (company-specific events require qualitative research).
+
 ```bash
-python scripts/kalshi/edge_detector.py scan --filter KXIPO
+python scripts/prediction/prediction_scanner.py scan --filter ipo
 ```
 
 **Example market:** "Who will IPO in 2026?"
 
 **Settlement:** When the company officially IPOs (or year-end if it doesn't).
+
+---
+
+## Politics & Government
+
+### Impeachment (KXIMPEACH)
+
+Edge detection uses a **time-decay hazard model** with calibrated annual probability estimates (~12%/year).
+
+```bash
+python scripts/prediction/prediction_scanner.py scan --filter impeach
+python scripts/prediction/prediction_scanner.py scan --filter politics
+```
+
+**Example market:** "Will the President be impeached before Jan 1, 2028?"
+
+**Settlement:** When impeachment proceedings begin (or deadline passes).
+
+**Edge model:** Exponential survival function: P(event by deadline) = 1 - exp(-lambda * years). Confidence is always "low" since these are speculative base-rate models.
+
+---
+
+## Tech & Science
+
+### Quantum Computing (KXQUANTUM) & Nuclear Fusion (KXFUSION)
+
+Same time-decay hazard model as political events, with lower annual probabilities (~5% quantum, ~3% fusion).
+
+```bash
+python scripts/prediction/prediction_scanner.py scan --filter techscience
+python scripts/prediction/prediction_scanner.py scan --filter quantum
+python scripts/prediction/prediction_scanner.py scan --filter fusion
+```
+
+**Example markets:**
+- "When will the first useful quantum computer be developed?"
+- "When will nuclear fusion be achieved?"
+
+**Settlement:** When the event occurs (or deadline passes).
 
 ---
 
@@ -270,10 +340,17 @@ Kalshi periodically adds markets for awards shows (Oscars, Emmys), box office, a
 ### Step 1: Scan for Opportunities
 
 ```bash
-# Use the prediction scanner for crypto, weather, S&P 500
+# Scan all prediction markets at once
+python scripts/prediction/prediction_scanner.py scan
+
+# Or filter by category
 python scripts/prediction/prediction_scanner.py scan --filter crypto
 python scripts/prediction/prediction_scanner.py scan --filter weather
 python scripts/prediction/prediction_scanner.py scan --filter spx
+python scripts/prediction/prediction_scanner.py scan --filter mentions
+python scripts/prediction/prediction_scanner.py scan --filter companies
+python scripts/prediction/prediction_scanner.py scan --filter politics
+python scripts/prediction/prediction_scanner.py scan --filter techscience
 
 # Or look up a specific ticker
 python scripts/kalshi/kalshi_client.py market --ticker KXBTC-26MAR22-B87000
@@ -295,11 +372,11 @@ Every Kalshi prediction market is a **binary contract**:
 ### Step 3: Place Your Bet
 
 ```bash
-# Preview first (uses the sports executor with raw prefix filter)
-python scripts/kalshi/kalshi_executor.py run --filter KXBTC
+# Preview first (uses --prediction flag to route through prediction scanner)
+python scripts/kalshi/kalshi_executor.py run --prediction --filter crypto
 
 # Then execute
-python scripts/kalshi/kalshi_executor.py run --filter KXBTC --execute --max-bets 3 --unit-size 2
+python scripts/kalshi/kalshi_executor.py run --prediction --filter crypto --execute --max-bets 3 --unit-size 2
 ```
 
 ### Step 4: Monitor and Settle
@@ -319,10 +396,10 @@ python scripts/kalshi/kalshi_settler.py report
 
 | Aspect | Sports Betting | Prediction Markets |
 |--------|---------------|-------------------|
-| **Edge detection** | Sportsbook odds (The Odds API) | CoinGecko, NWS, Yahoo Finance + VIX |
+| **Edge detection** | Sportsbook odds (The Odds API) | CoinGecko, NWS, VIX, historical rates, time-decay models |
 | **Settlement speed** | Hours (after game ends) | Varies: daily, monthly, or event-driven |
 | **Liquidity** | Generally high for major sports | Varies widely by market |
-| **Data sources** | 8-12 sportsbooks de-vigged | Asset prices, weather forecasts, vol models |
+| **Data sources** | 8-12 sportsbooks de-vigged | Asset prices, weather forecasts, vol models, settlement history |
 | **Volatility** | Game outcomes are one-shot | Prices move continuously until settlement |
 | **Strategy** | Statistical edge from de-vigged odds | Probability modeling against strike prices |
 
@@ -331,5 +408,6 @@ python scripts/kalshi/kalshi_settler.py report
 1. **Weather 1-3 days out** -- NWS forecasts are highly accurate but markets often overprice uncertainty
 2. **Crypto during high volatility** -- strike prices may be mispriced relative to realized vol
 3. **S&P 500 near close** -- short time to expiry with known VIX = tight probability estimates
-4. **Right after data releases** -- markets can be slow to reprice (e.g., CPI comes in hot, Fed rate markets haven't moved yet)
-5. **Niche markets** -- less liquid markets (IPOs, mentions) are less efficient
+4. **TV mention markets** -- historical settlement rates reveal systematic mispricings, especially for common words
+5. **Right after data releases** -- markets can be slow to reprice (e.g., CPI comes in hot, Fed rate markets haven't moved yet)
+6. **Long-dated political events** -- time-decay model can spot overpriced impeachment/tech timeline markets

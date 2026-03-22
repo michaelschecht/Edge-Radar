@@ -33,7 +33,10 @@
 - **`crypto_edge.py`** -- BTC, ETH, XRP, DOGE, SOL edge detection via CoinGecko (free API, with rate limit retry)
 - **`weather_edge.py`** -- NYC, Chicago, Miami, Denver temperature markets via NWS API (free, no key). Uncertainty scales with forecast horizon.
 - **`spx_edge.py`** -- S&P 500 binary options using Yahoo Finance for price + VIX for implied volatility
-- **`prediction_scanner.py`** -- unified CLI scanner: `--filter crypto`, `--filter weather`, `--filter spx`, `--filter btc`, etc.
+- **`mentions_edge.py`** -- TV mention markets: Poisson model for KXLASTWORDCOUNT (word counts), historical YES rate for binary mention markets (KXPOLITICSMENTION, KXFOXNEWSMENTION, KXNBAMENTION)
+- **`companies_edge.py`** -- KXBANKRUPTCY (normal distribution vs historical ~750/yr baseline), KXIPO (browse only)
+- **`politics_edge.py`** -- KXIMPEACH, KXQUANTUM, KXFUSION: time-decay hazard model with calibrated annual probabilities
+- **`prediction_scanner.py`** -- unified CLI scanner with filters: crypto, weather, spx, mentions, companies, politics, techscience, and individual asset/series shortcuts
 - All detectors produce the same `Opportunity` dataclass compatible with the existing executor pipeline
 
 ### Project Reorganization
