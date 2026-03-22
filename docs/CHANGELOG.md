@@ -2,6 +2,54 @@
 
 ---
 
+## 2026-03-22 -- Live Trading, Prediction Markets, Project Reorganization
+
+### Switched to Live Trading
+- Moved from Kalshi demo to live production API
+- Set `DRY_RUN=false`, `MAX_BET_SIZE_PREDICTION=5`
+- Demo credentials archived in `.env` comments
+
+### Git Repository
+- Published to GitHub as private repo: `michaelschecht/Finance-Agent-Pro`
+- Working branch: `mike_desktop`
+
+### Kalshi Bettor Agent & Skill
+- New `.claude/agents/KALSHI_BETTOR.md` -- dedicated Kalshi betting agent
+- New `.claude/skills/kalshi-bet/SKILL.md` -- `/kalshi-bet` slash command for scan/execute/settle
+- Agent auto-runs status on startup, previews before executing, respects all risk gates
+
+### Financial Analysis Skill
+- New `.claude/skills/financial-analysis/` -- research and analysis skill
+- Templates: stock analysis, earnings/corporate, global markets, market sentiment, investment strategy
+
+### Sport Filter Expansion
+- Expanded `FILTER_SHORTCUTS` from 5 to 27 sports based on live Kalshi market discovery
+- Added: NFL, NCAA women's basketball, NCAA football, MLS, Champions League, EPL, La Liga, Serie A, Bundesliga, Ligue 1, UFC, boxing, F1, NASCAR, PGA golf, IPL cricket, individual esports (CS2, LoL)
+- Added NBA player props (3PT, rebounds, assists, steals, points) and awards (MVP, ROY, DPOY)
+- Added NHL awards (Hart, Norris, Calder)
+
+### Prediction Market Edge Detectors (`scripts/prediction/`)
+- **`probability.py`** -- shared math: strike probability (log-normal model), weather probability (normal model), realized volatility
+- **`crypto_edge.py`** -- BTC, ETH, XRP, DOGE, SOL edge detection via CoinGecko (free API, with rate limit retry)
+- **`weather_edge.py`** -- NYC, Chicago, Miami, Denver temperature markets via NWS API (free, no key). Uncertainty scales with forecast horizon.
+- **`spx_edge.py`** -- S&P 500 binary options using Yahoo Finance for price + VIX for implied volatility
+- **`prediction_scanner.py`** -- unified CLI scanner: `--filter crypto`, `--filter weather`, `--filter spx`, `--filter btc`, etc.
+- All detectors produce the same `Opportunity` dataclass compatible with the existing executor pipeline
+
+### Project Reorganization
+- **Scripts:** Moved all Kalshi scripts to `scripts/kalshi/`, new prediction scripts in `scripts/prediction/`
+- **Docs:** Reorganized into `docs/kalshi-sports-betting/` and `docs/kalshi-prediction-betting/`
+- Fixed all `parent.parent` path resolution for new script depth
+- Updated all cross-references across CLAUDE.md, agents, skills, and docs
+- Removed local filesystem paths from all committed files
+
+### Documentation
+- `docs/kalshi-sports-betting/BETTING_GUIDE.md` -- comprehensive sport-by-sport guide with all 27 filters
+- `docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md` -- crypto, weather, S&P 500, economics, politics
+- Updated `CLAUDE.md` project structure tree
+
+---
+
 ## 2026-03-18 (Session 2) -- Settlement Tracker, Filters, Unit Sizing
 
 ### Settlement Tracker (`scripts/kalshi/kalshi_settler.py`)
