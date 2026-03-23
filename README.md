@@ -10,7 +10,7 @@
   <a href="https://kalshi.com"><img src="https://img.shields.io/badge/Kalshi-Live%20Trading-e74c3c?style=for-the-badge" alt="Kalshi Live Trading"></a>
   <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.11+-2ea44f?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+"></a>
   <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/Edge%20Model-Normal%20CDF-8B5CF6?style=for-the-badge" alt="Normal CDF"></a>
-  <a href="docs/enhancements/EDGE_OPTIMIZATION_ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-7%2F9%20Complete-F97316?style=for-the-badge" alt="Roadmap"></a>
+  <a href="docs/enhancements/EDGE_OPTIMIZATION_ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-8%2F9%20Complete-F97316?style=for-the-badge" alt="Roadmap"></a>
 </p>
 
 <p align="center">
@@ -19,47 +19,20 @@
 
 ---
 
-## 🏗️ How It Works
+## About
 
-```
-  12 Sportsbooks                    6 Free APIs
-  ==================                ==================
-  Pinnacle (3x weight)              ESPN  (NBA/NFL/NCAAB/NCAAF)
-  Circa    (3x weight)              NHL   (standings, L10)
-  BetMGM   (0.7x weight)           MLB   (standings, run diff)
-  FanDuel  (0.7x weight)           NWS   (61 venue forecasts)
-  DraftKings (0.7x weight)         CoinGecko (crypto vol)
-  + 7 more books                    Yahoo Finance (S&P + VIX)
-        \       |       /                |       |       |
-         v      v      v                 v       v       v
-       +----------------------------------------------+
-       |          EDGE DETECTION ENGINE                |
-       |                                               |
-       |  Weighted De-Vig    ->  Consensus Fair Value  |
-       |  Normal CDF Model   ->  Spread/Total Probs    |
-       |  Team Stats Signal  ->  Confidence Adjust     |
-       |  Weather Impact     ->  NFL/MLB Total Adjust  |
-       |  Book Disagreement  ->  Injury/News Detection |
-       +----------------------------------------------+
-                          |
-                    Fair Value vs Kalshi Price
-                          |
-                   Edge >= 3%?  ──NO──>  Skip
-                          |
-                         YES
-                          |
-                +-----------------+
-                |   RISK GATES    |
-                |  Daily loss     |
-                |  Position limit |
-                |  Min score      |
-                |  Kelly sizing   |
-                +-----------------+
-                          |
-                  EXECUTE on Kalshi
-                          |
-                  Log + Track CLV
-```
+Edge-Radar is an automated edge-detection and execution system for [Kalshi](https://kalshi.com) prediction markets and sports betting. It scans thousands of open markets, cross-references prices against sportsbook consensus odds from 12 US books and 6 free external APIs, identifies mispriced contracts using a normal CDF probability model with sharp book weighting, applies risk gates and position sizing, and executes limit orders -- logging every decision for post-hoc calibration and closing line value tracking.
+
+The system covers **sports betting** (27 sport filters), **championship futures** (NFL, NBA, NHL, MLB, PGA), and **prediction markets** (crypto, weather, S&P 500, politics). All edge detection defaults to preview mode -- no money is risked until you explicitly confirm.
+
+<p align="center">
+  <a href="#-supported-markets">Supported Markets</a> &middot;
+  <a href="#-edge-detection">Edge Detection</a> &middot;
+  <a href="#-quick-start">Quick Start</a> &middot;
+  <a href="#️-how-it-works">How It Works</a> &middot;
+  <a href="#-documentation">Documentation</a> &middot;
+  <a href="#-data-sources">Data Sources</a>
+</p>
 
 ---
 
@@ -117,6 +90,7 @@ NBA, NHL, MLB, NFL, NCAAB, NCAAF, MLS, Champions League, EPL, La Liga, Serie A, 
 | **Normal CDF Model** | Spreads and totals modeled as normal distribution with sport-specific stdev — NBA: 12, NFL: 13.5, MLB: 3.5, NHL: 2.5 |
 | **Sharp Book Weighting** | Pinnacle/Circa weighted 3x in consensus, DraftKings/FanDuel 0.7x — sharp lines pull fair value |
 | **Team Stats Validation** | ESPN, NHL, MLB APIs provide win% — stats that support the bet boost confidence, contradictions reduce it |
+| **Sharp Money Detection** | ESPN open vs close odds detect reverse line movement — when sharps are on our side, confidence goes up |
 | **Weather Adjustment** | NWS hourly forecasts for 61 NFL/MLB outdoor venues — wind, rain, cold reduce total scoring expectations |
 | **Book Disagreement** | When sportsbooks disagree by >4 points, confidence drops — signals injury news or stale lines |
 | **Closing Line Value** | CLV captured at settlement to validate whether the model consistently beats the market close |
@@ -152,10 +126,51 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 
 ---
 
-## 🗂️ Project Structure
+## 🏗️ How It Works
+
+```
+  12 Sportsbooks                    6 Free APIs
+  ==================                ==================
+  Pinnacle (3x weight)              ESPN  (NBA/NFL/NCAAB/NCAAF)
+  Circa    (3x weight)              NHL   (standings, L10)
+  BetMGM   (0.7x weight)           MLB   (standings, run diff)
+  FanDuel  (0.7x weight)           NWS   (61 venue forecasts)
+  DraftKings (0.7x weight)         CoinGecko (crypto vol)
+  + 7 more books                    Yahoo Finance (S&P + VIX)
+        \       |       /                |       |       |
+         v      v      v                 v       v       v
+       +----------------------------------------------+
+       |          EDGE DETECTION ENGINE                |
+       |                                               |
+       |  Weighted De-Vig    ->  Consensus Fair Value  |
+       |  Normal CDF Model   ->  Spread/Total Probs    |
+       |  Team Stats Signal  ->  Confidence Adjust     |
+       |  Sharp Money Signal ->  Line Movement Detect  |
+       |  Weather Impact     ->  NFL/MLB Total Adjust  |
+       |  Book Disagreement  ->  Injury/News Detection |
+       +----------------------------------------------+
+                          |
+                    Fair Value vs Kalshi Price
+                          |
+                   Edge >= 3%?  ──NO──>  Skip
+                          |
+                         YES
+                          |
+                +-----------------+
+                |   RISK GATES    |
+                |  Daily loss     |
+                |  Position limit |
+                |  Min score      |
+                |  Kelly sizing   |
+                +-----------------+
+                          |
+                  EXECUTE on Kalshi
+                          |
+                  Log + Track CLV
+```
 
 <details>
-<summary><b>Click to expand</b></summary>
+<summary><b>Project Structure</b></summary>
 
 ```
 Edge-Radar/
@@ -178,6 +193,7 @@ Edge-Radar/
 │   │   ├── config.py            # Centralized .env configuration
 │   │   ├── team_stats.py        # ESPN/NHL/MLB team performance
 │   │   ├── sports_weather.py    # NWS weather for 61 venues
+│   │   ├── line_movement.py     # ESPN line movement & sharp detection
 │   │   ├── odds_api.py          # Multi-key rotation
 │   │   └── trade_log.py         # Trade journal I/O
 │   └── schedulers/          # Automated recurring pipelines
@@ -186,7 +202,7 @@ Edge-Radar/
 │       └── run_schedulers.py    # CLI entry point
 ├── docs/                    # Guides and references
 ├── data/                    # Trade history, settlements, watchlists
-├── reports/                 # Generated reports
+├── reports/                 # Generated performance and futures reports
 └── .claude/                 # Agents, skills, memory
 ```
 
@@ -204,7 +220,7 @@ Edge-Radar/
 | **[Prediction Markets](docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** | Crypto, weather, S&P 500, politics edge models |
 | **[Architecture](docs/ARCHITECTURE.md)** | 7-step pipeline, risk gates, data flow, scoring |
 | **[Scheduler Guide](docs/schedulers/SCHEDULER_GUIDE.md)** | Automated per-market scheduling with failure pause |
-| **[Edge Roadmap](docs/enhancements/EDGE_OPTIMIZATION_ROADMAP.md)** | Model improvement plan (7/9 items complete) |
+| **[Edge Roadmap](docs/enhancements/EDGE_OPTIMIZATION_ROADMAP.md)** | Model improvement plan (8/9 items complete) |
 | **[Changelog](docs/CHANGELOG.md)** | Full project history |
 
 ---
@@ -215,7 +231,7 @@ Edge-Radar/
 |:----|:--------|:-----|:-----|
 | [Kalshi](https://kalshi.com) | Market data + order execution | API key + RSA | Free (funded account) |
 | [The Odds API](https://the-odds-api.com) | Sportsbook odds from 12 US books | API key | Free (500 req/mo) |
-| [ESPN](http://site.api.espn.com) | NBA, NCAAB, NFL, NCAAF standings | None | Free |
+| [ESPN](http://site.api.espn.com) | Team stats + line movement (open/close odds) | None | Free |
 | [NHL Stats API](https://api-web.nhle.com) | Standings, goal diff, L10 record | None | Free |
 | [MLB Stats API](https://statsapi.mlb.com) | Standings, run differential | None | Free |
 | [NWS](https://weather.gov) | Hourly weather for 61 sport venues | None | Free |
@@ -223,6 +239,10 @@ Edge-Radar/
 | [Yahoo Finance](https://finance.yahoo.com) | S&P 500 price + VIX | None | Free |
 
 ---
+
+<p align="center">
+  Built with <a href="https://claude.com/claude-code">Claude Code</a> &middot; Powered by <a href="https://kalshi.com">Kalshi</a>
+</p>
 
 <p align="center">
   <a href="#top">Back to top</a>
