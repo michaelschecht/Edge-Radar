@@ -214,9 +214,18 @@ The system estimates "fair value" for Kalshi markets by cross-referencing sports
 |------|--------|-------------|
 | Game outcomes (moneyline) | Weighted de-vigged h2h odds | High -- direct comparison |
 | Spreads | Normal CDF model with sport-specific stdev | High -- proper bell curve |
-| Totals (over/under) | Normal CDF model with sport-specific stdev | High -- proper bell curve |
+| Totals (over/under) | Normal CDF model with sport-specific stdev + weather | High -- proper bell curve |
 | Player props | Not yet implemented | -- |
 | Esports | Not yet implemented | -- |
+
+### Weather Impact (NFL, MLB Totals)
+
+For outdoor NFL and MLB games, the system fetches NWS hourly forecasts for the venue and adjusts total scoring expectations:
+- **Wind > 15 mph** — reduces passing/kicking accuracy (NFL), fly ball distance (MLB)
+- **Rain > 40%** — reduces scoring in both sports
+- **Cold < 32F (NFL) / < 45F (MLB)** — affects grip and ball flight
+
+Dome stadiums are automatically excluded. Weather data is stored in opportunity details when active.
 
 ### Confidence Signals
 

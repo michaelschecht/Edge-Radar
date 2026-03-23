@@ -42,6 +42,7 @@ from rich import print as rprint
 
 from kalshi_client import KalshiClient
 from team_stats import get_team_stats
+from sports_weather import get_game_weather
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -876,6 +877,43 @@ def detect_edge_spread(market: dict, odds_events: list) -> Opportunity | None:
     )
 
 
+def _extract_home_team_abbr(ticker: str) -> str | None:
+    """
+    Extract the home team abbreviation from a Kalshi ticker.
+
+    Tickers like KXNFLTOTAL-26SEP21KCSF-42 encode both teams after the date.
+    The second team abbreviation (last 2-3 chars of the matchup) is typically
+    the home team. This is a heuristic — Kalshi doesn't explicitly label home/away.
+    """
+    # Extract the matchup segment: e.g., "KCSF" from KXNFLTOTAL-26SEP21KCSF-42
+    match = re.search(r"\d{2}[A-Z]{3}\d{2}(\w+)-", ticker)
+    if not match:
+        return None
+    matchup = match.group(1)
+    # Home team is the last 2-3 characters (common abbreviation length)
+    if len(matchup) >= 4:
+        return matchup[-3:] if len(matchup) >= 6 else matchup[-2:]
+    return None
+
+
+def _extract_game_date(ticker: str) -> str | None:
+    """Extract game date from ticker as YYYY-MM-DD.
+
+    Kalshi tickers use YYMMMDD format: e.g., 26MAR22 = 2026-03-22.
+    """
+    match = re.search(r"(\d{2})([A-Z]{3})(\d{2})", ticker)
+    if not match:
+        return None
+    year_short, mon_str, day = match.groups()
+    months = {"JAN": "01", "FEB": "02", "MAR": "03", "APR": "04", "MAY": "05",
+              "JUN": "06", "JUL": "07", "AUG": "08", "SEP": "09", "OCT": "10",
+              "NOV": "11", "DEC": "12"}
+    month = months.get(mon_str)
+    if not month:
+        return None
+    return f"20{year_short}-{month}-{day}"
+
+
 def detect_edge_total(market: dict, odds_events: list) -> Opportunity | None:
     """Detect edge on over/under total markets."""
     ticker = market["ticker"]
@@ -913,6 +951,31 @@ def detect_edge_total(market: dict, odds_events: list) -> Opportunity | None:
     liquidity = max(0, 10 - (spread * 20))
 
     confidence = "low" if details["n_books"] < 3 else "medium"
+
+    # Weather adjustment for outdoor sports (NFL, MLB)
+    weather_data = None
+    sport = _sport_from_ticker(ticker)
+    if sport in ("americanfootball_nfl", "americanfootball_ncaaf", "baseball_mlb"):
+        home_team = _extract_home_team_abbr(ticker)
+        game_date = _extract_game_date(ticker)
+        if home_team and game_date:
+            weather_data = get_game_weather(home_team, sport, game_date)
+
+    if weather_data and weather_data.get("scoring_impact"):
+        impact = weather_data["scoring_impact"]
+        adj = impact["adjustment"]
+        if adj != 0:
+            # Weather reduces scoring → adjust fair value for OVER bets down
+            # For YES (over), lower fair value; for NO (under), higher fair value
+            if side == "yes":
+                fair = max(0.01, fair + adj)  # adj is negative = reduces over prob
+            else:
+                fair = min(0.99, fair - adj)  # inverse for under
+            edge = fair - market_price
+            details["weather"] = weather_data
+            details["weather_adjustment"] = adj
+            log.info("Weather adjustment for %s: %+.1f%% (%s)",
+                     ticker, adj * 100, impact["reason"])
 
     composite = (
         min(edge / 0.01, 10) * 0.40 +

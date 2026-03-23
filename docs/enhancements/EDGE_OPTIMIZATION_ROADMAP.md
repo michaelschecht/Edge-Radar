@@ -94,18 +94,20 @@ Prioritized improvements to edge detection accuracy, ranked by expected impact o
 
 ## Priority 3: Lower Impact (Nice to Have)
 
-### 7. Weather for Outdoor Sports
+### 7. Weather for Outdoor Sports -- DONE (2026-03-23)
 
-**Problem:** Wind, rain, and extreme temperatures affect scoring in outdoor sports (NFL, MLB). Totals should be adjusted downward in bad weather.
+**Problem:** Wind, rain, and extreme temperatures affect scoring in outdoor sports.
 
-**Action:**
-- Already have NWS API integration for prediction markets
-- Cross-reference game location + weather forecast for NFL/MLB
-- Adjust total fair values: reduce expected scoring in high wind (>20mph), rain, or extreme cold
-
-**Cost:** Minimal — reuse existing `weather_edge.py` infrastructure.
-
-**Expected impact:** Low for current bet volume (mostly NBA/NCAAB indoors). Higher impact during NFL/MLB seasons.
+**Fix implemented:**
+- New `scripts/shared/sports_weather.py` module
+- NWS hourly forecast API (free, no key): fetches temperature, wind speed, precipitation probability
+- 31 NFL venues and 30 MLB venues mapped with NWS grid points and dome/outdoor classification
+- Dome stadiums automatically return zero adjustment
+- Scoring adjustment model for NFL/MLB based on wind (>15mph), rain (>40%), cold (<32F NFL, <45F MLB)
+- Integrated into `detect_edge_total()`: weather adjusts fair value for over/under markets
+  - Bad weather → reduces over probability, increases under probability
+  - Adjustment capped at -15% (severe: high wind + rain + cold combined)
+- Weather data stored in opportunity details for transparency
 
 ### 8. Historical Kalshi Pricing Analysis
 
@@ -143,7 +145,8 @@ Prioritized improvements to edge detection accuracy, ranked by expected impact o
 | **Phase 2** | #3 Sharp book weighting, #4 Team stats APIs | DONE (2026-03-23) | Phase 1 validates the approach |
 | **Phase 3** | #5 Injury/line disagreement signal | DONE (2026-03-23) | None |
 | | #6 Public betting % | Deferred (requires paid API) | Action Network ~$30/mo |
-| **Phase 4** | #7 Weather, #8 Historical analysis, #9 Line movement | Ongoing | Data accumulation over time |
+| **Phase 4** | #7 Weather for outdoor sports | DONE (2026-03-23) | None |
+| | #8 Historical analysis, #9 Line movement | Ongoing | Data accumulation over time |
 
 ---
 

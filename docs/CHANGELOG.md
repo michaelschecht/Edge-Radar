@@ -11,6 +11,13 @@
 - Same fix applied to total (over/under) markets with separate total stdev values
 - Old model systematically overestimated edge on alternate spreads (caused 1W-11L on NCAAB)
 
+### Weather Impact for Outdoor Sports (`scripts/shared/sports_weather.py`)
+- New module: NWS hourly forecast for 31 NFL + 30 MLB venues (dome/outdoor classified)
+- Scoring adjustment model: wind >15mph, rain >40%, cold <32F (NFL) / <45F (MLB)
+- Integrated into `detect_edge_total()`: bad weather reduces over fair value, boosts under
+- Dome stadiums automatically skipped (zero adjustment)
+- Free NWS API, no key required
+
 ### Team Stats Integrated into Edge Detection (`scripts/kalshi/edge_detector.py`)
 - Game and spread edge detectors now look up team win% via `team_stats.py`
 - Stats signal: "supports" (win% >= 60% for YES, <= 40% for NO), "contradicts" (opposite), or "neutral"
