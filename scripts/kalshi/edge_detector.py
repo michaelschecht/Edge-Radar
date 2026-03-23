@@ -397,11 +397,53 @@ def extract_team_from_market(market: dict) -> str | None:
 def extract_event_teams(market: dict) -> tuple[str, str] | None:
     """Extract both team names from the event ticker or rules."""
     rules = market.get("rules_primary", "")
-    # Pattern: "Team A vs Team B" or "Team A at Team B"
-    match = re.search(r"the (.+?) (?:vs|at) (.+?) (?:professional|College|college)", rules)
+    # Pattern: "Team A vs Team B" or "Team A at Team B" (multiple context words)
+    match = re.search(
+        r"the (.+?) (?:vs\.?|at) (.+?) (?:professional|college|men's college|women's college|NCAA|MLB|NBA|NHL|NFL|MLS)",
+        rules, re.IGNORECASE,
+    )
+    if match:
+        return match.group(1).strip(), match.group(2).strip()
+    # Fallback: simpler pattern
+    match = re.search(r"in the (.+?) (?:vs\.?|at) (.+?) (?:game|match)", rules, re.IGNORECASE)
     if match:
         return match.group(1).strip(), match.group(2).strip()
     return None
+
+
+def get_display_title(market: dict) -> str:
+    """Build a display-friendly title that always includes both teams.
+
+    For spreads/totals where the title only shows one team,
+    extracts the matchup from rules_primary or event_ticker.
+    """
+    title = market.get("title", "")
+
+    # Game markets already show the matchup ("Team A at Team B Winner?")
+    if " at " in title and "Winner" in title:
+        return title
+
+    # Total markets usually show matchup ("Team A at Team B: Total Points")
+    if "Total Points" in title and " at " in title:
+        return title
+
+    # Spread markets need the opponent added
+    teams = extract_event_teams(market)
+    if teams:
+        team_a, team_b = teams
+        # title is like "UCLA wins by over 11.5 Points?"
+        # Make it: "UCLA wins by over 11.5 Pts? (vs UConn)"
+        # Figure out which team is in the title
+        title_lower = title.lower()
+        if team_a.lower() in title_lower:
+            opponent = team_b
+        elif team_b.lower() in title_lower:
+            opponent = team_a
+        else:
+            opponent = f"{team_a} vs {team_b}"
+        return f"{title} (vs {opponent})"
+
+    return title
 
 
 def extract_strike(market: dict) -> float | None:
@@ -475,7 +517,7 @@ def detect_edge_game(market: dict, odds_events: list) -> Opportunity | None:
 
     return Opportunity(
         ticker=ticker,
-        title=market.get("title") or f"{team} to win",
+        title=get_display_title(market) or f"{team} to win",
         category="game",
         side=side,
         market_price=round(market_price, 4),
@@ -538,7 +580,7 @@ def detect_edge_spread(market: dict, odds_events: list) -> Opportunity | None:
 
     return Opportunity(
         ticker=ticker,
-        title=f"{market.get('title') or team} ({strike})",
+        title=get_display_title(market) or f"{team} ({strike})",
         category="spread",
         side=side,
         market_price=round(market_price, 4),
@@ -599,7 +641,7 @@ def detect_edge_total(market: dict, odds_events: list) -> Opportunity | None:
 
     return Opportunity(
         ticker=ticker,
-        title=f"{market.get('title') or ticker} O/U {strike}",
+        title=get_display_title(market) or f"O/U {strike}",
         category="total",
         side=side,
         market_price=round(market_price, 4),

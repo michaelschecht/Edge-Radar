@@ -289,7 +289,7 @@ def execute_pipeline(
         title=f"{'EXECUTING' if execute else 'PREVIEW'} -- {len(to_execute)} orders",
         show_lines=True,
     )
-    table.add_column("Bet", style="cyan", max_width=50)
+    table.add_column("Bet", style="cyan", max_width=60)
     table.add_column("Side")
     table.add_column("Qty", justify="right")
     table.add_column("Price", justify="right")
@@ -313,7 +313,7 @@ def execute_pipeline(
             side_label = side.upper()
 
         table.add_row(
-            s.opportunity.title[:50],
+            s.opportunity.title[:60],
             side_label,
             str(s.contracts),
             f"${s.price_cents / 100:.2f}",
