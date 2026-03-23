@@ -2,6 +2,54 @@
 
 ---
 
+## 2026-03-23 -- Edge Model Overhaul, Scheduler Framework, Doc Consolidation
+
+### Spread & Total Model Recalibration (`scripts/kalshi/edge_detector.py`)
+- Replaced linear probability adjustment (`+3% per point`) with normal CDF model using `scipy.stats.norm`
+- Infers expected score margin from book spread + implied probability, then calculates P(margin > strike) on the bell curve
+- Added sport-specific standard deviations: NBA (12), NCAAB (11), NFL (13.5), MLB (3.5), NHL (2.5), soccer (1.8)
+- Same fix applied to total (over/under) markets with separate total stdev values
+- Old model systematically overestimated edge on alternate spreads (caused 1W-11L on NCAAB)
+
+### Team Stats Integrated into Edge Detection (`scripts/kalshi/edge_detector.py`)
+- Game and spread edge detectors now look up team win% via `team_stats.py`
+- Stats signal: "supports" (win% >= 60% for YES, <= 40% for NO), "contradicts" (opposite), or "neutral"
+- Confidence is bumped up one level when stats support the bet, dropped when stats contradict
+- Team record and signal stored in opportunity details for transparency
+
+### Sharp Book Weighting (`scripts/kalshi/edge_detector.py`, `scripts/kalshi/futures_edge.py`)
+- Added `BOOK_WEIGHTS` map: Pinnacle/Circa at 3x, mid-tier at 1-1.5x, DraftKings/FanDuel/BetMGM at 0.7x
+- Replaced simple median with `weighted_median()` across all consensus functions (game, spread, total, futures)
+- Sharp books pull the consensus fair value toward their more accurate lines
+- 21 books mapped with weights; unknown books default to 1.0x
+
+### Team Stats Module (`scripts/shared/team_stats.py`)
+- New module providing team performance data from free APIs (no keys required)
+- ESPN API: NBA, NCAAB, NFL, NCAAF standings, win%, points for/against
+- NHL Stats API: standings, goal differential, L10 record, streak
+- MLB Stats API: standings, run differential, winning percentage
+- 6 sports covered, unified `get_team_stats(team, sport)` lookup with fuzzy name matching
+- Data cached per session to minimize API calls
+
+### Closing Line Value Tracking (`scripts/kalshi/kalshi_settler.py`)
+- Settler now captures closing price from Kalshi API when settling trades
+- Calculates CLV = closing_price - entry_price per trade
+- Performance report includes CLV section: average CLV and beat-the-close rate
+- CLV is the gold standard for validating whether the model has real predictive value
+
+### Rebranded to Edge-Radar
+- Renamed from FinAgent / Finance-Agent-Pro / edge-hunter to Edge-Radar
+- Updated all references across CLAUDE.md, README, ARCHITECTURE, agents, Python docstrings, User-Agent headers, reports, and memory
+
+### Documentation Consolidation
+- Merged `USER_GUIDE.md` + `BETTING_GUIDE.md` into single `SPORTS_GUIDE.md` (1117 → 405 lines)
+- Replaced `KALSHI_STRATEGY_PLAN.md` with lean `ARCHITECTURE.md` (pipeline, risk gates, data flow)
+- Trimmed `FUTURES_GUIDE.md` (456 → 359 lines) and `PREDICTION_MARKETS_GUIDE.md` (414 → 252 lines)
+- Slimmed `README.md` (206 → 79 lines) with doc index linking to all guides
+- Eliminated ~600 lines of duplicated risk gates, command examples, and filter tables across docs
+
+---
+
 ## 2026-03-23 -- Scheduler Framework, Trade Log Cleanup, Report Export
 
 ### Scheduler Framework (`scripts/schedulers/`)
@@ -35,6 +83,20 @@
 - Added `.claude/memory/` for cross-session project context
 - CLAUDE.md updated to instruct Claude Code to check memory on startup
 
+### Futures Betting Improvements (`scripts/kalshi/futures_edge.py`)
+- Added `KXNBA` (NBA Finals Champion), `KXNHL` (Stanley Cup Champion), `KXMLB` (World Series Champion) to futures map — only conference/playoff markets were previously mapped
+- Added human-readable labels to all futures: output now shows "NBA Finals Champion: Oklahoma City Thunder" instead of just the ticker
+- `--filter nba-futures` now scans Finals champion + both conference winners
+- `--filter nfl-futures` cleaned up (removed KXNFLMVP which has no Odds API data)
+- Bet type label stored in `details["bet_type"]` and used as the display title
+- CLI table shows "Bet Type" column instead of raw ticker
+- Updated FUTURES_GUIDE.md with NBA Finals section and corrected filter descriptions
+
+### Per-Game Opportunity Cap (`scripts/kalshi/edge_detector.py`)
+- Limits scan results to top 3 opportunities per game (sorted by edge)
+- Groups markets by date+matchup extracted from ticker (e.g., all spreads/totals/game for Michigan vs Alabama share one key)
+- Prevents a single game from dominating the opportunity list
+
 ### PR #14 Review
 - Reviewed and rejected Jules-generated PR "Automate Kalshi Betting Pipeline & Optimize Execution"
 - Issues: missing `KELLY_FRACTION` constant (runtime crash), no `DRY_RUN` gate on scheduler, missing `apscheduler` dependency, unexplained `cryptography` addition
@@ -50,7 +112,7 @@
 - Demo credentials archived in `.env` comments
 
 ### Git Repository
-- Published to GitHub as private repo: `michaelschecht/Finance-Agent-Pro`
+- Published to GitHub as private repo: `michaelschecht/Edge-Radar`
 - Working branch: `mike_desktop`
 
 ### Kalshi Bettor Agent & Skill
@@ -133,7 +195,7 @@
 - Removed financial-analysis skill (project dedicated to betting)
 
 ### Repo Renamed
-- `Finance-Agent-Pro` -> `edge-hunter`
+- `Finance-Agent-Pro` -> `edge-hunter` -> `Edge-Radar`
 
 ### New Skills
 - `market-mechanics-betting` -- betting theory, Kelly criterion, scoring rules

@@ -1,6 +1,6 @@
 """
 kalshi_client.py
-Unified Kalshi API client for FinAgent.
+Unified Kalshi API client for Edge-Radar.
 
 Handles authentication (RSA-PSS signing), market data, order placement,
 position tracking, and balance queries.

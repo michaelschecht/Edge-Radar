@@ -71,7 +71,7 @@ def fetch_nws_forecast(office: str, grid_x: int, grid_y: int) -> list[dict]:
     try:
         resp = requests.get(
             f"https://api.weather.gov/gridpoints/{office}/{grid_x},{grid_y}/forecast",
-            headers={"User-Agent": "FinAgent/1.0 (weather-edge-detection)"},
+            headers={"User-Agent": "Edge-Radar/1.0 (weather-edge-detection)"},
             timeout=15,
         )
         resp.raise_for_status()

@@ -34,7 +34,7 @@ def fetch_yahoo_quote(symbol: str) -> dict | None:
         resp = requests.get(
             f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}",
             params={"interval": "1h", "range": "5d"},
-            headers={"User-Agent": "FinAgent/1.0"},
+            headers={"User-Agent": "Edge-Radar/1.0"},
             timeout=15,
         )
         resp.raise_for_status()

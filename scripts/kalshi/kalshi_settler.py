@@ -160,6 +160,21 @@ def settle_trades(client: KalshiClient) -> dict:
         # Calculate P&L
         pnl = calculate_pnl(trade, settlement)
 
+        # Capture closing price for CLV tracking
+        closing_price = None
+        try:
+            market_data = client.get_market(ticker).get("market", {})
+            if trade.get("side") == "yes":
+                closing_price = float(market_data.get("last_price", 0)) / 100
+            else:
+                last = float(market_data.get("last_price", 0)) / 100
+                closing_price = 1.0 - last if last > 0 else None
+        except Exception:
+            log.debug("Could not fetch closing price for %s", ticker)
+
+        entry_price = trade.get("market_price_at_entry", 0)
+        clv = round(closing_price - entry_price, 4) if closing_price and entry_price else None
+
         # Update trade record
         trade["net_pnl"] = pnl["net_pnl"]
         trade["closed_at"] = settlement.get("settled_time", datetime.now(timezone.utc).isoformat())
@@ -167,6 +182,8 @@ def settle_trades(client: KalshiClient) -> dict:
         trade["settlement_revenue"] = pnl["revenue"]
         trade["settlement_won"] = pnl["won"]
         trade["settlement_roi"] = pnl["roi"]
+        trade["closing_price"] = closing_price
+        trade["clv"] = clv
 
         settled_count += 1
 
@@ -304,6 +321,16 @@ def generate_report(detail: bool = False, save: bool = False):
     if avg_edge_est > 0:
         realization = edge_realized / avg_edge_est
         report_line(f"  Edge realization:    {realization:.0%}")
+
+    # CLV (Closing Line Value) — measures if we got a better price than the close
+    clv_trades = [t for t in settled if t.get("clv") is not None]
+    if clv_trades:
+        avg_clv = sum(t["clv"] for t in clv_trades) / len(clv_trades)
+        positive_clv = sum(1 for t in clv_trades if t["clv"] > 0)
+        clv_color = "green" if avg_clv > 0 else "red"
+        report_line(f"\n[bold]Closing Line Value (CLV)[/bold]")
+        report_line(f"  Avg CLV:             [{clv_color}]{avg_clv:+.1%}[/{clv_color}]")
+        report_line(f"  Beat the close:      {positive_clv}/{len(clv_trades)} ({positive_clv/len(clv_trades):.0%})")
 
     # By confidence level
     for conf in ["high", "medium", "low"]:

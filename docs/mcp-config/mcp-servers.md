@@ -1,11 +1,11 @@
-# MCP Servers — FinAgent Platform
+# MCP Servers — Edge-Radar Platform
 ## Reference, Configuration & Setup Guide
 
 ---
 
 ## Overview
 
-This file documents all MCP servers used by the FinAgent platform, their purpose, installation commands, and configuration snippets for `claude_desktop_config.json` on Windows/WSL.
+This file documents all MCP servers used by the Edge-Radar platform, their purpose, installation commands, and configuration snippets for `claude_desktop_config.json` on Windows/WSL.
 
 ---
 

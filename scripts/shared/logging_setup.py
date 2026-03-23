@@ -1,6 +1,6 @@
 """
 logging_setup.py
-Configures logging to both console and file for all FinAgent scripts.
+Configures logging to both console and file for all Edge-Radar scripts.
 
 Usage:
     from logging_setup import setup_logging

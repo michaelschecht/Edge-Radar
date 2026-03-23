@@ -1,6 +1,6 @@
 """
 paths.py
-Standardized path setup for all FinAgent scripts.
+Standardized path setup for all Edge-Radar scripts.
 
 Adds the project root and script directories to sys.path so that
 cross-package imports work regardless of where scripts are invoked from.
@@ -16,7 +16,7 @@ Usage (at the top of any entry-point script):
 import sys
 from pathlib import Path
 
-# Project root: Finance_Agent_Pro/
+# Project root: Edge-Radar/
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Script directories
