@@ -13,6 +13,7 @@ Usage:
 """
 
 import os
+import re
 import sys
 import json
 import logging
@@ -207,8 +208,13 @@ def settle_trades(client: KalshiClient) -> dict:
 
 # ── Performance Report ────────────────────────────────────────────────────────
 
-def generate_report(detail: bool = False):
-    """Generate P&L and performance report from trade log."""
+def generate_report(detail: bool = False, save: bool = False):
+    """Generate P&L and performance report from trade log.
+
+    Args:
+        detail: Show per-trade breakdown table.
+        save: Write report to reports/Accounts/Kalshi/ with today's date.
+    """
     trade_log = load_trade_log()
 
     if not trade_log:
@@ -218,24 +224,38 @@ def generate_report(detail: bool = False):
     settled = [t for t in trade_log if t.get("closed_at") is not None]
     unsettled = [t for t in trade_log if t.get("closed_at") is None and t.get("status") != "error"]
 
-    rprint(f"\n[bold]-- Kalshi Performance Report --[/bold]")
-    rprint(f"  Total trades:    {len(trade_log)}")
-    rprint(f"  Settled:         {len(settled)}")
-    rprint(f"  Open/Pending:    {len(unsettled)}")
+    # Collect report lines for both console and file output
+    lines: list[str] = []
+
+    def report_line(text: str):
+        """Print to console and buffer for file output."""
+        rprint(text)
+        # Strip Rich markup for the plain-text file
+        plain = re.sub(r"\[/?[^\]]*\]", "", text)
+        lines.append(plain)
+
+    report_line(f"\n-- Kalshi Performance Report --")
+    report_line(f"  Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    report_line(f"  Total trades:    {len(trade_log)}")
+    report_line(f"  Settled:         {len(settled)}")
+    report_line(f"  Open/Pending:    {len(unsettled)}")
 
     if not settled:
-        rprint("\n  [yellow]No settled trades yet -- run 'settle' after markets resolve.[/yellow]")
+        report_line("\n  No settled trades yet -- run 'settle' after markets resolve.")
 
         # Show open positions summary
         if unsettled:
-            rprint(f"\n[bold]Open Positions[/bold]")
+            report_line(f"\nOpen Positions")
             total_exposure = sum(t.get("cost_dollars", 0) for t in unsettled)
-            rprint(f"  Total exposure: ${total_exposure:.2f}")
+            report_line(f"  Total exposure: ${total_exposure:.2f}")
             for t in unsettled:
-                rprint(
+                report_line(
                     f"  {t['ticker'][:40]} | {t['side'].upper()} x{t.get('contracts',0)} "
                     f"@ ${t.get('price_cents',0)/100:.2f} | edge={t.get('edge_estimated',0):.1%}"
                 )
+
+        if save:
+            _save_report_file(lines)
         return
 
     # ── Aggregate stats
@@ -253,37 +273,37 @@ def generate_report(detail: bool = False):
     avg_loss = sum(t.get("net_pnl", 0) for t in losses) / len(losses) if losses else 0
     roi = total_pnl / total_wagered if total_wagered > 0 else 0
 
-    rprint(f"\n[bold]P&L Summary[/bold]")
+    report_line(f"\n[bold]P&L Summary[/bold]")
     pnl_color = "green" if total_pnl >= 0 else "red"
-    rprint(f"  Net P&L:         [{pnl_color}]${total_pnl:+.2f}[/{pnl_color}]")
-    rprint(f"  Total wagered:   ${total_wagered:.2f}")
-    rprint(f"  Total fees:      ${total_fees:.2f}")
-    rprint(f"  ROI:             [{pnl_color}]{roi:+.1%}[/{pnl_color}]")
+    report_line(f"  Net P&L:         [{pnl_color}]${total_pnl:+.2f}[/{pnl_color}]")
+    report_line(f"  Total wagered:   ${total_wagered:.2f}")
+    report_line(f"  Total fees:      ${total_fees:.2f}")
+    report_line(f"  ROI:             [{pnl_color}]{roi:+.1%}[/{pnl_color}]")
 
-    rprint(f"\n[bold]Win/Loss[/bold]")
-    rprint(f"  Record:          {len(wins)}W - {len(losses)}L ({win_rate:.0%})")
-    rprint(f"  Avg win:         ${avg_win:+.2f}")
-    rprint(f"  Avg loss:        ${avg_loss:+.2f}")
+    report_line(f"\n[bold]Win/Loss[/bold]")
+    report_line(f"  Record:          {len(wins)}W - {len(losses)}L ({win_rate:.0%})")
+    report_line(f"  Avg win:         ${avg_win:+.2f}")
+    report_line(f"  Avg loss:        ${avg_loss:+.2f}")
 
     if wins and losses:
         profit_factor = abs(sum(t["net_pnl"] for t in wins)) / abs(sum(t["net_pnl"] for t in losses))
-        rprint(f"  Profit factor:   {profit_factor:.2f}")
+        report_line(f"  Profit factor:   {profit_factor:.2f}")
 
     best = max(settled, key=lambda t: t.get("net_pnl", 0))
     worst = min(settled, key=lambda t: t.get("net_pnl", 0))
-    rprint(f"  Best trade:      ${best['net_pnl']:+.2f} ({best['ticker'][:30]})")
-    rprint(f"  Worst trade:     ${worst['net_pnl']:+.2f} ({worst['ticker'][:30]})")
+    report_line(f"  Best trade:      ${best['net_pnl']:+.2f} ({best['ticker'][:30]})")
+    report_line(f"  Worst trade:     ${worst['net_pnl']:+.2f} ({worst['ticker'][:30]})")
 
     # ── Edge calibration
-    rprint(f"\n[bold]Edge Calibration[/bold]")
+    report_line(f"\n[bold]Edge Calibration[/bold]")
     avg_edge_est = sum(t.get("edge_estimated", 0) for t in settled) / len(settled)
     edge_realized = roi  # actual ROI is our realized edge
 
-    rprint(f"  Avg estimated edge:  {avg_edge_est:.1%}")
-    rprint(f"  Realized edge (ROI): {edge_realized:+.1%}")
+    report_line(f"  Avg estimated edge:  {avg_edge_est:.1%}")
+    report_line(f"  Realized edge (ROI): {edge_realized:+.1%}")
     if avg_edge_est > 0:
         realization = edge_realized / avg_edge_est
-        rprint(f"  Edge realization:    {realization:.0%}")
+        report_line(f"  Edge realization:    {realization:.0%}")
 
     # By confidence level
     for conf in ["high", "medium", "low"]:
@@ -291,7 +311,7 @@ def generate_report(detail: bool = False):
         if conf_trades:
             conf_pnl = sum(t.get("net_pnl", 0) for t in conf_trades)
             conf_wins = sum(1 for t in conf_trades if t.get("settlement_won"))
-            rprint(
+            report_line(
                 f"  {conf:>8}: {len(conf_trades)} trades, "
                 f"${conf_pnl:+.2f}, "
                 f"{conf_wins}/{len(conf_trades)} wins"
@@ -309,15 +329,15 @@ def generate_report(detail: bool = False):
             categories[cat]["wins"] += 1
 
     if len(categories) > 1:
-        rprint(f"\n[bold]By Category[/bold]")
+        report_line(f"\n[bold]By Category[/bold]")
         for cat, stats in sorted(categories.items(), key=lambda x: -x[1]["pnl"]):
-            rprint(
+            report_line(
                 f"  {cat:>12}: {stats['trades']} trades, "
                 f"${stats['pnl']:+.2f}, "
                 f"{stats['wins']}/{stats['trades']} wins"
             )
 
-    # ── Detail table
+    # ── Detail table (console-only Rich table + plain-text for file)
     if detail:
         rprint("")
         table = Table(title="Trade Detail", show_lines=True)
@@ -329,6 +349,10 @@ def generate_report(detail: bool = False):
         table.add_column("P&L", justify="right")
         table.add_column("Edge Est", justify="right")
         table.add_column("ROI", justify="right")
+
+        lines.append("")
+        lines.append(f"{'Ticker':<32} {'Side':<5} {'Result':<10} {'Cost':>8} {'Revenue':>8} {'P&L':>8} {'Edge':>8} {'ROI':>6}")
+        lines.append("-" * 100)
 
         for t in sorted(settled, key=lambda x: x.get("closed_at", "")):
             pnl = t.get("net_pnl", 0)
@@ -346,7 +370,32 @@ def generate_report(detail: bool = False):
                 f"{t.get('edge_estimated', 0):.1%}",
                 f"{t.get('settlement_roi', 0):+.0%}",
             )
+            lines.append(
+                f"{t['ticker'][:30]:<32} {t.get('side','').upper():<5} "
+                f"{result.upper()} ({won})  "
+                f"${t.get('cost_dollars',0):>7.2f} ${t.get('settlement_revenue',0):>7.2f} "
+                f"${pnl:>+7.2f} {t.get('edge_estimated',0):>7.1%} "
+                f"{t.get('settlement_roi',0):>+5.0%}"
+            )
         console.print(table)
+
+    # ── Save to file
+    if save:
+        _save_report_file(lines)
+
+
+def _save_report_file(lines: list[str]):
+    """Write report lines to reports/Accounts/Kalshi/ with today's date."""
+    report_dir = Path(__file__).resolve().parent.parent.parent / "reports" / "Accounts" / "Kalshi"
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    report_path = report_dir / f"kalshi_report_{today}.txt"
+
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+    rprint(f"\n[green]Report saved to:[/green] {report_path}")
 
 
 # ── Reconciliation ───────────────────────────────────────────────────────────
@@ -438,6 +487,7 @@ def main():
 
     report_p = sub.add_parser("report", help="Performance report")
     report_p.add_argument("--detail", action="store_true", help="Show per-trade breakdown")
+    report_p.add_argument("--save", action="store_true", help="Save report to reports/Accounts/Kalshi/")
 
     sub.add_parser("reconcile", help="Compare local trade log vs Kalshi API positions")
 
@@ -449,7 +499,7 @@ def main():
         settle_trades(client)
 
     elif args.command == "report":
-        generate_report(detail=args.detail)
+        generate_report(detail=args.detail, save=args.save)
 
     elif args.command == "reconcile":
         client = KalshiClient()

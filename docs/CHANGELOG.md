@@ -2,6 +2,46 @@
 
 ---
 
+## 2026-03-23 -- Scheduler Framework, Trade Log Cleanup, Report Export
+
+### Scheduler Framework (`scripts/schedulers/`)
+- New per-market scheduler architecture — each sport/market gets its own independent scheduler
+- `BaseScheduler` class with DRY_RUN enforcement, consecutive failure auto-pause (5 strikes), structured logging
+- `SportsScheduler` and `PredictionScheduler` subclasses calling existing pipelines directly (no subprocess wrapping)
+- `scheduler_config.py` — profiles loaded from `SCHED_{NAME}_*` env vars (9 registered: NBA, NHL, MLB, NFL, NCAA, soccer, crypto, weather, SPX)
+- `run_schedulers.py` — CLI entry point: `--list` (show all profiles), `--only nba` (single), or launch all enabled in parallel
+- All schedulers disabled by default — enable via `SCHED_{NAME}_ENABLED=true` in `.env`
+- Docs: `docs/schedulers/SCHEDULER_GUIDE.md`
+
+### Trade Log Cleanup
+- Cross-validated local trade log against Kalshi API fills — identified 32 demo trades mixed with 12 live trades
+- Purged all demo trades from `kalshi_trades.json` and `kalshi_settlements.json`
+- Backups saved: `kalshi_trades_pre_cleanup_2026-03-23.json`, `kalshi_settlements_pre_cleanup_2026-03-23.json`
+- Report now shows accurate live-only data: 12 trades, $10.67 wagered
+
+### Report File Export
+- Added `--save` flag to `kalshi_settler.py report` — writes plain-text report to `reports/Accounts/Kalshi/kalshi_report_YYYY-MM-DD.txt`
+- Report includes timestamp, strips Rich markup for clean text output
+
+### Kalshi Client Hardening
+- Changed default `KALSHI_BASE_URL` fallback from demo API to production API
+- Prevents accidental demo connection if env var is unset
+
+### Odds API Key Expansion
+- Added 2 additional Odds API keys (3 total) for increased rate limit capacity
+- Existing key rotation in `odds_api.py` handles this automatically
+
+### Memory System
+- Added `.claude/memory/` for cross-session project context
+- CLAUDE.md updated to instruct Claude Code to check memory on startup
+
+### PR #14 Review
+- Reviewed and rejected Jules-generated PR "Automate Kalshi Betting Pipeline & Optimize Execution"
+- Issues: missing `KELLY_FRACTION` constant (runtime crash), no `DRY_RUN` gate on scheduler, missing `apscheduler` dependency, unexplained `cryptography` addition
+- Built proper scheduler framework as replacement (see above)
+
+---
+
 ## 2026-03-22 -- Live Trading, Prediction Markets, Project Reorganization
 
 ### Switched to Live Trading

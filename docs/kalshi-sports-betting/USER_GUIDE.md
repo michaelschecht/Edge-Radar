@@ -146,6 +146,12 @@ python scripts/kalshi/kalshi_settler.py report
 
 # Per-trade breakdown table
 python scripts/kalshi/kalshi_settler.py report --detail
+
+# Save report to reports/Accounts/Kalshi/kalshi_report_YYYY-MM-DD.txt
+python scripts/kalshi/kalshi_settler.py report --detail --save
+
+# Reconcile local log against Kalshi API (verify trade integrity)
+python scripts/kalshi/kalshi_settler.py reconcile
 ```
 
 **Report includes:**
@@ -153,6 +159,7 @@ python scripts/kalshi/kalshi_settler.py report --detail
 - Net P&L, total wagered, ROI
 - Profit factor, best/worst trades
 - Edge calibration (estimated vs. realized)
+- Breakdown by confidence level and category
 - Breakdowns by confidence level and market category
 
 ### Kalshi Client (`scripts/kalshi/kalshi_client.py`)

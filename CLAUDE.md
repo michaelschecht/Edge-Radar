@@ -3,6 +3,15 @@
 
 ---
 
+## 🧠 Memory
+
+On startup, check the persistent memory index at:
+`.claude/memory/MEMORY.md`
+
+This contains cross-session context about the user, project decisions, and working preferences. Read relevant memory files before starting work to avoid re-learning things from prior conversations.
+
+---
+
 ## 🎯 Project Purpose
 
 FinAgent is a multi-agent financial intelligence system for prediction markets and sports betting on **Kalshi**.
@@ -49,8 +58,10 @@ Finance_Agent_Pro/
 │   │   └── KALSHI_STRATEGY_PLAN.md  # Architecture & roadmap
 │   ├── kalshi-prediction-betting/   # Non-sports prediction markets
 │   │   └── PREDICTION_MARKETS_GUIDE.md
-│   └── kalshi-futures-betting/      # Championship & season-long futures
-│       └── FUTURES_GUIDE.md
+│   ├── kalshi-futures-betting/      # Championship & season-long futures
+│   │   └── FUTURES_GUIDE.md
+│   └── schedulers/                  # Scheduler framework docs
+│       └── SCHEDULER_GUIDE.md       # Setup, config, and usage guide
 ├── mcp-config/
 │   ├── claude_desktop_config.json   # MCP server config (Windows/WSL)
 │   └── mcp-servers.md               # MCP server reference & setup
@@ -67,14 +78,20 @@ Finance_Agent_Pro/
 ├── notebooks/
 │   └── analysis/                    # Research notebooks
 └── scripts/
-    └── kalshi/                      # Kalshi betting scripts
-        ├── kalshi_client.py         # Authenticated Kalshi API client
-        ├── kalshi_executor.py       # Risk management & order execution
-        ├── kalshi_settler.py        # Settlement tracking & P&L reporting
-        ├── edge_detector.py         # Market scanning & edge detection
-        ├── fetch_odds.py            # The Odds API integration
-        ├── fetch_market_data.py     # Multi-asset market data fetcher
-        └── risk_check.py            # Portfolio risk dashboard
+    ├── kalshi/                      # Kalshi betting scripts
+    │   ├── kalshi_client.py         # Authenticated Kalshi API client
+    │   ├── kalshi_executor.py       # Risk management & order execution
+    │   ├── kalshi_settler.py        # Settlement tracking & P&L reporting
+    │   ├── edge_detector.py         # Market scanning & edge detection
+    │   ├── fetch_odds.py            # The Odds API integration
+    │   ├── fetch_market_data.py     # Multi-asset market data fetcher
+    │   └── risk_check.py            # Portfolio risk dashboard
+    └── schedulers/                  # Automated pipeline schedulers
+        ├── scheduler_config.py      # Per-scheduler env var profiles
+        ├── base_scheduler.py        # BaseScheduler (safety, logging, lifecycle)
+        ├── sports_scheduler.py      # Sports betting scheduler
+        ├── prediction_scheduler.py  # Prediction market scheduler
+        └── run_schedulers.py        # CLI entry point
 ```
 
 ---
@@ -162,6 +179,15 @@ python strategies/value-betting/backtest.py --days 30
 
 # Launch Claude Code with all MCP servers
 claude --config mcp-config/claude_desktop_config.json
+
+# Schedulers — list all profiles
+python scripts/schedulers/run_schedulers.py --list
+
+# Schedulers — launch all enabled
+python scripts/schedulers/run_schedulers.py
+
+# Schedulers — launch single scheduler
+python scripts/schedulers/run_schedulers.py --only nba
 ```
 
 ---

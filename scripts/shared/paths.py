@@ -24,6 +24,7 @@ SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 KALSHI_DIR = SCRIPTS_DIR / "kalshi"
 PREDICTION_DIR = SCRIPTS_DIR / "prediction"
 SHARED_DIR = SCRIPTS_DIR / "shared"
+SCHEDULERS_DIR = SCRIPTS_DIR / "schedulers"
 
 # Data directories
 DATA_DIR = PROJECT_ROOT / "data"
@@ -37,6 +38,6 @@ for d in [DATA_DIR / "history", DATA_DIR / "watchlists", DATA_DIR / "positions"]
     d.mkdir(parents=True, exist_ok=True)
 
 # Add script directories to sys.path (idempotent)
-for p in [str(SCRIPTS_DIR), str(KALSHI_DIR), str(PREDICTION_DIR), str(SHARED_DIR)]:
+for p in [str(SCRIPTS_DIR), str(KALSHI_DIR), str(PREDICTION_DIR), str(SHARED_DIR), str(SCHEDULERS_DIR)]:
     if p not in sys.path:
         sys.path.insert(0, p)
