@@ -223,12 +223,31 @@ def load_opportunities_from_file(prediction: bool = False) -> list[Opportunity]:
     ]
 
 
+def _parse_pick_rows(pick_str: str, total: int) -> list[int]:
+    """Parse --pick argument into 0-based indices. Supports '1,3,5' and '1-3'."""
+    indices = []
+    for part in pick_str.split(","):
+        part = part.strip()
+        if "-" in part:
+            start, end = part.split("-", 1)
+            for i in range(int(start), int(end) + 1):
+                if 1 <= i <= total:
+                    indices.append(i - 1)
+        else:
+            i = int(part)
+            if 1 <= i <= total:
+                indices.append(i - 1)
+    return sorted(set(indices))
+
+
 def execute_pipeline(
     client: KalshiClient,
     opportunities: list[Opportunity],
     execute: bool = False,
     max_bets: int = 5,
     unit_size: float = UNIT_SIZE,
+    pick_rows: str | None = None,
+    pick_tickers: list[str] | None = None,
 ) -> list[dict]:
     """
     Run the full pipeline: risk-check, size, and optionally execute.
@@ -289,7 +308,8 @@ def execute_pipeline(
         title=f"{'EXECUTING' if execute else 'PREVIEW'} -- {len(to_execute)} orders",
         show_lines=True,
     )
-    table.add_column("Bet", style="cyan", max_width=50)
+    table.add_column("#", justify="right", style="dim")
+    table.add_column("Bet", style="cyan", max_width=60)
     table.add_column("Side")
     table.add_column("Qty", justify="right")
     table.add_column("Price", justify="right")
@@ -298,7 +318,7 @@ def execute_pipeline(
     table.add_column("Fair Val", justify="right")
 
     total_cost = 0
-    for s in to_execute:
+    for i, s in enumerate(to_execute, 1):
         total_cost += s.cost_dollars
         # Translate yes/no into human-readable labels based on category
         side = s.opportunity.side
@@ -313,7 +333,8 @@ def execute_pipeline(
             side_label = side.upper()
 
         table.add_row(
-            s.opportunity.title[:50],
+            str(i),
+            s.opportunity.title[:60],
             side_label,
             str(s.contracts),
             f"${s.price_cents / 100:.2f}",
@@ -323,9 +344,23 @@ def execute_pipeline(
         )
     console.print(table)
     rprint(f"  Total cost: [bold]${total_cost:.2f}[/bold] of ${bankroll:.2f} available")
-
     if not execute:
+        rprint("[dim]  Tip: use --pick '1,3' --execute to bet on specific rows[/dim]")
         rprint("\n[yellow]DRY RUN -- pass --execute to place these orders[/yellow]")
+        return []
+
+    # ── Filter by --pick or --ticker if specified
+    if pick_rows is not None:
+        selected = _parse_pick_rows(pick_rows, len(to_execute))
+        to_execute = [to_execute[i] for i in selected]
+        rprint(f"\n[bold]Picked {len(to_execute)} of {len(approved)} approved orders[/bold]")
+    if pick_tickers is not None:
+        pick_set = {t.upper() for t in pick_tickers}
+        to_execute = [s for s in to_execute if s.opportunity.ticker.upper() in pick_set]
+        rprint(f"\n[bold]Matched {len(to_execute)} orders by ticker[/bold]")
+
+    if not to_execute:
+        rprint("[yellow]No orders matched your --pick or --ticker selection.[/yellow]")
         return []
 
     # ── Execute
@@ -476,6 +511,10 @@ def main():
                        help="Max bets per run (default 5)")
     run_p.add_argument("--top", type=int, default=20,
                        help="Number of opportunities to scan")
+    run_p.add_argument("--pick", type=str, default=None,
+                       help="Execute only specific rows from preview (e.g., '1,3,5' or '1-3')")
+    run_p.add_argument("--ticker", type=str, nargs="+", default=None,
+                       help="Execute specific market ticker(s) from the scan results")
 
     sub.add_parser("status", help="Show portfolio status")
 
@@ -534,6 +573,8 @@ def main():
             execute=args.execute,
             max_bets=args.max_bets,
             unit_size=args.unit_size,
+            pick_rows=args.pick,
+            pick_tickers=args.ticker,
         )
 
 
