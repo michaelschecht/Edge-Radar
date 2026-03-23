@@ -57,3 +57,4 @@ notebooks/analysis/*.html
 .cache/
 cache/
 *.cache
+reports/
