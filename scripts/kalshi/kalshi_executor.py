@@ -80,27 +80,42 @@ class SizedOrder:
     risk_approval: str  # approved / rejected + reason
 
 
-def unit_size_contracts(market_price: float, unit: float | None = None) -> int:
+def kelly_size_contracts(opp: Opportunity, bankroll: float) -> tuple[int, float]:
     """
-    Calculate number of contracts to buy for a fixed dollar unit size.
-
-    Examples (unit=$1.00):
-        price $0.02 -> 50 contracts ($1.00)
-        price $0.50 ->  2 contracts ($1.00)
-        price $0.03 -> 33 contracts ($0.99)
-        price $0.07 -> 14 contracts ($0.98)
+    Calculate number of contracts using the Kelly Criterion.
+    Uses fraction of Kelly (e.g. quarter-Kelly) defined by KELLY_FRACTION.
+    Returns (contracts, actual_cost).
     """
-    if unit is None:
-        unit = UNIT_SIZE
-    if market_price <= 0 or market_price >= 1:
-        return 0
-    return max(1, round(unit / market_price))
+    if opp.market_price <= 0 or opp.market_price >= 1 or opp.fair_value <= opp.market_price:
+        return 0, 0.0
 
+    # For binary options on Kalshi, Kelly fraction f* = (p - price) / (1 - price)
+    p = opp.fair_value
+    price = opp.market_price
+
+    kelly_f = (p - price) / (1 - price)
+
+    # Apply fractional Kelly
+    adj_kelly_f = kelly_f * KELLY_FRACTION
+
+    # Calculate target investment
+    target_investment = bankroll * adj_kelly_f
+
+    # Cap at max bet size
+    max_bet = MAX_BET_SIZE if opp.category in ["crypto", "weather", "spx", "mentions", "companies", "politics"] else float(os.getenv("MAX_BET_SIZE_SPORTS", "50"))
+
+    target_investment = min(target_investment, max_bet)
+
+    # Calculate contracts
+    contracts = max(1, round(target_investment / price))
+    actual_cost = contracts * price
+
+    return contracts, actual_cost
 
 def size_order(opp: Opportunity, bankroll: float, open_positions: int,
                daily_pnl: float, unit_size: float = UNIT_SIZE) -> SizedOrder:
     """
-    Apply all risk checks and size at fixed unit size.
+    Apply all risk checks and size using Kelly Criterion.
     Returns a SizedOrder with approval status.
     """
     rejection = None
@@ -132,15 +147,14 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
             risk_approval=f"REJECTED: {rejection}",
         )
 
-    # ── Size at fixed unit
+    # ── Size using Kelly
     price_cents = int(opp.market_price * 100)
     if price_cents <= 0:
         price_cents = 1
     if price_cents >= 100:
         price_cents = 99
 
-    contracts = unit_size_contracts(opp.market_price, unit_size)
-    actual_cost = contracts * opp.market_price
+    contracts, actual_cost = kelly_size_contracts(opp, bankroll)
 
     # Final check: don't exceed bankroll
     if actual_cost > bankroll:

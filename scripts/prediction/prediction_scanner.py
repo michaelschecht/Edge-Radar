@@ -17,6 +17,7 @@ Usage:
 import os
 import sys
 import json
+import concurrent.futures
 import logging
 import argparse
 from datetime import datetime, timezone
@@ -177,16 +178,29 @@ def scan_prediction_markets(
 
     # 1. Fetch markets from Kalshi
     rprint("[bold]Fetching Kalshi markets...[/bold]")
-    all_markets = []
-    for prefix in filter_prefixes:
+
+    def fetch_markets_for_prefix(prefix: str, max_pages: int = 3) -> list:
+        markets = []
         cursor = None
-        for _ in range(3):
-            resp = client.get_markets(limit=1000, status="open", series_ticker=prefix, cursor=cursor)
-            batch = resp.get("markets", [])
-            all_markets.extend(batch)
-            cursor = resp.get("cursor", "")
-            if not cursor:
+        for _ in range(max_pages):
+            try:
+                resp = client.get_markets(limit=1000, status="open", series_ticker=prefix, cursor=cursor)
+                batch = resp.get("markets", [])
+                markets.extend(batch)
+                cursor = resp.get("cursor", "")
+                if not cursor:
+                    break
+            except Exception as e:
+                log.warning(f"Error fetching markets for {prefix}: {e}")
                 break
+        return markets
+
+    all_markets = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(fetch_markets_for_prefix, prefix) for prefix in filter_prefixes]
+        for future in concurrent.futures.as_completed(futures):
+            all_markets.extend(future.result())
+
     rprint(f"  Found {len(all_markets)} markets")
 
     # Remove expired markets

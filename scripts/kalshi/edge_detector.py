@@ -22,6 +22,7 @@ import os
 import re
 import sys
 import json
+import concurrent.futures
 import logging
 import argparse
 from datetime import datetime, timezone
@@ -767,19 +768,30 @@ def scan_all_markets(
     # 1. Fetch markets from Kalshi
     rprint("[bold]Fetching Kalshi markets...[/bold]")
 
-    if filter_prefixes:
-        # Fetch directly by series ticker -- much faster and finds markets
-        # that would be buried beyond page 5 of a full scan
-        all_markets = []
-        for prefix in filter_prefixes:
-            cursor = None
-            for _ in range(5):
+    def fetch_markets_for_prefix(prefix: str, max_pages: int = 5) -> list:
+        markets = []
+        cursor = None
+        for _ in range(max_pages):
+            try:
                 resp = client.get_markets(limit=1000, status="open", series_ticker=prefix, cursor=cursor)
                 batch = resp.get("markets", [])
-                all_markets.extend(batch)
+                markets.extend(batch)
                 cursor = resp.get("cursor", "")
                 if not cursor:
                     break
+            except Exception as e:
+                log.warning(f"Error fetching markets for {prefix}: {e}")
+                break
+        return markets
+
+    all_markets = []
+    if filter_prefixes:
+        # Fetch directly by series ticker -- much faster and finds markets
+        # that would be buried beyond page 5 of a full scan
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(fetch_markets_for_prefix, prefix) for prefix in filter_prefixes]
+            for future in concurrent.futures.as_completed(futures):
+                all_markets.extend(future.result())
         rprint(f"  Found {len(all_markets)} markets for {', '.join(filter_prefixes)}")
     else:
         # No filter: scan all known sport prefixes that have edge detection support.
@@ -788,16 +800,11 @@ def scan_all_markets(
         for prefix in KALSHI_TO_ODDS_SPORT:
             all_sport_prefixes.add(prefix)
         rprint("[bold]No filter -- scanning all supported sport prefixes...[/bold]")
-        all_markets = []
-        for prefix in sorted(all_sport_prefixes):
-            cursor = None
-            for _ in range(3):
-                resp = client.get_markets(limit=1000, status="open", series_ticker=prefix, cursor=cursor)
-                batch = resp.get("markets", [])
-                all_markets.extend(batch)
-                cursor = resp.get("cursor", "")
-                if not cursor:
-                    break
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(fetch_markets_for_prefix, prefix, 3) for prefix in sorted(all_sport_prefixes)]
+            for future in concurrent.futures.as_completed(futures):
+                all_markets.extend(future.result())
         rprint(f"  Found {len(all_markets)} markets across {len(all_sport_prefixes)} sport prefixes")
 
     # Remove markets past their expected expiration (game already started/ended)

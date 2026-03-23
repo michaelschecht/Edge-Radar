@@ -39,6 +39,9 @@ python scripts/prediction/prediction_scanner.py scan --filter crypto
 # Execute bets (after previewing)
 python scripts/kalshi/kalshi_executor.py run --filter nba --execute --max-bets 5
 
+# Start the automated scheduler for continuous trading
+python scripts/kalshi/scheduler.py
+
 # Settle completed bets and check P&L
 python scripts/kalshi/kalshi_settler.py settle
 python scripts/kalshi/kalshi_settler.py report --detail

@@ -20,6 +20,7 @@ Place frequent, small-edge wagers on Kalshi prediction markets to generate consi
 | Kalshi API client | `scripts/kalshi/kalshi_client.py` | Authenticated, tested, placing orders |
 | Edge detector | `scripts/kalshi/edge_detector.py` | Scanning 5000+ markets, cross-referencing sportsbook odds |
 | Automated executor | `scripts/kalshi/kalshi_executor.py` | Risk-checks, Kelly sizing, order placement, trade logging |
+| Scheduler | `scripts/kalshi/scheduler.py` | APScheduler that periodically runs the execution pipeline |
 | Settlement tracker | `scripts/kalshi/kalshi_settler.py` | Settles positions, calculates P&L, performance reports |
 | Odds fetcher | `scripts/kalshi/fetch_odds.py` | The Odds API integration for sports |
 | Market data fetcher | `scripts/kalshi/fetch_market_data.py` | Multi-asset data (stocks, crypto, prediction markets) |
@@ -202,7 +203,6 @@ Price $0.76 ->  1 contract  ($0.76)
 ### Phase 3: Operational Improvements
 | Task | Priority | Notes |
 |---|---|---|
-| Recurring scan loop (cron/scheduler) | P1 | Run pipeline every N minutes automatically |
 | Initialize SQLite database | P2 | Run `init_db.sql`, migrate trade log to DB |
 | Create `requirements.txt` | P2 | Document all Python dependencies |
 | Calibration dashboard | P2 | Estimated edge vs. realized edge over time |
