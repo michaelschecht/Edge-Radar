@@ -25,38 +25,7 @@ Bet on season-long outcomes: championship winners, conference winners, MVP award
 
 ## Quick Reference
 
-```bash
-# Scan all futures markets with edge detection
-python scripts/kalshi/futures_edge.py scan
-
-# NFL -- Super Bowl winner + MVP
-python scripts/kalshi/futures_edge.py scan --filter nfl-futures
-python scripts/kalshi/edge_detector.py scan --filter superbowl
-
-# NBA -- Conference winners
-python scripts/kalshi/futures_edge.py scan --filter nba-futures
-
-# NHL -- Conference winners
-python scripts/kalshi/futures_edge.py scan --filter nhl-futures
-
-# MLB -- Playoff qualifiers / World Series
-python scripts/kalshi/futures_edge.py scan --filter mlb-futures
-
-# Golf -- PGA tournament winners
-python scripts/kalshi/futures_edge.py scan --filter golf-futures
-
-# All futures through the main edge detector (routes automatically)
-python scripts/kalshi/edge_detector.py scan --filter futures
-
-# Execute through the pipeline
-python scripts/kalshi/kalshi_executor.py run --filter nfl-futures --execute --max-bets 5
-python scripts/kalshi/kalshi_executor.py run --filter nba-futures --execute --max-bets 5
-
-# Browse award/trophy markets (no automated edge, but viewable)
-python scripts/kalshi/edge_detector.py scan --filter KXNFLMVP
-python scripts/kalshi/edge_detector.py scan --filter KXNBAMVP
-python scripts/kalshi/edge_detector.py scan --filter KXNHLHART
-```
+See [Scripts Reference](../SCRIPTS_REFERENCE.md) for complete CLI flags. Key command: `python scripts/kalshi/futures_edge.py scan --filter <filter>`
 
 ---
 
@@ -80,11 +49,6 @@ Futures use **N-way de-vigging** instead of the 2-way de-vig used for game outco
 
 ### Super Bowl Winner
 
-```bash
-python scripts/kalshi/futures_edge.py scan --filter nfl-futures
-python scripts/kalshi/edge_detector.py scan --filter nfl-futures
-```
-
 **Kalshi prefix:** `KXSB` (~32 markets)
 
 **Edge detection:** Yes -- compares against The Odds API's `americanfootball_nfl_super_bowl_winner` outrights from DraftKings, FanDuel, BetMGM, and others.
@@ -95,12 +59,11 @@ python scripts/kalshi/edge_detector.py scan --filter nfl-futures
 
 **Seasonality:** NFL Super Bowl futures are available year-round. NFL MVP markets (~45) are also available under `KXNFLMVP`.
 
-### NFL MVP
+### AFC / NFC Conference & Division Winners
 
-```bash
-python scripts/kalshi/kalshi_client.py markets --limit 50 --status open
-# Filter by KXNFLMVP prefix
-```
+**Not currently available on Kalshi.** Unlike NBA/NHL/MLB, Kalshi does not offer NFL conference champion or division winner markets. Only Super Bowl and MVP. If Kalshi adds these, they would likely use prefixes like `KXNFLAFC`, `KXNFLNFC`, or similar -- we'll map them when they appear.
+
+### NFL MVP
 
 **Kalshi prefix:** `KXNFLMVP` (~45 markets)
 
@@ -114,11 +77,17 @@ python scripts/kalshi/kalshi_client.py markets --limit 50 --status open
 
 ## NBA
 
-### Conference Winners
+### NBA Finals Champion
 
-```bash
-python scripts/kalshi/futures_edge.py scan --filter nba-futures
-```
+**Kalshi prefix:** `KXNBA` (~30 markets)
+
+**Edge detection:** Yes -- compares against NBA Championship outright odds from DraftKings, FanDuel, BetMGM, and others.
+
+**Example market:** "Will Oklahoma City win the 2026 Pro Basketball Finals?"
+
+**Settlement:** After the NBA Finals.
+
+### Conference Winners
 
 **Kalshi prefixes:** `KXNBAEAST` (15 teams), `KXNBAWEST` (15 teams)
 
@@ -130,6 +99,8 @@ python scripts/kalshi/futures_edge.py scan --filter nba-futures
 
 **Settlement:** When the conference finals conclude.
 
+**Note:** `--filter nba-futures` scans all three: Finals champion + both conferences.
+
 ### NBA Awards (Browse Only)
 
 | Prefix | Award | Markets |
@@ -137,13 +108,6 @@ python scripts/kalshi/futures_edge.py scan --filter nba-futures
 | `KXNBAMVP` | Most Valuable Player | ~72 |
 | `KXNBAROY` | Rookie of the Year | ~28 |
 | `KXNBADPOY` | Defensive Player of the Year | ~43 |
-
-```bash
-# Browse award markets
-python scripts/kalshi/edge_detector.py scan --filter KXNBAMVP
-python scripts/kalshi/edge_detector.py scan --filter KXNBAROY
-python scripts/kalshi/edge_detector.py scan --filter KXNBADPOY
-```
 
 **Edge detection:** Not yet (Odds API doesn't have NBA award outrights on the free tier). Research using media voting trends, stats leaders, and Vegas award odds from sportsbook websites.
 
@@ -153,21 +117,29 @@ python scripts/kalshi/edge_detector.py scan --filter KXNBADPOY
 
 ## NHL
 
-### Conference Winners
+### Stanley Cup Champion
 
-```bash
-python scripts/kalshi/futures_edge.py scan --filter nhl-futures
-```
+**Kalshi prefix:** `KXNHL` (~32 markets)
+
+**Edge detection:** Yes -- compares against NHL Championship (Stanley Cup) outright odds from DraftKings, FanDuel, BetMGM, and others.
+
+**Example market:** "Will Winnipeg Jets win the 2025-26 Stanley Cup Finals?"
+
+**Settlement:** After the Stanley Cup Finals.
+
+### Conference Winners
 
 **Kalshi prefixes:** `KXNHLEAST` (16 teams), `KXNHLWEST` (16 teams)
 
-**Edge detection:** Yes -- compares against NHL Championship (Stanley Cup) outright odds.
+**Edge detection:** Yes -- compares against NHL Championship outright odds.
 
 **Example markets:**
 - "Will the Florida Panthers win the Eastern Conference Finals?"
 - "Will the Edmonton Oilers win the Western Conference Finals?"
 
 **Settlement:** When the conference finals conclude.
+
+**Note:** `--filter nhl-futures` scans all three: Stanley Cup champion + both conferences.
 
 ### NHL Awards (Browse Only)
 
@@ -177,23 +149,23 @@ python scripts/kalshi/futures_edge.py scan --filter nhl-futures
 | `KXNHLNORRIS` | James Norris Trophy (best defenseman) | ~30 |
 | `KXNHLCALDER` | Calder Memorial Trophy (best rookie) | ~30 |
 
-```bash
-python scripts/kalshi/edge_detector.py scan --filter KXNHLHART
-python scripts/kalshi/edge_detector.py scan --filter KXNHLNORRIS
-python scripts/kalshi/edge_detector.py scan --filter KXNHLCALDER
-```
-
 **Settlement:** After the NHL Awards ceremony (typically June).
 
 ---
 
 ## MLB
 
-### Playoff Qualifiers / World Series
+### World Series Champion
 
-```bash
-python scripts/kalshi/futures_edge.py scan --filter mlb-futures
-```
+**Kalshi prefix:** `KXMLB` (~30 markets)
+
+**Edge detection:** Yes -- compares against World Series outright odds from DraftKings, FanDuel, BetMGM, and others.
+
+**Example market:** "Will Toronto win the 2026 Pro Baseball Championship?"
+
+**Settlement:** After the World Series.
+
+### Playoff Qualifiers
 
 **Kalshi prefix:** `KXMLBPLAYOFFS` (~30 markets)
 
@@ -203,15 +175,13 @@ python scripts/kalshi/futures_edge.py scan --filter mlb-futures
 
 **Settlement:** When the MLB playoff field is set (late September/October).
 
+**Note:** `--filter mlb-futures` scans both: World Series champion + playoff qualifiers.
+
 ---
 
 ## NCAA
 
 ### Men's Basketball -- Most Outstanding Player
-
-```bash
-python scripts/kalshi/futures_edge.py scan --filter ncaab-futures
-```
 
 **Kalshi prefix:** `KXNCAAMBMOP` (~35 markets)
 
@@ -222,10 +192,6 @@ python scripts/kalshi/futures_edge.py scan --filter ncaab-futures
 **Settlement:** After the NCAA tournament championship game.
 
 ### Heisman Trophy (Browse Only)
-
-```bash
-python scripts/kalshi/edge_detector.py scan --filter KXHEISMAN
-```
 
 **Kalshi prefix:** `KXHEISMAN` (~21 markets)
 
@@ -248,12 +214,6 @@ python scripts/kalshi/edge_detector.py scan --filter KXHEISMAN
 | `KXBUNDESLIGA` | Bundesliga (Germany) | ~18 |
 | `KXLIGUE1` | Ligue 1 (France) | ~18 |
 
-```bash
-python scripts/kalshi/edge_detector.py scan --filter KXUCL
-python scripts/kalshi/edge_detector.py scan --filter KXLALIGA
-python scripts/kalshi/edge_detector.py scan --filter KXSERIEA
-```
-
 **Edge detection:** Not yet -- The Odds API free tier doesn't include soccer league outrights. Browse and research manually using league standings and bookmaker websites.
 
 **Settlement:** When the league season ends or the tournament concludes.
@@ -269,18 +229,9 @@ python scripts/kalshi/edge_detector.py scan --filter KXSERIEA
 | `KXF1` | Drivers Championship | ~22 |
 | `KXF1CONSTRUCTORS` | Constructors Championship | ~11 |
 
-```bash
-python scripts/kalshi/edge_detector.py scan --filter KXF1
-python scripts/kalshi/edge_detector.py scan --filter KXF1CONSTRUCTORS
-```
-
 **Edge detection:** Not yet for championship outrights. Browse and use current standings + points gap analysis.
 
 ### NASCAR
-
-```bash
-python scripts/kalshi/edge_detector.py scan --filter KXNASCARRACE
-```
 
 **Kalshi prefix:** `KXNASCARRACE` (~37 markets)
 
@@ -291,10 +242,6 @@ python scripts/kalshi/edge_detector.py scan --filter KXNASCARRACE
 ## Golf
 
 ### PGA Tour Events
-
-```bash
-python scripts/kalshi/futures_edge.py scan --filter golf-futures
-```
 
 **Kalshi prefix:** `KXPGATOUR` (~160 markets per tournament)
 
@@ -309,10 +256,6 @@ python scripts/kalshi/futures_edge.py scan --filter golf-futures
 ## Cricket
 
 ### IPL
-
-```bash
-python scripts/kalshi/edge_detector.py scan --filter KXIPL
-```
 
 **Kalshi prefix:** `KXIPL` (~10 markets)
 
@@ -329,10 +272,10 @@ python scripts/kalshi/edge_detector.py scan --filter KXIPL
 | Filter | Sport | What It Scans | Odds API Source |
 |--------|-------|---------------|-----------------|
 | `futures` | All | All supported futures | Multiple |
-| `nfl-futures` | NFL | Super Bowl winner + NFL MVP | `americanfootball_nfl_super_bowl_winner` |
-| `nba-futures` | NBA | Eastern + Western Conference winners | `basketball_nba_championship_winner` |
-| `nhl-futures` | NHL | Eastern + Western Conference winners | `icehockey_nhl_championship_winner` |
-| `mlb-futures` | MLB | Playoff qualifiers | `baseball_mlb_world_series_winner` |
+| `nfl-futures` | NFL | Super Bowl champion | `americanfootball_nfl_super_bowl_winner` |
+| `nba-futures` | NBA | Finals champion + East/West conference winners | `basketball_nba_championship_winner` |
+| `nhl-futures` | NHL | Stanley Cup champion + East/West conference winners | `icehockey_nhl_championship_winner` |
+| `mlb-futures` | MLB | World Series champion + playoff qualifiers | `baseball_mlb_world_series_winner` |
 | `ncaab-futures` | NCAAB | Most Outstanding Player | `basketball_ncaab_championship_winner` |
 | `golf-futures` | Golf | PGA tournament winners | `golf_pga_championship_winner` |
 
@@ -366,13 +309,16 @@ Use the raw ticker prefix with the edge detector or client:
 
 | Sport | Futures Type | Markets | Edge Detection |
 |-------|-------------|---------|----------------|
-| **NFL** | Super Bowl winner (KXSB) | ~32 | Yes |
+| **NFL** | Super Bowl Champion (KXSB) | ~32 | Yes |
 | **NFL** | MVP (KXNFLMVP) | ~45 | Browse only |
-| **NBA** | Conference winners | ~30 | Yes |
+| **NBA** | Finals Champion (KXNBA) | ~30 | Yes |
+| **NBA** | Conference winners (KXNBAEAST/WEST) | ~30 | Yes |
 | **NBA** | MVP, ROY, DPOY | ~143 | Browse only |
-| **NHL** | Conference winners | ~32 | Yes |
+| **NHL** | Stanley Cup Champion (KXNHL) | ~32 | Yes |
+| **NHL** | Conference winners (KXNHLEAST/WEST) | ~32 | Yes |
 | **NHL** | Hart, Norris, Calder | ~90 | Browse only |
-| **MLB** | Playoff qualifiers | ~30 | Yes |
+| **MLB** | World Series Champion (KXMLB) | ~30 | Yes |
+| **MLB** | Playoff qualifiers (KXMLBPLAYOFFS) | ~30 | Yes |
 | **NCAAB** | Most Outstanding Player | ~35 | Yes |
 | **NCAAB** | Heisman Trophy | ~21 | Browse only |
 | **Soccer** | UCL, EPL, La Liga, Serie A, Bundesliga, Ligue 1 | ~84 | Browse only |

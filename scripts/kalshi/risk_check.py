@@ -135,7 +135,7 @@ def print_risk_header():
     mode_tag = "[red bold]🔴 LIVE[/red bold]" if not DRY_RUN else "[green bold]🟢 DRY RUN[/green bold]"
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     console.print(Panel(
-        f"[bold]FinAgent Risk Dashboard[/bold]  {mode_tag}\n[dim]{ts}[/dim]",
+        f"[bold]Edge-Radar Risk Dashboard[/bold]  {mode_tag}\n[dim]{ts}[/dim]",
         expand=False
     ))
 

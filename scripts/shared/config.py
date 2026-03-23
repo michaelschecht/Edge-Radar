@@ -1,6 +1,6 @@
 """
 config.py
-Centralized configuration for all FinAgent scripts.
+Centralized configuration for all Edge-Radar scripts.
 
 All tunable parameters are loaded from environment variables with sensible
 defaults. Import this module instead of scattering os.getenv() calls.

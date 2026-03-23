@@ -13,29 +13,20 @@ Non-sports prediction markets on Kalshi covering crypto, weather, S&P 500, econo
 - [Stock Market Indices (S&P 500)](#stock-market-indices-sp-500)
 - [Economics & Federal Reserve](#economics--federal-reserve)
 - [Commodities](#commodities)
+- [TV Mention Markets](#tv-mention-markets)
+- [Companies](#companies)
 - [Politics & Government](#politics--government)
-- [IPOs & Corporate](#ipos--corporate)
+- [Tech & Science](#tech--science)
 - [Culture & Entertainment](#culture--entertainment)
-- [How to Bet on Prediction Markets](#how-to-bet-on-prediction-markets)
 - [Key Differences from Sports Betting](#key-differences-from-sports-betting)
 
 ---
 
 ## Quick Reference
 
-For crypto, weather, and S&P 500 markets, use the **prediction scanner** which has dedicated edge detection with external data sources:
+See [Scripts Reference](../SCRIPTS_REFERENCE.md) for complete CLI flags. Key command: `python scripts/prediction/prediction_scanner.py scan --filter <filter>`
 
-```bash
-# Prediction scanner (crypto, weather, S&P 500)
-python scripts/prediction/prediction_scanner.py scan                    # All prediction markets
-python scripts/prediction/prediction_scanner.py scan --filter crypto    # All crypto
-python scripts/prediction/prediction_scanner.py scan --filter btc       # Bitcoin only
-python scripts/prediction/prediction_scanner.py scan --filter weather   # Weather
-python scripts/prediction/prediction_scanner.py scan --filter spx       # S&P 500
-python scripts/prediction/prediction_scanner.py scan --filter eth --save  # Save to watchlist
-```
-
-For other prediction markets (Fed, CPI, commodities, politics) that don't have dedicated edge detectors yet, see the [Economics](#economics--federal-reserve), [Commodities](#commodities), and [Politics](#politics--government) sections below.
+For risk gates and position sizing rules, see [Architecture](../ARCHITECTURE.md).
 
 ---
 
@@ -61,20 +52,11 @@ Edge detection uses **CoinGecko** for live prices and 7-day price history to com
 
 ### Bitcoin (KXBTC)
 
-```bash
-python scripts/prediction/prediction_scanner.py scan --filter btc
-python scripts/prediction/prediction_scanner.py scan --filter btc --min-edge 0.05
-```
-
 **Example market:** "Bitcoin price range on Mar 22, 2026?"
 
 **Settlement:** Daily at 4:00 PM EDT based on CF Benchmarks Real-Time Index.
 
 ### Ethereum (KXETH)
-
-```bash
-python scripts/prediction/prediction_scanner.py scan --filter eth
-```
 
 ### Other Crypto
 
@@ -84,23 +66,11 @@ python scripts/prediction/prediction_scanner.py scan --filter eth
 | `doge` | Dogecoin | KXDOGE |
 | `sol` | Solana | KXSOL |
 
-```bash
-python scripts/prediction/prediction_scanner.py scan --filter xrp
-python scripts/prediction/prediction_scanner.py scan --filter doge
-```
-
-### All Crypto Combined
-
-```bash
-python scripts/prediction/prediction_scanner.py scan --filter crypto
-python scripts/prediction/prediction_scanner.py scan --filter crypto --save
-```
-
 ---
 
 ## Weather
 
-Edge detection uses the **NWS (National Weather Service) API** for temperature forecasts, then models the probability of the actual high exceeding each strike using a normal distribution with uncertainty that increases by forecast horizon (~2.5°F for tomorrow, ~3.5°F for 2 days out, etc.).
+Edge detection uses the **NWS (National Weather Service) API** for temperature forecasts, then models the probability of the actual high exceeding each strike using a normal distribution with uncertainty that increases by forecast horizon (~2.5 degrees F for tomorrow, ~3.5 degrees F for 2 days out, etc.).
 
 ### Available Cities
 
@@ -111,18 +81,7 @@ Edge detection uses the **NWS (National Weather Service) API** for temperature f
 | KXHIGHMIA | Miami | MFL |
 | KXHIGHDEN | Denver | BOU |
 
-```bash
-# All weather markets
-python scripts/prediction/prediction_scanner.py scan --filter weather
-
-# Specific city (use raw ticker prefix)
-python scripts/prediction/prediction_scanner.py scan --filter KXHIGHNY
-python scripts/prediction/prediction_scanner.py scan --filter KXHIGHCHI
-python scripts/prediction/prediction_scanner.py scan --filter KXHIGHMIA
-python scripts/prediction/prediction_scanner.py scan --filter KXHIGHDEN
-```
-
-**Example market:** "Will the high temp in NYC be >61° on Mar 23, 2026?"
+**Example market:** "Will the high temp in NYC be >61 degrees on Mar 23, 2026?"
 
 **Settlement:** End of day based on official NWS/weather station readings.
 
@@ -136,12 +95,6 @@ python scripts/prediction/prediction_scanner.py scan --filter KXHIGHDEN
 ## Stock Market Indices (S&P 500)
 
 Edge detection uses **Yahoo Finance** for the current SPX price and **VIX** for implied volatility, then models the probability of SPX being above/below each strike using Black-Scholes-style probability estimation.
-
-```bash
-python scripts/prediction/prediction_scanner.py scan --filter spx
-python scripts/prediction/prediction_scanner.py scan --filter spx --min-edge 0.05
-python scripts/prediction/prediction_scanner.py scan --filter sp500   # alias
-```
 
 **Example market:** "Will the S&P 500 be above 6949.99 on Mar 27, 2026 at 4pm EDT?"
 
@@ -163,12 +116,6 @@ python scripts/prediction/prediction_scanner.py scan --filter sp500   # alias
 
 Will the Fed raise, hold, or cut rates at the next FOMC meeting?
 
-```bash
-python scripts/kalshi/kalshi_client.py markets --limit 20 --status open
-# Then filter manually by KXFED prefix, or:
-python scripts/kalshi/edge_detector.py scan --filter KXFED
-```
-
 **Example market:** "Will the upper bound of the federal funds rate be above 4.25% following the June 2026 FOMC meeting?"
 
 **Settlement:** After the FOMC announcement (8 meetings/year).
@@ -180,19 +127,11 @@ python scripts/kalshi/edge_detector.py scan --filter KXFED
 
 ### CPI / Inflation (KXCPI)
 
-```bash
-python scripts/kalshi/edge_detector.py scan --filter KXCPI
-```
-
 **Example market:** "Will CPI rise more than 1.0% in May 2026?"
 
 **Settlement:** After BLS CPI release (monthly, usually mid-month).
 
 ### GDP Growth (KXGDP)
-
-```bash
-python scripts/kalshi/edge_detector.py scan --filter KXGDP
-```
 
 **Example market:** "Will real GDP increase by more than 4.5% in Q1 2026?"
 
@@ -206,10 +145,6 @@ python scripts/kalshi/edge_detector.py scan --filter KXGDP
 
 ### Crude Oil / WTI (KXWTI)
 
-```bash
-python scripts/kalshi/edge_detector.py scan --filter KXWTI
-```
-
 **Example market:** "Will the WTI front-month settle oil price be >$99.99 on Mar 24, 2026?"
 
 **Settlement:** Daily based on NYMEX WTI front-month settlement price.
@@ -222,10 +157,6 @@ Edge detection uses **historical settlement rates** from Kalshi's own settled ma
 
 ### Lawrence O'Donnell Word Count (KXLASTWORDCOUNT)
 
-```bash
-python scripts/prediction/prediction_scanner.py scan --filter lastword
-```
-
 **Example market:** "How many times will Lawrence O'Donnell say Trump during next The Last Word?"
 
 **Settlement:** After the broadcast airs. Actual count is reported.
@@ -233,16 +164,6 @@ python scripts/prediction/prediction_scanner.py scan --filter lastword
 **Edge model:** Poisson distribution fitted to historical episode counts. Compares P(count >= strike) to market price.
 
 ### Binary Mention Markets
-
-```bash
-# All mention markets
-python scripts/prediction/prediction_scanner.py scan --filter mentions
-
-# Individual series
-python scripts/prediction/prediction_scanner.py scan --filter politicsmention
-python scripts/prediction/prediction_scanner.py scan --filter foxnews
-python scripts/prediction/prediction_scanner.py scan --filter nbamention
-```
 
 | Prefix | What It Tracks |
 |--------|---------------|
@@ -262,10 +183,6 @@ python scripts/prediction/prediction_scanner.py scan --filter nbamention
 
 Edge detection uses a **historical baseline projection** (~750 corporate bankruptcies/year average) with normal distribution modeling.
 
-```bash
-python scripts/prediction/prediction_scanner.py scan --filter bankruptcy
-```
-
 **Example market:** "How many corporate bankruptcies will there be this year?"
 
 **Settlement:** Year-end based on official filing counts.
@@ -273,10 +190,6 @@ python scripts/prediction/prediction_scanner.py scan --filter bankruptcy
 ### IPO Markets (KXIPO)
 
 Browse only -- no automated edge detection (company-specific events require qualitative research).
-
-```bash
-python scripts/prediction/prediction_scanner.py scan --filter ipo
-```
 
 **Example market:** "Who will IPO in 2026?"
 
@@ -289,11 +202,6 @@ python scripts/prediction/prediction_scanner.py scan --filter ipo
 ### Impeachment (KXIMPEACH)
 
 Edge detection uses a **time-decay hazard model** with calibrated annual probability estimates (~12%/year).
-
-```bash
-python scripts/prediction/prediction_scanner.py scan --filter impeach
-python scripts/prediction/prediction_scanner.py scan --filter politics
-```
 
 **Example market:** "Will the President be impeached before Jan 1, 2028?"
 
@@ -309,12 +217,6 @@ python scripts/prediction/prediction_scanner.py scan --filter politics
 
 Same time-decay hazard model as political events, with lower annual probabilities (~5% quantum, ~3% fusion).
 
-```bash
-python scripts/prediction/prediction_scanner.py scan --filter techscience
-python scripts/prediction/prediction_scanner.py scan --filter quantum
-python scripts/prediction/prediction_scanner.py scan --filter fusion
-```
-
 **Example markets:**
 - "When will the first useful quantum computer be developed?"
 - "When will nuclear fusion be achieved?"
@@ -325,70 +227,7 @@ python scripts/prediction/prediction_scanner.py scan --filter fusion
 
 ## Culture & Entertainment
 
-Currently limited availability. Check for new markets periodically:
-
-```bash
-python scripts/kalshi/kalshi_client.py markets --limit 50 --status open
-```
-
-Kalshi periodically adds markets for awards shows (Oscars, Emmys), box office, and other cultural events.
-
----
-
-## How to Bet on Prediction Markets
-
-### Step 1: Scan for Opportunities
-
-```bash
-# Scan all prediction markets at once
-python scripts/prediction/prediction_scanner.py scan
-
-# Or filter by category
-python scripts/prediction/prediction_scanner.py scan --filter crypto
-python scripts/prediction/prediction_scanner.py scan --filter weather
-python scripts/prediction/prediction_scanner.py scan --filter spx
-python scripts/prediction/prediction_scanner.py scan --filter mentions
-python scripts/prediction/prediction_scanner.py scan --filter companies
-python scripts/prediction/prediction_scanner.py scan --filter politics
-python scripts/prediction/prediction_scanner.py scan --filter techscience
-
-# Or look up a specific ticker
-python scripts/kalshi/kalshi_client.py market --ticker KXBTC-26MAR22-B87000
-```
-
-### Step 2: Understand the Contract
-
-Every Kalshi prediction market is a **binary contract**:
-- **YES** = you think the event will happen (price = $0.01 to $0.99)
-- **NO** = you think the event won't happen
-- **Payout** = $1.00 per contract if you're right, $0.00 if wrong
-- **Your cost** = the price you pay per contract
-- **Your profit** = $1.00 - price (if correct)
-
-**Example:** You buy "Bitcoin above $90,000?" at $0.35 (YES side)
-- If BTC is above $90K at settlement: you get $1.00 per contract, profit = $0.65
-- If BTC is below $90K: you lose your $0.35 per contract
-
-### Step 3: Place Your Bet
-
-```bash
-# Preview first (uses --prediction flag to route through prediction scanner)
-python scripts/kalshi/kalshi_executor.py run --prediction --filter crypto
-
-# Then execute
-python scripts/kalshi/kalshi_executor.py run --prediction --filter crypto --execute --max-bets 3 --unit-size 2
-```
-
-### Step 4: Monitor and Settle
-
-```bash
-# Check positions
-python scripts/kalshi/kalshi_executor.py status
-
-# After settlement time, collect results
-python scripts/kalshi/kalshi_settler.py settle
-python scripts/kalshi/kalshi_settler.py report
-```
+Currently limited availability. Kalshi periodically adds markets for awards shows (Oscars, Emmys), box office, and other cultural events. Browse using the Kalshi client.
 
 ---
 

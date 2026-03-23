@@ -27,6 +27,7 @@ import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import asdict
+from scipy.stats import norm
 
 # Shared imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
@@ -40,6 +41,7 @@ from rich.table import Table
 from rich import print as rprint
 
 from kalshi_client import KalshiClient
+from team_stats import get_team_stats
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -181,12 +183,75 @@ def devig_two_way(prob_a: float, prob_b: float) -> tuple[float, float]:
     return prob_a / total, prob_b / total
 
 
+# ── Sharp Book Weighting ────────────────────────────────────────────────────
+
+# Sharp books have tighter lines and more accurate prices.
+# Recreational books have wider margins influenced by public money.
+BOOK_WEIGHTS = {
+    # Sharp (weight 3x)
+    "pinnacle": 3.0,
+    "pinnaclesports": 3.0,
+    "circa": 3.0,
+    "bookmaker": 2.5,
+    # Mid-tier (weight 1.5x)
+    "betonlineag": 1.5,
+    "bovada": 1.5,
+    "lowvig": 2.0,
+    "betrivers": 1.0,
+    "williamhill_us": 1.0,
+    # Recreational (weight 0.7x)
+    "draftkings": 0.7,
+    "fanduel": 0.7,
+    "betmgm": 0.7,
+    "pointsbetus": 0.7,
+    "caesars": 0.7,
+    "espnbet": 0.7,
+    "superbook": 1.0,
+    "mybookieag": 0.7,
+    "betus": 0.7,
+    "ballybet": 0.7,
+    "hardrockbet": 0.7,
+    "fliff": 0.5,
+}
+
+DEFAULT_BOOK_WEIGHT = 1.0
+
+
+def _book_weight(book_key: str) -> float:
+    """Look up the weight for a bookmaker."""
+    return BOOK_WEIGHTS.get(book_key.lower(), DEFAULT_BOOK_WEIGHT)
+
+
+def weighted_median(values: list[float], weights: list[float]) -> float:
+    """
+    Calculate a weighted median.
+
+    Sorts by value, accumulates weights, and returns the value at the
+    50th percentile of cumulative weight.
+    """
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return values[0]
+
+    pairs = sorted(zip(values, weights))
+    total_weight = sum(w for _, w in pairs)
+    half = total_weight / 2.0
+    cumulative = 0.0
+    for val, w in pairs:
+        cumulative += w
+        if cumulative >= half:
+            return val
+    return pairs[-1][0]
+
+
 def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | None:
     """
     Calculate consensus fair probability for a team across all bookmakers.
-    Uses median of de-vigged probabilities for robustness.
+    Uses weighted median — sharp books count more than recreational.
     """
     fair_probs = []
+    book_keys = []
     book_details = {}
 
     for event in events:
@@ -213,6 +278,7 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
                 prob_other = implied_prob(outcomes[other_idx]["price"])
                 fair_team, _ = devig_two_way(prob_team, prob_other)
                 fair_probs.append(fair_team)
+                book_keys.append(bookmaker["key"])
                 book_details[bookmaker["key"]] = {
                     "raw_odds": outcomes[matched_idx]["price"],
                     "implied": round(prob_team, 4),
@@ -222,10 +288,9 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
     if not fair_probs:
         return None
 
-    # Use median for robustness against outlier books
-    fair_probs.sort()
-    n = len(fair_probs)
-    median_fair = fair_probs[n // 2] if n % 2 else (fair_probs[n // 2 - 1] + fair_probs[n // 2]) / 2
+    # Weighted median — sharp books (Pinnacle, Circa) count more than recreational
+    weights = [_book_weight(b) for b in book_keys]
+    median_fair = weighted_median(fair_probs, weights)
 
     return median_fair, {
         "n_books": len(fair_probs),
@@ -236,8 +301,59 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
     }
 
 
-def consensus_spread_prob(events: list, team_name: str, strike: float) -> tuple[float, dict] | None:
-    """Estimate probability of a team winning by > strike points using sportsbook spreads."""
+# Sport-specific score margin standard deviations (empirical).
+# These represent the typical spread of final margin outcomes around the
+# expected margin.  Used by the normal-CDF spread model.
+SPORT_MARGIN_STDEV = {
+    "basketball_nba": 12.0,
+    "basketball_ncaab": 11.0,
+    "americanfootball_nfl": 13.5,
+    "americanfootball_ncaaf": 15.0,
+    "baseball_mlb": 3.5,
+    "icehockey_nhl": 2.5,
+    "soccer": 1.8,
+    "mma": 5.0,
+}
+
+# Map Kalshi ticker prefixes to sport keys for stdev lookup
+_PREFIX_TO_SPORT = {
+    "KXNBA": "basketball_nba",
+    "KXNCAAMB": "basketball_ncaab",
+    "KXNCAABB": "basketball_ncaab",
+    "KXNFL": "americanfootball_nfl",
+    "KXNCAAF": "americanfootball_ncaaf",
+    "KXMLB": "baseball_mlb",
+    "KXNHL": "icehockey_nhl",
+    "KXSOCCER": "soccer",
+    "KXUFC": "mma",
+    "KXMLS": "soccer",
+}
+
+
+def _get_margin_stdev(ticker: str) -> float:
+    """Look up the score margin standard deviation for a ticker's sport."""
+    for prefix, sport in _PREFIX_TO_SPORT.items():
+        if ticker.startswith(prefix):
+            return SPORT_MARGIN_STDEV[sport]
+    return 12.0  # default fallback (basketball-like)
+
+
+def consensus_spread_prob(events: list, team_name: str, strike: float,
+                          ticker: str = "") -> tuple[float, dict] | None:
+    """
+    Estimate probability of a team winning by > strike points using
+    sportsbook spreads and a normal-distribution model.
+
+    Instead of the old linear adjustment (3% per point), we:
+    1. Collect the median book spread and implied cover probability
+    2. Use those to infer the expected margin (mean of the distribution)
+    3. Model the final margin as Normal(mean, stdev) where stdev is
+       sport-specific
+    4. Calculate P(margin > strike) = 1 - Phi((strike - mean) / stdev)
+
+    This correctly handles alternate spreads: the probability of covering
+    a large spread drops off following the bell curve, not linearly.
+    """
     spread_data = []
 
     for event in events:
@@ -259,31 +375,84 @@ def consensus_spread_prob(events: list, team_name: str, strike: float) -> tuple[
     if not spread_data:
         return None
 
-    # If Kalshi strike is different from book spread, adjust probability
-    # Simple linear adjustment: ~3% per point of spread difference (sport-dependent)
-    adj_per_point = 0.03  # reasonable for NBA/NFL
-    median_spread = sorted(s["spread"] for s in spread_data)[len(spread_data) // 2]
-    median_implied = sorted(s["implied"] for s in spread_data)[len(spread_data) // 2]
+    # Weighted median using sharp book weights
+    sd_weights = [_book_weight(s["book"]) for s in spread_data]
+    sd_spreads = [s["spread"] for s in spread_data]
+    sd_implieds = [s["implied"] for s in spread_data]
+    median_spread = weighted_median(sd_spreads, sd_weights)
+    median_implied = weighted_median(sd_implieds, sd_weights)
 
-    # Kalshi asks "wins by > strike" which is equivalent to spread of -strike
-    # If book spread is -5.5 and Kalshi asks "wins by > 1.5", team covers more easily
-    spread_diff = abs(median_spread) - strike  # positive = Kalshi is easier to cover
-    adjusted_prob = median_implied + (spread_diff * adj_per_point)
+    stdev = _get_margin_stdev(ticker)
+
+    # The book says the team covers median_spread with median_implied probability.
+    # Book spread is negative for favorites: spread=-5.5 means "favored by 5.5".
+    # P(margin > -spread) = median_implied
+    # margin ~ Normal(mean, stdev)
+    # median_implied = 1 - Phi((-median_spread - mean) / stdev)
+    # Solve for mean:
+    #   Phi((-median_spread - mean) / stdev) = 1 - median_implied
+    #   (-median_spread - mean) / stdev = Phi_inv(1 - median_implied)
+    #   mean = -median_spread - stdev * Phi_inv(1 - median_implied)
+
+    # Clamp implied to avoid infinities at 0 or 1
+    clamped_implied = max(0.01, min(0.99, median_implied))
+    mean_margin = -median_spread - stdev * norm.ppf(1.0 - clamped_implied)
+
+    # Now calculate P(margin > strike)
+    adjusted_prob = 1.0 - norm.cdf(strike, loc=mean_margin, scale=stdev)
     adjusted_prob = max(0.01, min(0.99, adjusted_prob))
+
+    # Book disagreement: if spreads vary widely across books, something
+    # is moving (likely injury news). High disagreement = lower confidence.
+    all_spreads = [s["spread"] for s in spread_data]
+    spread_range = max(all_spreads) - min(all_spreads) if len(all_spreads) > 1 else 0
 
     return adjusted_prob, {
         "n_books": len(spread_data),
         "median_book_spread": median_spread,
         "kalshi_strike": strike,
-        "spread_diff": round(spread_diff, 1),
+        "spread_diff": round(abs(median_spread) - strike, 1),
         "raw_median_implied": round(median_implied, 4),
         "adjusted_prob": round(adjusted_prob, 4),
-        "books": spread_data[:5],  # top 5 for brevity
+        "inferred_mean_margin": round(mean_margin, 2),
+        "margin_stdev": stdev,
+        "book_spread_range": round(spread_range, 1),
+        "books": spread_data[:5],
     }
 
 
-def consensus_total_prob(events: list, strike: float) -> tuple[float, dict] | None:
-    """Estimate probability of total going over strike using sportsbook totals."""
+# Sport-specific total score standard deviations (empirical).
+# Represents how much the combined score varies around the expected total.
+SPORT_TOTAL_STDEV = {
+    "basketball_nba": 18.0,
+    "basketball_ncaab": 16.0,
+    "americanfootball_nfl": 13.0,
+    "americanfootball_ncaaf": 14.0,
+    "baseball_mlb": 3.0,
+    "icehockey_nhl": 2.2,
+    "soccer": 1.5,
+}
+
+
+def _get_total_stdev(ticker: str) -> float:
+    """Look up the total score standard deviation for a ticker's sport."""
+    for prefix, sport in _PREFIX_TO_SPORT.items():
+        if ticker.startswith(prefix):
+            return SPORT_TOTAL_STDEV.get(sport, 12.0)
+    return 12.0
+
+
+def consensus_total_prob(events: list, strike: float,
+                         ticker: str = "") -> tuple[float, dict] | None:
+    """
+    Estimate probability of total going over strike using sportsbook totals
+    and a normal-distribution model.
+
+    Same approach as spread model:
+    1. Collect median book total line and implied over probability
+    2. Infer the expected total (mean of distribution)
+    3. Calculate P(total > strike) using normal CDF
+    """
     total_data = []
 
     for event in events:
@@ -303,21 +472,35 @@ def consensus_total_prob(events: list, strike: float) -> tuple[float, dict] | No
     if not total_data:
         return None
 
-    median_line = sorted(t["line"] for t in total_data)[len(total_data) // 2]
-    median_implied = sorted(t["implied"] for t in total_data)[len(total_data) // 2]
+    # Weighted median using sharp book weights
+    td_weights = [_book_weight(t["book"]) for t in total_data]
+    td_lines = [t["line"] for t in total_data]
+    td_implieds = [t["implied"] for t in total_data]
+    median_line = weighted_median(td_lines, td_weights)
+    median_implied = weighted_median(td_implieds, td_weights)
 
-    # Adjust for Kalshi strike vs book total line
-    adj_per_point = 0.04  # goals/runs are lower-scoring, each point matters more
-    line_diff = median_line - strike  # positive = Kalshi strike is lower (easier over)
-    adjusted_prob = median_implied + (line_diff * adj_per_point)
+    stdev = _get_total_stdev(ticker)
+
+    # The book says P(total > median_line) = median_implied
+    # total ~ Normal(mean, stdev)
+    # median_implied = 1 - Phi((median_line - mean) / stdev)
+    # Solve for mean:
+    #   mean = median_line - stdev * Phi_inv(1 - median_implied)
+    clamped_implied = max(0.01, min(0.99, median_implied))
+    mean_total = median_line - stdev * norm.ppf(1.0 - clamped_implied)
+
+    # P(total > strike)
+    adjusted_prob = 1.0 - norm.cdf(strike, loc=mean_total, scale=stdev)
     adjusted_prob = max(0.01, min(0.99, adjusted_prob))
 
     return adjusted_prob, {
         "n_books": len(total_data),
         "median_book_line": median_line,
         "kalshi_strike": strike,
-        "line_diff": round(line_diff, 1),
+        "line_diff": round(median_line - strike, 1),
         "adjusted_prob": round(adjusted_prob, 4),
+        "inferred_mean_total": round(mean_total, 2),
+        "total_stdev": stdev,
         "books": total_data[:5],
     }
 
@@ -461,6 +644,88 @@ def extract_strike(market: dict) -> float | None:
     return None
 
 
+# ── Team Stats Integration ───────────────────────────────────────────────────
+
+def _sport_from_ticker(ticker: str) -> str | None:
+    """Map a Kalshi ticker prefix to a sport key for team_stats lookup."""
+    for prefix, sport in _PREFIX_TO_SPORT.items():
+        if ticker.startswith(prefix):
+            return sport
+    return None
+
+
+def _stats_confidence_signal(team_name: str, ticker: str, side: str) -> dict:
+    """
+    Look up team stats and return a confidence signal.
+
+    Returns dict with:
+        - "stats_found": bool
+        - "win_pct": float (0-1)
+        - "signal": "supports" | "contradicts" | "neutral"
+        - "team_record": str (e.g., "56-15")
+
+    For YES bets (team wins/covers), a high win% supports the bet.
+    For NO bets (team loses/doesn't cover), a low win% supports the bet.
+    """
+    sport = _sport_from_ticker(ticker)
+    if not sport:
+        return {"stats_found": False}
+
+    try:
+        stats = get_team_stats(team_name, sport)
+    except Exception:
+        return {"stats_found": False}
+
+    if not stats:
+        return {"stats_found": False}
+
+    win_pct = stats.get("win_pct", 0)
+    wins = stats.get("wins", 0)
+    losses = stats.get("losses", 0)
+
+    # Determine if stats support the bet direction
+    if side == "yes":
+        # Betting the team wins/covers — high win% supports
+        if win_pct >= 0.60:
+            signal = "supports"
+        elif win_pct <= 0.40:
+            signal = "contradicts"
+        else:
+            signal = "neutral"
+    else:
+        # Betting against the team — low win% supports
+        if win_pct <= 0.40:
+            signal = "supports"
+        elif win_pct >= 0.60:
+            signal = "contradicts"
+        else:
+            signal = "neutral"
+
+    return {
+        "stats_found": True,
+        "win_pct": round(win_pct, 3),
+        "team_record": f"{wins}-{losses}",
+        "signal": signal,
+    }
+
+
+def _adjust_confidence_with_stats(confidence: str, stats_signal: dict) -> str:
+    """Adjust confidence level based on team stats signal."""
+    if not stats_signal.get("stats_found"):
+        return confidence
+
+    signal = stats_signal.get("signal", "neutral")
+    levels = ["low", "medium", "high"]
+    idx = levels.index(confidence)
+
+    if signal == "supports":
+        idx = min(idx + 1, 2)  # bump up one level
+    elif signal == "contradicts":
+        idx = max(idx - 1, 0)  # drop one level
+
+    return levels[idx]
+
+
 # ── Core Edge Detection ──────────────────────────────────────────────────────
 
 def detect_edge_game(market: dict, odds_events: list) -> Opportunity | None:
@@ -508,6 +773,11 @@ def detect_edge_game(market: dict, odds_events: list) -> Opportunity | None:
     if details["n_books"] >= 8 and (details["max_fair"] - details["min_fair"]) < 0.05:
         confidence = "high"
 
+    # Adjust confidence with team stats
+    stats_signal = _stats_confidence_signal(team, ticker, side)
+    confidence = _adjust_confidence_with_stats(confidence, stats_signal)
+    details["team_stats"] = stats_signal
+
     composite = (
         min(edge / 0.01, 10) * 0.40 +      # edge strength (40%)
         {"low": 3, "medium": 6, "high": 9}[confidence] * 0.30 +  # confidence (30%)
@@ -543,7 +813,7 @@ def detect_edge_spread(market: dict, odds_events: list) -> Opportunity | None:
     if yes_ask <= 0 or yes_ask >= 1.0:
         return None
 
-    result = consensus_spread_prob(odds_events, team, strike)
+    result = consensus_spread_prob(odds_events, team, strike, ticker=ticker)
     if result is None:
         return None
 
@@ -569,7 +839,19 @@ def detect_edge_spread(market: dict, odds_events: list) -> Opportunity | None:
     spread = yes_ask - yes_bid
     liquidity = max(0, 10 - (spread * 20))
 
-    confidence = "low" if details["n_books"] < 3 else "medium" if details["n_books"] < 6 else "high"
+    # Confidence: based on book count AND book agreement
+    book_range = details.get("book_spread_range", 0)
+    if details["n_books"] >= 6 and book_range <= 2.0:
+        confidence = "high"
+    elif details["n_books"] >= 3 and book_range <= 4.0:
+        confidence = "medium"
+    else:
+        confidence = "low"
+
+    # Adjust confidence with team stats
+    stats_signal = _stats_confidence_signal(team, ticker, side)
+    confidence = _adjust_confidence_with_stats(confidence, stats_signal)
+    details["team_stats"] = stats_signal
 
     composite = (
         min(edge / 0.01, 10) * 0.40 +
@@ -605,7 +887,7 @@ def detect_edge_total(market: dict, odds_events: list) -> Opportunity | None:
     if yes_ask <= 0 or yes_ask >= 1.0:
         return None
 
-    result = consensus_total_prob(odds_events, strike)
+    result = consensus_total_prob(odds_events, strike, ticker=ticker)
     if result is None:
         return None
 
@@ -727,6 +1009,38 @@ FILTER_SHORTCUTS = {
     "ncaab-futures": ["__FUTURES__ncaab-futures"],
     "golf-futures":  ["__FUTURES__golf-futures"],
 }
+
+
+def _game_key(ticker: str) -> str:
+    """Extract a game identifier from a Kalshi ticker.
+
+    Tickers follow the pattern: PREFIX-DDMMMDDMatchup-Variant
+    e.g. KXNCAAMBSPREAD-26MAR22MICHALB-MICH4 -> 26MAR22MICHALB
+    This groups all spread/total/game markets for the same matchup.
+    """
+    parts = ticker.rsplit("-", 1)  # split off variant
+    if len(parts) < 2:
+        return ticker
+    base = parts[0]  # e.g. KXNCAAMBSPREAD-26MAR22MICHALB
+    # Find the date portion (DDMMMDD) and everything after it
+    match = re.search(r"(\d{2}[A-Z]{3}\d{2}\w+)$", base)
+    return match.group(1) if match else ticker
+
+
+def _cap_per_game(opportunities: list, max_per_game: int = 3) -> list:
+    """Keep only the top N opportunities per game (by edge, highest first).
+
+    Expects opportunities to already be sorted by edge descending.
+    """
+    game_counts: dict[str, int] = {}
+    capped: list = []
+    for opp in opportunities:
+        key = _game_key(opp.ticker)
+        count = game_counts.get(key, 0)
+        if count < max_per_game:
+            capped.append(opp)
+            game_counts[key] = count + 1
+    return capped
 
 
 def scan_all_markets(
@@ -878,7 +1192,11 @@ def scan_all_markets(
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
 
-    # Sort by composite score descending
+    # Sort by edge descending, then cap at 3 per game
+    opportunities.sort(key=lambda o: o.edge, reverse=True)
+    opportunities = _cap_per_game(opportunities, max_per_game=3)
+
+    # Re-sort by composite score for final ranking
     opportunities.sort(key=lambda o: o.composite_score, reverse=True)
     return opportunities[:top_n]
 

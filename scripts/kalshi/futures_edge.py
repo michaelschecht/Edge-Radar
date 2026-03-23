@@ -49,22 +49,26 @@ ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 # ── Kalshi-to-Odds-API Mapping ───────────────────────────────────────────────
 
 # Maps Kalshi series ticker prefixes to Odds API outright sport keys.
-# Each entry: (odds_api_sport_key, market_type_for_odds_api)
+# Each entry: (odds_api_sport_key, market_type, human_label)
+# The label appears in scan output so the user knows what they're betting on.
 FUTURES_MAP = {
-    # NBA conference winners -> compare against NBA championship outrights
-    "KXNBAEAST":       ("basketball_nba_championship_winner", "outrights"),
-    "KXNBAWEST":       ("basketball_nba_championship_winner", "outrights"),
-    # NHL conference winners -> compare against NHL championship outrights
-    "KXNHLEAST":       ("icehockey_nhl_championship_winner", "outrights"),
-    "KXNHLWEST":       ("icehockey_nhl_championship_winner", "outrights"),
-    # MLB -> World Series outrights
-    "KXMLBPLAYOFFS":   ("baseball_mlb_world_series_winner", "outrights"),
-    # NCAAB championship
-    "KXNCAAMBMOP":     ("basketball_ncaab_championship_winner", "outrights"),
+    # NFL
+    "KXSB":            ("americanfootball_nfl_super_bowl_winner", "outrights", "NFL Super Bowl Champion"),
+    # NBA
+    "KXNBA":           ("basketball_nba_championship_winner", "outrights", "NBA Finals Champion"),
+    "KXNBAEAST":       ("basketball_nba_championship_winner", "outrights", "NBA Eastern Conference Champion"),
+    "KXNBAWEST":       ("basketball_nba_championship_winner", "outrights", "NBA Western Conference Champion"),
+    # NHL
+    "KXNHL":           ("icehockey_nhl_championship_winner", "outrights", "NHL Stanley Cup Champion"),
+    "KXNHLEAST":       ("icehockey_nhl_championship_winner", "outrights", "NHL Eastern Conference Champion"),
+    "KXNHLWEST":       ("icehockey_nhl_championship_winner", "outrights", "NHL Western Conference Champion"),
+    # MLB
+    "KXMLB":           ("baseball_mlb_world_series_winner", "outrights", "MLB World Series Champion"),
+    "KXMLBPLAYOFFS":   ("baseball_mlb_world_series_winner", "outrights", "MLB Playoff Qualifier"),
+    # NCAAB
+    "KXNCAAMBMOP":     ("basketball_ncaab_championship_winner", "outrights", "NCAAB Most Outstanding Player"),
     # Golf
-    "KXPGATOUR":       ("golf_pga_championship_winner", "outrights"),
-    # NFL Super Bowl
-    "KXSB":            ("americanfootball_nfl_super_bowl_winner", "outrights"),
+    "KXPGATOUR":       ("golf_pga_championship_winner", "outrights", "PGA Tour Winner"),
     # Note: European soccer outrights (EPL, La Liga, etc.) and UCL
     # are NOT available on The Odds API free tier.
 }
@@ -72,10 +76,10 @@ FUTURES_MAP = {
 # Filter shortcuts for CLI
 FUTURES_FILTER_SHORTCUTS = {
     "futures":       list(FUTURES_MAP.keys()),
-    "nfl-futures":   ["KXSB", "KXNFLMVP"],
-    "nba-futures":   ["KXNBAEAST", "KXNBAWEST"],
-    "nhl-futures":   ["KXNHLEAST", "KXNHLWEST"],
-    "mlb-futures":   ["KXMLBPLAYOFFS"],
+    "nfl-futures":   ["KXSB"],
+    "nba-futures":   ["KXNBA", "KXNBAEAST", "KXNBAWEST"],
+    "nhl-futures":   ["KXNHL", "KXNHLEAST", "KXNHLWEST"],
+    "mlb-futures":   ["KXMLB", "KXMLBPLAYOFFS"],
     "ncaab-futures": ["KXNCAAMBMOP"],
     "golf-futures":  ["KXPGATOUR"],
 }
@@ -173,23 +177,28 @@ def consensus_outright_fair_values(events: list) -> dict[str, dict]:
         "max": float,
     }
     """
-    # Collect de-vigged probs per team per book
-    team_probs: dict[str, list[float]] = {}
+    # Collect de-vigged probs per team per book (with book key for weighting)
+    team_probs: dict[str, list[tuple[float, str]]] = {}  # name -> [(prob, book_key), ...]
 
     for event in events:
         for bookmaker in event.get("bookmakers", []):
+            book_key = bookmaker["key"]
             for market in bookmaker.get("markets", []):
                 if market["key"] != "outrights":
                     continue
                 fair = devig_nway(market.get("outcomes", []))
                 for name, prob in fair.items():
-                    team_probs.setdefault(name, []).append(prob)
+                    team_probs.setdefault(name, []).append((prob, book_key))
 
-    # Compute median for each team
+    # Compute weighted median for each team (sharp books count more)
+    from edge_detector import weighted_median, _book_weight
+
     result = {}
-    for name, probs in team_probs.items():
-        if probs:
-            med = median(probs)
+    for name, prob_book_pairs in team_probs.items():
+        if prob_book_pairs:
+            probs = [p for p, _ in prob_book_pairs]
+            weights = [_book_weight(bk) for _, bk in prob_book_pairs]
+            med = weighted_median(probs, weights)
             result[name] = {
                 "fair_value": med,
                 "n_books": len(probs),
@@ -257,13 +266,14 @@ def _futures_name_match(odds_name: str, kalshi_name: str) -> bool:
 
 # ── Edge Detection ───────────────────────────────────────────────────────────
 
-def detect_edge_futures(market: dict, fair_values: dict[str, dict]) -> Opportunity | None:
+def detect_edge_futures(market: dict, fair_values: dict[str, dict], label: str = "") -> Opportunity | None:
     """
     Detect edge on a Kalshi futures market by comparing to consensus outright odds.
 
     Args:
         market: Kalshi market dict
         fair_values: Output of consensus_outright_fair_values()
+        label: Human-readable bet type (e.g., "NBA Finals Champion")
 
     Returns:
         Opportunity or None
@@ -329,9 +339,12 @@ def detect_edge_futures(market: dict, fair_values: dict[str, dict]) -> Opportuni
     conf_score = {"high": 9, "medium": 6, "low": 3}[confidence]
     composite = 0.4 * edge_score + 0.3 * conf_score + 0.2 * liquidity + 0.1 * 5
 
+    # Build a clear title: "NBA Finals Champion: Oklahoma City Thunder"
+    display_title = f"{label}: {candidate}" if label else market.get("title", "")
+
     return Opportunity(
         ticker=ticker,
-        title=market.get("title", ""),
+        title=display_title,
         category="futures",
         side=side,
         market_price=market_price,
@@ -344,6 +357,7 @@ def detect_edge_futures(market: dict, fair_values: dict[str, dict]) -> Opportuni
         details={
             "candidate": candidate,
             "matched_to": matched_name,
+            "bet_type": label,
             "n_books": n_books,
             "fair_range": f"{matched_fair['min']:.3f} - {matched_fair['max']:.3f}",
         },
@@ -401,11 +415,13 @@ def scan_futures_markets(
 
     # Determine which Odds API sport keys we need
     sports_needed: dict[str, list] = {}  # odds_sport_key -> [market, ...]
+    market_labels: dict[str, str] = {}   # ticker -> human label
     for m in all_markets:
         ticker = m["ticker"]
-        for prefix, (sport_key, _) in FUTURES_MAP.items():
+        for prefix, (sport_key, _, label) in FUTURES_MAP.items():
             if ticker.startswith(prefix):
                 sports_needed.setdefault(sport_key, []).append(m)
+                market_labels[ticker] = label
                 break
 
     # Fetch outright odds and build fair values
@@ -427,7 +443,8 @@ def scan_futures_markets(
 
         matched = 0
         for m in markets:
-            opp = detect_edge_futures(m, fair_values)
+            lbl = market_labels.get(m["ticker"], "")
+            opp = detect_edge_futures(m, fair_values, label=lbl)
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
                 matched += 1
@@ -454,6 +471,16 @@ if __name__ == "__main__":
                         help="Filter: futures, nba-futures, nhl-futures, soccer-futures, etc.")
     scan_p.add_argument("--min-edge", type=float, default=0.03)
     scan_p.add_argument("--top", type=int, default=20)
+    scan_p.add_argument("--execute", action="store_true",
+                        help="Execute bets through the pipeline (requires confirmation)")
+    scan_p.add_argument("--unit-size", type=float, default=None,
+                        help="Dollar amount per bet (default: UNIT_SIZE from .env)")
+    scan_p.add_argument("--max-bets", type=int, default=5,
+                        help="Maximum number of bets to place")
+    scan_p.add_argument("--pick", type=str, default=None,
+                        help="Comma-separated row numbers to execute (e.g., '1,3,5')")
+    scan_p.add_argument("--ticker", type=str, nargs="+", default=None,
+                        help="Execute only these specific tickers")
 
     args = parser.parse_args()
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -465,28 +492,41 @@ if __name__ == "__main__":
     if not opps:
         rprint("[yellow]No futures opportunities found above edge threshold.[/yellow]")
     else:
-        console = Console()
-        table = Table(title=f"Futures Opportunities (edge >= {args.min_edge:.0%})", show_lines=True)
-        table.add_column("Ticker", style="cyan", max_width=30)
-        table.add_column("Candidate", max_width=25)
-        table.add_column("Side")
-        table.add_column("Mkt", justify="right")
-        table.add_column("Fair", justify="right", style="green")
-        table.add_column("Edge", justify="right", style="bold green")
-        table.add_column("Conf.")
-        table.add_column("Score", justify="right")
-        table.add_column("Books", justify="right")
-
-        for o in opps:
-            table.add_row(
-                o.ticker[:30],
-                o.details.get("candidate", "")[:25],
-                o.side.upper(),
-                f"${o.market_price:.2f}",
-                f"${o.fair_value:.3f}",
-                f"+{o.edge:.1%}",
-                o.confidence[:3].upper(),
-                f"{o.composite_score:.1f}",
-                str(o.details.get("n_books", "")),
+        # If execution flags are set, route through the executor pipeline
+        if args.execute or args.unit_size is not None:
+            from kalshi_executor import execute_pipeline, UNIT_SIZE
+            execute_pipeline(
+                client=client,
+                opportunities=opps,
+                execute=args.execute,
+                max_bets=args.max_bets,
+                unit_size=args.unit_size or UNIT_SIZE,
+                pick_rows=args.pick,
+                pick_tickers=args.ticker,
             )
-        console.print(table)
+        else:
+            console = Console()
+            table = Table(title=f"Futures Opportunities (edge >= {args.min_edge:.0%})", show_lines=True)
+            table.add_column("Bet Type", style="bold", max_width=28)
+            table.add_column("Candidate", style="cyan", max_width=25)
+            table.add_column("Side")
+            table.add_column("Mkt", justify="right")
+            table.add_column("Fair", justify="right", style="green")
+            table.add_column("Edge", justify="right", style="bold green")
+            table.add_column("Conf.")
+            table.add_column("Score", justify="right")
+            table.add_column("Books", justify="right")
+
+            for o in opps:
+                table.add_row(
+                    o.details.get("bet_type", "")[:28] or o.ticker[:28],
+                    o.details.get("candidate", "")[:25],
+                    o.side.upper(),
+                    f"${o.market_price:.2f}",
+                    f"${o.fair_value:.3f}",
+                    f"+{o.edge:.1%}",
+                    o.confidence[:3].upper(),
+                    f"{o.composite_score:.1f}",
+                    str(o.details.get("n_books", "")),
+                )
+            console.print(table)

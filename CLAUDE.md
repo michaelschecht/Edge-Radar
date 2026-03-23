@@ -1,5 +1,4 @@
-# FinAgent — Financial Action Intelligence Platform
-## CLAUDE.md — Project Manifest & Operating Instructions
+# Edge-Radar — Prediction Market & Sports Betting Intelligence
 
 ---
 
@@ -14,7 +13,7 @@ This contains cross-session context about the user, project decisions, and worki
 
 ## 🎯 Project Purpose
 
-FinAgent is a multi-agent financial intelligence system for prediction markets and sports betting on **Kalshi**.
+Edge-Radar is a multi-agent edge-detection and execution system for prediction markets and sports betting on **Kalshi**.
 
 The system emphasizes **research-first, execute-second** discipline. No action is taken without a documented rationale, risk check, and position-size calculation.
 
@@ -35,7 +34,7 @@ The system emphasizes **research-first, execute-second** discipline. No action i
 ## 🗂️ Project Structure
 
 ```
-Finance_Agent_Pro/
+Edge-Radar/
 ├── CLAUDE.md                        # This file — master instructions
 ├── .env                             # API keys (NEVER commit)
 ├── .env.example                     # Template for required env vars
@@ -50,18 +49,20 @@ Finance_Agent_Pro/
 │   └── skills/
 │       └── kalshi-bet/SKILL.md      # /kalshi-bet slash command
 ├── docs/
-│   ├── CHANGELOG.md                 # Project-wide changelog
-│   ├── kalshi-sports-betting/       # Sports betting guides
-│   │   ├── BETTING_GUIDE.md         # Sport-by-sport commands & filters
-│   │   ├── USER_GUIDE.md            # Daily workflow & system usage
-│   │   ├── KALSHI_API_REFERENCE.md  # API endpoints & auth
-│   │   └── KALSHI_STRATEGY_PLAN.md  # Architecture & roadmap
-│   ├── kalshi-prediction-betting/   # Non-sports prediction markets
+│   ├── CHANGELOG.md                 # Project history
+│   ├── SCRIPTS_REFERENCE.md         # Complete CLI reference for every script
+│   ├── ARCHITECTURE.md              # System pipeline, risk gates, data flow
+│   ├── kalshi-sports-betting/       # Sports betting
+│   │   ├── SPORTS_GUIDE.md          # Filters, edge detection, workflow
+│   │   └── KALSHI_API_REFERENCE.md  # API endpoints & auth
+│   ├── kalshi-prediction-betting/   # Prediction markets
 │   │   └── PREDICTION_MARKETS_GUIDE.md
 │   ├── kalshi-futures-betting/      # Championship & season-long futures
 │   │   └── FUTURES_GUIDE.md
-│   └── schedulers/                  # Scheduler framework docs
-│       └── SCHEDULER_GUIDE.md       # Setup, config, and usage guide
+│   ├── schedulers/                  # Scheduler framework
+│   │   └── SCHEDULER_GUIDE.md
+│   └── enhancements/               # Future improvements
+│       └── EDGE_OPTIMIZATION_ROADMAP.md
 ├── mcp-config/
 │   ├── claude_desktop_config.json   # MCP server config (Windows/WSL)
 │   └── mcp-servers.md               # MCP server reference & setup
