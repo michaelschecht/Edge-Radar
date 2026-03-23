@@ -1,5 +1,9 @@
 <a name="top"></a>
 
+<p align="center">
+  <img src=".claude/images/edge-radar-logo.png" alt="Edge-Radar Banner" width="700">
+</p>
+
 <h1 align="center">Edge-Radar</h1>
 
 <p align="center">
