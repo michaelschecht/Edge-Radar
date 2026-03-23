@@ -69,14 +69,42 @@
 - **CLAUDE.md** updated to reflect actual implementation status vs planned features
 - **`.env.example`** updated with all actually-used variables
 
+### Odds API Key Rotation (`scripts/shared/odds_api.py`)
+- Supports multiple API keys via `ODDS_API_KEYS=key1,key2,key3` in `.env`
+- Auto-rotates to next key on 401/429 (exhausted/rate limited)
+- Tracks remaining requests per key from response headers
+- Warns when a key drops below 10 remaining
+- Backwards compatible with single key
+
+### Prompt Library (`prompts/`)
+- 18 ready-to-use prompts for agents across 3 categories:
+  - `prompts/sports-betting/` (6): daily scan, sport-specific, execute, settle, high conviction, compare
+  - `prompts/futures/` (5): championship scan, sport report, weekly tracker, best value, portfolio builder
+  - `prompts/predictions/` (7): all predictions, crypto, weather, SPX, mentions, execute, morning brief
+
+### Reports
+- `reports/NFL/2026-03-22_superbowl_futures.md` -- Super Bowl analysis (KC NO +1.6% best edge)
+- `reports/mlb/2026-03-22_mlb_playoff_futures.md` -- MLB playoffs (Cleveland YES +25.5%, Cincinnati YES +21.0%)
+- `reports/NBA/2026-03-22_nba_championship_futures.md` -- NBA championship (OKC YES +26.3% biggest edge across all sports)
+
+### README
+- Complete rewrite focused on sports betting, futures, and prediction markets
+- Project structure, quick start, all market categories, API reference
+- Removed financial-analysis skill (project dedicated to betting)
+
+### Repo Renamed
+- `Finance-Agent-Pro` -> `edge-hunter`
+
 ### New Skills
 - `market-mechanics-betting` -- betting theory, Kelly criterion, scoring rules
 - `polymarket` -- API reference, trading guides, getting started docs
 
 ### Documentation
 - `docs/kalshi-sports-betting/BETTING_GUIDE.md` -- comprehensive sport-by-sport guide with all 27 filters
-- `docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md` -- crypto, weather, S&P 500, economics, politics
-- Updated all docs to reflect live trading (removed demo references), new script paths, and new commands
+- `docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md` -- crypto, weather, S&P 500, mentions, companies, politics, tech/science
+- `docs/kalshi-futures-betting/FUTURES_GUIDE.md` -- NFL, NBA, NHL, MLB, golf futures with N-way de-vig
+- Updated KALSHI_BETTOR agent and kalshi-bet skill with futures + prediction commands
+- Updated all docs to reflect live trading, new script paths, and new commands
 
 ---
 
