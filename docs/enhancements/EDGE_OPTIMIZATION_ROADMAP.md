@@ -72,23 +72,21 @@ Prioritized improvements to edge detection accuracy, ranked by expected impact o
   - Low: few books or wide disagreement (something is moving)
 - This naturally downgrades confidence on games with injury-driven line movement
 
-### 6. Public Betting Percentages
+### 6. Line Movement & Sharp Money Detection -- DONE (2026-03-23)
 
-**Problem:** When 80% of the public is on one side but the line hasn't moved (or moved the other way), sharp money is on the opposite side. This is a classic contrarian signal.
+**Problem:** Public betting percentages require paid APIs ($30/mo). But line movement is a free proxy — when the line moves opposite to where public money would push it, sharp bettors are on the other side.
 
-**Sources:**
-- **Action Network API** — comprehensive public/sharp splits (paid, ~$30/month)
-- **Pregame.com** — some free public percentage data
-- **Vegas Insider** — free consensus data
-
-**Action:**
-- Pull public bet percentages for each game
-- Flag games where public is heavily one-sided (>75%) but the line hasn't moved
-- Use as a confidence boost for contrarian positions
-
-**Cost:** Likely requires a paid subscription for reliable data. Action Network is the standard.
-
-**Expected impact:** Moderate. Helps identify games where recreational money is inflating one side, creating value on the other.
+**Fix implemented:**
+- New `scripts/shared/line_movement.py` module
+- ESPN scoreboard API provides opening and closing odds (DraftKings) for every game — free, no key
+- Calculates spread movement (open vs close) and total movement per game
+- Detects **reverse line movement**: spread moves away from the favorite = sharp on underdog
+- Detects **sharp total movement**: total drops >2 pts = sharp under, rises >2 pts = sharp over
+- Pre-fetched once per scan in `scan_all_markets()`, indexed by team abbreviation
+- Integrated into all three edge detectors (game, spread, total) as a confidence signal
+- Sharp signal that agrees with our bet → confidence bumped up; contradicts → dropped down
+- Signal data stored in `details["sharp_money"]` for transparency
+- Tested: 7 sharp signals detected from 10 NBA games on 2026-03-23
 
 ---
 
@@ -144,7 +142,7 @@ Prioritized improvements to edge detection accuracy, ranked by expected impact o
 | **Phase 1** | #1 Spread recalibration, #2 CLV tracking | DONE (2026-03-23) | None |
 | **Phase 2** | #3 Sharp book weighting, #4 Team stats APIs | DONE (2026-03-23) | Phase 1 validates the approach |
 | **Phase 3** | #5 Injury/line disagreement signal | DONE (2026-03-23) | None |
-| | #6 Public betting % | Deferred (requires paid API) | Action Network ~$30/mo |
+| | #6 Line movement / sharp money detection | DONE (2026-03-23) | ESPN free API |
 | **Phase 4** | #7 Weather for outdoor sports | DONE (2026-03-23) | None |
 | | #8 Historical analysis, #9 Line movement | Ongoing | Data accumulation over time |
 

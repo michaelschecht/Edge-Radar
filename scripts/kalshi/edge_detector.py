@@ -43,6 +43,7 @@ from rich import print as rprint
 from kalshi_client import KalshiClient
 from team_stats import get_team_stats
 from sports_weather import get_game_weather
+from line_movement import get_line_movement
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -727,9 +728,73 @@ def _adjust_confidence_with_stats(confidence: str, stats_signal: dict) -> str:
     return levels[idx]
 
 
+def _sharp_money_signal(team_name: str, side: str, ticker: str,
+                        sharp_signals: dict) -> dict:
+    """
+    Check if ESPN line movement data shows sharp action relevant to this bet.
+
+    Returns dict with:
+        - "signal_found": bool
+        - "sharp_side": str or None ("home"/"away"/"over"/"under")
+        - "agrees_with_bet": bool or None
+        - "reason": str
+    """
+    if not sharp_signals:
+        return {"signal_found": False}
+
+    # Try to find this team in the sharp signals index
+    # Normalize: try the team name and common abbreviations
+    signal = None
+    for key in sharp_signals:
+        if key.lower() in team_name.lower() or team_name.lower() in key.lower():
+            signal = sharp_signals[key]
+            break
+
+    # Also try matching by ticker prefix abbreviations
+    if not signal:
+        # Extract team abbrev from ticker: KXNBAGAME-26MAR25OKLBOS-OKC -> OKC, BOS
+        import re
+        match = re.search(r"\d{2}[A-Z]{3}\d{2}(\w+)-", ticker)
+        if match:
+            matchup = match.group(1)
+            for key in sharp_signals:
+                if key.upper() in matchup.upper():
+                    signal = sharp_signals[key]
+                    break
+
+    if not signal:
+        return {"signal_found": False}
+
+    sharp_side = signal.get("sharp_signal")
+    reason = signal.get("signal_reason", "")
+
+    # Determine if the sharp signal agrees with our bet
+    agrees = None
+    if sharp_side in ("home", "away"):
+        # For game/spread bets, check if sharp side matches our side
+        # This is approximate — we'd need to know if our team is home or away
+        agrees = None  # can't determine without home/away context
+    elif sharp_side == "over" and side == "yes":
+        agrees = True  # sharp over supports YES on total over
+    elif sharp_side == "under" and side == "no":
+        agrees = True  # sharp under supports NO on total over
+    elif sharp_side in ("over", "under"):
+        agrees = False
+
+    return {
+        "signal_found": True,
+        "sharp_side": sharp_side,
+        "agrees_with_bet": agrees,
+        "reason": reason,
+        "spread_move": signal.get("spread_move"),
+        "total_move": signal.get("total_move"),
+    }
+
+
 # ── Core Edge Detection ──────────────────────────────────────────────────────
 
-def detect_edge_game(market: dict, odds_events: list) -> Opportunity | None:
+def detect_edge_game(market: dict, odds_events: list,
+                     sharp_signals: dict | None = None) -> Opportunity | None:
     """Detect edge on game outcome markets (moneyline)."""
     ticker = market["ticker"]
     team = extract_team_from_market(market)
@@ -779,6 +844,15 @@ def detect_edge_game(market: dict, odds_events: list) -> Opportunity | None:
     confidence = _adjust_confidence_with_stats(confidence, stats_signal)
     details["team_stats"] = stats_signal
 
+    # Adjust confidence with sharp money / line movement
+    sharp = _sharp_money_signal(team, side, ticker, sharp_signals or {})
+    if sharp.get("signal_found"):
+        details["sharp_money"] = sharp
+        if sharp.get("agrees_with_bet") is True:
+            confidence = _adjust_confidence_with_stats(confidence, {"stats_found": True, "signal": "supports"})
+        elif sharp.get("agrees_with_bet") is False:
+            confidence = _adjust_confidence_with_stats(confidence, {"stats_found": True, "signal": "contradicts"})
+
     composite = (
         min(edge / 0.01, 10) * 0.40 +      # edge strength (40%)
         {"low": 3, "medium": 6, "high": 9}[confidence] * 0.30 +  # confidence (30%)
@@ -802,7 +876,8 @@ def detect_edge_game(market: dict, odds_events: list) -> Opportunity | None:
     )
 
 
-def detect_edge_spread(market: dict, odds_events: list) -> Opportunity | None:
+def detect_edge_spread(market: dict, odds_events: list,
+                       sharp_signals: dict | None = None) -> Opportunity | None:
     """Detect edge on spread markets."""
     ticker = market["ticker"]
     team = extract_team_from_market(market)
@@ -853,6 +928,15 @@ def detect_edge_spread(market: dict, odds_events: list) -> Opportunity | None:
     stats_signal = _stats_confidence_signal(team, ticker, side)
     confidence = _adjust_confidence_with_stats(confidence, stats_signal)
     details["team_stats"] = stats_signal
+
+    # Adjust confidence with sharp money / line movement
+    sharp = _sharp_money_signal(team, side, ticker, sharp_signals or {})
+    if sharp.get("signal_found"):
+        details["sharp_money"] = sharp
+        if sharp.get("agrees_with_bet") is True:
+            confidence = _adjust_confidence_with_stats(confidence, {"stats_found": True, "signal": "supports"})
+        elif sharp.get("agrees_with_bet") is False:
+            confidence = _adjust_confidence_with_stats(confidence, {"stats_found": True, "signal": "contradicts"})
 
     composite = (
         min(edge / 0.01, 10) * 0.40 +
@@ -914,7 +998,8 @@ def _extract_game_date(ticker: str) -> str | None:
     return f"20{year_short}-{month}-{day}"
 
 
-def detect_edge_total(market: dict, odds_events: list) -> Opportunity | None:
+def detect_edge_total(market: dict, odds_events: list,
+                      sharp_signals: dict | None = None) -> Opportunity | None:
     """Detect edge on over/under total markets."""
     ticker = market["ticker"]
     strike = extract_strike(market)
@@ -976,6 +1061,16 @@ def detect_edge_total(market: dict, odds_events: list) -> Opportunity | None:
             details["weather_adjustment"] = adj
             log.info("Weather adjustment for %s: %+.1f%% (%s)",
                      ticker, adj * 100, impact["reason"])
+
+    # Sharp money / line movement signal for totals
+    home_team = _extract_home_team_abbr(ticker)
+    sharp = _sharp_money_signal(home_team or "", side, ticker, sharp_signals or {})
+    if sharp.get("signal_found"):
+        details["sharp_money"] = sharp
+        if sharp.get("agrees_with_bet") is True:
+            confidence = _adjust_confidence_with_stats(confidence, {"stats_found": True, "signal": "supports"})
+        elif sharp.get("agrees_with_bet") is False:
+            confidence = _adjust_confidence_with_stats(confidence, {"stats_found": True, "signal": "contradicts"})
 
     composite = (
         min(edge / 0.01, 10) * 0.40 +
@@ -1216,6 +1311,22 @@ def scan_all_markets(
         rprint("\n[yellow]ODDS_API_KEY not set -- running without external odds data[/yellow]")
         rprint("[dim]Edge detection will be limited to market microstructure only[/dim]")
 
+    # 3b. Pre-fetch line movement data from ESPN (free)
+    sharp_signals: dict[str, dict] = {}  # team_abbr -> signal dict
+    for sport_key in sports_needed:
+        try:
+            movements = get_line_movement(sport_key)
+            for mv in movements:
+                if mv.get("sharp_signal"):
+                    # Index by both home and away team
+                    sharp_signals[mv["home_team"]] = mv
+                    sharp_signals[mv["away_team"]] = mv
+            if movements:
+                sharp_count = sum(1 for m in movements if m.get("sharp_signal"))
+                rprint(f"  Line movement: {len(movements)} games, {sharp_count} sharp signals")
+        except Exception as e:
+            log.debug("Line movement fetch failed for %s: %s", sport_key, e)
+
     # 4. Run edge detection per category
     opportunities: list[Opportunity] = []
 
@@ -1227,7 +1338,7 @@ def scan_all_markets(
                 sport_key = sk
                 break
         if sport_key and sport_key in odds_data:
-            opp = detect_edge_game(m, odds_data[sport_key])
+            opp = detect_edge_game(m, odds_data[sport_key], sharp_signals=sharp_signals)
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
 
@@ -1239,7 +1350,7 @@ def scan_all_markets(
                 sport_key = sk
                 break
         if sport_key and sport_key in odds_data:
-            opp = detect_edge_spread(m, odds_data[sport_key])
+            opp = detect_edge_spread(m, odds_data[sport_key], sharp_signals=sharp_signals)
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
 
@@ -1251,7 +1362,7 @@ def scan_all_markets(
                 sport_key = sk
                 break
         if sport_key and sport_key in odds_data:
-            opp = detect_edge_total(m, odds_data[sport_key])
+            opp = detect_edge_total(m, odds_data[sport_key], sharp_signals=sharp_signals)
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
 

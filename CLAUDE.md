@@ -96,6 +96,7 @@ Edge-Radar/
     │   ├── odds_api.py              # Odds API key rotation
     │   ├── team_stats.py            # ESPN/NHL/MLB team performance (6 sports)
     │   ├── sports_weather.py        # NWS weather for NFL/MLB outdoor venues
+    │   ├── line_movement.py         # ESPN line movement & sharp money detection
     │   └── logging_setup.py         # Console + file logging
     └── schedulers/                  # Automated pipeline schedulers
         ├── scheduler_config.py      # Per-scheduler env var profiles

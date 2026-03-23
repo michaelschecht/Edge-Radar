@@ -229,10 +229,11 @@ Dome stadiums are automatically excluded. Weather data is stored in opportunity 
 
 ### Confidence Signals
 
-Confidence (low/medium/high) is set by three factors:
+Confidence (low/medium/high) is set by four factors:
 - **Book count + agreement** — 8+ books with tight consensus = high
 - **Book spread range** — if books disagree by >4 points, confidence drops (signals injury/news)
 - **Team stats** — ESPN/NHL/MLB win% data. Stats that support the bet boost confidence; stats that contradict reduce it
+- **Sharp money** — ESPN open vs close odds detect reverse line movement. When sharps are on our side, confidence goes up
 
 ### Odds API Sport Mapping
 
