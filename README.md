@@ -1,40 +1,22 @@
 <a name="top"></a>
 
-<p align="center">
-  <img src=".claude/images/logo4.png" alt="Edge-Radar Banner" width="100%">
-</p>
+# Edge-Radar
 
-<h1 align="center">Edge-Radar</h1>
+**Automated Edge Detection & Execution for Prediction Markets**
 
-<p align="center">
-  <b>Automated Edge Detection & Execution for Prediction Markets</b>
-</p>
+<a href="https://kalshi.com"><img src="https://img.shields.io/badge/Kalshi-Live%20Trading-e74c3c?style=for-the-badge" alt="Kalshi Live Trading"></a>
+<a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.11+-2ea44f?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+"></a>
+<a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/Edge%20Model-Normal%20CDF-8B5CF6?style=for-the-badge" alt="Normal CDF"></a>
+<a href="docs/enhancements/EDGE_OPTIMIZATION_ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-8%2F9%20Complete-F97316?style=for-the-badge" alt="Roadmap"></a>
 
-<p align="center">
-  <a href="https://kalshi.com"><img src="https://img.shields.io/badge/Kalshi-Live%20Trading-e74c3c?style=for-the-badge" alt="Kalshi Live Trading"></a>
-  &nbsp;
-  <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.11+-2ea44f?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+"></a>
-  &nbsp;
-  <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/Edge%20Model-Normal%20CDF-8B5CF6?style=for-the-badge" alt="Normal CDF"></a>
-  &nbsp;
-  <a href="docs/enhancements/EDGE_OPTIMIZATION_ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-8%2F9%20Complete-F97316?style=for-the-badge" alt="Roadmap"></a>
-</p>
+<img src=".claude/images/logo4.png" alt="Edge-Radar Banner" width="100%">
 
-<br>
 
-<p align="center">
-  <a href="#-supported-markets"><img src="https://img.shields.io/badge/Markets-27%20Sports%20%7C%207%20Futures%20%7C%2011%20Prediction-0078D4?style=flat-square" alt="Markets"></a>
-  &nbsp;
-  <a href="#-edge-detection"><img src="https://img.shields.io/badge/Signals-8%20Edge%20Features-8B5CF6?style=flat-square" alt="Edge Detection"></a>
-  &nbsp;
-  <a href="#-quick-start"><img src="https://img.shields.io/badge/Setup-5%20Min%20Quick%20Start-2ea44f?style=flat-square" alt="Quick Start"></a>
-  &nbsp;
-  <a href="#-documentation"><img src="https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square" alt="Docs"></a>
-  &nbsp;
-  <a href="#-data-sources"><img src="https://img.shields.io/badge/APIs-8%20Free%20Sources-F97316?style=flat-square" alt="APIs"></a>
-</p>
-
-<br>
+<a href="#-supported-markets"><img src="https://img.shields.io/badge/Markets-27%20Sports%20%7C%207%20Futures%20%7C%2011%20Prediction-0078D4?style=flat-square" alt="Markets"></a>
+<a href="#-edge-detection"><img src="https://img.shields.io/badge/Signals-8%20Edge%20Features-8B5CF6?style=flat-square" alt="Edge Detection"></a>
+<a href="#-quick-start"><img src="https://img.shields.io/badge/Setup-5%20Min%20Quick%20Start-2ea44f?style=flat-square" alt="Quick Start"></a>
+<a href="#-documentation"><img src="https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square" alt="Docs"></a>
+<a href="#-data-sources"><img src="https://img.shields.io/badge/APIs-8%20Free%20Sources-F97316?style=flat-square" alt="APIs"></a>
 
 > Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 6 free APIs, identifies mispriced contracts with a normal CDF probability model, applies risk gates, and executes limit orders — logging every decision for closing line value tracking.
 
