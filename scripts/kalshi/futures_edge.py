@@ -43,7 +43,7 @@ from opportunity import Opportunity
 load_dotenv()
 log = logging.getLogger("futures_edge")
 
-ODDS_API_KEY = os.getenv("ODDS_API_KEY", "")
+from odds_api import get_current_key, rotate_key, report_remaining
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
 # ── Kalshi-to-Odds-API Mapping ───────────────────────────────────────────────
@@ -87,33 +87,52 @@ _outrights_cache: dict[str, list] = {}
 
 
 def fetch_outrights(sport_key: str) -> list:
-    """Fetch outright/futures odds from The Odds API. Cached per sport."""
+    """Fetch outright/futures odds from The Odds API with key rotation. Cached per sport."""
     if sport_key in _outrights_cache:
         return _outrights_cache[sport_key]
-    if not ODDS_API_KEY:
+
+    api_key = get_current_key()
+    if not api_key:
         return []
 
-    try:
-        resp = requests.get(
-            f"{ODDS_API_BASE}/sports/{sport_key}/odds",
-            params={
-                "apiKey": ODDS_API_KEY,
-                "regions": "us",
-                "markets": "outrights",
-                "oddsFormat": "decimal",
-            },
-            timeout=15,
-        )
-        resp.raise_for_status()
-        remaining = resp.headers.get("x-requests-remaining", "?")
-        log.info("Odds API outrights %s: %d events, %s requests remaining",
-                 sport_key, len(resp.json()), remaining)
-        rprint(f"  Odds API: {sport_key} ({remaining} requests remaining)")
-        _outrights_cache[sport_key] = resp.json()
-        return resp.json()
-    except Exception as e:
-        log.warning("Odds API outright error for %s: %s", sport_key, e)
-        return []
+    for attempt in range(3):
+        try:
+            resp = requests.get(
+                f"{ODDS_API_BASE}/sports/{sport_key}/odds",
+                params={
+                    "apiKey": api_key,
+                    "regions": "us",
+                    "markets": "outrights",
+                    "oddsFormat": "decimal",
+                },
+                timeout=15,
+            )
+            if resp.status_code in (401, 429):
+                new_key = rotate_key("http_" + str(resp.status_code))
+                if new_key:
+                    api_key = new_key
+                    continue
+                else:
+                    return []
+
+            resp.raise_for_status()
+            remaining = resp.headers.get("x-requests-remaining", "?")
+            log.info("Odds API outrights %s: %d events, %s requests remaining",
+                     sport_key, len(resp.json()), remaining)
+            rprint(f"  Odds API: {sport_key} ({remaining} requests remaining)")
+
+            try:
+                report_remaining(api_key, int(remaining))
+            except (ValueError, TypeError):
+                pass
+
+            _outrights_cache[sport_key] = resp.json()
+            return resp.json()
+        except Exception as e:
+            log.warning("Odds API outright error for %s: %s", sport_key, e)
+            return []
+
+    return []
 
 
 # ── N-Way De-Vigging ─────────────────────────────────────────────────────────
@@ -392,8 +411,8 @@ def scan_futures_markets(
     # Fetch outright odds and build fair values
     opportunities: list[Opportunity] = []
 
-    if not ODDS_API_KEY:
-        rprint("[yellow]ODDS_API_KEY not set -- cannot fetch futures odds[/yellow]")
+    if not get_current_key():
+        rprint("[yellow]No Odds API keys configured -- cannot fetch futures odds[/yellow]")
         return []
 
     rprint(f"\n[bold]Fetching outright odds for {len(sports_needed)} sport(s)...[/bold]")
