@@ -50,9 +50,9 @@ Fetch head-to-head odds from 8-12 US sportsbooks. De-vig each book's line using 
 
 Fetch spread lines from sportsbooks and compute weighted median spread and implied probability. Infer expected score margin using the book's line, then model the final margin as **Normal(mean, stdev)** with sport-specific standard deviations (NBA: 12, NCAAB: 11, NFL: 13.5, MLB: 3.5, NHL: 2.5). Calculate `P(margin > strike)` via normal CDF. Confidence factors in book count, book agreement (spread range), and team stats signal.
 
-### Totals (Normal CDF Model)
+### Totals (Normal CDF Model + Weather)
 
-Same approach as spreads: infer expected total from book line, model as Normal distribution with sport-specific stdev, calculate `P(total > strike)` via CDF.
+Same approach as spreads: infer expected total from book line, model as Normal distribution with sport-specific stdev, calculate `P(total > strike)` via CDF. For NFL and MLB outdoor games, a **weather adjustment** is applied: NWS hourly forecasts for the game venue provide wind speed, precipitation, and temperature. High wind (>15mph), rain (>40%), and extreme cold reduce expected scoring — the fair value for "over" is adjusted downward accordingly. Dome stadiums are automatically excluded.
 
 ### Futures (N-Way De-Vig)
 

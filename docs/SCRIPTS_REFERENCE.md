@@ -143,6 +143,8 @@ No flags.
 
 **When to use:** Standalone sports scanner with more detail than the executor. Use for research and deep dives on individual markets. For scanning + execution, use `kalshi_executor.py run` instead.
 
+**Features:** Normal CDF spread/total model with sport-specific stdev, sharp book weighting (Pinnacle 3x), team stats confidence signal (ESPN/NHL/MLB), weather adjustment for NFL/MLB outdoor totals, per-game cap (top 3 per matchup).
+
 ### `scan` — Batch Scan
 
 ```bash

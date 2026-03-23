@@ -82,11 +82,21 @@ Edge-Radar/
     ├── kalshi/                      # Kalshi betting scripts
     │   ├── kalshi_client.py         # Authenticated Kalshi API client
     │   ├── kalshi_executor.py       # Risk management & order execution
-    │   ├── kalshi_settler.py        # Settlement tracking & P&L reporting
-    │   ├── edge_detector.py         # Market scanning & edge detection
+    │   ├── kalshi_settler.py        # Settlement, CLV tracking & P&L reporting
+    │   ├── edge_detector.py         # Edge detection (normal CDF, sharp weighting, team stats, weather)
+    │   ├── futures_edge.py          # Championship futures edge detection
     │   ├── fetch_odds.py            # The Odds API integration
     │   ├── fetch_market_data.py     # Multi-asset market data fetcher
     │   └── risk_check.py            # Portfolio risk dashboard
+    ├── shared/                      # Shared modules
+    │   ├── config.py                # Centralized env var configuration
+    │   ├── paths.py                 # Standardized path setup
+    │   ├── opportunity.py           # Opportunity dataclass
+    │   ├── trade_log.py             # Trade log I/O
+    │   ├── odds_api.py              # Odds API key rotation
+    │   ├── team_stats.py            # ESPN/NHL/MLB team performance (6 sports)
+    │   ├── sports_weather.py        # NWS weather for NFL/MLB outdoor venues
+    │   └── logging_setup.py         # Console + file logging
     └── schedulers/                  # Automated pipeline schedulers
         ├── scheduler_config.py      # Per-scheduler env var profiles
         ├── base_scheduler.py        # BaseScheduler (safety, logging, lifecycle)
