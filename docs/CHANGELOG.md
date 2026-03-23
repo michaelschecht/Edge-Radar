@@ -11,6 +11,14 @@
 - Same fix applied to total (over/under) markets with separate total stdev values
 - Old model systematically overestimated edge on alternate spreads (caused 1W-11L on NCAAB)
 
+### Line Movement & Sharp Money Detection (`scripts/shared/line_movement.py`)
+- New module: ESPN scoreboard API provides opening vs closing odds (DraftKings) for free
+- Detects reverse line movement (spread moves away from favorite = sharp on underdog)
+- Detects sharp total movement (total drops/rises >2 pts)
+- Pre-fetched once per scan, integrated into game/spread/total confidence signals
+- Sharp agreement boosts confidence; contradiction reduces it
+- Covers NBA, NFL, NHL, MLB, NCAAB, NCAAF
+
 ### Weather Impact for Outdoor Sports (`scripts/shared/sports_weather.py`)
 - New module: NWS hourly forecast for 31 NFL + 30 MLB venues (dome/outdoor classified)
 - Scoring adjustment model: wind >15mph, rain >40%, cold <32F (NFL) / <45F (MLB)

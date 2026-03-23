@@ -60,10 +60,11 @@ For championship and season-long markets with N outcomes, de-vig the full N-way 
 
 ### Confidence Signals
 
-Confidence (low/medium/high) is determined by three factors:
+Confidence (low/medium/high) is determined by four factors:
 1. **Book count and agreement** — more books with tighter consensus = higher confidence
 2. **Book spread range** — high disagreement (>4 points) signals injury news or stale lines, drops confidence
 3. **Team stats** — win% from ESPN/NHL/MLB APIs. Stats that support the bet direction bump confidence up; stats that contradict drop it down
+4. **Sharp money / line movement** — ESPN open vs close odds detect reverse line movement. When the line moves opposite to public money, sharp bettors are on the other side. Signals that agree with our bet boost confidence.
 
 ### Predictions (Model-Specific)
 
