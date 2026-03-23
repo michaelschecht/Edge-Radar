@@ -19,22 +19,6 @@
 
 ---
 
-## 📋 Table of Contents
-
-- [📋 Table of Contents](#-table-of-contents)
-- [🏗️ How It Works](#️-how-it-works)
-- [📊 Supported Markets](#-supported-markets)
-  - [🏀 Sports Betting](#-sports-betting)
-  - [🏆 Championship Futures](#-championship-futures)
-  - [🔮 Prediction Markets](#-prediction-markets)
-- [⚡ Edge Detection](#-edge-detection)
-- [🚀 Quick Start](#-quick-start)
-- [🗂️ Project Structure](#️-project-structure)
-- [📖 Documentation](#-documentation)
-- [🔌 Data Sources](#-data-sources)
-
----
-
 ## 🏗️ How It Works
 
 ```
