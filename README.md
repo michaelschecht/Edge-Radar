@@ -21,13 +21,17 @@
 
 ## 📋 Table of Contents
 
-- [How It Works](#-how-it-works)
-- [Supported Markets](#-supported-markets)
-- [Edge Detection](#-edge-detection)
-- [Quick Start](#-quick-start)
-- [Project Structure](#-project-structure)
-- [Documentation](#-documentation)
-- [Data Sources](#-data-sources)
+- [📋 Table of Contents](#-table-of-contents)
+- [🏗️ How It Works](#️-how-it-works)
+- [📊 Supported Markets](#-supported-markets)
+  - [🏀 Sports Betting](#-sports-betting)
+  - [🏆 Championship Futures](#-championship-futures)
+  - [🔮 Prediction Markets](#-prediction-markets)
+- [⚡ Edge Detection](#-edge-detection)
+- [🚀 Quick Start](#-quick-start)
+- [🗂️ Project Structure](#️-project-structure)
+- [📖 Documentation](#-documentation)
+- [🔌 Data Sources](#-data-sources)
 
 ---
 
@@ -235,10 +239,6 @@ Edge-Radar/
 | [Yahoo Finance](https://finance.yahoo.com) | S&P 500 price + VIX | None | Free |
 
 ---
-
-<p align="center">
-  Built with <a href="https://claude.com/claude-code">Claude Code</a> &middot; Powered by <a href="https://kalshi.com">Kalshi</a>
-</p>
 
 <p align="center">
   <a href="#top">Back to top</a>
