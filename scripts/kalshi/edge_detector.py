@@ -46,7 +46,7 @@ load_dotenv()
 log = logging.getLogger("edge_detector")
 console = Console()
 
-ODDS_API_KEY = os.getenv("ODDS_API_KEY", "")
+from odds_api import get_current_key, rotate_key, report_remaining
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
 MIN_EDGE = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
@@ -114,34 +114,56 @@ _odds_cache: dict[str, list] = {}
 
 
 def fetch_odds_api(sport_key: str, markets: str = "h2h") -> list:
-    """Fetch odds from The Odds API with caching."""
-    if not ODDS_API_KEY:
+    """Fetch odds from The Odds API with caching and key rotation."""
+    api_key = get_current_key()
+    if not api_key:
         return []
 
     cache_key = f"{sport_key}:{markets}"
     if cache_key in _odds_cache:
         return _odds_cache[cache_key]
 
-    try:
-        resp = requests.get(
-            f"{ODDS_API_BASE}/sports/{sport_key}/odds",
-            params={
-                "apiKey": ODDS_API_KEY,
-                "regions": "us",
-                "markets": markets,
-                "oddsFormat": "decimal",
-                "dateFormat": "iso",
-            },
-            timeout=15,
-        )
-        resp.raise_for_status()
-        remaining = resp.headers.get("x-requests-remaining", "?")
-        log.info("Odds API: %s events, %s requests remaining", len(resp.json()), remaining)
-        _odds_cache[cache_key] = resp.json()
-        return resp.json()
-    except Exception as e:
-        log.warning("Odds API error for %s: %s", sport_key, e)
-        return []
+    # Try current key, rotate on failure
+    for attempt in range(3):
+        try:
+            resp = requests.get(
+                f"{ODDS_API_BASE}/sports/{sport_key}/odds",
+                params={
+                    "apiKey": api_key,
+                    "regions": "us",
+                    "markets": markets,
+                    "oddsFormat": "decimal",
+                    "dateFormat": "iso",
+                },
+                timeout=15,
+            )
+            if resp.status_code == 401 or resp.status_code == 429:
+                # Key exhausted or invalid -- try rotating
+                new_key = rotate_key("http_" + str(resp.status_code))
+                if new_key:
+                    api_key = new_key
+                    continue
+                else:
+                    log.warning("All Odds API keys exhausted")
+                    return []
+
+            resp.raise_for_status()
+            remaining = resp.headers.get("x-requests-remaining", "?")
+            log.info("Odds API: %s events, %s requests remaining", len(resp.json()), remaining)
+
+            # Track remaining for this key
+            try:
+                report_remaining(api_key, int(remaining))
+            except (ValueError, TypeError):
+                pass
+
+            _odds_cache[cache_key] = resp.json()
+            return resp.json()
+        except Exception as e:
+            log.warning("Odds API error for %s: %s", sport_key, e)
+            return []
+
+    return []
 
 
 def implied_prob(decimal_odds: float) -> float:
@@ -764,14 +786,14 @@ def scan_all_markets(
             if m["ticker"].startswith(prefix):
                 sports_needed.add(sport_key)
 
-    if ODDS_API_KEY and sports_needed:
+    if get_current_key() and sports_needed:
         rprint(f"\n[bold]Fetching odds for: {', '.join(sports_needed)}[/bold]")
         for sport_key in sports_needed:
             # Fetch h2h, spreads, and totals
             events = fetch_odds_api(sport_key, markets="h2h,spreads,totals")
             odds_data[sport_key] = events
             rprint(f"  {sport_key}: {len(events)} events")
-    elif not ODDS_API_KEY:
+    elif not get_current_key():
         rprint("\n[yellow]ODDS_API_KEY not set -- running without external odds data[/yellow]")
         rprint("[dim]Edge detection will be limited to market microstructure only[/dim]")
 
@@ -907,7 +929,7 @@ def print_detail(client: KalshiClient, ticker: str):
                     rprint(f"  Edge (yes): {fair - yes_ask:+.1%}")
                 for book, info in details.get("books", {}).items():
                     rprint(f"    {book:>20}: odds={info['raw_odds']:.3f}  implied={info['implied']:.1%}  devig={info['devigged']:.1%}")
-    elif not ODDS_API_KEY:
+    elif not get_current_key():
         rprint("\n  [yellow]ODDS_API_KEY not set -- cannot fetch external odds[/yellow]")
 
 

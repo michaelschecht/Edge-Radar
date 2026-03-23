@@ -1,0 +1,14 @@
+# TV Mention Market Scan
+
+Scan all TV mention and word count markets for edge based on historical settlement patterns.
+
+```
+python scripts/prediction/prediction_scanner.py scan --filter mentions --min-edge 0.05 --top 15
+```
+
+Show me:
+- Which broadcasts have active markets tonight
+- Historical YES rate for this series (what % of words typically get said?)
+- Top picks where Kalshi is underpricing common words
+- Any NO opportunities where Kalshi is overpricing rare/unusual words
+- Quick summary: are mention markets offering good value today or should I skip them?
