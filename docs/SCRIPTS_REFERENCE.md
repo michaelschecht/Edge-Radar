@@ -466,3 +466,35 @@ python scripts/schedulers/run_schedulers.py --only nba
 ```
 
 **Before using:** Set `SCHED_{NAME}_ENABLED=true` in `.env` for each scheduler you want to run. See [Scheduler Guide](schedulers/SCHEDULER_GUIDE.md).
+
+---
+
+## daily_sports_scan.py — Daily Morning Report
+
+**Location:** `scripts/schedulers/daily_sports_scan.py`
+
+**When to use:** Generate a daily morning report scanning MLB, NBA, NHL, and NFL for the top betting opportunities. Run manually or as a daemon at 8:00 AM PST.
+
+```bash
+python scripts/schedulers/daily_sports_scan.py [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--top N` | `25` | Number of top opportunities to include |
+| `--daemon` | off | Run as daemon — scans at 8:00 AM PST daily |
+
+**Examples:**
+
+```bash
+# Run once now, top 25
+python scripts/schedulers/daily_sports_scan.py
+
+# Top 50 opportunities
+python scripts/schedulers/daily_sports_scan.py --top 50
+
+# Run as daemon (8 AM PST daily, runs once immediately on start)
+python scripts/schedulers/daily_sports_scan.py --daemon
+```
+
+**Output:** Report saved to `reports/Sports/daily_edge_reports/YYYY-MM-DD_morning_scan.txt` with edge, fair value, confidence, team stats, sharp money signals, and weather notes.
