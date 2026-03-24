@@ -497,4 +497,4 @@ python scripts/schedulers/daily_sports_scan.py --top 50
 python scripts/schedulers/daily_sports_scan.py --daemon
 ```
 
-**Output:** Report saved to `reports/Sports/daily_edge_reports/YYYY-MM-DD_morning_scan.txt` with edge, fair value, confidence, team stats, sharp money signals, and weather notes.
+**Output:** Report saved to `reports/Sports/daily_edge_reports/YYYY-MM-DD_morning_scan.md` with edge, fair value, confidence, team stats, sharp money signals, and weather notes.

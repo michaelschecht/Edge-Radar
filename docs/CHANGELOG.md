@@ -13,7 +13,7 @@
 
 ### Daily Morning Scan (`scripts/schedulers/daily_sports_scan.py`)
 - New script: scans MLB, NBA, NHL, NFL each morning for top 25 opportunities
-- Saves timestamped report to `reports/Sports/daily_edge_reports/YYYY-MM-DD_morning_scan.txt`
+- Saves timestamped report to `reports/Sports/daily_edge_reports/YYYY-MM-DD_morning_scan.md`
 - Report includes edge, fair value, market price, confidence, team stats, sharp signals, weather
 - `--daemon` flag runs via APScheduler at 8:00 AM PST daily with automatic DST handling
 - `--top N` to customize number of opportunities (default 25)

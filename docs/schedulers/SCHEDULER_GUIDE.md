@@ -106,7 +106,7 @@ A standalone report scheduler that scans MLB, NBA, NHL, and NFL every morning an
 2. Combines opportunities across sports, sorted by edge descending
 3. Takes the top N (default 25)
 4. Generates a plain-text report with: edge, fair value, market price, confidence, team stats, sharp money signals, weather annotations
-5. Saves to `reports/Sports/daily_edge_reports/YYYY-MM-DD_morning_scan.txt`
+5. Saves to `reports/Sports/daily_edge_reports/YYYY-MM-DD_morning_scan.md`
 6. Prints the report to console
 
 ### Usage
@@ -160,8 +160,8 @@ With `--daemon`, the script:
 Reports are saved to:
 ```
 reports/Sports/daily_edge_reports/
-├── 2026-03-23_morning_scan.txt
-├── 2026-03-24_morning_scan.txt
+├── 2026-03-23_morning_scan.md
+├── 2026-03-24_morning_scan.md
 └── ...
 ```
 
