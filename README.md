@@ -32,7 +32,7 @@
 - NCAAB & NCAAF
 - UFC and Boxing
 - Soccer, Golf, and Nascar
-- And many more..
+- And many more..  
 
 </td>
 <td width="33%" valign="top">
