@@ -12,7 +12,7 @@
 <a href="#-documentation"><img src="https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square" alt="Docs"></a>
 <a href="#-data-sources"><img src="https://img.shields.io/badge/APIs-8%20Free-F97316?style=flat-square" alt="APIs"></a>
 
-<img src=".claude/images/logo4.png" alt="Edge-Radar Banner" width="100%">
+<img src=".claude/images/logos/logo.png" alt="Edge-Radar Banner" width="100%">
 
 > Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 6 free APIs, identifies mispriced contracts with a normal CDF probability model, applies risk gates, and executes limit orders — logging every decision for closing line value tracking.
 

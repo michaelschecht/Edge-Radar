@@ -2,13 +2,16 @@
 
 ## Overview
 
-The scheduler framework runs independent betting pipelines on configurable intervals. Each scheduler targets a specific market (NBA, crypto, MLB, etc.) and can be enabled, tuned, and monitored independently.
+The scheduler framework provides two types of automated pipelines:
+
+1. **Execution schedulers** — scan a specific market on a recurring interval and optionally place bets
+2. **Report schedulers** — scan multiple markets on a schedule and save a ranked report (no execution)
 
 **Key design principles:**
 - Each market gets its own scheduler with its own interval, filters, and bet limits
 - DRY_RUN from `.env` is always respected — schedulers never bypass the safety gate
 - Consecutive failures auto-pause the scheduler to prevent runaway losses
-- All schedulers log to `logs/sched_{name}_{date}.log`
+- All schedulers log to `logs/sched_{name}_{date}.log` or `logs/daily_sports_scan_{date}.log`
 
 ---
 
@@ -21,14 +24,20 @@ scripts/schedulers/
 ├── base_scheduler.py        # BaseScheduler class (safety, logging, lifecycle)
 ├── sports_scheduler.py      # SportsScheduler (edge_detector → executor)
 ├── prediction_scheduler.py  # PredictionScheduler (prediction_scanner → executor)
-└── run_schedulers.py        # CLI entry point (launch one, all, or list)
+├── run_schedulers.py        # CLI entry point (launch one, all, or list)
+└── daily_sports_scan.py     # Daily morning report (MLB, NBA, NHL, NFL)
 ```
 
-**Inheritance:**
+**Inheritance (execution schedulers):**
 ```
 BaseScheduler
 ├── SportsScheduler      ← NBA, NHL, MLB, NFL, NCAA, soccer
 └── PredictionScheduler  ← crypto, weather, S&P 500
+```
+
+**Standalone (report schedulers):**
+```
+daily_sports_scan.py     ← 8 AM PST daily, top 25, saves report
 ```
 
 ---
@@ -83,6 +92,77 @@ python scripts/schedulers/run_schedulers.py
 python scripts/schedulers/run_schedulers.py --only nba
 
 # Ctrl+C to gracefully stop
+```
+
+---
+
+## Daily Morning Scan
+
+A standalone report scheduler that scans MLB, NBA, NHL, and NFL every morning and saves a ranked edge report. No bets are placed — this is a read-only scan for daily research.
+
+### What it does
+
+1. Scans all four major sports via `edge_detector.scan_all_markets()`
+2. Combines opportunities across sports, sorted by edge descending
+3. Takes the top N (default 25)
+4. Generates a plain-text report with: edge, fair value, market price, confidence, team stats, sharp money signals, weather annotations
+5. Saves to `reports/Sports/daily_edge_reports/YYYY-MM-DD_morning_scan.md`
+6. Prints the report to console
+
+### Usage
+
+```bash
+# Run once now (top 25)
+python scripts/schedulers/daily_sports_scan.py
+
+# Top 50 opportunities
+python scripts/schedulers/daily_sports_scan.py --top 50
+
+# Run as daemon — scans at 8:00 AM PST daily (auto-adjusts for DST)
+python scripts/schedulers/daily_sports_scan.py --daemon
+```
+
+### Daemon mode
+
+With `--daemon`, the script:
+- Runs one scan immediately on startup
+- Schedules recurring scans at 8:00 AM Pacific time via APScheduler's `CronTrigger`
+- Handles DST automatically (uses `America/Los_Angeles` timezone)
+- Runs in the foreground — Ctrl+C to stop
+
+### Report format
+
+```
+================================================================================
+  EDGE-RADAR DAILY MORNING SCAN
+  Monday, March 23, 2026 — 08:00 AM PST
+  Sports: NBA, NHL, MLB, NFL
+  Top 25 opportunities by edge
+================================================================================
+
+  SUMMARY
+  ----------------------------------------
+    spread          12 opportunities
+    game            8 opportunities
+    total           5 opportunities
+
+    #    Edge   Fair    Mkt  Conf    Side  Bet
+  ---------------------------------------------------------------------------
+    1  +15.2%   0.65   0.50  HIGH    YES   Lakers wins by over 3.5 Points? (vs Celtics)
+                                           [56-15 (supports), sharp: home]
+    2  +12.8%   0.72   0.59  MED     NO    Rangers at Bruins: Total Goals
+                                           [weather: moderate wind (18 mph)]
+  ...
+```
+
+### Output location
+
+Reports are saved to:
+```
+reports/Sports/daily_edge_reports/
+├── 2026-03-23_morning_scan.md
+├── 2026-03-24_morning_scan.md
+└── ...
 ```
 
 ---
