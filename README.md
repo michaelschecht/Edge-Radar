@@ -31,8 +31,8 @@
 - NFL, NBA, and MLB
 - NCAAB & NCAAF
 - UFC and Boxing
-- Soccer, Golf, and Nascar
-- And many more..  
+- Soccer, Golf, Nascar, and more!
+  
 
 </td>
 <td width="33%" valign="top">
