@@ -7,10 +7,8 @@
 <a href="https://kalshi.com"><img src="https://img.shields.io/badge/Kalshi-Live%20Trading-e74c3c?style=flat-square" alt="Kalshi Live Trading"></a>
 <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.11+-2ea44f?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+"></a>
 <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/Edge%20Model-Normal%20CDF-8B5CF6?style=flat-square" alt="Normal CDF"></a>
-<a href="docs/enhancements/EDGE_OPTIMIZATION_ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-8%2F9%20Complete-F97316?style=flat-square" alt="Roadmap"></a>
 <a href="#-supported-markets"><img src="https://img.shields.io/badge/Markets-27%20Sports-0078D4?style=flat-square" alt="Markets"></a>
 <a href="#-edge-detection"><img src="https://img.shields.io/badge/Edge-8%20Signals-8B5CF6?style=flat-square" alt="Edge Detection"></a>
-<a href="#-quick-start"><img src="https://img.shields.io/badge/Quick%20Start-5%20Min-2ea44f?style=flat-square" alt="Quick Start"></a>
 <a href="#-documentation"><img src="https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square" alt="Docs"></a>
 <a href="#-data-sources"><img src="https://img.shields.io/badge/APIs-8%20Free-F97316?style=flat-square" alt="APIs"></a>
 
