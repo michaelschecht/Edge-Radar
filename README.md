@@ -26,7 +26,13 @@
 
 ### 🏀 Sports Betting
 
-**27 sport filters** across NBA, NHL, MLB, NFL, NCAAB, NCAAF, MLS, Champions League, EPL, La Liga, Serie A, Bundesliga, UFC, Boxing, F1, NASCAR, PGA, IPL, Esports
+**27 sport filters**
+
+- NFL, NBA, and MLB
+- NCAAB & NCAAF
+- UFC and Boxing
+- Soccer, Golf, and Nascar
+- Plus many more
 
 **Edge:** Weighted consensus from 12 US sportsbooks
 

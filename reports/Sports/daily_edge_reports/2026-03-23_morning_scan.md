@@ -1,6 +1,6 @@
 # Edge-Radar Daily Morning Scan
 
-**Monday, March 23, 2026** | 05:29 PM PST
+**Monday, March 23, 2026** | 08:09 PM PST
 
 Sports: **NBA, NHL, MLB, NFL** | Top **25** opportunities by edge | Min edge: 3%
 
@@ -8,40 +8,40 @@ Sports: **NBA, NHL, MLB, NFL** | Top **25** opportunities by edge | Min edge: 3%
 
 | Category | Count |
 |:---------|------:|
-| game | 12 |
-| total | 10 |
+| total | 12 |
+| game | 10 |
 | spread | 3 |
 
 ## Opportunities
 
 | # | Edge | Fair | Mkt | Conf | Side | Bet | Signals |
 |--:|-----:|-----:|----:|:-----|:-----|:----|:--------|
-| 1 | +66.6% | 0.77 | 0.10 | LOW | YES | Los Angeles L wins by over 5.5 Points? (vs Detroit) |  |
-| 2 | +66.5% | 0.84 | 0.17 | LOW | YES | Los Angeles L wins by over 2.5 Points? (vs Detroit) |  |
-| 3 | +61.0% | 0.85 | 0.24 | HIG | YES | Los Angeles L at Detroit Winner? | 46-25 (supports) |
-| 4 | +55.5% | 0.95 | 0.40 | LOW | NO | Chicago at Philadelphia Winner? | 39-32 (neutral) |
-| 5 | +53.7% | 0.95 | 0.41 | LOW | YES | Atlanta at Detroit Winner? | 39-32 (neutral) |
-| 6 | +52.0% | 0.75 | 0.23 | LOW | NO | New Orleans at New York Winner? | 47-25 (contradicts) |
-| 7 | +50.0% | 0.67 | 0.17 | MED | NO | San Antonio at Miami: Total Points |  |
-| 8 | +49.8% | 0.73 | 0.23 | MED | NO | San Antonio at Miami: Total Points |  |
-| 9 | +47.1% | 0.78 | 0.31 | MED | NO | San Antonio at Miami: Total Points |  |
-| 10 | +44.0% | 0.80 | 0.36 | HIG | NO | Washington at Utah Winner? | 21-50 (supports), sharp: home |
-| 11 | +42.2% | 0.70 | 0.28 | MED | YES | Orlando at Cleveland Winner? | 38-32 (neutral) |
-| 12 | +39.5% | 0.95 | 0.56 | MED | YES | Oklahoma City at Boston Winner? | 56-15 (supports) |
-| 13 | +32.7% | 0.46 | 0.13 | MED | YES | Dallas at Denver Winner? | 23-48 (contradicts) |
-| 14 | +32.3% | 0.69 | 0.37 | LOW | YES | Brooklyn at Portland: Total Points | sharp: under |
-| 15 | +31.2% | 0.63 | 0.32 | LOW | YES | Brooklyn at Portland: Total Points | sharp: under |
-| 16 | +29.9% | 0.75 | 0.45 | LOW | YES | Brooklyn at Portland: Total Points | sharp: under |
-| 17 | +29.7% | 0.46 | 0.16 | HIG | NO | Brooklyn at Golden State Winner? | 33-38 (neutral), sharp: under |
-| 18 | +29.1% | 0.89 | 0.60 | MED | NO | New York I wins by over 1.5 goals? (vs Chicago) |  |
-| 19 | +29.0% | 0.80 | 0.51 | HIG | YES | Toronto at Los Angeles C Winner? | 39-31 (neutral), sharp: home |
-| 20 | +28.9% | 0.62 | 0.33 | HIG | NO | Arizona vs Los Angeles D Winner? (vs Los Angeles D) | 0-0 (supports) |
-| 21 | +26.4% | 0.45 | 0.19 | MED | NO | Indiana at Orlando: Total Points |  |
-| 22 | +26.2% | 0.63 | 0.37 | LOW | YES | Milwaukee at Los Angeles C: Total Points | sharp: under |
-| 23 | +25.9% | 0.39 | 0.13 | MED | NO | Indiana at Orlando: Total Points |  |
-| 24 | +25.8% | 0.49 | 0.23 | MED | NO | Ottawa at New York R Winner? |  |
-| 25 | +25.7% | 0.59 | 0.33 | MED | NO | Indiana at Orlando: Total Points |  |
+| 1 | +73.7% | 0.80 | 0.06 | MED | NO | Toronto at Utah: Total Points |  |
+| 2 | +69.6% | 0.75 | 0.05 | MED | NO | Toronto at Utah: Total Points |  |
+| 3 | +61.0% | 0.71 | 0.10 | MED | NO | Golden State at Dallas: Total Points |  |
+| 4 | +59.0% | 0.65 | 0.06 | MED | NO | Golden State at Dallas: Total Points |  |
+| 5 | +57.1% | 0.97 | 0.40 | MED | NO | Washington at Utah Winner? | 21-50 (supports) |
+| 6 | +56.4% | 0.76 | 0.20 | MED | NO | Golden State at Dallas: Total Points |  |
+| 7 | +55.9% | 0.63 | 0.07 | MED | NO | Toronto at Utah: Total Points |  |
+| 8 | +53.1% | 0.76 | 0.23 | MED | NO | New Orleans at New York Winner? | 47-25 (contradicts) |
+| 9 | +48.2% | 0.71 | 0.23 | LOW | YES | New Orleans wins by over 2.5 Points? (vs New York) |  |
+| 10 | +45.1% | 0.58 | 0.13 | LOW | YES | Dallas at Denver Winner? | 23-48 (contradicts) |
+| 11 | +45.1% | 0.62 | 0.17 | LOW | YES | New Orleans wins by over 5.5 Points? (vs New York) |  |
+| 12 | +44.1% | 0.97 | 0.53 | LOW | YES | Toronto at Los Angeles C Winner? | 39-31 (neutral) |
+| 13 | +43.1% | 0.58 | 0.15 | MED | NO | Brooklyn at Golden State Winner? | 33-38 (neutral) |
+| 14 | +29.1% | 0.73 | 0.44 | MED | YES | Milwaukee at Los Angeles C: Total Points |  |
+| 15 | +28.9% | 0.62 | 0.33 | HIG | NO | Arizona vs Los Angeles D Winner? (vs Los Angeles D) | 0-0 (supports) |
+| 16 | +28.6% | 0.55 | 0.26 | MED | YES | Milwaukee at Los Angeles C: Total Points |  |
+| 17 | +28.5% | 0.87 | 0.58 | MED | YES | Toronto at Los Angeles C Winner? |  |
+| 18 | +28.1% | 0.61 | 0.33 | MED | YES | Milwaukee at Los Angeles C: Total Points |  |
+| 19 | +24.9% | 0.61 | 0.36 | HIG | NO | Washington vs Chicago C Winner? (vs Chicago C) | 0-0 (supports) |
+| 20 | +23.6% | 0.55 | 0.31 | MED | YES | Brooklyn at Portland: Total Points |  |
+| 21 | +23.4% | 0.41 | 0.18 | MED | YES | Brooklyn at Portland: Total Points |  |
+| 22 | +23.0% | 0.63 | 0.40 | HIG | YES | Boston at Buffalo Winner? |  |
+| 23 | +22.9% | 0.48 | 0.25 | MED | YES | Brooklyn at Portland: Total Points |  |
+| 24 | +21.4% | 0.34 | 0.13 | MED | NO | Dallas at Denver Winner? | 44-28 (contradicts) |
+| 25 | +21.1% | 0.45 | 0.24 | MED | YES | New Jersey wins by over 1.5 goals? (vs Dallas) |  |
 
 ---
 
-*Generated by Edge-Radar | 2026-03-23 17:29 PST | DRY_RUN=False*
+*Generated by Edge-Radar | 2026-03-23 20:09 PST | DRY_RUN=False*

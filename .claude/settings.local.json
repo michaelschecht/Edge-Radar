@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip show:*)",
+      "Bash(python -c \"import os; print\\(os.environ.get\\(''AGENTMAIL_API_KEY'', ''NOT SET''\\)[:10]\\)\")",
+      "Bash(python -c \":*)",
+      "Bash(python scripts/send_daily_email.py)"
+    ]
+  }
+}
