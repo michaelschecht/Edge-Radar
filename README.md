@@ -26,15 +26,13 @@
 
 ### 🏀 Sports Betting
 
-**27 sport filters**
+**27 sport filters** Weighted from 12 US sportsbooks
 
 - NFL, NBA, and MLB
 - NCAAB & NCAAF
 - UFC and Boxing
 - Soccer, Golf, and Nascar
-- Plus many more
-
-**Edge:** Weighted consensus from 12 US sportsbooks
+- And many more..
 
 </td>
 <td width="33%" valign="top">
