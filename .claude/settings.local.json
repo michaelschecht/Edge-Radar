@@ -4,7 +4,9 @@
       "Bash(pip show:*)",
       "Bash(python -c \"import os; print\\(os.environ.get\\(''AGENTMAIL_API_KEY'', ''NOT SET''\\)[:10]\\)\")",
       "Bash(python -c \":*)",
-      "Bash(python scripts/send_daily_email.py)"
+      "Bash(python scripts/send_daily_email.py)",
+      "Bash(python -c \"import os; print\\(os.environ.get\\(''AGENTMAIL_API_KEY'', ''NOT SET''\\)[:10] + ''...'' if os.environ.get\\(''AGENTMAIL_API_KEY''\\) else ''NOT SET''\\)\")",
+      "Bash(python -c \"from agentmail import AgentMail; c = AgentMail\\(\\); inboxes = c.inboxes.list\\(\\); print\\([i.inbox_id for i in inboxes.inboxes[:5]]\\)\")"
     ]
   }
 }

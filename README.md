@@ -10,11 +10,11 @@
 <a href="#-supported-markets"><img src="https://img.shields.io/badge/Markets-27%20Sports-0078D4?style=flat-square" alt="Markets"></a>
 <a href="#-edge-detection"><img src="https://img.shields.io/badge/Edge-8%20Signals-8B5CF6?style=flat-square" alt="Edge Detection"></a>
 <a href="#-documentation"><img src="https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square" alt="Docs"></a>
-<a href="#-data-sources"><img src="https://img.shields.io/badge/APIs-8%20Free-F97316?style=flat-square" alt="APIs"></a>
+<a href="#-data-sources"><img src="https://img.shields.io/badge/APIs-9%20Free-F97316?style=flat-square" alt="APIs"></a>
 
 <img src=".claude/images/logos/logo.png" alt="Edge-Radar Banner" width="100%">
 
-> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 6 free APIs, identifies mispriced contracts with a normal CDF probability model, applies risk gates, and executes limit orders — logging every decision for closing line value tracking.
+> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 7 free APIs (including Polymarket), identifies mispriced contracts with a normal CDF probability model, applies risk gates, and executes limit orders — logging every decision for closing line value tracking.
 
 ---
 
@@ -105,7 +105,7 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 ## 🏗️ How It Works
 
 ```
-  12 Sportsbooks                     6 Free APIs
+  12 Sportsbooks                     7 Free APIs
   ─────────────────                  ──────────────────
   Pinnacle  (3x)                     ESPN    (standings + line movement)
   Circa     (3x)                     NHL API (goal diff, L10)
@@ -113,6 +113,7 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
   FanDuel   (0.7x)                   NWS     (61 venue forecasts)
   DraftKings (0.7x)                  CoinGecko (crypto volatility)
   + 7 more books                     Yahoo Finance (S&P 500 + VIX)
+                                     Polymarket (cross-market prices)
           |                                  |
           v                                  v
   +------------------------------------------------+
@@ -192,6 +193,7 @@ All external data is **free**. Only Kalshi requires a funded account.
 | **[NWS](https://weather.gov)** | Hourly forecasts for 61 NFL/MLB outdoor venues |
 | **[CoinGecko](https://coingecko.com)** | Crypto prices and 24-hour volatility |
 | **[Yahoo Finance](https://finance.yahoo.com)** | S&P 500 price and VIX implied volatility |
+| **[Polymarket](https://polymarket.com)** | Cross-market price reference via Gamma API (free, no key) |
 
 ---
 

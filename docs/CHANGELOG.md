@@ -2,6 +2,24 @@
 
 ---
 
+## 2026-03-28 -- Polymarket Cross-Reference Integration
+
+### Polymarket Edge Module (`scripts/prediction/polymarket_edge.py`)
+- New module: cross-references Kalshi market prices against Polymarket via the Gamma API (free, no key required)
+- Fetches active Polymarket markets by category (crypto, weather, S&P, politics, companies)
+- Fuzzy market matching engine using 4 signals: title similarity, strike price, expiry date, asset keyword overlap
+- Standalone edge detection: surfaces price discrepancies between Kalshi and Polymarket as arbitrage-style signals
+- Enrichment mode: boosts composite score when Polymarket confirms an existing edge, penalizes when it disagrees
+- Standalone CLI: `polymarket_edge.py scan`, `polymarket_edge.py match TICKER`
+
+### Prediction Scanner Integration (`scripts/prediction/prediction_scanner.py`)
+- Added `--cross-ref` flag to enable Polymarket cross-referencing during scans
+- Added `--filter polymarket` / `poly` / `xref` shortcuts (auto-enables cross-ref mode)
+- When active, the scanner: (1) finds standalone cross-market edge opportunities, and (2) enriches all existing opportunities with Polymarket confirmation/disagreement signals
+- New `cross_ref` parameter on `scan_prediction_markets()` for programmatic use
+
+---
+
 ## 2026-03-23 -- Edge Model Overhaul, Scheduler Framework, Doc Consolidation
 
 ### Spread & Total Model Recalibration (`scripts/kalshi/edge_detector.py`)

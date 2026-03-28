@@ -245,11 +245,12 @@ python scripts/prediction/prediction_scanner.py scan [flags]
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--filter FILTER` | (all) | `crypto`, `btc`, `eth`, `xrp`, `doge`, `sol`, `weather`, `spx`, `mentions`, `companies`, `politics` |
+| `--filter FILTER` | (all) | `crypto`, `btc`, `eth`, `xrp`, `doge`, `sol`, `weather`, `spx`, `mentions`, `companies`, `politics`, `polymarket`, `poly`, `xref` |
 | `--category CAT` | (none) | Filter by category: `crypto`, `weather`, `spx`, `mentions`, `companies`, `politics` |
 | `--min-edge N` | `0.03` | Minimum edge threshold |
 | `--top N` | `20` | Number of top opportunities |
 | `--save` | off | Save to `data/watchlists/prediction_opportunities.json` |
+| `--cross-ref` | off | Cross-reference Kalshi prices against Polymarket for additional edge signals |
 
 **Examples:**
 
@@ -265,6 +266,60 @@ python scripts/prediction/prediction_scanner.py scan --filter weather --save
 
 # S&P 500 binary options
 python scripts/prediction/prediction_scanner.py scan --filter spx
+
+# Cross-reference all predictions against Polymarket
+python scripts/prediction/prediction_scanner.py scan --cross-ref
+
+# Polymarket-only cross-reference scan
+python scripts/prediction/prediction_scanner.py scan --filter polymarket
+```
+
+---
+
+## polymarket_edge.py — Polymarket Cross-Reference Scanner
+
+**Location:** `scripts/prediction/polymarket_edge.py`
+
+**When to use:** Standalone scanner for cross-market edge detection between Kalshi and Polymarket. Finds price discrepancies where the same (or similar) market is priced differently on each exchange. Also usable as an enrichment layer via the prediction scanner's `--cross-ref` flag.
+
+**Data source:** Polymarket Gamma API (`gamma-api.polymarket.com`). Free, no API key required. Rate limit: 750 req/10s.
+
+### `scan` — Cross-Market Edge Scan
+
+```bash
+python scripts/prediction/polymarket_edge.py scan [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--filter CAT` | (all) | Category: `crypto`, `weather`, `spx`, `politics`, `companies` |
+| `--min-edge N` | `0.03` | Minimum edge threshold |
+| `--min-match N` | `0.45` | Minimum match quality score (0-1) |
+| `--top N` | `20` | Number of top opportunities |
+
+**Examples:**
+
+```bash
+# Scan all matchable categories
+python scripts/prediction/polymarket_edge.py scan
+
+# Crypto cross-reference only
+python scripts/prediction/polymarket_edge.py scan --filter crypto
+
+# Higher match quality threshold
+python scripts/prediction/polymarket_edge.py scan --min-match 0.6
+```
+
+### `match` — Find Polymarket Match for a Kalshi Ticker
+
+```bash
+python scripts/prediction/polymarket_edge.py match TICKER
+```
+
+Shows the best Polymarket match for a specific Kalshi market, including match score and price comparison.
+
+```bash
+python scripts/prediction/polymarket_edge.py match KXBTC-28MAR26-T88000
 ```
 
 ---
