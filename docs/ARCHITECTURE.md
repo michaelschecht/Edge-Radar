@@ -73,6 +73,7 @@ Confidence (low/medium/high) is determined by four factors:
 | Crypto (BTC, ETH, XRP, DOGE, SOL) | CoinGecko | Current price + 24h volatility vs. Kalshi strike; probability derived from log-normal distribution |
 | Weather (13 US cities) | NWS / NOAA | Ensemble forecast temperature distributions vs. Kalshi strike thresholds |
 | S&P 500 | Yahoo Finance + VIX | Current level + implied volatility to derive probability of reaching Kalshi strike by expiry |
+| Cross-market (all matchable) | Polymarket Gamma API | Fuzzy-match Kalshi markets to Polymarket equivalents; price discrepancy = edge signal. Also enriches existing edges with confirmation/disagreement |
 
 ---
 
