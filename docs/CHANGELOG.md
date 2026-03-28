@@ -4,7 +4,7 @@
 
 ## 2026-03-28 -- Polymarket Cross-Reference Integration
 
-### Polymarket Edge Module (`scripts/prediction/polymarket_edge.py`)
+### Polymarket Edge Module (`scripts/polymarket/polymarket_edge.py`)
 - New module: cross-references Kalshi market prices against Polymarket via the Gamma API (free, no key required)
 - Fetches active Polymarket markets by category (crypto, weather, S&P, politics, companies)
 - Fuzzy market matching engine using 4 signals: title similarity, strike price, expiry date, asset keyword overlap

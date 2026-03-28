@@ -12,9 +12,9 @@ signal suggesting Kalshi is underpriced.
 Usage:
     Called by prediction_scanner.py with --cross-ref or --filter polymarket
     or directly:
-        python scripts/prediction/polymarket_edge.py scan
-        python scripts/prediction/polymarket_edge.py scan --filter crypto
-        python scripts/prediction/polymarket_edge.py match KXBTC-28MAR26-T88000
+        python scripts/polymarket/polymarket_edge.py scan
+        python scripts/polymarket/polymarket_edge.py scan --filter crypto
+        python scripts/polymarket/polymarket_edge.py match KXBTC-28MAR26-T88000
 
 Gamma API: https://gamma-api.polymarket.com (free, 750 req/10s)
 """
@@ -655,6 +655,8 @@ def main():
     from dotenv import load_dotenv
 
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "kalshi"))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "prediction"))
     import paths  # noqa: F401
 
     load_dotenv()

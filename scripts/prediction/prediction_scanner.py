@@ -25,6 +25,7 @@ from dataclasses import asdict
 
 # Shared imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "polymarket"))
 import paths  # noqa: F401 -- configures sys.path
 from opportunity import Opportunity
 

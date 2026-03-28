@@ -515,6 +515,8 @@ def main():
                        help="Execute only specific rows from preview (e.g., '1,3,5' or '1-3')")
     run_p.add_argument("--ticker", type=str, nargs="+", default=None,
                        help="Execute specific market ticker(s) from the scan results")
+    run_p.add_argument("--cross-ref", action="store_true",
+                       help="Cross-reference Kalshi prices against Polymarket (prediction markets only)")
 
     sub.add_parser("status", help="Show portfolio status")
 
@@ -546,11 +548,14 @@ def main():
             # Use prediction market scanner
             rprint("[bold]Running prediction market scan...[/bold]")
             from prediction_scanner import scan_prediction_markets
+            is_poly_filter = args.ticker_filter and args.ticker_filter.lower() in ("polymarket", "poly", "xref")
+            use_cross_ref = args.cross_ref or is_poly_filter
             opportunities = scan_prediction_markets(
                 scan_client,
                 min_edge=args.min_edge,
                 ticker_filter=args.ticker_filter,
                 top_n=args.top,
+                cross_ref=use_cross_ref,
             )
 
         else:

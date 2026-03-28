@@ -88,6 +88,8 @@ Edge-Radar/
     │   ├── fetch_odds.py            # The Odds API integration
     │   ├── fetch_market_data.py     # Multi-asset market data fetcher
     │   └── risk_check.py            # Portfolio risk dashboard
+    ├── polymarket/                  # Polymarket cross-reference
+    │   └── polymarket_edge.py       # Cross-market edge detection via Gamma API
     ├── shared/                      # Shared modules
     │   ├── config.py                # Centralized env var configuration
     │   ├── paths.py                 # Standardized path setup

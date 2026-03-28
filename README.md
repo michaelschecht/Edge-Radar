@@ -100,6 +100,77 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 > [!TIP]
 > `--unit-size 0.50` for smaller bets &middot; `--min-edge 0.10` for higher conviction &middot; `--filter nba-futures` for championship markets
 
+<details>
+<summary><b>More Examples</b></summary>
+<br>
+
+**Sports Betting**
+
+```bash
+# Scan multiple sports
+python scripts/kalshi/kalshi_executor.py run --filter nhl
+python scripts/kalshi/kalshi_executor.py run --filter mlb
+python scripts/kalshi/kalshi_executor.py run --filter ncaamb
+
+# Championship futures
+python scripts/kalshi/kalshi_executor.py run --filter nba-futures
+python scripts/kalshi/kalshi_executor.py run --filter nhl-futures
+
+# Execute top picks with custom sizing
+python scripts/kalshi/kalshi_executor.py run --filter nba --execute --unit-size 2 --max-bets 10
+```
+
+**Prediction Markets**
+
+```bash
+# Crypto (BTC, ETH, XRP, DOGE, SOL)
+python scripts/kalshi/kalshi_executor.py run --prediction --filter crypto
+
+# Weather temperature markets
+python scripts/kalshi/kalshi_executor.py run --prediction --filter weather
+
+# S&P 500 binary options
+python scripts/kalshi/kalshi_executor.py run --prediction --filter spx
+
+# Scan all prediction categories at once
+python scripts/kalshi/kalshi_executor.py run --prediction
+```
+
+**Polymarket Cross-Reference**
+
+```bash
+# Cross-reference crypto predictions against Polymarket prices
+python scripts/kalshi/kalshi_executor.py run --prediction --filter crypto --cross-ref
+
+# Cross-reference all prediction markets against Polymarket
+python scripts/kalshi/kalshi_executor.py run --prediction --cross-ref
+
+# Standalone Polymarket scanner (no Kalshi execution)
+python scripts/polymarket/polymarket_edge.py scan
+python scripts/polymarket/polymarket_edge.py scan --filter crypto
+
+# Find a Polymarket match for a specific Kalshi ticker
+python scripts/polymarket/polymarket_edge.py match KXBTC-28MAR26-T88000
+```
+
+**Portfolio Management**
+
+```bash
+# Check portfolio status & open positions
+python scripts/kalshi/kalshi_executor.py status
+
+# Settle completed bets and update P&L
+python scripts/kalshi/kalshi_settler.py settle
+
+# Full performance report with per-trade detail
+python scripts/kalshi/kalshi_settler.py report --detail --save
+
+# Portfolio risk dashboard
+python scripts/kalshi/risk_check.py --report positions
+```
+
+</details>
+
 ---
 
 ## 🏗️ How It Works
@@ -152,6 +223,7 @@ Edge-Radar/
 ├── scripts/
 │   ├── kalshi/              # Scan ── Size ── Execute ── Settle
 │   ├── prediction/          # Crypto, weather, S&P, politics edge
+│   ├── polymarket/          # Polymarket cross-reference edge detection
 │   ├── shared/              # Config, team stats, weather, line movement
 │   └── schedulers/          # Automated per-market recurring pipelines
 ├── docs/                    # 8 guides (see Documentation below)
