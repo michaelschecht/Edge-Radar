@@ -16,6 +16,7 @@ Usage:
 """
 
 import os
+import sys
 import json
 import datetime
 import base64
@@ -426,7 +427,8 @@ if __name__ == "__main__":
     from rich.table import Table
     from rich import print as rprint
 
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+    from logging_setup import setup_logging
+    setup_logging("kalshi_client")
     console = Console()
 
     parser = argparse.ArgumentParser(description="Kalshi API client — quick test")

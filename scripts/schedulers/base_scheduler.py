@@ -18,9 +18,6 @@ from pathlib import Path
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.schedulers.background import BackgroundScheduler
 
-# Shared imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-import paths  # noqa: F401
 from config import DRY_RUN
 from logging_setup import setup_logging
 

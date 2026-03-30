@@ -38,12 +38,12 @@ from dotenv import load_dotenv
 from rich import print as rprint
 
 # Shared imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-import paths  # noqa: F401
 from opportunity import Opportunity
 
+from logging_setup import setup_logging
+
 load_dotenv()
-log = logging.getLogger("futures_edge")
+log = setup_logging("futures_edge")
 
 from odds_api import get_current_key, rotate_key, report_remaining
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
@@ -491,7 +491,6 @@ if __name__ == "__main__":
                         help="Exclude markets where you already have an open position")
 
     args = parser.parse_args()
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
     client = KalshiClient()
     opps = scan_futures_markets(client, min_edge=args.min_edge,
@@ -567,3 +566,8 @@ if __name__ == "__main__":
             with open(save_path, "w") as f:
                 json.dump(save_data, f, indent=2, default=str)
             rprint(f"[dim]Saved {len(opps)} opportunities to {save_path}[/dim]")
+            from report_writer import save_scan_report
+            rpt = save_scan_report(opps, report_type="futures",
+                                   filter_label=args.ticker_filter or "", min_edge=args.min_edge)
+            if rpt:
+                rprint(f"[dim]Report saved to {rpt}[/dim]")

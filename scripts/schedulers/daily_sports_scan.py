@@ -24,9 +24,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "kalshi"))
-import paths  # noqa: F401
+import paths  # noqa: F401 -- path constants
 from config import DRY_RUN, MIN_EDGE_THRESHOLD
 from logging_setup import setup_logging
 from opportunity import Opportunity

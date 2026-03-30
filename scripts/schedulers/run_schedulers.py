@@ -19,8 +19,6 @@ import argparse
 import threading
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-import paths  # noqa: F401
 from logging_setup import setup_logging
 
 from scheduler_config import load_all_profiles, load_enabled_profiles, SchedulerProfile

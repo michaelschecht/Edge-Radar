@@ -9,9 +9,6 @@ market-specific filters defined in the scheduler profile.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-import paths  # noqa: F401
-
 from base_scheduler import BaseScheduler
 from scheduler_config import SchedulerProfile
 

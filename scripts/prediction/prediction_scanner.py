@@ -24,9 +24,7 @@ from pathlib import Path
 from dataclasses import asdict
 
 # Shared imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "polymarket"))
-import paths  # noqa: F401 -- configures sys.path
+import paths  # noqa: F401 -- path constants
 from opportunity import Opportunity
 
 from dotenv import load_dotenv
@@ -536,6 +534,11 @@ def main():
 
         if args.save and opportunities:
             save_opportunities(opportunities)
+            from report_writer import save_scan_report
+            rpt = save_scan_report(opportunities, report_type="prediction",
+                                   filter_label=args.ticker_filter or "", min_edge=args.min_edge)
+            if rpt:
+                rprint(f"[dim]Report saved to {rpt}[/dim]")
 
 
 if __name__ == "__main__":

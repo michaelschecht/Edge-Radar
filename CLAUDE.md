@@ -100,7 +100,8 @@ Edge-Radar/
     │   ├── sports_weather.py        # NWS weather for NFL/MLB outdoor venues
     │   ├── line_movement.py         # ESPN line movement & sharp money detection
     │   ├── logging_setup.py         # Console + file logging
-    │   └── ticker_display.py        # Ticker parsing: matchups, dates, team names
+    │   ├── ticker_display.py        # Ticker parsing: matchups, dates, team names
+    │   └── report_writer.py         # Markdown scan report generator
     └── schedulers/                  # Automated pipeline schedulers
         ├── scheduler_config.py      # Per-scheduler env var profiles
         ├── base_scheduler.py        # BaseScheduler (safety, logging, lifecycle)
@@ -264,6 +265,7 @@ Evening:  Close day trades, log P&L, update strategy performance
 
 ## 🔧 Tech Stack
 
+- **Import Setup:** `.venv/Lib/site-packages/edge_radar.pth` auto-adds all script dirs to `sys.path`. No boilerplate needed — just `from module import thing`.
 - **Language:** Python 3.11+
 - **Key Libraries:** `alpaca-trade-api`, `polymarket-py`, `pandas`, `numpy`, `ta-lib`, `scipy`
 - **Database:** SQLite (local dev), PostgreSQL (production)
