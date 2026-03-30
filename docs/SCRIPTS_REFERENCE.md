@@ -6,18 +6,75 @@ Complete guide to every script, when to use it, and what flags are available.
 
 ## Table of Contents
 
+- [Which Script Should I Use?](#which-script-should-i-use)
 - [Daily Workflow](#daily-workflow)
-- [kalshi_executor.py — Main Execution Pipeline](#kalshi_executorpy--main-execution-pipeline)
 - [edge_detector.py — Sports Edge Scanner](#edge_detectorpy--sports-edge-scanner)
 - [futures_edge.py — Futures & Championship Scanner](#futures_edgepy--futures--championship-scanner)
 - [prediction_scanner.py — Prediction Market Scanner](#prediction_scannerpy--prediction-market-scanner)
 - [polymarket_edge.py — Polymarket Cross-Reference Scanner](#polymarket_edgepy--polymarket-cross-reference-scanner)
+- [kalshi_executor.py — Unified Executor](#kalshi_executorpy--unified-executor)
 - [kalshi_settler.py — Settlement & P&L Reporting](#kalshi_settlerpy--settlement--pl-reporting)
 - [risk_check.py — Portfolio Risk Dashboard](#risk_checkpy--portfolio-risk-dashboard)
 - [kalshi_client.py — API Client CLI](#kalshi_clientpy--api-client-cli)
 - [fetch_odds.py — Odds API Explorer](#fetch_oddspy--odds-api-explorer)
 - [fetch_market_data.py — Market Data Fetcher](#fetch_market_datapy--market-data-fetcher)
 - [run_schedulers.py — Automated Scheduler](#run_schedulerspy--automated-scheduler)
+
+---
+
+## Which Script Should I Use?
+
+### "I want to scan for bets"
+
+Use the **dedicated scanner** for your market type. Each scanner finds edge, shows readable matchups with game dates, and can execute directly with `--execute`.
+
+| Market | Script | Example |
+|--------|--------|---------|
+| **Sports** (NBA, MLB, NHL, NFL, NCAA, etc.) | `edge_detector.py scan` | `--filter mlb` |
+| **Championship Futures** (World Series, Super Bowl, etc.) | `futures_edge.py scan` | `--filter nba-futures` |
+| **Prediction Markets** (crypto, weather, S&P 500, politics) | `prediction_scanner.py scan` | `--filter crypto` |
+| **Polymarket Cross-Reference** (Kalshi vs Polymarket prices) | `polymarket_edge.py scan` | `--filter crypto` |
+
+All scanners share the same flags: `--execute`, `--unit-size`, `--max-bets`, `--pick`, `--ticker`, `--save`, `--date`, `--exclude-open`.
+
+### "I want to scan AND execute"
+
+Add `--execute` to any scanner. Without it, you get a preview table. With it, orders are placed.
+
+```bash
+# Preview first (no money risked)
+python scripts/kalshi/edge_detector.py scan --filter mlb --unit-size 1 --max-bets 10
+
+# Then execute (add --execute)
+python scripts/kalshi/edge_detector.py scan --filter mlb --unit-size 1 --max-bets 10 --execute
+```
+
+### "I want to check my portfolio"
+
+| What | Script |
+|------|--------|
+| Quick status (balance, positions, P&L) | `kalshi_executor.py status` |
+| Full risk dashboard (limits, positions, resting orders, watchlist) | `risk_check.py` |
+| Just open positions | `risk_check.py --report positions` |
+| Save a snapshot as markdown | Add `--save` to either command |
+
+### "I want to settle bets and see results"
+
+```bash
+python scripts/kalshi/kalshi_settler.py settle          # Update trade log with results
+python scripts/kalshi/kalshi_settler.py report --detail  # See P&L breakdown
+python scripts/kalshi/kalshi_settler.py report --detail --save  # Save as markdown
+```
+
+### When to use `kalshi_executor.py run` vs the dedicated scanners
+
+`kalshi_executor.py run` is the **legacy unified entry point**. It calls the scanners internally. Use it when you need:
+
+- `--prediction` — Scan prediction markets without remembering the prediction_scanner path
+- `--from-file` — Load a previously saved watchlist instead of scanning fresh
+- `--cross-ref` — Cross-reference against Polymarket (prediction markets only)
+
+For everything else, **use the dedicated scanners directly** — they show more detail, support `--category` filtering (game/spread/total), and the output is clearer.
 
 ---
 
@@ -84,11 +141,11 @@ python scripts/kalshi/kalshi_settler.py reconcile
 
 ---
 
-## kalshi_executor.py — Main Execution Pipeline
+## kalshi_executor.py — Unified Executor
 
 **Location:** `scripts/kalshi/kalshi_executor.py`
 
-**When to use:** This is the primary entry point for scanning and executing bets. It handles sports, futures, and prediction markets through a single interface, applies all risk checks, and sizes positions.
+**When to use:** Unified entry point that wraps the dedicated scanners. Use when you need `--prediction`, `--from-file`, or `--cross-ref` flags. For most scanning, use the dedicated scanners directly (`edge_detector.py`, `futures_edge.py`, `prediction_scanner.py`) — they support all the same execution flags and show more detail.
 
 ### `run` — Scan and Execute
 
@@ -156,7 +213,7 @@ python scripts/kalshi/kalshi_executor.py status --save
 
 **Location:** `scripts/kalshi/edge_detector.py`
 
-**When to use:** Primary sports scanner. Supports scanning, filtering, and direct execution. Shows readable matchups and game dates.
+**When to use:** Primary script for sports betting. Scan for edge, filter by sport/date/category, preview opportunities, and execute — all from one command. Use this for NBA, MLB, NHL, NFL, NCAA, soccer, UFC, and all other sports markets.
 
 **Features:** Normal CDF spread/total model with sport-specific stdev, sharp book weighting (Pinnacle 3x), team stats confidence signal (ESPN/NHL/MLB), weather adjustment for NFL/MLB outdoor totals, per-game cap (top 3 per matchup).
 
@@ -215,7 +272,7 @@ python scripts/kalshi/edge_detector.py detail KXNBAGAME-26MAR25LALBOS-LAL
 
 **Location:** `scripts/kalshi/futures_edge.py`
 
-**When to use:** Dedicated futures scanner with bet-type labels. Can also route into the executor pipeline for sizing and execution.
+**When to use:** Championship and season-long markets — World Series, Super Bowl, Stanley Cup, NBA Finals, conference winners, PGA Tour. Uses N-way de-vigging across all candidates (not just 2-way). Use this instead of `edge_detector.py` for any futures/outright market.
 
 ### `scan` — Scan Futures
 
@@ -263,7 +320,7 @@ python scripts/kalshi/futures_edge.py scan --filter mlb-futures --save
 
 **Location:** `scripts/prediction/prediction_scanner.py`
 
-**When to use:** Standalone prediction market scanner. For scanning + execution, use `kalshi_executor.py run --prediction` instead.
+**When to use:** Non-sports prediction markets — crypto (BTC, ETH, XRP, DOGE, SOL), weather, S&P 500, politics, TV mentions, companies. Uses model-specific edge detection (CoinGecko for crypto, NWS for weather, Yahoo Finance for S&P). Supports `--cross-ref` to validate edge against Polymarket prices.
 
 ### `scan` — Scan Prediction Markets
 
@@ -312,7 +369,7 @@ python scripts/prediction/prediction_scanner.py scan --filter crypto --date tomo
 
 **Location:** `scripts/polymarket/polymarket_edge.py`
 
-**When to use:** Standalone scanner for cross-market edge detection between Kalshi and Polymarket. Finds price discrepancies where the same (or similar) market is priced differently on each exchange. Also usable as an enrichment layer via the prediction scanner's `--cross-ref` flag.
+**When to use:** Cross-market arbitrage — finds markets priced differently on Kalshi vs Polymarket. Use when you want to compare prices across exchanges rather than using a model. Also has a `match` command to check if a specific Kalshi market has a Polymarket equivalent. For most prediction market scanning, use `prediction_scanner.py` with `--cross-ref` instead — it combines model-based edge detection with Polymarket validation in one step.
 
 **Data source:** Polymarket Gamma API (`gamma-api.polymarket.com`). Free, no API key required. Rate limit: 750 req/10s.
 
@@ -422,7 +479,7 @@ No flags. Run periodically to keep your trade log accurate.
 
 **Location:** `scripts/kalshi/risk_check.py`
 
-**When to use:** Live portfolio health check (pulls from Kalshi API), or as a gate in automation pipelines. Shows readable matchups, game dates, and team picks for open positions.
+**When to use:** Comprehensive portfolio dashboard with risk limits, position details, P&L, and watchlist. Pulls live data from the Kalshi API. Shows readable matchups and game dates. Use `--report positions` for just open bets, or `--gate` in automation to block execution when limits are breached. For a quick balance/positions check, `kalshi_executor.py status` is faster.
 
 ```bash
 python scripts/kalshi/risk_check.py [flags]
