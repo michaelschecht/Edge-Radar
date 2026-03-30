@@ -237,11 +237,12 @@ Edge-Radar/
 │   ├── kalshi/              # Scan ── Size ── Execute ── Settle
 │   ├── prediction/          # Crypto, weather, S&P, politics edge
 │   ├── polymarket/          # Polymarket cross-reference edge detection
-│   ├── shared/              # Config, team stats, weather, line movement
+│   ├── shared/              # Config, team stats, weather, ticker display
 │   └── schedulers/          # Automated per-market recurring pipelines
+├── tests/                   # 83 pytest tests (risk gates, edge math, weather)
 ├── docs/                    # 8 guides (see Documentation below)
 ├── data/                    # Trade history, settlements, watchlists
-├── reports/                 # Generated performance reports
+├── reports/                 # Markdown scan reports + P&L reports
 └── .claude/                 # Agents, skills, memory
 ```
 
@@ -259,7 +260,7 @@ Edge-Radar/
 | **[Prediction Markets](docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** | Crypto, weather, S&P 500, politics |
 | **[Architecture](docs/ARCHITECTURE.md)** | Pipeline, risk gates, data flow |
 | **[Scheduler Guide](docs/schedulers/SCHEDULER_GUIDE.md)** | Per-market automation with failure pause |
-| **[Edge Roadmap](docs/enhancements/EDGE_OPTIMIZATION_ROADMAP.md)** | Model improvements (8/9 complete) |
+| **[Roadmap](docs/enhancements/ROADMAP.md)** | All enhancements — edge model, project quality, pending |
 | **[Changelog](docs/CHANGELOG.md)** | Full project history |
 
 ---

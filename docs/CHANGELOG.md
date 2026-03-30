@@ -45,6 +45,14 @@
 - Saved to `reports/Sports/`, `reports/Futures/`, `reports/Predictions/` with date-stamped filenames
 - Example: `reports/Sports/2026-03-30_mlb_sports_scan.md`
 
+### Test Suite (83 tests)
+- Created `tests/` with 4 test files covering the highest-value targets
+- `test_risk_gates.py` (19 tests): position sizing (`unit_size_contracts`), all 5 risk gate rejections, bankroll capping, price clamping
+- `test_ticker_display.py` (30 tests): team code splitting, date/time parsing, matchup rendering, date filtering, position exclusion
+- `test_edge_detection.py` (14 tests): N-way de-vigging, normal CDF spread/total probability math
+- `test_weather.py` (11 tests): MLB and NFL weather threshold adjustments, severity classification
+- Shared fixtures in `conftest.py` for sample Opportunity objects
+
 ### Standardized Logging
 - All 8 entry-point scripts migrated from `logging.basicConfig` + `logging.getLogger` to `setup_logging()` from `scripts/shared/logging_setup.py`
 - Every script now gets console output (INFO+) plus a dedicated log file in `logs/` (DEBUG+)
@@ -56,6 +64,10 @@
 - Removed 16 `sys.path.insert(0, ...)` lines across 15 files
 - Scripts now directly import shared modules without path setup boilerplate
 - Created `scripts/bootstrap.py` as fallback for non-venv usage
+
+### Project Cleanup
+- Removed empty `strategies/` directory (edge detection is centralized in scanners, not strategy-pattern architecture)
+- Updated CLAUDE.md project structure to reflect current state (`tests/`, `ticker_display.py`, `report_writer.py`)
 
 ---
 
