@@ -61,17 +61,12 @@ Edge-Radar/
 │   │   └── FUTURES_GUIDE.md
 │   ├── schedulers/                  # Scheduler framework
 │   │   └── SCHEDULER_GUIDE.md
-│   └── enhancements/               # Future improvements
-│       └── EDGE_OPTIMIZATION_ROADMAP.md
+│   └── enhancements/               # Improvement tracking
+│       └── ROADMAP.md              # All enhancements — completed & pending
 ├── mcp-config/
 │   ├── claude_desktop_config.json   # MCP server config (Windows/WSL)
 │   └── mcp-servers.md               # MCP server reference & setup
-├── strategies/
-│   ├── README.md
-│   ├── arbitrage/
-│   ├── momentum/
-│   ├── value-betting/
-│   └── prediction-market/
+├── tests/                           # pytest test suite (83 tests)
 ├── data/
 │   ├── positions/                   # Current open positions (JSON)
 │   ├── history/                     # Trade history logs
