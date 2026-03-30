@@ -1,4 +1,4 @@
-# FinAgent — Python Dependencies
+# Edge-Radar — Python Dependencies
 
 # === Core ===
 python-dotenv==1.0.0
