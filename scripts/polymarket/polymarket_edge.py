@@ -20,10 +20,16 @@ Gamma API: https://gamma-api.polymarket.com (free, 750 req/10s)
 """
 
 import re
+import sys
+import json
 import logging
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from difflib import SequenceMatcher
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
+import paths  # noqa: F401 -- configures sys.path
 
 import requests
 
@@ -673,6 +679,18 @@ def main():
     scan_p.add_argument("--min-match", type=float, default=0.45,
                         help="Minimum match score (0-1)")
     scan_p.add_argument("--top", type=int, default=20)
+    scan_p.add_argument("--save", action="store_true",
+                        help="Save results to watchlist")
+    scan_p.add_argument("--execute", action="store_true",
+                        help="Execute bets through the pipeline (requires confirmation)")
+    scan_p.add_argument("--unit-size", type=float, default=None,
+                        help="Dollar amount per bet (default: UNIT_SIZE from .env)")
+    scan_p.add_argument("--max-bets", type=int, default=5,
+                        help="Maximum number of bets to place")
+    scan_p.add_argument("--pick", type=str, default=None,
+                        help="Comma-separated row numbers to execute (e.g., '1,3,5')")
+    scan_p.add_argument("--ticker", type=str, nargs="+", default=None,
+                        help="Execute only these specific tickers")
 
     match_p = sub.add_parser("match", help="Find Polymarket match for a Kalshi ticker")
     match_p.add_argument("ticker", help="Kalshi ticker to match")
@@ -709,32 +727,79 @@ def main():
             rprint("[yellow]No cross-market edges found.[/yellow]")
             return
 
-        table = Table(title="Polymarket Cross-Reference Edges", show_lines=True)
-        table.add_column("Kalshi Ticker", style="cyan", max_width=30)
-        table.add_column("Side")
-        table.add_column("Kalshi", justify="right")
-        table.add_column("Poly Fair", justify="right", style="green")
-        table.add_column("Edge", justify="right", style="bold green")
-        table.add_column("Match", justify="right")
-        table.add_column("Conf.")
-        table.add_column("Score", justify="right")
-        table.add_column("Poly Question", max_width=35)
+        top_results = results[:args.top]
 
-        for opp in results[:args.top]:
-            d = opp["details"]
-            table.add_row(
-                opp["ticker"][:30],
-                opp["side"].upper(),
-                f"${opp['market_price']:.2f}",
-                f"${opp['fair_value']:.2f}",
-                f"+{opp['edge']:.1%}",
-                f"{d['match_score']:.0%}",
-                opp["confidence"][:3].upper(),
-                f"{opp['composite_score']:.1f}",
-                d.get("polymarket_question", "")[:35],
+        # Convert dicts to Opportunity objects for the execution pipeline
+        from opportunity import Opportunity
+        opportunities = [
+            Opportunity(
+                ticker=r["ticker"],
+                title=r["title"],
+                category=r["category"],
+                side=r["side"],
+                market_price=r["market_price"],
+                fair_value=r["fair_value"],
+                edge=r["edge"],
+                edge_source=r["edge_source"],
+                confidence=r["confidence"],
+                liquidity_score=r["liquidity_score"],
+                composite_score=r["composite_score"],
+                details=r["details"],
             )
+            for r in top_results
+        ]
 
-        console.print(table)
+        if opportunities and (args.execute or args.unit_size is not None):
+            from kalshi_executor import execute_pipeline, UNIT_SIZE
+            execute_pipeline(
+                client=client,
+                opportunities=opportunities,
+                execute=args.execute,
+                max_bets=args.max_bets,
+                unit_size=args.unit_size or UNIT_SIZE,
+                pick_rows=args.pick,
+                pick_tickers=args.ticker,
+            )
+        else:
+            table = Table(title="Polymarket Cross-Reference Edges", show_lines=True)
+            table.add_column("Kalshi Ticker", style="cyan", max_width=30)
+            table.add_column("Side")
+            table.add_column("Kalshi", justify="right")
+            table.add_column("Poly Fair", justify="right", style="green")
+            table.add_column("Edge", justify="right", style="bold green")
+            table.add_column("Match", justify="right")
+            table.add_column("Conf.")
+            table.add_column("Score", justify="right")
+            table.add_column("Poly Question", max_width=35)
+
+            for opp in top_results:
+                d = opp["details"]
+                table.add_row(
+                    opp["ticker"][:30],
+                    opp["side"].upper(),
+                    f"${opp['market_price']:.2f}",
+                    f"${opp['fair_value']:.2f}",
+                    f"+{opp['edge']:.1%}",
+                    f"{d['match_score']:.0%}",
+                    opp["confidence"][:3].upper(),
+                    f"{opp['composite_score']:.1f}",
+                    d.get("polymarket_question", "")[:35],
+                )
+
+            console.print(table)
+
+        if args.save and opportunities:
+            from dataclasses import asdict
+            save_data = {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "count": len(opportunities),
+                "opportunities": [asdict(o) for o in opportunities],
+            }
+            save_path = Path(__file__).resolve().parent.parent.parent / "data" / "watchlists" / "polymarket_opportunities.json"
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(save_path, "w") as f:
+                json.dump(save_data, f, indent=2, default=str)
+            rprint(f"[dim]Saved {len(opportunities)} opportunities to {save_path}[/dim]")
 
     elif args.command == "match":
         from kalshi_client import KalshiClient

@@ -58,3 +58,6 @@ notebooks/analysis/*.html
 cache/
 *.cache
 reports/Accounts/
+reports/sports/
+reports/Futures/
+reports/Predictions/
