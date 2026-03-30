@@ -172,14 +172,19 @@ python scripts/polymarket/polymarket_edge.py match KXBTC-28MAR26-T88000
 # Check portfolio status & open positions
 python scripts/kalshi/kalshi_executor.py status
 
+# Save status as markdown report
+python scripts/kalshi/kalshi_executor.py status --save
+
+# Risk dashboard (full or filtered)
+python scripts/kalshi/risk_check.py
+python scripts/kalshi/risk_check.py --report positions
+python scripts/kalshi/risk_check.py --save
+
 # Settle completed bets and update P&L
 python scripts/kalshi/kalshi_settler.py settle
 
 # Full performance report (saves markdown to reports/Accounts/Kalshi/)
 python scripts/kalshi/kalshi_settler.py report --detail --save
-
-# Portfolio risk dashboard
-python scripts/kalshi/risk_check.py --report positions
 ```
 
 </details>
