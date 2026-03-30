@@ -264,7 +264,7 @@ Edge-Radar/
 | **[Futures Guide](docs/kalshi-futures-betting/FUTURES_GUIDE.md)** | NFL, NBA, NHL, MLB, golf championships |
 | **[Prediction Markets](docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** | Crypto, weather, S&P 500, politics |
 | **[Architecture](docs/ARCHITECTURE.md)** | Pipeline, risk gates, data flow |
-| **[Scheduler Guide](docs/schedulers/SCHEDULER_GUIDE.md)** | Per-market automation with failure pause |
+| **[MLB Filtering](docs/kalshi-sports-betting/MLB_FILTERING_GUIDE.md)** | 10 filter categories for MLB picks |
 | **[Roadmap](docs/enhancements/ROADMAP.md)** | All enhancements — edge model, project quality, pending |
 | **[Changelog](docs/CHANGELOG.md)** | Full project history |
 

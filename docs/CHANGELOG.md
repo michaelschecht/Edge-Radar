@@ -65,6 +65,14 @@
 - Scripts now directly import shared modules without path setup boilerplate
 - Created `scripts/bootstrap.py` as fallback for non-venv usage
 
+### Removed Scheduler Framework
+- Deleted `base_scheduler.py`, `sports_scheduler.py`, `prediction_scheduler.py`, `run_schedulers.py`, `scheduler_config.py`
+- The framework was overengineered — every scheduler just called `scan_all_markets()` → `execute_pipeline()`, which the CLI scripts already do
+- Replaced with direct Windows Task Scheduler / cron scheduling using the existing scanner scripts
+- Kept `daily_sports_scan.py` (morning edge report) and `install_windows_task.py` (Task Scheduler helper)
+- Removed `docs/schedulers/SCHEDULER_GUIDE.md`
+- Added "Scheduling Your Own Scans" section to SCRIPTS_REFERENCE with `schtasks` examples
+
 ### Save Flag for Status & Risk Commands
 - `kalshi_executor.py status --save` saves portfolio status as markdown to `reports/Accounts/Kalshi/kalshi_status_YYYY-MM-DD.md`
 - `risk_check.py --save` saves full risk dashboard as markdown to `reports/Accounts/Kalshi/kalshi_dashboard_YYYY-MM-DD.md`

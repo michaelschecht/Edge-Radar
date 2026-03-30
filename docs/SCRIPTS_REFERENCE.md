@@ -18,7 +18,8 @@ Complete guide to every script, when to use it, and what flags are available.
 - [kalshi_client.py — API Client CLI](#kalshi_clientpy--api-client-cli)
 - [fetch_odds.py — Odds API Explorer](#fetch_oddspy--odds-api-explorer)
 - [fetch_market_data.py — Market Data Fetcher](#fetch_market_datapy--market-data-fetcher)
-- [run_schedulers.py — Automated Scheduler](#run_schedulerspy--automated-scheduler)
+- [daily_sports_scan.py — Daily Morning Report](#daily_sports_scanpy--daily-morning-report)
+- [Scheduling Your Own Scans](#scheduling-your-own-scans)
 
 ---
 
@@ -593,43 +594,11 @@ python scripts/kalshi/fetch_market_data.py [flags]
 
 ---
 
-## run_schedulers.py — Automated Scheduler
-
-**Location:** `scripts/schedulers/run_schedulers.py`
-
-**When to use:** Launch automated recurring scans. Schedulers must be enabled in `.env` first. See `docs/schedulers/SCHEDULER_GUIDE.md`.
-
-```bash
-python scripts/schedulers/run_schedulers.py [flags]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--list` | off | Show all registered scheduler profiles and exit |
-| `--only NAME` | (none) | Launch a single scheduler (e.g., `--only nba`) |
-
-**Examples:**
-
-```bash
-# See what's configured
-python scripts/schedulers/run_schedulers.py --list
-
-# Launch all enabled schedulers
-python scripts/schedulers/run_schedulers.py
-
-# Launch just the NBA scheduler
-python scripts/schedulers/run_schedulers.py --only nba
-```
-
-**Before using:** Set `SCHED_{NAME}_ENABLED=true` in `.env` for each scheduler you want to run. See [Scheduler Guide](schedulers/SCHEDULER_GUIDE.md).
-
----
-
 ## daily_sports_scan.py — Daily Morning Report
 
 **Location:** `scripts/schedulers/daily_sports_scan.py`
 
-**When to use:** Generate a daily morning report scanning MLB, NBA, NHL, and NFL for the top betting opportunities. Run manually or as a daemon at 8:00 AM PST.
+**When to use:** Generate a morning edge report scanning MLB, NBA, NHL, and NFL. Run manually or schedule with Windows Task Scheduler / cron.
 
 ```bash
 python scripts/schedulers/daily_sports_scan.py [flags]
@@ -638,7 +607,7 @@ python scripts/schedulers/daily_sports_scan.py [flags]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--top N` | `25` | Number of top opportunities to include |
-| `--daemon` | off | Run as daemon — scans at 8:00 AM PST daily |
+| `--daemon` | off | Run as background daemon — scans at 8:00 AM PST daily |
 
 **Examples:**
 
@@ -648,9 +617,49 @@ python scripts/schedulers/daily_sports_scan.py
 
 # Top 50 opportunities
 python scripts/schedulers/daily_sports_scan.py --top 50
-
-# Run as daemon (8 AM PST daily, runs once immediately on start)
-python scripts/schedulers/daily_sports_scan.py --daemon
 ```
 
 **Output:** Report saved to `reports/Sports/daily_edge_reports/YYYY-MM-DD_morning_scan.md` with edge, fair value, confidence, team stats, sharp money signals, and weather notes.
+
+---
+
+## install_windows_task.py — Windows Task Scheduler Setup
+
+**Location:** `scripts/schedulers/install_windows_task.py`
+
+**When to use:** Install the daily morning scan as a Windows Scheduled Task that runs automatically at 8:00 AM.
+
+```bash
+python scripts/schedulers/install_windows_task.py install   # Create the task
+python scripts/schedulers/install_windows_task.py status    # Check if installed
+python scripts/schedulers/install_windows_task.py run       # Trigger now (test)
+python scripts/schedulers/install_windows_task.py remove    # Remove the task
+```
+
+---
+
+## Scheduling Your Own Scans
+
+For recurring scans (e.g., MLB every morning, NBA every evening), use Windows Task Scheduler or cron directly with the scanner scripts:
+
+```bash
+# MLB daily scan at 10 AM — finds edge, skips open positions, executes up to 10 bets
+python scripts/kalshi/edge_detector.py scan --filter mlb --unit-size 1 --max-bets 10 --exclude-open --save --execute
+
+# NBA daily scan at 6 PM
+python scripts/kalshi/edge_detector.py scan --filter nba --unit-size 1 --max-bets 10 --exclude-open --save --execute
+
+# Settle results at 11 PM
+python scripts/kalshi/kalshi_settler.py settle
+python scripts/kalshi/kalshi_settler.py report --detail --save
+```
+
+To set these up in Windows Task Scheduler, use `schtasks`:
+
+```bash
+# MLB morning scan at 10 AM daily
+schtasks /Create /TN "Edge-Radar\MLB-Scan" /TR "\".venv\Scripts\python.exe\" \"scripts\kalshi\edge_detector.py\" scan --filter mlb --unit-size 1 --max-bets 10 --exclude-open --save --execute" /SC DAILY /ST 10:00
+
+# NBA evening scan at 6 PM daily
+schtasks /Create /TN "Edge-Radar\NBA-Scan" /TR "\".venv\Scripts\python.exe\" \"scripts\kalshi\edge_detector.py\" scan --filter nba --unit-size 1 --max-bets 10 --exclude-open --save --execute" /SC DAILY /ST 18:00
+```

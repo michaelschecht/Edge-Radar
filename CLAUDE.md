@@ -59,8 +59,6 @@ Edge-Radar/
 │   │   └── PREDICTION_MARKETS_GUIDE.md
 │   ├── kalshi-futures-betting/      # Championship & season-long futures
 │   │   └── FUTURES_GUIDE.md
-│   ├── schedulers/                  # Scheduler framework
-│   │   └── SCHEDULER_GUIDE.md
 │   └── enhancements/               # Improvement tracking
 │       └── ROADMAP.md              # All enhancements — completed & pending
 ├── mcp-config/
@@ -97,12 +95,9 @@ Edge-Radar/
     │   ├── logging_setup.py         # Console + file logging
     │   ├── ticker_display.py        # Ticker parsing: matchups, dates, team names
     │   └── report_writer.py         # Markdown scan report generator
-    └── schedulers/                  # Automated pipeline schedulers
-        ├── scheduler_config.py      # Per-scheduler env var profiles
-        ├── base_scheduler.py        # BaseScheduler (safety, logging, lifecycle)
-        ├── sports_scheduler.py      # Sports betting scheduler
-        ├── prediction_scheduler.py  # Prediction market scheduler
-        └── run_schedulers.py        # CLI entry point
+    └── schedulers/                  # Automation helpers
+        ├── daily_sports_scan.py     # Morning edge report (all sports)
+        └── install_windows_task.py  # Windows Task Scheduler setup
 ```
 
 ---
@@ -191,14 +186,11 @@ python strategies/value-betting/backtest.py --days 30
 # Launch Claude Code with all MCP servers
 claude --config mcp-config/claude_desktop_config.json
 
-# Schedulers — list all profiles
-python scripts/schedulers/run_schedulers.py --list
+# Daily morning edge report
+python scripts/schedulers/daily_sports_scan.py
 
-# Schedulers — launch all enabled
-python scripts/schedulers/run_schedulers.py
-
-# Schedulers — launch single scheduler
-python scripts/schedulers/run_schedulers.py --only nba
+# Install as Windows Scheduled Task (8 AM daily)
+python scripts/schedulers/install_windows_task.py install
 ```
 
 ---
