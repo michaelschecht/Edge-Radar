@@ -1382,29 +1382,29 @@ def print_opportunities(opportunities: list[Opportunity]):
         rprint("[yellow]No opportunities found above edge threshold.[/yellow]")
         return
 
+    from ticker_display import parse_game_datetime, format_bet_label
+
     table = Table(title=f"Kalshi Opportunities (edge >= {MIN_EDGE:.0%})", show_lines=True)
-    table.add_column("Ticker", style="cyan", max_width=35)
-    table.add_column("Title", max_width=30)
+    table.add_column("Bet", style="cyan", max_width=35)
+    table.add_column("When", style="dim")
     table.add_column("Side")
-    table.add_column("Mkt Price", justify="right")
-    table.add_column("Fair Value", justify="right", style="green")
+    table.add_column("Mkt", justify="right")
+    table.add_column("Fair", justify="right", style="green")
     table.add_column("Edge", justify="right", style="bold green")
     table.add_column("Conf.")
     table.add_column("Score", justify="right")
-    table.add_column("Source", style="dim", max_width=20)
 
     for o in opportunities:
         edge_color = "green" if o.edge >= 0.05 else "yellow"
         table.add_row(
-            o.ticker[:35],
-            o.title[:30],
+            format_bet_label(o.ticker, o.title),
+            parse_game_datetime(o.ticker),
             o.side.upper(),
             f"${o.market_price:.2f}",
             f"${o.fair_value:.2f}",
             f"[{edge_color}]+{o.edge:.1%}[/{edge_color}]",
             o.confidence[:3].upper(),
             f"{o.composite_score:.1f}",
-            o.edge_source[:20],
         )
     console.print(table)
 
@@ -1491,6 +1491,10 @@ def main():
                         help="Comma-separated row numbers to execute (e.g., '1,3,5')")
     scan_p.add_argument("--ticker", type=str, nargs="+", default=None,
                         help="Execute only these specific tickers")
+    scan_p.add_argument("--date", type=str, default=None,
+                        help="Only show games on this date (today, tomorrow, YYYY-MM-DD, mar31)")
+    scan_p.add_argument("--exclude-open", action="store_true",
+                        help="Exclude markets where you already have an open position")
 
     detail_p = sub.add_parser("detail", help="Detailed analysis of one market")
     detail_p.add_argument("ticker", help="Market ticker")
@@ -1508,6 +1512,21 @@ def main():
             ticker_filter=args.ticker_filter,
             top_n=args.top,
         )
+        # Apply date and open-position filters
+        if opportunities and args.date:
+            from ticker_display import filter_by_date, resolve_date_arg
+            target = resolve_date_arg(args.date)
+            before = len(opportunities)
+            opportunities = filter_by_date(opportunities, target)
+            rprint(f"[dim]Date filter ({target}): {before} -> {len(opportunities)} opportunities[/dim]")
+        if opportunities and args.exclude_open:
+            from ticker_display import filter_exclude_tickers
+            positions = client.get_positions(limit=200, count_filter="position")
+            open_tickers = {p.get("ticker", "") for p in positions.get("market_positions", [])}
+            before = len(opportunities)
+            opportunities = filter_exclude_tickers(opportunities, open_tickers)
+            rprint(f"[dim]Excluded open positions: {before} -> {len(opportunities)} opportunities[/dim]")
+
         if opportunities and (args.execute or args.unit_size is not None):
             from kalshi_executor import execute_pipeline, UNIT_SIZE
             execute_pipeline(

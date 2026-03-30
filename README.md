@@ -98,7 +98,7 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 ```
 
 > [!TIP]
-> All scanners share the same flags: `--execute`, `--unit-size`, `--max-bets`, `--pick`, `--ticker`, `--save`. Use `--min-edge 0.10` for higher conviction.
+> All scanners share the same flags: `--execute`, `--unit-size`, `--max-bets`, `--pick`, `--ticker`, `--save`, `--date`, `--exclude-open`. Use `--date tomorrow --exclude-open` to avoid double-betting.
 
 <details>
 <summary><b>More Examples</b></summary>
@@ -114,6 +114,9 @@ python scripts/kalshi/edge_detector.py scan --filter ncaamb
 
 # Execute with custom sizing
 python scripts/kalshi/edge_detector.py scan --filter mlb --execute --unit-size 1 --max-bets 10
+
+# Tomorrow's games only, skip games you already bet on
+python scripts/kalshi/edge_detector.py scan --filter mlb --date tomorrow --exclude-open
 
 # Save scan results to watchlist
 python scripts/kalshi/edge_detector.py scan --filter nba --save

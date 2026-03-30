@@ -40,31 +40,33 @@ python scripts/kalshi/risk_check.py --report limits
 
 ```bash
 # 4. Scan sports (preview only — no money risked)
-python scripts/kalshi/kalshi_executor.py run --filter nba
-python scripts/kalshi/kalshi_executor.py run --filter ncaamb
-python scripts/kalshi/kalshi_executor.py run --filter nhl
+python scripts/kalshi/edge_detector.py scan --filter nba
+python scripts/kalshi/edge_detector.py scan --filter mlb
+python scripts/kalshi/edge_detector.py scan --filter nhl
 
-# 5. Scan futures
-python scripts/kalshi/kalshi_executor.py run --filter nba-futures
-python scripts/kalshi/kalshi_executor.py run --filter nhl-futures
-python scripts/kalshi/kalshi_executor.py run --filter nfl-futures
+# 5. Only tomorrow's games, skip open positions
+python scripts/kalshi/edge_detector.py scan --filter mlb --date tomorrow --exclude-open
 
-# 6. Scan prediction markets
-python scripts/kalshi/kalshi_executor.py run --prediction --filter crypto
-python scripts/kalshi/kalshi_executor.py run --prediction --filter weather
+# 6. Scan futures
+python scripts/kalshi/futures_edge.py scan --filter nba-futures
+python scripts/kalshi/futures_edge.py scan --filter nhl-futures
+
+# 7. Scan prediction markets
+python scripts/prediction/prediction_scanner.py scan --filter crypto
+python scripts/prediction/prediction_scanner.py scan --filter weather
 ```
 
 ### Executing Bets
 
 ```bash
-# 7. Execute top picks from a scan
-python scripts/kalshi/kalshi_executor.py run --filter nba --execute --max-bets 5 --unit-size 1
+# 8. Execute top picks from a scan
+python scripts/kalshi/edge_detector.py scan --filter mlb --execute --max-bets 10 --unit-size 1
 
-# 8. Cherry-pick specific rows from preview
-python scripts/kalshi/kalshi_executor.py run --filter nba --execute --pick '1,3,5'
+# 9. Cherry-pick specific rows from preview
+python scripts/kalshi/edge_detector.py scan --filter nba --execute --pick '1,3,5'
 
-# 9. Execute a specific ticker
-python scripts/kalshi/kalshi_executor.py run --filter nba --execute --ticker KXNBAGAME-26MAR25LALBOS-LAL
+# 10. Execute a specific ticker
+python scripts/kalshi/edge_detector.py scan --filter nba --execute --ticker KXNBAGAME-26MAR25LALBOS-LAL
 ```
 
 ### End of Day
@@ -106,6 +108,8 @@ python scripts/kalshi/kalshi_executor.py run [flags]
 | `--from-file` | off | Load from saved watchlist instead of fresh scan |
 | `--pick '1,3,5'` | (none) | Execute only specific rows from the preview table |
 | `--ticker TICKER` | (none) | Execute only specific ticker(s) |
+| `--date DATE` | (none) | Only show games on this date (`today`, `tomorrow`, `YYYY-MM-DD`, `mar31`) |
+| `--exclude-open` | off | Skip markets where you already have an open position |
 
 **Examples:**
 
@@ -142,7 +146,7 @@ No flags.
 
 **Location:** `scripts/kalshi/edge_detector.py`
 
-**When to use:** Standalone sports scanner with more detail than the executor. Use for research and deep dives on individual markets. For scanning + execution, use `kalshi_executor.py run` instead.
+**When to use:** Primary sports scanner. Supports scanning, filtering, and direct execution. Shows readable matchups and game dates.
 
 **Features:** Normal CDF spread/total model with sport-specific stdev, sharp book weighting (Pinnacle 3x), team stats confidence signal (ESPN/NHL/MLB), weather adjustment for NFL/MLB outdoor totals, per-game cap (top 3 per matchup).
 
@@ -159,6 +163,13 @@ python scripts/kalshi/edge_detector.py scan [flags]
 | `--min-edge N` | `0.03` | Minimum edge threshold |
 | `--top N` | `20` | Number of top opportunities |
 | `--save` | off | Save results to `data/watchlists/kalshi_opportunities.json` |
+| `--execute` | off | Place orders through executor pipeline |
+| `--unit-size N` | (from .env) | Dollar amount per bet — routes through executor pipeline |
+| `--max-bets N` | `5` | Max bets to place |
+| `--pick '1,3'` | (none) | Execute specific rows |
+| `--ticker TICKER` | (none) | Execute specific ticker(s) |
+| `--date DATE` | (none) | Only show games on this date (`today`, `tomorrow`, `YYYY-MM-DD`, `mar31`) |
+| `--exclude-open` | off | Skip markets where you already have an open position |
 
 **Examples:**
 
@@ -166,11 +177,14 @@ python scripts/kalshi/edge_detector.py scan [flags]
 # Scan only NBA game outcomes (no spreads/totals)
 python scripts/kalshi/edge_detector.py scan --filter nba --category game
 
+# Tomorrow's MLB games only, skip open positions
+python scripts/kalshi/edge_detector.py scan --filter mlb --date tomorrow --exclude-open
+
+# Execute top 10 MLB picks at $1 each
+python scripts/kalshi/edge_detector.py scan --filter mlb --execute --unit-size 1 --max-bets 10
+
 # Scan all sports with 10% min edge, save results
 python scripts/kalshi/edge_detector.py scan --min-edge 0.10 --save
-
-# Scan top 50 opportunities across all sports
-python scripts/kalshi/edge_detector.py scan --top 50
 ```
 
 ### `detail` — Single Market Deep Dive
@@ -209,6 +223,9 @@ python scripts/kalshi/futures_edge.py scan [flags]
 | `--execute` | off | Place orders through executor pipeline |
 | `--pick '1,3'` | (none) | Execute specific rows |
 | `--ticker TICKER` | (none) | Execute specific ticker(s) |
+| `--save` | off | Save results to `data/watchlists/futures_opportunities.json` |
+| `--date DATE` | (none) | Only show markets on this date (`today`, `tomorrow`, `YYYY-MM-DD`, `mar31`) |
+| `--exclude-open` | off | Skip markets where you already have an open position |
 
 **Examples:**
 
@@ -222,11 +239,11 @@ python scripts/kalshi/futures_edge.py scan --filter nhl-futures --unit-size 3
 # Execute top NBA futures picks
 python scripts/kalshi/futures_edge.py scan --filter nba-futures --unit-size 2 --execute --max-bets 3
 
-# High-edge futures only
-python scripts/kalshi/futures_edge.py scan --min-edge 0.15 --top 50
+# Save futures scan to watchlist
+python scripts/kalshi/futures_edge.py scan --filter mlb-futures --save
 ```
 
-**Scan-only mode** (no `--unit-size` or `--execute`): shows a compact table with Bet Type, Candidate, Side, Market Price, Fair Value, Edge, Confidence, Score, and Books.
+**Scan-only mode** (no `--unit-size` or `--execute`): shows a compact table with Bet Type, Candidate, Date, Side, Market Price, Fair Value, Edge, Confidence, and Score.
 
 **Executor mode** (with `--unit-size` or `--execute`): routes through the full executor pipeline with risk checks, sizing, and the standard preview/execute table.
 
@@ -252,6 +269,13 @@ python scripts/prediction/prediction_scanner.py scan [flags]
 | `--top N` | `20` | Number of top opportunities |
 | `--save` | off | Save to `data/watchlists/prediction_opportunities.json` |
 | `--cross-ref` | off | Cross-reference Kalshi prices against Polymarket for additional edge signals |
+| `--execute` | off | Place orders through executor pipeline |
+| `--unit-size N` | (from .env) | Dollar amount per bet |
+| `--max-bets N` | `5` | Max bets to place |
+| `--pick '1,3'` | (none) | Execute specific rows |
+| `--ticker TICKER` | (none) | Execute specific ticker(s) |
+| `--date DATE` | (none) | Only show markets on this date (`today`, `tomorrow`, `YYYY-MM-DD`, `mar31`) |
+| `--exclude-open` | off | Skip markets where you already have an open position |
 
 **Examples:**
 
@@ -259,20 +283,17 @@ python scripts/prediction/prediction_scanner.py scan [flags]
 # Scan all prediction markets
 python scripts/prediction/prediction_scanner.py scan
 
-# Crypto only with 5% edge bar
-python scripts/prediction/prediction_scanner.py scan --filter crypto --min-edge 0.05
+# Crypto only, execute at $1 per bet
+python scripts/prediction/prediction_scanner.py scan --filter crypto --execute --unit-size 1
 
 # Weather predictions, save to watchlist
 python scripts/prediction/prediction_scanner.py scan --filter weather --save
 
-# S&P 500 binary options
-python scripts/prediction/prediction_scanner.py scan --filter spx
+# Cross-reference against Polymarket, skip open positions
+python scripts/prediction/prediction_scanner.py scan --cross-ref --exclude-open
 
-# Cross-reference all predictions against Polymarket
-python scripts/prediction/prediction_scanner.py scan --cross-ref
-
-# Polymarket-only cross-reference scan
-python scripts/prediction/prediction_scanner.py scan --filter polymarket
+# Tomorrow's crypto markets only
+python scripts/prediction/prediction_scanner.py scan --filter crypto --date tomorrow
 ```
 
 ---
@@ -297,6 +318,14 @@ python scripts/polymarket/polymarket_edge.py scan [flags]
 | `--min-edge N` | `0.03` | Minimum edge threshold |
 | `--min-match N` | `0.45` | Minimum match quality score (0-1) |
 | `--top N` | `20` | Number of top opportunities |
+| `--save` | off | Save to `data/watchlists/polymarket_opportunities.json` |
+| `--execute` | off | Place orders through executor pipeline |
+| `--unit-size N` | (from .env) | Dollar amount per bet |
+| `--max-bets N` | `5` | Max bets to place |
+| `--pick '1,3'` | (none) | Execute specific rows |
+| `--ticker TICKER` | (none) | Execute specific ticker(s) |
+| `--date DATE` | (none) | Only show markets on this date |
+| `--exclude-open` | off | Skip markets where you already have an open position |
 
 **Examples:**
 
@@ -304,11 +333,11 @@ python scripts/polymarket/polymarket_edge.py scan [flags]
 # Scan all matchable categories
 python scripts/polymarket/polymarket_edge.py scan
 
-# Crypto cross-reference only
-python scripts/polymarket/polymarket_edge.py scan --filter crypto
+# Crypto cross-reference, execute top 5
+python scripts/polymarket/polymarket_edge.py scan --filter crypto --execute --unit-size 1 --max-bets 5
 
-# Higher match quality threshold
-python scripts/polymarket/polymarket_edge.py scan --min-match 0.6
+# Save results, skip open positions
+python scripts/polymarket/polymarket_edge.py scan --save --exclude-open
 ```
 
 ### `match` — Find Polymarket Match for a Kalshi Ticker
@@ -350,7 +379,7 @@ python scripts/kalshi/kalshi_settler.py report [flags]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--detail` | off | Show per-trade breakdown table |
-| `--save` | off | Save to `reports/Accounts/Kalshi/kalshi_report_YYYY-MM-DD.txt` |
+| `--save` | off | Save markdown report to `reports/Accounts/Kalshi/kalshi_report_YYYY-MM-DD.md` |
 
 **Examples:**
 
@@ -383,7 +412,7 @@ No flags. Run periodically to keep your trade log accurate.
 
 **Location:** `scripts/kalshi/risk_check.py`
 
-**When to use:** Quick portfolio health check, or as a gate in automation pipelines.
+**When to use:** Live portfolio health check (pulls from Kalshi API), or as a gate in automation pipelines. Shows readable matchups, game dates, and team picks for open positions.
 
 ```bash
 python scripts/kalshi/risk_check.py [flags]

@@ -413,21 +413,23 @@ def print_opportunities(opportunities: list[Opportunity]):
         rprint("[yellow]No opportunities found above edge threshold.[/yellow]")
         return
 
+    from ticker_display import parse_game_datetime
+
     table = Table(title=f"Prediction Market Opportunities (edge >= {MIN_EDGE:.0%})", show_lines=True)
-    table.add_column("Ticker", style="cyan", max_width=35)
-    table.add_column("Title", max_width=35)
+    table.add_column("Title", style="cyan", max_width=40)
+    table.add_column("Date", style="dim")
     table.add_column("Cat.")
     table.add_column("Side")
-    table.add_column("Mkt Price", justify="right")
-    table.add_column("Fair Value", justify="right", style="green")
+    table.add_column("Mkt", justify="right")
+    table.add_column("Fair", justify="right", style="green")
     table.add_column("Edge", justify="right", style="bold green")
     table.add_column("Conf.")
     table.add_column("Score", justify="right")
 
     for opp in opportunities:
         table.add_row(
-            opp.ticker[:35],
-            opp.title[:35],
+            opp.title[:40],
+            parse_game_datetime(opp.ticker),
             opp.category[:6],
             opp.side.upper(),
             f"${opp.market_price:.2f}",
@@ -480,6 +482,10 @@ def main():
                         help="Comma-separated row numbers to execute (e.g., '1,3,5')")
     scan_p.add_argument("--ticker", type=str, nargs="+", default=None,
                         help="Execute only these specific tickers")
+    scan_p.add_argument("--date", type=str, default=None,
+                        help="Only show markets on this date (today, tomorrow, YYYY-MM-DD, mar31)")
+    scan_p.add_argument("--exclude-open", action="store_true",
+                        help="Exclude markets where you already have an open position")
 
     args = parser.parse_args()
 
@@ -498,6 +504,21 @@ def main():
             top_n=args.top,
             cross_ref=use_cross_ref,
         )
+
+        # Apply date and open-position filters
+        if opportunities and args.date:
+            from ticker_display import filter_by_date, resolve_date_arg
+            target = resolve_date_arg(args.date)
+            before = len(opportunities)
+            opportunities = filter_by_date(opportunities, target)
+            rprint(f"[dim]Date filter ({target}): {before} -> {len(opportunities)} opportunities[/dim]")
+        if opportunities and args.exclude_open:
+            from ticker_display import filter_exclude_tickers
+            positions = client.get_positions(limit=200, count_filter="position")
+            open_tickers = {p.get("ticker", "") for p in positions.get("market_positions", [])}
+            before = len(opportunities)
+            opportunities = filter_exclude_tickers(opportunities, open_tickers)
+            rprint(f"[dim]Excluded open positions: {before} -> {len(opportunities)} opportunities[/dim]")
 
         if opportunities and (args.execute or args.unit_size is not None):
             from kalshi_executor import execute_pipeline, UNIT_SIZE

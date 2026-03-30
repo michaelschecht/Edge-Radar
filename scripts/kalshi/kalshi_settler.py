@@ -446,44 +446,47 @@ def generate_report(detail: bool = False, save: bool = False):
 
     # ── Detail table
     if detail:
+        from ticker_display import parse_game_datetime, format_bet_label
+
         rprint("")
         table = Table(title="Trade Detail", show_lines=True)
-        table.add_column("Ticker", style="cyan", max_width=30)
+        table.add_column("Bet", style="cyan", max_width=30)
+        table.add_column("Date", style="dim")
         table.add_column("Side")
         table.add_column("Result")
         table.add_column("Cost", justify="right")
-        table.add_column("Revenue", justify="right")
         table.add_column("P&L", justify="right")
-        table.add_column("Edge Est", justify="right")
         table.add_column("ROI", justify="right")
 
         md.append(f"")
         md.append(f"## Trade Detail")
         md.append(f"")
-        md.append(f"| Ticker | Side | Result | Cost | Revenue | P&L | Edge | ROI |")
-        md.append(f"|--------|------|--------|------|---------|-----|------|-----|")
+        md.append(f"| Bet | Date | Side | Result | Cost | P&L | ROI |")
+        md.append(f"|-----|------|------|--------|------|-----|-----|")
 
         for t in sorted(settled, key=lambda x: x.get("closed_at", "")):
             pnl = t.get("net_pnl", 0)
             pnl_color = "green" if pnl >= 0 else "red"
             result = t.get("settlement_result", "?")
             won = "W" if t.get("settlement_won") else "L"
+            ticker = t["ticker"]
+            bet_label = format_bet_label(ticker, t.get("title", ticker))
+            when = parse_game_datetime(ticker)
 
             table.add_row(
-                t["ticker"][:30],
+                bet_label[:30],
+                when,
                 t.get("side", "").upper(),
                 f"{result.upper()} ({won})",
                 f"${t.get('cost_dollars', 0):.2f}",
-                f"${t.get('settlement_revenue', 0):.2f}",
                 f"[{pnl_color}]${pnl:+.2f}[/{pnl_color}]",
-                f"{t.get('edge_estimated', 0):.1%}",
                 f"{t.get('settlement_roi', 0):+.0%}",
             )
             md.append(
-                f"| `{t['ticker'][:30]}` | {t.get('side','').upper()} | "
+                f"| {bet_label[:30]} | {when} | {t.get('side','').upper()} | "
                 f"{result.upper()} ({won}) | "
-                f"${t.get('cost_dollars',0):.2f} | ${t.get('settlement_revenue',0):.2f} | "
-                f"${pnl:+.2f} | {t.get('edge_estimated',0):.1%} | "
+                f"${t.get('cost_dollars',0):.2f} | "
+                f"${pnl:+.2f} | "
                 f"{t.get('settlement_roi',0):+.0%} |"
             )
         console.print(table)
