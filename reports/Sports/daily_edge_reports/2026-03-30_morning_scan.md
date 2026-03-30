@@ -1,6 +1,6 @@
 # Edge-Radar Daily Morning Scan
 
-**Monday, March 30, 2026** | 08:00 AM PST
+**Monday, March 30, 2026** | 03:22 PM PST
 
 Sports: **NBA, NHL, MLB, NFL** | Top **25** opportunities by edge | Min edge: 3%
 
@@ -8,39 +8,39 @@ Sports: **NBA, NHL, MLB, NFL** | Top **25** opportunities by edge | Min edge: 3%
 
 | Category | Count |
 |:---------|------:|
-| total | 15 |
-| game | 10 |
+| game | 16 |
+| total | 9 |
 
 ## Opportunities
 
-| # | Edge | Fair | Mkt | Conf | Side | Bet | Signals |
-|--:|-----:|-----:|----:|:-----|:-----|:----|:--------|
-| 1 | +45.3% | 0.91 | 0.46 | HIG | YES | Cleveland at Los Angeles L Winner? | 46-28 (supports) |
-| 2 | +44.0% | 0.84 | 0.40 | MED | NO | Toronto at Detroit Winner? | 54-20 (contradicts) |
-| 3 | +41.1% | 0.84 | 0.43 | HIG | YES | Phoenix at Orlando Winner? | 41-33 (neutral) |
-| 4 | +37.3% | 0.68 | 0.31 | MED | YES | Detroit at Oklahoma City: Total Points |  |
-| 5 | +37.1% | 0.79 | 0.42 | MED | YES | Detroit at Oklahoma City: Total Points |  |
-| 6 | +37.0% | 0.74 | 0.37 | MED | YES | Detroit at Oklahoma City: Total Points |  |
-| 7 | +31.7% | 0.90 | 0.58 | HIG | YES | Cleveland at Los Angeles L Winner? | 48-26 (supports) |
-| 8 | +30.3% | 0.68 | 0.38 | MED | YES | Boston at Atlanta: Total Points |  |
-| 9 | +30.0% | 0.74 | 0.44 | MED | YES | Boston at Atlanta: Total Points |  |
-| 10 | +28.6% | 0.46 | 0.17 | HIG | NO | Philadelphia at Washington Winner? | 41-33 (neutral) |
-| 11 | +28.1% | 0.62 | 0.34 | MED | YES | Boston at Atlanta: Total Points |  |
-| 12 | +24.4% | 0.62 | 0.38 | MED | YES | Los Angeles A vs Chicago C Winner? (vs Chicago C) | 2-2 (neutral) |
-| 13 | +22.7% | 0.90 | 0.67 | HIG | YES | Portland at Los Angeles C Winner? |  |
-| 14 | +20.0% | 0.64 | 0.44 | MED | NO | Philadelphia at Miami: Total Points |  |
-| 15 | +19.4% | 0.62 | 0.43 | MED | YES | Los Angeles A vs Chicago C Winner? (vs Chicago C) | 2-2 (neutral) |
-| 16 | +19.0% | 0.70 | 0.51 | MED | NO | Philadelphia at Miami: Total Points |  |
-| 17 | +18.6% | 0.58 | 0.39 | MED | NO | Philadelphia at Miami: Total Points |  |
-| 18 | +18.2% | 0.55 | 0.37 | HIG | NO | Los Angeles A vs Chicago C Winner? (vs Chicago C) | 1-2 (supports) |
-| 19 | +17.7% | 0.56 | 0.38 | MED | YES | Phoenix at Memphis: Total Points |  |
-| 20 | +17.4% | 0.62 | 0.45 | MED | YES | Los Angeles A vs Chicago C Winner? (vs Chicago C) | 2-2 (neutral) |
-| 21 | +17.1% | 0.62 | 0.45 | MED | YES | Phoenix at Memphis: Total Points |  |
-| 22 | +16.3% | 0.68 | 0.52 | MED | YES | Phoenix at Memphis: Total Points |  |
-| 23 | +15.1% | 0.70 | 0.55 | MED | YES | St. Louis vs San Jose: Total Goals (vs San Jose) |  |
-| 24 | +15.0% | 0.68 | 0.53 | MED | NO | Chicago at San Antonio: Total Points |  |
-| 25 | +14.9% | 0.62 | 0.47 | MED | NO | Chicago at San Antonio: Total Points |  |
+| # | Edge | When | Conf | Side | Bet | Signals |
+|--:|-----:|:-----|:-----|:-----|:----|:--------|
+| 1 | +46.4% | Mar 31 | HIG | YES | Cleveland at Los Angeles L | 46-28 (supports) |
+| 2 | +42.1% | Mar 30 | MED | YES | Detroit at Oklahoma City: Total Points | sharp: away |
+| 3 | +41.9% | Mar 31 | MED | NO | Toronto at Detroit | 54-20 (contradicts), sharp: away |
+| 4 | +41.3% | Mar 30 | MED | YES | Detroit at Oklahoma City: Total Points | sharp: away |
+| 5 | +41.1% | Apr 1 7:40pm | HIG | NO | Minnesota @ Kansas City | 1-2 (supports) |
+| 6 | +41.1% | Apr 1 7:40pm | LOW | YES | Minnesota @ Kansas City | 1-2 (contradicts) |
+| 7 | +40.3% | Mar 30 | MED | YES | Detroit at Oklahoma City: Total Points | sharp: away |
+| 8 | +40.3% | Mar 31 | HIG | YES | Phoenix at Orlando | 41-33 (neutral) |
+| 9 | +36.9% | Apr 1 | HIG | NO | Indiana at Chicago | 29-45 (supports) |
+| 10 | +36.5% | Apr 1 | LOW | NO | New York at Memphis | 48-27 (contradicts) |
+| 11 | +33.9% | Apr 1 | LOW | NO | Milwaukee at Houston | 45-29 (contradicts) |
+| 12 | +33.1% | Mar 31 | HIG | YES | Cleveland at Los Angeles L | 48-26 (supports) |
+| 13 | +32.1% | Apr 1 | HIG | NO | Philadelphia at Washington | 41-33 (neutral), sharp: under |
+| 14 | +25.3% | Mar 30 | MED | YES | Boston at Atlanta: Total Points |  |
+| 15 | +24.1% | Mar 30 | MED | YES | Boston at Atlanta: Total Points |  |
+| 16 | +24.1% | Mar 30 | MED | YES | Boston at Atlanta: Total Points |  |
+| 17 | +24.1% | Apr 2 2:10pm | LOW | YES | Minnesota @ Kansas City | 1-2 (contradicts) |
+| 18 | +23.8% | Mar 31 10:10pm | LOW | NO | Cleveland @ LA Dodgers | 3-0 (contradicts) |
+| 19 | +22.1% | Mar 31 | HIG | YES | Portland at Los Angeles C |  |
+| 20 | +20.8% | Apr 1 8:20pm | LOW | NO | Cleveland @ LA Dodgers | 3-0 (contradicts) |
+| 21 | +19.9% | Mar 30 | MED | NO | Chicago at San Antonio: Total Points |  |
+| 22 | +19.0% | Mar 30 | MED | NO | Chicago at San Antonio: Total Points |  |
+| 23 | +18.9% | Mar 31 | MED | YES | New York I at Buffalo |  |
+| 24 | +18.8% | Mar 30 10:10pm | LOW | NO | Cleveland @ LA Dodgers | 3-0 (contradicts) |
+| 25 | +18.5% | Mar 30 | MED | NO | Chicago at San Antonio: Total Points |  |
 
 ---
 
-*Generated by Edge-Radar | 2026-03-30 08:00 PST | DRY_RUN=False*
+*Generated by Edge-Radar | 2026-03-30 15:22 PST | DRY_RUN=False*
