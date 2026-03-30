@@ -106,12 +106,16 @@ def generate_report(opportunities: list[Opportunity]) -> str:
     # Opportunity table
     lines.append("## Opportunities")
     lines.append("")
-    lines.append("| # | Edge | Fair | Mkt | Conf | Side | Bet | Signals |")
-    lines.append("|--:|-----:|-----:|----:|:-----|:-----|:----|:--------|")
+    from ticker_display import parse_game_datetime, format_bet_label
+
+    lines.append("| # | Edge | When | Conf | Side | Bet | Signals |")
+    lines.append("|--:|-----:|:-----|:-----|:-----|:----|:--------|")
 
     for i, o in enumerate(opportunities, 1):
         conf = o.confidence[:3].upper()
         side = o.side.upper()
+        when = parse_game_datetime(o.ticker)
+        bet_label = format_bet_label(o.ticker, o.title)
 
         # Build signals column
         details = o.details or {}
@@ -129,8 +133,8 @@ def generate_report(opportunities: list[Opportunity]) -> str:
         signals_str = ", ".join(signals) if signals else ""
 
         lines.append(
-            f"| {i} | {o.edge:+.1%} | {o.fair_value:.2f} | {o.market_price:.2f} | "
-            f"{conf} | {side} | {o.title} | {signals_str} |"
+            f"| {i} | {o.edge:+.1%} | {when} | "
+            f"{conf} | {side} | {bet_label} | {signals_str} |"
         )
 
     lines.append("")

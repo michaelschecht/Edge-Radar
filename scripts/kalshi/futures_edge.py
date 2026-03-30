@@ -485,6 +485,10 @@ if __name__ == "__main__":
                         help="Execute only these specific tickers")
     scan_p.add_argument("--save", action="store_true",
                         help="Save results to watchlist")
+    scan_p.add_argument("--date", type=str, default=None,
+                        help="Only show markets on this date (today, tomorrow, YYYY-MM-DD, mar31)")
+    scan_p.add_argument("--exclude-open", action="store_true",
+                        help="Exclude markets where you already have an open position")
 
     args = parser.parse_args()
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -492,6 +496,20 @@ if __name__ == "__main__":
     client = KalshiClient()
     opps = scan_futures_markets(client, min_edge=args.min_edge,
                                  ticker_filter=args.ticker_filter, top_n=args.top)
+
+    if opps and args.date:
+        from ticker_display import filter_by_date, resolve_date_arg
+        target = resolve_date_arg(args.date)
+        before = len(opps)
+        opps = filter_by_date(opps, target)
+        rprint(f"[dim]Date filter ({target}): {before} -> {len(opps)} opportunities[/dim]")
+    if opps and args.exclude_open:
+        from ticker_display import filter_exclude_tickers
+        positions = client.get_positions(limit=200, count_filter="position")
+        open_tickers = {p.get("ticker", "") for p in positions.get("market_positions", [])}
+        before = len(opps)
+        opps = filter_exclude_tickers(opps, open_tickers)
+        rprint(f"[dim]Excluded open positions: {before} -> {len(opps)} opportunities[/dim]")
 
     if not opps:
         rprint("[yellow]No futures opportunities found above edge threshold.[/yellow]")
@@ -510,28 +528,30 @@ if __name__ == "__main__":
             )
         else:
             console = Console()
+            from ticker_display import parse_game_datetime
+
             table = Table(title=f"Futures Opportunities (edge >= {args.min_edge:.0%})", show_lines=True)
             table.add_column("Bet Type", style="bold", max_width=28)
             table.add_column("Candidate", style="cyan", max_width=25)
+            table.add_column("Date", style="dim")
             table.add_column("Side")
             table.add_column("Mkt", justify="right")
             table.add_column("Fair", justify="right", style="green")
             table.add_column("Edge", justify="right", style="bold green")
             table.add_column("Conf.")
             table.add_column("Score", justify="right")
-            table.add_column("Books", justify="right")
 
             for o in opps:
                 table.add_row(
                     o.details.get("bet_type", "")[:28] or o.ticker[:28],
                     o.details.get("candidate", "")[:25],
+                    parse_game_datetime(o.ticker),
                     o.side.upper(),
                     f"${o.market_price:.2f}",
                     f"${o.fair_value:.3f}",
                     f"+{o.edge:.1%}",
                     o.confidence[:3].upper(),
                     f"{o.composite_score:.1f}",
-                    str(o.details.get("n_books", "")),
                 )
             console.print(table)
 

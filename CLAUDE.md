@@ -99,7 +99,8 @@ Edge-Radar/
     │   ├── team_stats.py            # ESPN/NHL/MLB team performance (6 sports)
     │   ├── sports_weather.py        # NWS weather for NFL/MLB outdoor venues
     │   ├── line_movement.py         # ESPN line movement & sharp money detection
-    │   └── logging_setup.py         # Console + file logging
+    │   ├── logging_setup.py         # Console + file logging
+    │   └── ticker_display.py        # Ticker parsing: matchups, dates, team names
     └── schedulers/                  # Automated pipeline schedulers
         ├── scheduler_config.py      # Per-scheduler env var profiles
         ├── base_scheduler.py        # BaseScheduler (safety, logging, lifecycle)

@@ -304,18 +304,20 @@ def execute_pipeline(
     # ── Preview table
     to_execute = approved[:max_bets]
 
+    from ticker_display import parse_game_datetime, format_bet_label
+
     table = Table(
         title=f"{'EXECUTING' if execute else 'PREVIEW'} -- {len(to_execute)} orders",
         show_lines=True,
     )
     table.add_column("#", justify="right", style="dim")
-    table.add_column("Bet", style="cyan", max_width=60)
+    table.add_column("Bet", style="cyan", max_width=45)
+    table.add_column("When", style="dim")
     table.add_column("Side")
     table.add_column("Qty", justify="right")
     table.add_column("Price", justify="right")
     table.add_column("Cost", justify="right", style="green")
     table.add_column("Edge", justify="right", style="bold green")
-    table.add_column("Fair Val", justify="right")
 
     total_cost = 0
     for i, s in enumerate(to_execute, 1):
@@ -334,13 +336,13 @@ def execute_pipeline(
 
         table.add_row(
             str(i),
-            s.opportunity.title[:60],
+            format_bet_label(s.opportunity.ticker, s.opportunity.title),
+            parse_game_datetime(s.opportunity.ticker),
             side_label,
             str(s.contracts),
             f"${s.price_cents / 100:.2f}",
             f"${s.cost_dollars:.2f}",
             f"+{s.opportunity.edge:.1%}",
-            f"${s.opportunity.fair_value:.2f}",
         )
     console.print(table)
     rprint(f"  Total cost: [bold]${total_cost:.2f}[/bold] of ${bankroll:.2f} available")
@@ -439,22 +441,33 @@ def show_status(client: KalshiClient):
     rprint(f"  Positions:    {len(market_pos)}/{MAX_OPEN_POSITIONS}")
 
     if market_pos:
+        from ticker_display import parse_game_datetime, parse_matchup, parse_pick_team
+
         table = Table(title="Open Positions", show_lines=True)
-        table.add_column("Ticker", style="cyan", max_width=35)
+        table.add_column("Bet", style="cyan", max_width=32)
+        table.add_column("When", style="dim")
+        table.add_column("Pick", justify="center")
         table.add_column("Qty", justify="right")
-        table.add_column("Exposure", justify="right", style="green")
+        table.add_column("Cost", justify="right", style="green")
         table.add_column("P&L", justify="right")
-        table.add_column("Fees", justify="right", style="dim")
 
         for p in market_pos:
+            ticker = p.get("ticker", "")
             pnl = float(p.get("realized_pnl_dollars", "0"))
+            exposure = float(p.get("market_exposure_dollars", "0"))
             pnl_style = "green" if pnl >= 0 else "red"
+
+            yes_qty = float(p.get("position_fp", "0"))
+            side = "YES" if yes_qty > 0 else "NO"
+            pick_name = parse_pick_team(ticker) or side
+
             table.add_row(
-                p.get("ticker", "")[:35],
-                p.get("position_fp", "0"),
-                p.get("market_exposure_dollars", "0"),
-                f"[{pnl_style}]{pnl:+.2f}[/{pnl_style}]",
-                p.get("fees_paid_dollars", "0"),
+                parse_matchup(ticker) or ticker[:32],
+                parse_game_datetime(ticker),
+                f"{side} {pick_name}",
+                str(int(abs(yes_qty))),
+                f"${exposure:.2f}",
+                f"[{pnl_style}]${pnl:+.2f}[/{pnl_style}]",
             )
         console.print(table)
 
@@ -517,6 +530,10 @@ def main():
                        help="Execute specific market ticker(s) from the scan results")
     run_p.add_argument("--cross-ref", action="store_true",
                        help="Cross-reference Kalshi prices against Polymarket (prediction markets only)")
+    run_p.add_argument("--date", type=str, default=None,
+                       help="Only show games on this date (today, tomorrow, YYYY-MM-DD, mar31)")
+    run_p.add_argument("--exclude-open", action="store_true",
+                       help="Exclude markets where you already have an open position")
 
     sub.add_parser("status", help="Show portfolio status")
 
@@ -570,6 +587,25 @@ def main():
 
         if not opportunities:
             rprint("[yellow]No opportunities found.[/yellow]")
+            return
+
+        # Apply date and open-position filters
+        if args.date:
+            from ticker_display import filter_by_date, resolve_date_arg
+            target = resolve_date_arg(args.date)
+            before = len(opportunities)
+            opportunities = filter_by_date(opportunities, target)
+            rprint(f"[dim]Date filter ({target}): {before} -> {len(opportunities)} opportunities[/dim]")
+        if args.exclude_open:
+            from ticker_display import filter_exclude_tickers
+            positions = client.get_positions(limit=200, count_filter="position")
+            open_tickers = {p.get("ticker", "") for p in positions.get("market_positions", [])}
+            before = len(opportunities)
+            opportunities = filter_exclude_tickers(opportunities, open_tickers)
+            rprint(f"[dim]Excluded open positions: {before} -> {len(opportunities)} opportunities[/dim]")
+
+        if not opportunities:
+            rprint("[yellow]No opportunities after filtering.[/yellow]")
             return
 
         execute_pipeline(

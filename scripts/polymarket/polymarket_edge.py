@@ -691,6 +691,10 @@ def main():
                         help="Comma-separated row numbers to execute (e.g., '1,3,5')")
     scan_p.add_argument("--ticker", type=str, nargs="+", default=None,
                         help="Execute only these specific tickers")
+    scan_p.add_argument("--date", type=str, default=None,
+                        help="Only show markets on this date (today, tomorrow, YYYY-MM-DD, mar31)")
+    scan_p.add_argument("--exclude-open", action="store_true",
+                        help="Exclude markets where you already have an open position")
 
     match_p = sub.add_parser("match", help="Find Polymarket match for a Kalshi ticker")
     match_p.add_argument("ticker", help="Kalshi ticker to match")
@@ -729,6 +733,26 @@ def main():
 
         top_results = results[:args.top]
 
+        # Apply date and open-position filters
+        if args.date:
+            from ticker_display import resolve_date_arg, extract_ticker_date
+            target = resolve_date_arg(args.date)
+            before = len(top_results)
+            top_results = [r for r in top_results if extract_ticker_date(r["ticker"]) == target]
+            rprint(f"[dim]Date filter ({target}): {before} -> {len(top_results)} opportunities[/dim]")
+        if args.exclude_open:
+            from ticker_display import filter_exclude_tickers
+            positions = client.get_positions(limit=200, count_filter="position")
+            open_tickers = {p.get("ticker", "") for p in positions.get("market_positions", [])}
+            # filter_exclude_tickers works on dicts too (checks .get("ticker"))
+            before = len(top_results)
+            top_results = filter_exclude_tickers(top_results, open_tickers)
+            rprint(f"[dim]Excluded open positions: {before} -> {len(top_results)} opportunities[/dim]")
+
+        if not top_results:
+            rprint("[yellow]No opportunities after filtering.[/yellow]")
+            return
+
         # Convert dicts to Opportunity objects for the execution pipeline
         from opportunity import Opportunity
         opportunities = [
@@ -761,13 +785,15 @@ def main():
                 pick_tickers=args.ticker,
             )
         else:
+            from ticker_display import parse_game_datetime
+
             table = Table(title="Polymarket Cross-Reference Edges", show_lines=True)
             table.add_column("Kalshi Ticker", style="cyan", max_width=30)
+            table.add_column("Date", style="dim")
             table.add_column("Side")
             table.add_column("Kalshi", justify="right")
             table.add_column("Poly Fair", justify="right", style="green")
             table.add_column("Edge", justify="right", style="bold green")
-            table.add_column("Match", justify="right")
             table.add_column("Conf.")
             table.add_column("Score", justify="right")
             table.add_column("Poly Question", max_width=35)
@@ -776,11 +802,11 @@ def main():
                 d = opp["details"]
                 table.add_row(
                     opp["ticker"][:30],
+                    parse_game_datetime(opp["ticker"]),
                     opp["side"].upper(),
                     f"${opp['market_price']:.2f}",
                     f"${opp['fair_value']:.2f}",
                     f"+{opp['edge']:.1%}",
-                    f"{d['match_score']:.0%}",
                     opp["confidence"][:3].upper(),
                     f"{opp['composite_score']:.1f}",
                     d.get("polymarket_question", "")[:35],

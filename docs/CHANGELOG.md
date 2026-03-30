@@ -2,6 +2,45 @@
 
 ---
 
+## 2026-03-30 -- Unified CLI, Readable Displays, Date Filtering
+
+### Unified CLI Flags Across All Scanners
+- All 4 scanners (`edge_detector.py`, `futures_edge.py`, `prediction_scanner.py`, `polymarket_edge.py`) now share the same execution flags: `--execute`, `--unit-size`, `--max-bets`, `--pick`, `--ticker`, `--save`
+- Previously `--execute`/`--unit-size`/`--max-bets` only worked on `edge_detector.py` and `futures_edge.py`; prediction and polymarket scanners required routing through `kalshi_executor.py`
+
+### Date & Open Position Filters
+- Added `--date` flag to all scanners and executor: filter opportunities by game date
+  - Accepts: `today`, `tomorrow`, `YYYY-MM-DD`, `MM-DD`, `mar31`
+- Added `--exclude-open` flag: automatically skips markets where you already have an open position (both sides of the same game)
+- Both filters work on all 5 entry points
+
+### Shared Ticker Display Module (`scripts/shared/ticker_display.py`)
+- New shared module for parsing Kalshi tickers into human-readable labels
+- `parse_game_datetime()` -- extracts "Mar 30 6:40pm" from any ticker
+- `parse_matchup()` -- extracts "White Sox @ Miami" from game tickers
+- `parse_pick_team()` -- extracts picked team name from ticker suffix
+- `format_bet_label()` -- best-effort readable label for any market type
+- Team name lookups for MLB (30), NBA (30), NHL (32 teams)
+- All 8 display tables across 7 scripts now show game date/time and readable matchup names
+
+### Live Risk Dashboard (`scripts/kalshi/risk_check.py`)
+- Rewritten to pull live data from Kalshi API (was reading empty local JSON files)
+- Shows: account balance, risk limits, open positions with readable names + dates, resting orders, today's P&L, watchlist
+- Positions table shows "Bet | When | Pick | Qty | Cost | P&L" instead of raw tickers
+
+### Executor Status Improvements (`scripts/kalshi/kalshi_executor.py`)
+- `status` command now shows readable matchups + game dates instead of raw tickers
+
+### Markdown Report Format (`scripts/kalshi/kalshi_settler.py`)
+- `report --detail --save` now generates proper markdown (tables, headers, bold values, code-formatted tickers)
+- Changed file extension from `.txt` to `.md`
+
+### MLB Filtering Guide (`docs/kalshi-sports-betting/MLB_FILTERING_GUIDE.md`)
+- New comprehensive guide covering 10 filtering categories for MLB picks
+- Includes composite strategies: "Strong MLB Play", "Weather Fade", "Sharp Follow", "Regression Fade", "Early Season Value"
+
+---
+
 ## 2026-03-28 -- Polymarket Cross-Reference Integration
 
 ### Polymarket Edge Module (`scripts/polymarket/polymarket_edge.py`)
