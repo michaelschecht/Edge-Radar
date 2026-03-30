@@ -25,6 +25,7 @@ def save_scan_report(
     report_type: str = "sports",
     filter_label: str = "",
     min_edge: float = 0.03,
+    output_dir: str | Path | None = None,
 ) -> Path | None:
     """Save a markdown report from a list of Opportunity objects.
 
@@ -33,6 +34,7 @@ def save_scan_report(
         report_type: "sports", "futures", "prediction", or "polymarket"
         filter_label: Filter used (e.g., "mlb", "crypto") — appears in filename and header
         min_edge: Minimum edge threshold used in the scan
+        output_dir: Override the default report directory (optional)
 
     Returns:
         Path to the saved report, or None if no opportunities.
@@ -48,7 +50,7 @@ def save_scan_report(
     label = f"_{filter_label}" if filter_label else ""
     filename = f"{date_str}{label}_{report_type}_scan.md"
 
-    report_dir = REPORT_DIRS.get(report_type, REPORT_DIRS["sports"])
+    report_dir = Path(output_dir) if output_dir else REPORT_DIRS.get(report_type, REPORT_DIRS["sports"])
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / filename
 

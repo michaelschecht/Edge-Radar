@@ -1495,6 +1495,8 @@ def main():
                         help="Only show games on this date (today, tomorrow, YYYY-MM-DD, mar31)")
     scan_p.add_argument("--exclude-open", action="store_true",
                         help="Exclude markets where you already have an open position")
+    scan_p.add_argument("--report-dir", type=str, default=None,
+                        help="Override report output directory for --save")
 
     detail_p = sub.add_parser("detail", help="Detailed analysis of one market")
     detail_p.add_argument("ticker", help="Market ticker")
@@ -1543,7 +1545,8 @@ def main():
             save_opportunities(opportunities)
             from report_writer import save_scan_report
             rpt = save_scan_report(opportunities, report_type="sports",
-                                   filter_label=args.ticker_filter or "", min_edge=args.min_edge)
+                                   filter_label=args.ticker_filter or "", min_edge=args.min_edge,
+                                   output_dir=args.report_dir)
             if rpt:
                 rprint(f"[dim]Report saved to {rpt}[/dim]")
 
