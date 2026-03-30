@@ -426,11 +426,16 @@ def execute_pipeline(
 
 # ── Status Command ────────────────────────────────────────────────────────────
 
-def show_status(client: KalshiClient):
+def show_status(client: KalshiClient, save: bool = False):
     """Show current portfolio status, positions, and today's activity."""
+    from ticker_display import parse_game_datetime, parse_matchup, parse_pick_team
+
     bal = client.get_balance_dollars()
+    env = "DEMO" if client.is_demo else "LIVE"
+    now = datetime.now(timezone.utc)
+
     rprint(f"\n[bold]-- Kalshi Portfolio Status --[/bold]")
-    rprint(f"  Environment:  {'DEMO' if client.is_demo else 'LIVE'}")
+    rprint(f"  Environment:  {env}")
     rprint(f"  Balance:      [green]${bal['balance']:,.2f}[/green]")
     rprint(f"  Portfolio:    [green]${bal['portfolio_value']:,.2f}[/green]")
 
@@ -440,8 +445,6 @@ def show_status(client: KalshiClient):
     rprint(f"  Positions:    {len(market_pos)}/{MAX_OPEN_POSITIONS}")
 
     if market_pos:
-        from ticker_display import parse_game_datetime, parse_matchup, parse_pick_team
-
         table = Table(title="Open Positions", show_lines=True)
         table.add_column("Bet", style="cyan", max_width=32)
         table.add_column("When", style="dim")
@@ -472,13 +475,13 @@ def show_status(client: KalshiClient):
 
     # Today's trades
     trade_log = load_trade_log()
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = now.strftime("%Y-%m-%d")
     today_trades = [t for t in trade_log if t.get("timestamp", "").startswith(today)]
+    daily_pnl = get_today_pnl(trade_log)
+    total_wagered = sum(t.get("cost_dollars", 0) for t in today_trades)
 
     if today_trades:
         rprint(f"\n  [bold]Today's Activity: {len(today_trades)} trades[/bold]")
-        daily_pnl = get_today_pnl(trade_log)
-        total_wagered = sum(t.get("cost_dollars", 0) for t in today_trades)
         rprint(f"  Wagered:      ${total_wagered:,.2f}")
         rprint(f"  Realized P&L: ${daily_pnl:,.2f}")
         rprint(f"  Loss limit:   ${daily_pnl:,.2f} / -${MAX_DAILY_LOSS:,.2f}")
@@ -486,6 +489,7 @@ def show_status(client: KalshiClient):
         rprint(f"\n  [dim]No trades today[/dim]")
 
     # Resting orders
+    resting = []
     try:
         orders = client.get_orders(limit=50, status="resting")
         resting = orders.get("orders", [])
@@ -498,6 +502,71 @@ def show_status(client: KalshiClient):
                 )
     except Exception:
         pass
+
+    # Save markdown report
+    if save:
+        md = []
+        md.append(f"# Kalshi Portfolio Status")
+        md.append(f"")
+        md.append(f"*{now.strftime('%A, %B %d, %Y')} | {now.strftime('%I:%M %p UTC')} | {env}*")
+        md.append(f"")
+        md.append(f"| Metric | Value |")
+        md.append(f"|--------|-------|")
+        md.append(f"| Cash Balance | ${bal['balance']:,.2f} |")
+        md.append(f"| Portfolio Value | ${bal['portfolio_value']:,.2f} |")
+        md.append(f"| Open Positions | {len(market_pos)}/{MAX_OPEN_POSITIONS} |")
+        md.append(f"| Today's P&L | ${daily_pnl:+,.2f} |")
+        md.append(f"| Today's Wagered | ${total_wagered:,.2f} |")
+        md.append(f"| Trades Today | {len(today_trades)} |")
+
+        if market_pos:
+            total_exposure = 0.0
+            total_pnl = 0.0
+            md.append(f"")
+            md.append(f"## Open Positions ({len(market_pos)})")
+            md.append(f"")
+            md.append(f"| Bet | When | Pick | Qty | Cost | P&L |")
+            md.append(f"|-----|------|------|-----|------|-----|")
+            for p in market_pos:
+                ticker = p.get("ticker", "")
+                pnl = float(p.get("realized_pnl_dollars", "0"))
+                exposure = float(p.get("market_exposure_dollars", "0"))
+                total_exposure += exposure
+                total_pnl += pnl
+                yes_qty = float(p.get("position_fp", "0"))
+                side = "YES" if yes_qty > 0 else "NO"
+                pick_name = parse_pick_team(ticker) or side
+                md.append(
+                    f"| {parse_matchup(ticker) or ticker[:30]} "
+                    f"| {parse_game_datetime(ticker)} "
+                    f"| {side} {pick_name} "
+                    f"| {int(abs(yes_qty))} "
+                    f"| ${exposure:.2f} "
+                    f"| ${pnl:+.2f} |"
+                )
+            md.append(f"| **TOTAL** | | | | **${total_exposure:.2f}** | **${total_pnl:+.2f}** |")
+
+        if resting:
+            md.append(f"")
+            md.append(f"## Resting Orders ({len(resting)})")
+            md.append(f"")
+            md.append(f"| Ticker | Side | Remaining | Price |")
+            md.append(f"|--------|------|-----------|-------|")
+            for o in resting:
+                price = o.get("yes_price_dollars") or o.get("no_price_dollars") or "?"
+                md.append(f"| {o.get('ticker', '')[:35]} | {o.get('side', '').upper()} | {o.get('remaining_count_fp', '?')} | ${price} |")
+
+        md.append(f"")
+        md.append(f"---")
+        md.append(f"*Generated by Edge-Radar*")
+
+        from pathlib import Path
+        report_dir = Path(paths.PROJECT_ROOT) / "reports" / "Accounts" / "Kalshi"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        report_path = report_dir / f"kalshi_status_{today}.md"
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(md) + "\n")
+        rprint(f"\n[dim]Report saved to {report_path}[/dim]")
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -534,7 +603,9 @@ def main():
     run_p.add_argument("--exclude-open", action="store_true",
                        help="Exclude markets where you already have an open position")
 
-    sub.add_parser("status", help="Show portfolio status")
+    status_p = sub.add_parser("status", help="Show portfolio status")
+    status_p.add_argument("--save", action="store_true",
+                          help="Save status report to reports/Accounts/Kalshi/")
 
     args = parser.parse_args()
 
@@ -550,7 +621,7 @@ def main():
         scan_client = client
 
     if args.command == "status":
-        show_status(client)
+        show_status(client, save=args.save)
 
     elif args.command == "run":
         # Get opportunities

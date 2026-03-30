@@ -133,12 +133,22 @@ python scripts/kalshi/kalshi_executor.py run --filter nba --execute --pick '1,4,
 ### `status` — Portfolio Dashboard
 
 ```bash
-python scripts/kalshi/kalshi_executor.py status
+python scripts/kalshi/kalshi_executor.py status [flags]
 ```
 
-Shows: balance, portfolio value, open positions, today's P&L, resting orders.
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--save` | off | Save status report as markdown to `reports/Accounts/Kalshi/kalshi_status_YYYY-MM-DD.md` |
 
-No flags.
+Shows: balance, portfolio value, open positions (readable matchups + dates), today's P&L, resting orders.
+
+```bash
+# Console only
+python scripts/kalshi/kalshi_executor.py status
+
+# Console + save markdown report
+python scripts/kalshi/kalshi_executor.py status --save
+```
 
 ---
 
@@ -422,12 +432,16 @@ python scripts/kalshi/risk_check.py [flags]
 |------|---------|-------------|
 | `--report TYPE` | `all` | `all`, `positions`, `pnl`, `limits`, `watchlist` |
 | `--gate` | off | Exit code 1 if any risk limit is breached (for automation) |
+| `--save` | off | Save dashboard as markdown to `reports/Accounts/Kalshi/kalshi_dashboard_YYYY-MM-DD.md` |
 
 **Examples:**
 
 ```bash
 # Full dashboard
 python scripts/kalshi/risk_check.py
+
+# Full dashboard + save markdown
+python scripts/kalshi/risk_check.py --save
 
 # Just check if limits are breached (for scripts/schedulers)
 python scripts/kalshi/risk_check.py --gate

@@ -65,6 +65,11 @@
 - Scripts now directly import shared modules without path setup boilerplate
 - Created `scripts/bootstrap.py` as fallback for non-venv usage
 
+### Save Flag for Status & Risk Commands
+- `kalshi_executor.py status --save` saves portfolio status as markdown to `reports/Accounts/Kalshi/kalshi_status_YYYY-MM-DD.md`
+- `risk_check.py --save` saves full risk dashboard as markdown to `reports/Accounts/Kalshi/kalshi_dashboard_YYYY-MM-DD.md`
+- Reports include: account balance, open positions (readable matchups + dates), today's P&L, resting orders, watchlist
+
 ### Project Cleanup
 - Removed empty `strategies/` directory (edge detection is centralized in scanners, not strategy-pattern architecture)
 - Updated CLAUDE.md project structure to reflect current state (`tests/`, `ticker_display.py`, `report_writer.py`)
