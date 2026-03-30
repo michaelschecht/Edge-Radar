@@ -1,310 +1,25 @@
 {
-  "generated_at": "2026-03-30T18:37:52.745765+00:00",
+  "generated_at": "2026-03-30T22:53:54.986985+00:00",
   "min_edge": 0.03,
-  "count": 20,
+  "count": 5,
   "opportunities": [
-    {
-      "ticker": "KXMLBGAME-26APR011305WSHPHI-PHI",
-      "title": "Washington vs Philadelphia Winner? (vs Philadelphia)",
-      "category": "game",
-      "side": "no",
-      "market_price": 0.3,
-      "fair_value": 0.3888,
-      "edge": 0.0888,
-      "edge_source": "odds_api_consensus",
-      "confidence": "high",
-      "liquidity_score": 9.8,
-      "composite_score": 8.7,
-      "details": {
-        "n_books": 9,
-        "median_fair": 0.6112,
-        "min_fair": 0.6085,
-        "max_fair": 0.6125,
-        "books": {
-          "fanduel": {
-            "raw_odds": 1.57,
-            "implied": 0.6369,
-            "devigged": 0.6104
-          },
-          "lowvig": {
-            "raw_odds": 1.6,
-            "implied": 0.625,
-            "devigged": 0.6117
-          },
-          "betonlineag": {
-            "raw_odds": 1.6,
-            "implied": 0.625,
-            "devigged": 0.6117
-          },
-          "draftkings": {
-            "raw_odds": 1.57,
-            "implied": 0.6369,
-            "devigged": 0.6085
-          },
-          "betus": {
-            "raw_odds": 1.59,
-            "implied": 0.6289,
-            "devigged": 0.6112
-          },
-          "betmgm": {
-            "raw_odds": 1.57,
-            "implied": 0.6369,
-            "devigged": 0.6095
-          },
-          "betrivers": {
-            "raw_odds": 1.55,
-            "implied": 0.6452,
-            "devigged": 0.6125
-          },
-          "mybookieag": {
-            "raw_odds": 1.58,
-            "implied": 0.6329,
-            "devigged": 0.6089
-          },
-          "bovada": {
-            "raw_odds": 1.57,
-            "implied": 0.6369,
-            "devigged": 0.6085
-          }
-        },
-        "team_stats": {
-          "stats_found": true,
-          "win_pct": 0.333,
-          "team_record": "1-2",
-          "signal": "supports"
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26APR011610NYYSEA-NYY",
-      "title": "New York Y vs Seattle Winner? (vs Seattle)",
-      "category": "game",
-      "side": "yes",
-      "market_price": 0.49,
-      "fair_value": 0.5736,
-      "edge": 0.0836,
-      "edge_source": "odds_api_consensus",
-      "confidence": "high",
-      "liquidity_score": 9.4,
-      "composite_score": 8.4,
-      "details": {
-        "n_books": 26,
-        "median_fair": 0.5736,
-        "min_fair": 0.5,
-        "max_fair": 0.5926,
-        "books": {
-          "fanduel": {
-            "raw_odds": 1.83,
-            "implied": 0.5464,
-            "devigged": 0.5247
-          },
-          "lowvig": {
-            "raw_odds": 1.89,
-            "implied": 0.5291,
-            "devigged": 0.5166
-          },
-          "betonlineag": {
-            "raw_odds": 1.89,
-            "implied": 0.5291,
-            "devigged": 0.5166
-          },
-          "draftkings": {
-            "raw_odds": 1.87,
-            "implied": 0.5348,
-            "devigged": 0.5105
-          },
-          "betus": {
-            "raw_odds": 1.92,
-            "implied": 0.5208,
-            "devigged": 0.509
-          },
-          "betmgm": {
-            "raw_odds": 1.91,
-            "implied": 0.5236,
-            "devigged": 0.5
-          },
-          "betrivers": {
-            "raw_odds": 1.88,
-            "implied": 0.5319,
-            "devigged": 0.5053
-          },
-          "mybookieag": {
-            "raw_odds": 1.85,
-            "implied": 0.5405,
-            "devigged": 0.5195
-          },
-          "bovada": {
-            "raw_odds": 1.86,
-            "implied": 0.5376,
-            "devigged": 0.5131
-          }
-        },
-        "team_stats": {
-          "stats_found": true,
-          "win_pct": 1.0,
-          "team_record": "3-0",
-          "signal": "supports"
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26APR011940MINKC-MIN",
-      "title": "Minnesota vs Kansas City Winner? (vs Kansas City)",
-      "category": "game",
-      "side": "no",
-      "market_price": 0.52,
-      "fair_value": 0.602,
-      "edge": 0.082,
-      "edge_source": "odds_api_consensus",
-      "confidence": "high",
-      "liquidity_score": 9.8,
-      "composite_score": 8.4,
-      "details": {
-        "n_books": 9,
-        "median_fair": 0.398,
-        "min_fair": 0.3915,
-        "max_fair": 0.407,
-        "books": {
-          "fanduel": {
-            "raw_odds": 2.36,
-            "implied": 0.4237,
-            "devigged": 0.407
-          },
-          "lowvig": {
-            "raw_odds": 2.45,
-            "implied": 0.4082,
-            "devigged": 0.398
-          },
-          "betonlineag": {
-            "raw_odds": 2.45,
-            "implied": 0.4082,
-            "devigged": 0.398
-          },
-          "draftkings": {
-            "raw_odds": 2.41,
-            "implied": 0.4149,
-            "devigged": 0.396
-          },
-          "betmgm": {
-            "raw_odds": 2.4,
-            "implied": 0.4167,
-            "devigged": 0.3985
-          },
-          "betus": {
-            "raw_odds": 2.42,
-            "implied": 0.4132,
-            "devigged": 0.401
-          },
-          "mybookieag": {
-            "raw_odds": 2.39,
-            "implied": 0.4184,
-            "devigged": 0.4025
-          },
-          "betrivers": {
-            "raw_odds": 2.38,
-            "implied": 0.4202,
-            "devigged": 0.3975
-          },
-          "bovada": {
-            "raw_odds": 2.44,
-            "implied": 0.4098,
-            "devigged": 0.3915
-          }
-        },
-        "team_stats": {
-          "stats_found": true,
-          "win_pct": 0.333,
-          "team_record": "1-2",
-          "signal": "supports"
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26APR011310CWSMIA-CWS",
-      "title": "Chicago WS vs Miami Winner? (vs Miami)",
-      "category": "game",
-      "side": "yes",
-      "market_price": 0.43,
-      "fair_value": 0.559,
-      "edge": 0.129,
-      "edge_source": "odds_api_consensus",
-      "confidence": "medium",
-      "liquidity_score": 9.8,
-      "composite_score": 8.3,
-      "details": {
-        "n_books": 26,
-        "median_fair": 0.559,
-        "min_fair": 0.4296,
-        "max_fair": 0.6361,
-        "books": {
-          "fanduel": {
-            "raw_odds": 1.72,
-            "implied": 0.5814,
-            "devigged": 0.559
-          },
-          "lowvig": {
-            "raw_odds": 1.71,
-            "implied": 0.5848,
-            "devigged": 0.5704
-          },
-          "betonlineag": {
-            "raw_odds": 1.71,
-            "implied": 0.5848,
-            "devigged": 0.5704
-          },
-          "draftkings": {
-            "raw_odds": 1.52,
-            "implied": 0.6579,
-            "devigged": 0.6302
-          },
-          "betus": {
-            "raw_odds": 1.56,
-            "implied": 0.641,
-            "devigged": 0.6232
-          },
-          "betmgm": {
-            "raw_odds": 1.54,
-            "implied": 0.6494,
-            "devigged": 0.6188
-          },
-          "betrivers": {
-            "raw_odds": 1.51,
-            "implied": 0.6623,
-            "devigged": 0.6281
-          },
-          "mybookieag": {
-            "raw_odds": 1.72,
-            "implied": 0.5814,
-            "devigged": 0.559
-          },
-          "bovada": {
-            "raw_odds": 1.53,
-            "implied": 0.6536,
-            "devigged": 0.6259
-          }
-        },
-        "team_stats": {
-          "stats_found": false
-        }
-      }
-    },
     {
       "ticker": "KXMLBGAME-26MAR301840CWSMIA-CWS",
       "title": "Chicago WS vs Miami Winner? (vs Miami)",
       "category": "game",
       "side": "yes",
-      "market_price": 0.45,
-      "fair_value": 0.559,
-      "edge": 0.109,
+      "market_price": 0.43,
+      "fair_value": 0.5504,
+      "edge": 0.1204,
       "edge_source": "odds_api_consensus",
       "confidence": "medium",
       "liquidity_score": 9.8,
       "composite_score": 8.3,
       "details": {
         "n_books": 26,
-        "median_fair": 0.559,
-        "min_fair": 0.4296,
-        "max_fair": 0.6361,
+        "median_fair": 0.5504,
+        "min_fair": 0.3909,
+        "max_fair": 0.6302,
         "books": {
           "fanduel": {
             "raw_odds": 1.72,
@@ -312,152 +27,14 @@
             "devigged": 0.559
           },
           "lowvig": {
-            "raw_odds": 1.71,
-            "implied": 0.5848,
-            "devigged": 0.5704
+            "raw_odds": 1.75,
+            "implied": 0.5714,
+            "devigged": 0.5581
           },
           "betonlineag": {
-            "raw_odds": 1.71,
-            "implied": 0.5848,
-            "devigged": 0.5704
-          },
-          "draftkings": {
-            "raw_odds": 1.52,
-            "implied": 0.6579,
-            "devigged": 0.6302
-          },
-          "betus": {
-            "raw_odds": 1.56,
-            "implied": 0.641,
-            "devigged": 0.6232
-          },
-          "betmgm": {
-            "raw_odds": 1.54,
-            "implied": 0.6494,
-            "devigged": 0.6188
-          },
-          "betrivers": {
-            "raw_odds": 1.51,
-            "implied": 0.6623,
-            "devigged": 0.6281
-          },
-          "mybookieag": {
-            "raw_odds": 1.72,
-            "implied": 0.5814,
-            "devigged": 0.559
-          },
-          "bovada": {
-            "raw_odds": 1.53,
-            "implied": 0.6536,
-            "devigged": 0.6259
-          }
-        },
-        "team_stats": {
-          "stats_found": false
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26MAR311840CWSMIA-CWS",
-      "title": "Chicago WS vs Miami Winner? (vs Miami)",
-      "category": "game",
-      "side": "yes",
-      "market_price": 0.44,
-      "fair_value": 0.559,
-      "edge": 0.119,
-      "edge_source": "odds_api_consensus",
-      "confidence": "medium",
-      "liquidity_score": 9.4,
-      "composite_score": 8.2,
-      "details": {
-        "n_books": 26,
-        "median_fair": 0.559,
-        "min_fair": 0.4296,
-        "max_fair": 0.6361,
-        "books": {
-          "fanduel": {
-            "raw_odds": 1.72,
-            "implied": 0.5814,
-            "devigged": 0.559
-          },
-          "lowvig": {
-            "raw_odds": 1.71,
-            "implied": 0.5848,
-            "devigged": 0.5704
-          },
-          "betonlineag": {
-            "raw_odds": 1.71,
-            "implied": 0.5848,
-            "devigged": 0.5704
-          },
-          "draftkings": {
-            "raw_odds": 1.52,
-            "implied": 0.6579,
-            "devigged": 0.6302
-          },
-          "betus": {
-            "raw_odds": 1.56,
-            "implied": 0.641,
-            "devigged": 0.6232
-          },
-          "betmgm": {
-            "raw_odds": 1.54,
-            "implied": 0.6494,
-            "devigged": 0.6188
-          },
-          "betrivers": {
-            "raw_odds": 1.51,
-            "implied": 0.6623,
-            "devigged": 0.6281
-          },
-          "mybookieag": {
-            "raw_odds": 1.72,
-            "implied": 0.5814,
-            "devigged": 0.559
-          },
-          "bovada": {
-            "raw_odds": 1.53,
-            "implied": 0.6536,
-            "devigged": 0.6259
-          }
-        },
-        "team_stats": {
-          "stats_found": false
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26APR011240PITCIN-CIN",
-      "title": "Pittsburgh vs Cincinnati Winner? (vs Cincinnati)",
-      "category": "game",
-      "side": "yes",
-      "market_price": 0.47,
-      "fair_value": 0.5469,
-      "edge": 0.0769,
-      "edge_source": "odds_api_consensus",
-      "confidence": "high",
-      "liquidity_score": 9.8,
-      "composite_score": 8.2,
-      "details": {
-        "n_books": 13,
-        "median_fair": 0.5469,
-        "min_fair": 0.5039,
-        "max_fair": 0.5558,
-        "books": {
-          "fanduel": {
-            "raw_odds": 1.91,
-            "implied": 0.5236,
-            "devigged": 0.5039
-          },
-          "betonlineag": {
-            "raw_odds": 1.91,
-            "implied": 0.5236,
-            "devigged": 0.5115
-          },
-          "lowvig": {
-            "raw_odds": 1.91,
-            "implied": 0.5236,
-            "devigged": 0.5115
+            "raw_odds": 1.75,
+            "implied": 0.5714,
+            "devigged": 0.5581
           },
           "draftkings": {
             "raw_odds": 1.74,
@@ -465,180 +42,33 @@
             "devigged": 0.5504
           },
           "betus": {
-            "raw_odds": 1.79,
-            "implied": 0.5587,
-            "devigged": 0.5468
+            "raw_odds": 1.55,
+            "implied": 0.6452,
+            "devigged": 0.6265
           },
           "betmgm": {
-            "raw_odds": 1.74,
-            "implied": 0.5747,
-            "devigged": 0.5469
+            "raw_odds": 1.53,
+            "implied": 0.6536,
+            "devigged": 0.625
           },
           "betrivers": {
-            "raw_odds": 1.71,
-            "implied": 0.5848,
-            "devigged": 0.5558
+            "raw_odds": 1.51,
+            "implied": 0.6623,
+            "devigged": 0.6281
           },
           "mybookieag": {
-            "raw_odds": 1.91,
-            "implied": 0.5236,
-            "devigged": 0.5039
+            "raw_odds": 1.54,
+            "implied": 0.6494,
+            "devigged": 0.6244
           },
           "bovada": {
-            "raw_odds": 1.75,
-            "implied": 0.5714,
-            "devigged": 0.5478
+            "raw_odds": 1.53,
+            "implied": 0.6536,
+            "devigged": 0.6259
           }
         },
         "team_stats": {
-          "stats_found": true,
-          "win_pct": 0.667,
-          "team_record": "2-1",
-          "signal": "supports"
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26APR011240PITCIN-PIT",
-      "title": "Pittsburgh vs Cincinnati Winner? (vs Cincinnati)",
-      "category": "game",
-      "side": "no",
-      "market_price": 0.48,
-      "fair_value": 0.5469,
-      "edge": 0.0669,
-      "edge_source": "odds_api_consensus",
-      "confidence": "high",
-      "liquidity_score": 9.8,
-      "composite_score": 7.8,
-      "details": {
-        "n_books": 13,
-        "median_fair": 0.4531,
-        "min_fair": 0.4442,
-        "max_fair": 0.4961,
-        "books": {
-          "fanduel": {
-            "raw_odds": 1.94,
-            "implied": 0.5155,
-            "devigged": 0.4961
-          },
-          "betonlineag": {
-            "raw_odds": 2.0,
-            "implied": 0.5,
-            "devigged": 0.4885
-          },
-          "lowvig": {
-            "raw_odds": 2.0,
-            "implied": 0.5,
-            "devigged": 0.4885
-          },
-          "draftkings": {
-            "raw_odds": 2.13,
-            "implied": 0.4695,
-            "devigged": 0.4496
-          },
-          "betus": {
-            "raw_odds": 2.16,
-            "implied": 0.463,
-            "devigged": 0.4532
-          },
-          "betmgm": {
-            "raw_odds": 2.1,
-            "implied": 0.4762,
-            "devigged": 0.4531
-          },
-          "betrivers": {
-            "raw_odds": 2.14,
-            "implied": 0.4673,
-            "devigged": 0.4442
-          },
-          "mybookieag": {
-            "raw_odds": 1.94,
-            "implied": 0.5155,
-            "devigged": 0.4961
-          },
-          "bovada": {
-            "raw_odds": 2.12,
-            "implied": 0.4717,
-            "devigged": 0.4522
-          }
-        },
-        "team_stats": {
-          "stats_found": true,
-          "win_pct": 0.333,
-          "team_record": "1-2",
-          "signal": "supports"
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26MAR302140NYYSEA-NYY",
-      "title": "New York Y vs Seattle Winner? (vs Seattle)",
-      "category": "game",
-      "side": "yes",
-      "market_price": 0.51,
-      "fair_value": 0.5736,
-      "edge": 0.0636,
-      "edge_source": "odds_api_consensus",
-      "confidence": "high",
-      "liquidity_score": 9.8,
-      "composite_score": 7.7,
-      "details": {
-        "n_books": 26,
-        "median_fair": 0.5736,
-        "min_fair": 0.5,
-        "max_fair": 0.5926,
-        "books": {
-          "fanduel": {
-            "raw_odds": 1.83,
-            "implied": 0.5464,
-            "devigged": 0.5247
-          },
-          "lowvig": {
-            "raw_odds": 1.89,
-            "implied": 0.5291,
-            "devigged": 0.5166
-          },
-          "betonlineag": {
-            "raw_odds": 1.89,
-            "implied": 0.5291,
-            "devigged": 0.5166
-          },
-          "draftkings": {
-            "raw_odds": 1.87,
-            "implied": 0.5348,
-            "devigged": 0.5105
-          },
-          "betus": {
-            "raw_odds": 1.92,
-            "implied": 0.5208,
-            "devigged": 0.509
-          },
-          "betmgm": {
-            "raw_odds": 1.91,
-            "implied": 0.5236,
-            "devigged": 0.5
-          },
-          "betrivers": {
-            "raw_odds": 1.88,
-            "implied": 0.5319,
-            "devigged": 0.5053
-          },
-          "mybookieag": {
-            "raw_odds": 1.85,
-            "implied": 0.5405,
-            "devigged": 0.5195
-          },
-          "bovada": {
-            "raw_odds": 1.86,
-            "implied": 0.5376,
-            "devigged": 0.5131
-          }
-        },
-        "team_stats": {
-          "stats_found": true,
-          "win_pct": 1.0,
-          "team_record": "3-0",
-          "signal": "supports"
+          "stats_found": false
         }
       }
     },
@@ -648,17 +78,17 @@
       "category": "game",
       "side": "no",
       "market_price": 0.38,
-      "fair_value": 0.441,
-      "edge": 0.061,
+      "fair_value": 0.4496,
+      "edge": 0.0696,
       "edge_source": "odds_api_consensus",
       "confidence": "high",
       "liquidity_score": 9.8,
-      "composite_score": 7.6,
+      "composite_score": 7.9,
       "details": {
         "n_books": 26,
-        "median_fair": 0.559,
-        "min_fair": 0.4296,
-        "max_fair": 0.6361,
+        "median_fair": 0.5504,
+        "min_fair": 0.3909,
+        "max_fair": 0.6302,
         "books": {
           "fanduel": {
             "raw_odds": 1.72,
@@ -666,29 +96,29 @@
             "devigged": 0.559
           },
           "lowvig": {
-            "raw_odds": 1.71,
-            "implied": 0.5848,
-            "devigged": 0.5704
+            "raw_odds": 1.75,
+            "implied": 0.5714,
+            "devigged": 0.5581
           },
           "betonlineag": {
-            "raw_odds": 1.71,
-            "implied": 0.5848,
-            "devigged": 0.5704
+            "raw_odds": 1.75,
+            "implied": 0.5714,
+            "devigged": 0.5581
           },
           "draftkings": {
-            "raw_odds": 1.52,
-            "implied": 0.6579,
-            "devigged": 0.6302
+            "raw_odds": 1.74,
+            "implied": 0.5747,
+            "devigged": 0.5504
           },
           "betus": {
-            "raw_odds": 1.56,
-            "implied": 0.641,
-            "devigged": 0.6232
+            "raw_odds": 1.55,
+            "implied": 0.6452,
+            "devigged": 0.6265
           },
           "betmgm": {
-            "raw_odds": 1.54,
-            "implied": 0.6494,
-            "devigged": 0.6188
+            "raw_odds": 1.53,
+            "implied": 0.6536,
+            "devigged": 0.625
           },
           "betrivers": {
             "raw_odds": 1.51,
@@ -696,9 +126,9 @@
             "devigged": 0.6281
           },
           "mybookieag": {
-            "raw_odds": 1.72,
-            "implied": 0.5814,
-            "devigged": 0.559
+            "raw_odds": 1.54,
+            "implied": 0.6494,
+            "devigged": 0.6244
           },
           "bovada": {
             "raw_odds": 1.53,
@@ -715,145 +145,73 @@
       }
     },
     {
-      "ticker": "KXMLBGAME-26APR011305WSHPHI-WSH",
+      "ticker": "KXMLBGAME-26MAR301840WSHPHI-PHI",
       "title": "Washington vs Philadelphia Winner? (vs Philadelphia)",
       "category": "game",
       "side": "yes",
-      "market_price": 0.33,
-      "fair_value": 0.3888,
-      "edge": 0.0588,
-      "edge_source": "odds_api_consensus",
-      "confidence": "high",
-      "liquidity_score": 9.8,
-      "composite_score": 7.5,
-      "details": {
-        "n_books": 9,
-        "median_fair": 0.3888,
-        "min_fair": 0.3875,
-        "max_fair": 0.3915,
-        "books": {
-          "fanduel": {
-            "raw_odds": 2.46,
-            "implied": 0.4065,
-            "devigged": 0.3896
-          },
-          "lowvig": {
-            "raw_odds": 2.52,
-            "implied": 0.3968,
-            "devigged": 0.3883
-          },
-          "betonlineag": {
-            "raw_odds": 2.52,
-            "implied": 0.3968,
-            "devigged": 0.3883
-          },
-          "draftkings": {
-            "raw_odds": 2.44,
-            "implied": 0.4098,
-            "devigged": 0.3915
-          },
-          "betus": {
-            "raw_odds": 2.5,
-            "implied": 0.4,
-            "devigged": 0.3888
-          },
-          "betmgm": {
-            "raw_odds": 2.45,
-            "implied": 0.4082,
-            "devigged": 0.3905
-          },
-          "betrivers": {
-            "raw_odds": 2.45,
-            "implied": 0.4082,
-            "devigged": 0.3875
-          },
-          "mybookieag": {
-            "raw_odds": 2.46,
-            "implied": 0.4065,
-            "devigged": 0.3911
-          },
-          "bovada": {
-            "raw_odds": 2.44,
-            "implied": 0.4098,
-            "devigged": 0.3915
-          }
-        },
-        "team_stats": {
-          "stats_found": true,
-          "win_pct": 0.667,
-          "team_record": "2-1",
-          "signal": "supports"
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26APR012020CLELAD-LAD",
-      "title": "Cleveland vs Los Angeles D Winner? (vs Los Angeles D)",
-      "category": "game",
-      "side": "no",
-      "market_price": 0.34,
-      "fair_value": 0.5704,
-      "edge": 0.2304,
+      "market_price": 0.29,
+      "fair_value": 0.6044,
+      "edge": 0.3144,
       "edge_source": "odds_api_consensus",
       "confidence": "low",
       "liquidity_score": 9.8,
       "composite_score": 7.4,
       "details": {
-        "n_books": 22,
-        "median_fair": 0.4296,
-        "min_fair": 0.3639,
-        "max_fair": 0.6386,
+        "n_books": 10,
+        "median_fair": 0.6044,
+        "min_fair": 0.2662,
+        "max_fair": 0.6129,
         "books": {
           "fanduel": {
-            "raw_odds": 2.18,
-            "implied": 0.4587,
-            "devigged": 0.441
-          },
-          "betonlineag": {
-            "raw_odds": 2.27,
-            "implied": 0.4405,
-            "devigged": 0.4296
+            "raw_odds": 1.6,
+            "implied": 0.625,
+            "devigged": 0.6
           },
           "lowvig": {
-            "raw_odds": 2.27,
-            "implied": 0.4405,
-            "devigged": 0.4296
+            "raw_odds": 1.61,
+            "implied": 0.6211,
+            "devigged": 0.6073
+          },
+          "betonlineag": {
+            "raw_odds": 1.61,
+            "implied": 0.6211,
+            "devigged": 0.6073
           },
           "draftkings": {
-            "raw_odds": 1.52,
-            "implied": 0.6579,
-            "devigged": 0.6302
+            "raw_odds": 3.23,
+            "implied": 0.3096,
+            "devigged": 0.2901
           },
           "betus": {
-            "raw_odds": 1.56,
-            "implied": 0.641,
-            "devigged": 0.6232
+            "raw_odds": 1.61,
+            "implied": 0.6211,
+            "devigged": 0.6044
           },
           "betmgm": {
-            "raw_odds": 1.5,
-            "implied": 0.6667,
-            "devigged": 0.6386
-          },
-          "mybookieag": {
-            "raw_odds": 2.18,
-            "implied": 0.4587,
-            "devigged": 0.441
+            "raw_odds": 3.3,
+            "implied": 0.303,
+            "devigged": 0.2873
           },
           "betrivers": {
-            "raw_odds": 1.5,
-            "implied": 0.6667,
-            "devigged": 0.6341
+            "raw_odds": 3.5,
+            "implied": 0.2857,
+            "devigged": 0.2662
+          },
+          "mybookieag": {
+            "raw_odds": 1.95,
+            "implied": 0.5128,
+            "devigged": 0.4868
           },
           "bovada": {
-            "raw_odds": 1.53,
-            "implied": 0.6536,
-            "devigged": 0.6259
+            "raw_odds": 1.56,
+            "implied": 0.641,
+            "devigged": 0.6129
           }
         },
         "team_stats": {
           "stats_found": true,
-          "win_pct": 1.0,
-          "team_record": "3-0",
+          "win_pct": 0.333,
+          "team_record": "1-2",
           "signal": "contradicts"
         }
       }
@@ -864,16 +222,16 @@
       "category": "game",
       "side": "no",
       "market_price": 0.37,
-      "fair_value": 0.5704,
-      "edge": 0.2004,
+      "fair_value": 0.5581,
+      "edge": 0.1881,
       "edge_source": "odds_api_consensus",
       "confidence": "low",
       "liquidity_score": 9.8,
       "composite_score": 7.4,
       "details": {
         "n_books": 22,
-        "median_fair": 0.4296,
-        "min_fair": 0.3639,
+        "median_fair": 0.4419,
+        "min_fair": 0.3698,
         "max_fair": 0.6386,
         "books": {
           "fanduel": {
@@ -882,24 +240,24 @@
             "devigged": 0.441
           },
           "betonlineag": {
-            "raw_odds": 2.27,
-            "implied": 0.4405,
-            "devigged": 0.4296
+            "raw_odds": 2.21,
+            "implied": 0.4525,
+            "devigged": 0.4419
           },
           "lowvig": {
-            "raw_odds": 2.27,
-            "implied": 0.4405,
-            "devigged": 0.4296
+            "raw_odds": 2.21,
+            "implied": 0.4525,
+            "devigged": 0.4419
           },
           "draftkings": {
-            "raw_odds": 1.52,
-            "implied": 0.6579,
-            "devigged": 0.6302
+            "raw_odds": 2.13,
+            "implied": 0.4695,
+            "devigged": 0.4496
           },
           "betus": {
-            "raw_odds": 1.56,
-            "implied": 0.641,
-            "devigged": 0.6232
+            "raw_odds": 1.57,
+            "implied": 0.6369,
+            "devigged": 0.6189
           },
           "betmgm": {
             "raw_odds": 1.5,
@@ -907,14 +265,14 @@
             "devigged": 0.6386
           },
           "mybookieag": {
-            "raw_odds": 2.18,
-            "implied": 0.4587,
-            "devigged": 0.441
+            "raw_odds": 1.54,
+            "implied": 0.6494,
+            "devigged": 0.6244
           },
           "betrivers": {
-            "raw_odds": 1.5,
-            "implied": 0.6667,
-            "devigged": 0.6341
+            "raw_odds": 1.49,
+            "implied": 0.6711,
+            "devigged": 0.6383
           },
           "bovada": {
             "raw_odds": 1.53,
@@ -931,499 +289,67 @@
       }
     },
     {
-      "ticker": "KXMLBGAME-26MAR312210CLELAD-LAD",
-      "title": "Cleveland vs Los Angeles D Winner? (vs Los Angeles D)",
+      "ticker": "KXMLBGAME-26MAR301840WSHPHI-WSH",
+      "title": "Washington vs Philadelphia Winner? (vs Philadelphia)",
       "category": "game",
       "side": "no",
-      "market_price": 0.34,
-      "fair_value": 0.5704,
-      "edge": 0.2304,
+      "market_price": 0.31,
+      "fair_value": 0.6044,
+      "edge": 0.2944,
       "edge_source": "odds_api_consensus",
       "confidence": "low",
       "liquidity_score": 9.2,
       "composite_score": 7.2,
       "details": {
-        "n_books": 22,
-        "median_fair": 0.4296,
-        "min_fair": 0.3639,
-        "max_fair": 0.6386,
+        "n_books": 10,
+        "median_fair": 0.3956,
+        "min_fair": 0.3871,
+        "max_fair": 0.7338,
         "books": {
           "fanduel": {
-            "raw_odds": 2.18,
-            "implied": 0.4587,
-            "devigged": 0.441
-          },
-          "betonlineag": {
-            "raw_odds": 2.27,
-            "implied": 0.4405,
-            "devigged": 0.4296
+            "raw_odds": 2.4,
+            "implied": 0.4167,
+            "devigged": 0.4
           },
           "lowvig": {
-            "raw_odds": 2.27,
-            "implied": 0.4405,
-            "devigged": 0.4296
-          },
-          "draftkings": {
-            "raw_odds": 1.52,
-            "implied": 0.6579,
-            "devigged": 0.6302
-          },
-          "betus": {
-            "raw_odds": 1.56,
-            "implied": 0.641,
-            "devigged": 0.6232
-          },
-          "betmgm": {
-            "raw_odds": 1.5,
-            "implied": 0.6667,
-            "devigged": 0.6386
-          },
-          "mybookieag": {
-            "raw_odds": 2.18,
-            "implied": 0.4587,
-            "devigged": 0.441
-          },
-          "betrivers": {
-            "raw_odds": 1.5,
-            "implied": 0.6667,
-            "devigged": 0.6341
-          },
-          "bovada": {
-            "raw_odds": 1.53,
-            "implied": 0.6536,
-            "devigged": 0.6259
-          }
-        },
-        "team_stats": {
-          "stats_found": true,
-          "win_pct": 1.0,
-          "team_record": "3-0",
-          "signal": "contradicts"
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26MAR312010BOSHOU-HOU",
-      "title": "Boston vs Houston Winner? (vs Houston)",
-      "category": "game",
-      "side": "no",
-      "market_price": 0.44,
-      "fair_value": 0.5141,
-      "edge": 0.0741,
-      "edge_source": "odds_api_consensus",
-      "confidence": "medium",
-      "liquidity_score": 9.6,
-      "composite_score": 7.2,
-      "details": {
-        "n_books": 13,
-        "median_fair": 0.4859,
-        "min_fair": 0.477,
-        "max_fair": 0.5894,
-        "books": {
-          "fanduel": {
-            "raw_odds": 1.63,
-            "implied": 0.6135,
-            "devigged": 0.5894
-          },
-          "lowvig": {
-            "raw_odds": 1.67,
-            "implied": 0.5988,
-            "devigged": 0.5856
+            "raw_odds": 2.49,
+            "implied": 0.4016,
+            "devigged": 0.3927
           },
           "betonlineag": {
-            "raw_odds": 1.67,
-            "implied": 0.5988,
-            "devigged": 0.5856
+            "raw_odds": 2.49,
+            "implied": 0.4016,
+            "devigged": 0.3927
           },
           "draftkings": {
-            "raw_odds": 1.98,
-            "implied": 0.5051,
-            "devigged": 0.483
+            "raw_odds": 1.32,
+            "implied": 0.7576,
+            "devigged": 0.7099
           },
           "betus": {
-            "raw_odds": 2.05,
-            "implied": 0.4878,
-            "devigged": 0.477
+            "raw_odds": 2.46,
+            "implied": 0.4065,
+            "devigged": 0.3956
           },
           "betmgm": {
-            "raw_odds": 1.98,
-            "implied": 0.5051,
-            "devigged": 0.483
+            "raw_odds": 1.33,
+            "implied": 0.7519,
+            "devigged": 0.7127
           },
           "betrivers": {
-            "raw_odds": 1.94,
-            "implied": 0.5155,
-            "devigged": 0.4881
-          },
-          "mybookieag": {
-            "raw_odds": 1.63,
-            "implied": 0.6135,
-            "devigged": 0.5894
-          },
-          "bovada": {
-            "raw_odds": 2.0,
-            "implied": 0.5,
-            "devigged": 0.4778
-          }
-        },
-        "team_stats": {
-          "stats_found": true,
-          "win_pct": 0.5,
-          "team_record": "2-2",
-          "signal": "neutral"
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26APR011940MINKC-KC",
-      "title": "Minnesota vs Kansas City Winner? (vs Kansas City)",
-      "category": "game",
-      "side": "yes",
-      "market_price": 0.53,
-      "fair_value": 0.602,
-      "edge": 0.072,
-      "edge_source": "odds_api_consensus",
-      "confidence": "medium",
-      "liquidity_score": 9.8,
-      "composite_score": 7.1,
-      "details": {
-        "n_books": 9,
-        "median_fair": 0.602,
-        "min_fair": 0.593,
-        "max_fair": 0.6085,
-        "books": {
-          "fanduel": {
-            "raw_odds": 1.62,
-            "implied": 0.6173,
-            "devigged": 0.593
-          },
-          "lowvig": {
-            "raw_odds": 1.62,
-            "implied": 0.6173,
-            "devigged": 0.602
-          },
-          "betonlineag": {
-            "raw_odds": 1.62,
-            "implied": 0.6173,
-            "devigged": 0.602
-          },
-          "draftkings": {
-            "raw_odds": 1.58,
-            "implied": 0.6329,
-            "devigged": 0.604
-          },
-          "betmgm": {
-            "raw_odds": 1.59,
-            "implied": 0.6289,
-            "devigged": 0.6015
-          },
-          "betus": {
-            "raw_odds": 1.62,
-            "implied": 0.6173,
-            "devigged": 0.599
-          },
-          "mybookieag": {
-            "raw_odds": 1.61,
-            "implied": 0.6211,
-            "devigged": 0.5975
-          },
-          "betrivers": {
-            "raw_odds": 1.57,
-            "implied": 0.6369,
-            "devigged": 0.6025
-          },
-          "bovada": {
-            "raw_odds": 1.57,
-            "implied": 0.6369,
-            "devigged": 0.6085
-          }
-        },
-        "team_stats": {
-          "stats_found": true,
-          "win_pct": 0.333,
-          "team_record": "1-2",
-          "signal": "contradicts"
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26APR011610SFSD-SD",
-      "title": "San Francisco vs San Diego Winner? (vs San Diego)",
-      "category": "game",
-      "side": "no",
-      "market_price": 0.43,
-      "fair_value": 0.4834,
-      "edge": 0.0534,
-      "edge_source": "odds_api_consensus",
-      "confidence": "high",
-      "liquidity_score": 8.8,
-      "composite_score": 7.1,
-      "details": {
-        "n_books": 13,
-        "median_fair": 0.5166,
-        "min_fair": 0.4322,
-        "max_fair": 0.5222,
-        "books": {
-          "fanduel": {
-            "raw_odds": 2.22,
-            "implied": 0.4505,
-            "devigged": 0.4322
-          },
-          "betonlineag": {
-            "raw_odds": 2.13,
-            "implied": 0.4695,
-            "devigged": 0.458
-          },
-          "lowvig": {
-            "raw_odds": 2.13,
-            "implied": 0.4695,
-            "devigged": 0.458
-          },
-          "draftkings": {
-            "raw_odds": 1.83,
-            "implied": 0.5464,
-            "devigged": 0.5222
-          },
-          "betus": {
-            "raw_odds": 1.88,
-            "implied": 0.5319,
-            "devigged": 0.5192
-          },
-          "betmgm": {
-            "raw_odds": 1.87,
-            "implied": 0.5348,
-            "devigged": 0.5105
-          },
-          "betrivers": {
-            "raw_odds": 1.83,
-            "implied": 0.5464,
-            "devigged": 0.5172
-          },
-          "mybookieag": {
-            "raw_odds": 2.22,
-            "implied": 0.4505,
-            "devigged": 0.4337
-          },
-          "bovada": {
-            "raw_odds": 1.85,
-            "implied": 0.5405,
-            "devigged": 0.517
-          }
-        },
-        "team_stats": {
-          "stats_found": true,
-          "win_pct": 0.333,
-          "team_record": "1-2",
-          "signal": "supports"
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26MAR312140NYYSEA-NYY",
-      "title": "New York Y vs Seattle Winner? (vs Seattle)",
-      "category": "game",
-      "side": "yes",
-      "market_price": 0.53,
-      "fair_value": 0.5736,
-      "edge": 0.0436,
-      "edge_source": "odds_api_consensus",
-      "confidence": "high",
-      "liquidity_score": 9.6,
-      "composite_score": 6.9,
-      "details": {
-        "n_books": 26,
-        "median_fair": 0.5736,
-        "min_fair": 0.5,
-        "max_fair": 0.5926,
-        "books": {
-          "fanduel": {
-            "raw_odds": 1.83,
-            "implied": 0.5464,
-            "devigged": 0.5247
-          },
-          "lowvig": {
-            "raw_odds": 1.89,
-            "implied": 0.5291,
-            "devigged": 0.5166
-          },
-          "betonlineag": {
-            "raw_odds": 1.89,
-            "implied": 0.5291,
-            "devigged": 0.5166
-          },
-          "draftkings": {
-            "raw_odds": 1.87,
-            "implied": 0.5348,
-            "devigged": 0.5105
-          },
-          "betus": {
-            "raw_odds": 1.92,
-            "implied": 0.5208,
-            "devigged": 0.509
-          },
-          "betmgm": {
-            "raw_odds": 1.91,
-            "implied": 0.5236,
-            "devigged": 0.5
-          },
-          "betrivers": {
-            "raw_odds": 1.88,
-            "implied": 0.5319,
-            "devigged": 0.5053
+            "raw_odds": 1.27,
+            "implied": 0.7874,
+            "devigged": 0.7338
           },
           "mybookieag": {
             "raw_odds": 1.85,
             "implied": 0.5405,
-            "devigged": 0.5195
+            "devigged": 0.5132
           },
           "bovada": {
-            "raw_odds": 1.86,
-            "implied": 0.5376,
-            "devigged": 0.5131
-          }
-        },
-        "team_stats": {
-          "stats_found": true,
-          "win_pct": 1.0,
-          "team_record": "3-0",
-          "signal": "supports"
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26APR011610SFSD-SF",
-      "title": "San Francisco vs San Diego Winner? (vs San Diego)",
-      "category": "game",
-      "side": "yes",
-      "market_price": 0.43,
-      "fair_value": 0.5166,
-      "edge": 0.0866,
-      "edge_source": "odds_api_consensus",
-      "confidence": "low",
-      "liquidity_score": 9.4,
-      "composite_score": 6.7,
-      "details": {
-        "n_books": 13,
-        "median_fair": 0.5166,
-        "min_fair": 0.4322,
-        "max_fair": 0.5222,
-        "books": {
-          "fanduel": {
-            "raw_odds": 2.22,
-            "implied": 0.4505,
-            "devigged": 0.4322
-          },
-          "betonlineag": {
-            "raw_odds": 2.13,
-            "implied": 0.4695,
-            "devigged": 0.458
-          },
-          "lowvig": {
-            "raw_odds": 2.13,
-            "implied": 0.4695,
-            "devigged": 0.458
-          },
-          "draftkings": {
-            "raw_odds": 1.83,
-            "implied": 0.5464,
-            "devigged": 0.5222
-          },
-          "betus": {
-            "raw_odds": 1.88,
-            "implied": 0.5319,
-            "devigged": 0.5192
-          },
-          "betmgm": {
-            "raw_odds": 1.87,
-            "implied": 0.5348,
-            "devigged": 0.5105
-          },
-          "betrivers": {
-            "raw_odds": 1.83,
-            "implied": 0.5464,
-            "devigged": 0.5172
-          },
-          "mybookieag": {
-            "raw_odds": 2.22,
-            "implied": 0.4505,
-            "devigged": 0.4337
-          },
-          "bovada": {
-            "raw_odds": 1.85,
-            "implied": 0.5405,
-            "devigged": 0.517
-          }
-        },
-        "team_stats": {
-          "stats_found": true,
-          "win_pct": 0.0,
-          "team_record": "0-3",
-          "signal": "contradicts"
-        }
-      }
-    },
-    {
-      "ticker": "KXMLBGAME-26APR011215ATHATL-ATL",
-      "title": "A's vs Atlanta Winner? (vs Atlanta)",
-      "category": "game",
-      "side": "no",
-      "market_price": 0.39,
-      "fair_value": 0.4476,
-      "edge": 0.0576,
-      "edge_source": "odds_api_consensus",
-      "confidence": "medium",
-      "liquidity_score": 9.6,
-      "composite_score": 6.5,
-      "details": {
-        "n_books": 9,
-        "median_fair": 0.5524,
-        "min_fair": 0.5426,
-        "max_fair": 0.5544,
-        "books": {
-          "fanduel": {
-            "raw_odds": 1.75,
-            "implied": 0.5714,
-            "devigged": 0.5524
-          },
-          "betonlineag": {
-            "raw_odds": 1.76,
-            "implied": 0.5682,
-            "devigged": 0.5544
-          },
-          "lowvig": {
-            "raw_odds": 1.76,
-            "implied": 0.5682,
-            "devigged": 0.5544
-          },
-          "draftkings": {
-            "raw_odds": 1.74,
-            "implied": 0.5747,
-            "devigged": 0.5504
-          },
-          "betus": {
-            "raw_odds": 1.77,
-            "implied": 0.565,
-            "devigged": 0.5519
-          },
-          "betmgm": {
-            "raw_odds": 1.77,
-            "implied": 0.565,
-            "devigged": 0.5426
-          },
-          "betrivers": {
-            "raw_odds": 1.74,
-            "implied": 0.5747,
-            "devigged": 0.5469
-          },
-          "mybookieag": {
-            "raw_odds": 1.74,
-            "implied": 0.5747,
-            "devigged": 0.5527
-          },
-          "bovada": {
-            "raw_odds": 1.75,
-            "implied": 0.5714,
-            "devigged": 0.5478
+            "raw_odds": 2.47,
+            "implied": 0.4049,
+            "devigged": 0.3871
           }
         },
         "team_stats": {
