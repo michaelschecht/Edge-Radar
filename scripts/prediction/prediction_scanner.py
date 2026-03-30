@@ -470,6 +470,16 @@ def main():
                         help="Save results to watchlist")
     scan_p.add_argument("--cross-ref", action="store_true",
                         help="Cross-reference Kalshi prices against Polymarket")
+    scan_p.add_argument("--execute", action="store_true",
+                        help="Execute bets through the pipeline (requires confirmation)")
+    scan_p.add_argument("--unit-size", type=float, default=None,
+                        help="Dollar amount per bet (default: UNIT_SIZE from .env)")
+    scan_p.add_argument("--max-bets", type=int, default=5,
+                        help="Maximum number of bets to place")
+    scan_p.add_argument("--pick", type=str, default=None,
+                        help="Comma-separated row numbers to execute (e.g., '1,3,5')")
+    scan_p.add_argument("--ticker", type=str, nargs="+", default=None,
+                        help="Execute only these specific tickers")
 
     args = parser.parse_args()
 
@@ -488,7 +498,20 @@ def main():
             top_n=args.top,
             cross_ref=use_cross_ref,
         )
-        print_opportunities(opportunities)
+
+        if opportunities and (args.execute or args.unit_size is not None):
+            from kalshi_executor import execute_pipeline, UNIT_SIZE
+            execute_pipeline(
+                client=client,
+                opportunities=opportunities,
+                execute=args.execute,
+                max_bets=args.max_bets,
+                unit_size=args.unit_size or UNIT_SIZE,
+                pick_rows=args.pick,
+                pick_tickers=args.ticker,
+            )
+        else:
+            print_opportunities(opportunities)
 
         if args.save and opportunities:
             save_opportunities(opportunities)

@@ -88,17 +88,17 @@ pip install -r requirements.txt
 cp .env.example .env            # fill in KALSHI_API_KEY, ODDS_API_KEYS
 
 # 2. Scan for opportunities (preview only)
-python scripts/kalshi/kalshi_executor.py run --filter nba
+python scripts/kalshi/edge_detector.py scan --filter nba
 
 # 3. Execute after reviewing
-python scripts/kalshi/kalshi_executor.py run --filter nba --execute --max-bets 5
+python scripts/kalshi/edge_detector.py scan --filter nba --execute --unit-size 1 --max-bets 5
 
 # 4. Settle and check P&L
 python scripts/kalshi/kalshi_settler.py report --detail --save
 ```
 
 > [!TIP]
-> `--unit-size 0.50` for smaller bets &middot; `--min-edge 0.10` for higher conviction &middot; `--filter nba-futures` for championship markets
+> All scanners share the same flags: `--execute`, `--unit-size`, `--max-bets`, `--pick`, `--ticker`, `--save`. Use `--min-edge 0.10` for higher conviction.
 
 <details>
 <summary><b>More Examples</b></summary>
@@ -107,49 +107,59 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 **Sports Betting**
 
 ```bash
-# Scan multiple sports
-python scripts/kalshi/kalshi_executor.py run --filter nhl
-python scripts/kalshi/kalshi_executor.py run --filter mlb
-python scripts/kalshi/kalshi_executor.py run --filter ncaamb
+# Scan any sport directly
+python scripts/kalshi/edge_detector.py scan --filter nhl
+python scripts/kalshi/edge_detector.py scan --filter mlb
+python scripts/kalshi/edge_detector.py scan --filter ncaamb
 
-# Championship futures
-python scripts/kalshi/kalshi_executor.py run --filter nba-futures
-python scripts/kalshi/kalshi_executor.py run --filter nhl-futures
+# Execute with custom sizing
+python scripts/kalshi/edge_detector.py scan --filter mlb --execute --unit-size 1 --max-bets 10
 
-# Execute top picks with custom sizing
-python scripts/kalshi/kalshi_executor.py run --filter nba --execute --unit-size 2 --max-bets 10
+# Save scan results to watchlist
+python scripts/kalshi/edge_detector.py scan --filter nba --save
+```
+
+**Championship Futures**
+
+```bash
+# Scan futures markets
+python scripts/kalshi/futures_edge.py scan --filter nba-futures
+python scripts/kalshi/futures_edge.py scan --filter nhl-futures
+
+# Execute futures picks
+python scripts/kalshi/futures_edge.py scan --filter mlb-futures --execute --unit-size 2 --max-bets 5
+
+# Save futures scan to watchlist
+python scripts/kalshi/futures_edge.py scan --filter nba-futures --save
 ```
 
 **Prediction Markets**
 
 ```bash
-# Crypto (BTC, ETH, XRP, DOGE, SOL)
-python scripts/kalshi/kalshi_executor.py run --prediction --filter crypto
+# Scan by category
+python scripts/prediction/prediction_scanner.py scan --filter crypto
+python scripts/prediction/prediction_scanner.py scan --filter weather
+python scripts/prediction/prediction_scanner.py scan --filter spx
 
-# Weather temperature markets
-python scripts/kalshi/kalshi_executor.py run --prediction --filter weather
+# Execute with sizing
+python scripts/prediction/prediction_scanner.py scan --filter crypto --execute --unit-size 1 --max-bets 5
 
-# S&P 500 binary options
-python scripts/kalshi/kalshi_executor.py run --prediction --filter spx
-
-# Scan all prediction categories at once
-python scripts/kalshi/kalshi_executor.py run --prediction
+# Cross-reference against Polymarket
+python scripts/prediction/prediction_scanner.py scan --filter crypto --cross-ref
 ```
 
 **Polymarket Cross-Reference**
 
 ```bash
-# Cross-reference crypto predictions against Polymarket prices
-python scripts/kalshi/kalshi_executor.py run --prediction --filter crypto --cross-ref
-
-# Cross-reference all prediction markets against Polymarket
-python scripts/kalshi/kalshi_executor.py run --prediction --cross-ref
-
-# Standalone Polymarket scanner (no Kalshi execution)
+# Scan for cross-market edges
 python scripts/polymarket/polymarket_edge.py scan
 python scripts/polymarket/polymarket_edge.py scan --filter crypto
 
-# Find a Polymarket match for a specific Kalshi ticker
+# Execute Polymarket-validated picks
+python scripts/polymarket/polymarket_edge.py scan --execute --unit-size 1 --max-bets 5
+
+# Save results and find matches
+python scripts/polymarket/polymarket_edge.py scan --save
 python scripts/polymarket/polymarket_edge.py match KXBTC-28MAR26-T88000
 ```
 
@@ -162,7 +172,7 @@ python scripts/kalshi/kalshi_executor.py status
 # Settle completed bets and update P&L
 python scripts/kalshi/kalshi_settler.py settle
 
-# Full performance report with per-trade detail
+# Full performance report (saves markdown to reports/Accounts/Kalshi/)
 python scripts/kalshi/kalshi_settler.py report --detail --save
 
 # Portfolio risk dashboard

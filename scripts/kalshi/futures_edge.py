@@ -26,8 +26,10 @@ Usage:
 import os
 import sys
 import re
+import json
 import logging
 from pathlib import Path
+from datetime import datetime, timezone
 from statistics import median
 from dataclasses import asdict
 
@@ -481,6 +483,8 @@ if __name__ == "__main__":
                         help="Comma-separated row numbers to execute (e.g., '1,3,5')")
     scan_p.add_argument("--ticker", type=str, nargs="+", default=None,
                         help="Execute only these specific tickers")
+    scan_p.add_argument("--save", action="store_true",
+                        help="Save results to watchlist")
 
     args = parser.parse_args()
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -530,3 +534,16 @@ if __name__ == "__main__":
                     str(o.details.get("n_books", "")),
                 )
             console.print(table)
+
+        if args.save and opps:
+            save_path = Path(__file__).resolve().parent.parent.parent / "data" / "watchlists" / "futures_opportunities.json"
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            save_data = {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "min_edge": args.min_edge,
+                "count": len(opps),
+                "opportunities": [asdict(o) for o in opps],
+            }
+            with open(save_path, "w") as f:
+                json.dump(save_data, f, indent=2, default=str)
+            rprint(f"[dim]Saved {len(opps)} opportunities to {save_path}[/dim]")
