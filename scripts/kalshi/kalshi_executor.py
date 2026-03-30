@@ -30,8 +30,7 @@ from pathlib import Path
 from dataclasses import dataclass, asdict
 
 # Shared imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-import paths  # noqa: F401 -- configures sys.path
+import paths  # noqa: F401 -- path constants -- configures sys.path
 from opportunity import Opportunity
 from trade_log import load_trade_log, save_trade_log, get_today_pnl
 

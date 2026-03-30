@@ -19,8 +19,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-import paths  # noqa: F401
+import paths  # noqa: F401 -- path constants
 
 from dotenv import load_dotenv
 from rich.console import Console
@@ -31,12 +30,12 @@ from rich import print as rprint
 from kalshi_client import KalshiClient
 from trade_log import load_trade_log, get_today_pnl
 from ticker_display import parse_game_datetime, parse_matchup, parse_pick_team, TEAM_NAMES
+from logging_setup import setup_logging
 
 # ── Setup ──────────────────────────────────────────────────────────────────────
 load_dotenv()
 console = Console()
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-log = logging.getLogger(__name__)
+log = setup_logging("risk_check")
 
 # ── Risk Limits (from .env with defaults) ─────────────────────────────────────
 MAX_BET_SPORTS      = float(os.getenv("MAX_BET_SIZE_SPORTS", 50))

@@ -2,7 +2,7 @@
 
 ---
 
-## 2026-03-30 -- Unified CLI, Readable Displays, Date Filtering
+## 2026-03-30 -- Unified CLI, Readable Displays, Date Filtering, Project Cleanup
 
 ### Unified CLI Flags Across All Scanners
 - All 4 scanners (`edge_detector.py`, `futures_edge.py`, `prediction_scanner.py`, `polymarket_edge.py`) now share the same execution flags: `--execute`, `--unit-size`, `--max-bets`, `--pick`, `--ticker`, `--save`
@@ -38,6 +38,24 @@
 ### MLB Filtering Guide (`docs/kalshi-sports-betting/MLB_FILTERING_GUIDE.md`)
 - New comprehensive guide covering 10 filtering categories for MLB picks
 - Includes composite strategies: "Strong MLB Play", "Weather Fade", "Sharp Follow", "Regression Fade", "Early Season Value"
+
+### Markdown Scan Reports (`scripts/shared/report_writer.py`)
+- New shared module: all scanners now save a markdown report alongside the JSON watchlist when `--save` is passed
+- Reports include: readable matchups, game dates, edge/fair/market prices, confidence, composite score
+- Saved to `reports/Sports/`, `reports/Futures/`, `reports/Predictions/` with date-stamped filenames
+- Example: `reports/Sports/2026-03-30_mlb_sports_scan.md`
+
+### Standardized Logging
+- All 8 entry-point scripts migrated from `logging.basicConfig` + `logging.getLogger` to `setup_logging()` from `scripts/shared/logging_setup.py`
+- Every script now gets console output (INFO+) plus a dedicated log file in `logs/` (DEBUG+)
+- Zero `logging.basicConfig` calls remain in the codebase
+- Library modules (`team_stats.py`, `line_movement.py`, etc.) correctly use `logging.getLogger()` to inherit config from entry points
+
+### Consolidated Import Boilerplate
+- Created `.venv/Lib/site-packages/edge_radar.pth` — auto-adds all script directories to `sys.path` when the venv is active
+- Removed 16 `sys.path.insert(0, ...)` lines across 15 files
+- Scripts now directly import shared modules without path setup boilerplate
+- Created `scripts/bootstrap.py` as fallback for non-venv usage
 
 ---
 

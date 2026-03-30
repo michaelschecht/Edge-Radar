@@ -9,22 +9,24 @@ Usage:
 
 import os
 import json
+import sys
 import argparse
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+
 
 import requests
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
+from logging_setup import setup_logging
 
 # ── Setup ──────────────────────────────────────────────────────────────────────
 load_dotenv()
 console = Console()
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-log = logging.getLogger(__name__)
+log = setup_logging("fetch_odds")
 
 BASE_URL = "https://api.the-odds-api.com/v4"
 API_KEY = os.getenv("ODDS_API_KEY")

@@ -9,23 +9,25 @@ Usage:
 """
 
 import os
+import sys
 import json
 import argparse
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
+
 import requests
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
+from logging_setup import setup_logging
 
 # ── Setup ──────────────────────────────────────────────────────────────────────
 load_dotenv()
 console = Console()
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-log = logging.getLogger(__name__)
+log = setup_logging("fetch_market_data")
 
 ALPACA_API_KEY    = os.getenv("ALPACA_API_KEY")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")

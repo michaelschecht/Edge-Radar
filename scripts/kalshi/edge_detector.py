@@ -30,8 +30,7 @@ from dataclasses import asdict
 from scipy.stats import norm
 
 # Shared imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-import paths  # noqa: F401 -- configures sys.path
+import paths  # noqa: F401 -- path constants
 from opportunity import Opportunity
 
 import requests
@@ -44,10 +43,11 @@ from kalshi_client import KalshiClient
 from team_stats import get_team_stats
 from sports_weather import get_game_weather
 from line_movement import get_line_movement
+from logging_setup import setup_logging
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
-log = logging.getLogger("edge_detector")
+log = setup_logging("edge_detector")
 console = Console()
 
 from odds_api import get_current_key, rotate_key, report_remaining
@@ -1500,7 +1500,6 @@ def main():
     detail_p.add_argument("ticker", help="Market ticker")
 
     args = parser.parse_args()
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
     client = KalshiClient()
 
@@ -1542,6 +1541,11 @@ def main():
             print_opportunities(opportunities)
         if args.save and opportunities:
             save_opportunities(opportunities)
+            from report_writer import save_scan_report
+            rpt = save_scan_report(opportunities, report_type="sports",
+                                   filter_label=args.ticker_filter or "", min_edge=args.min_edge)
+            if rpt:
+                rprint(f"[dim]Report saved to {rpt}[/dim]")
 
     elif args.command == "detail":
         print_detail(client, args.ticker)

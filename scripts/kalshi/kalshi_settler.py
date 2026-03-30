@@ -22,8 +22,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Shared imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-import paths  # noqa: F401 -- configures sys.path
 from trade_log import (
     load_trade_log, save_trade_log,
     load_settlement_log, save_settlement_log,
@@ -36,10 +34,11 @@ from rich.table import Table
 from rich import print as rprint
 
 from kalshi_client import KalshiClient
+from logging_setup import setup_logging
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
-log = logging.getLogger("kalshi_settler")
+log = setup_logging("kalshi_settler")
 console = Console()
 
 
@@ -604,7 +603,6 @@ def main():
     sub.add_parser("reconcile", help="Compare local trade log vs Kalshi API positions")
 
     args = parser.parse_args()
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
     if args.command == "settle":
         client = KalshiClient()

@@ -28,12 +28,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from difflib import SequenceMatcher
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-import paths  # noqa: F401 -- configures sys.path
-
 import requests
 
-log = logging.getLogger("polymarket_edge")
+from logging_setup import setup_logging
+log = setup_logging("polymarket_edge")
 
 GAMMA_API = "https://gamma-api.polymarket.com"
 _TIMEOUT = 15
@@ -660,13 +658,7 @@ def main():
     from rich import print as rprint
     from dotenv import load_dotenv
 
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "kalshi"))
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "prediction"))
-    import paths  # noqa: F401
-
     load_dotenv()
-    logging.basicConfig(level="INFO")
     console = Console()
 
     parser = argparse.ArgumentParser(description="Polymarket cross-reference edge detector")
@@ -826,6 +818,11 @@ def main():
             with open(save_path, "w") as f:
                 json.dump(save_data, f, indent=2, default=str)
             rprint(f"[dim]Saved {len(opportunities)} opportunities to {save_path}[/dim]")
+            from report_writer import save_scan_report
+            rpt = save_scan_report(opportunities, report_type="polymarket",
+                                   filter_label=args.filter or "", min_edge=args.min_edge)
+            if rpt:
+                rprint(f"[dim]Report saved to {rpt}[/dim]")
 
     elif args.command == "match":
         from kalshi_client import KalshiClient
