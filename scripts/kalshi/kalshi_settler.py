@@ -241,38 +241,56 @@ def generate_report(detail: bool = False, save: bool = False):
     settled = [t for t in trade_log if t.get("closed_at") is not None]
     unsettled = [t for t in trade_log if t.get("closed_at") is None and t.get("status") != "error"]
 
-    # Collect report lines for both console and file output
-    lines: list[str] = []
+    # Markdown lines for file output (built alongside console output)
+    md: list[str] = []
 
-    def report_line(text: str):
-        """Print to console and buffer for file output."""
-        rprint(text)
-        # Strip Rich markup for the plain-text file
-        plain = re.sub(r"\[/?[^\]]*\]", "", text)
-        lines.append(plain)
+    generated_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
 
-    report_line(f"\n-- Kalshi Performance Report --")
-    report_line(f"  Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
-    report_line(f"  Total trades:    {len(trade_log)}")
-    report_line(f"  Settled:         {len(settled)}")
-    report_line(f"  Open/Pending:    {len(unsettled)}")
+    rprint(f"\n-- Kalshi Performance Report --")
+    rprint(f"  Generated: {generated_at}")
+    rprint(f"  Total trades:    {len(trade_log)}")
+    rprint(f"  Settled:         {len(settled)}")
+    rprint(f"  Open/Pending:    {len(unsettled)}")
+
+    md.append(f"# Kalshi Performance Report")
+    md.append(f"")
+    md.append(f"*Generated: {generated_at}*")
+    md.append(f"")
+    md.append(f"| Metric | Value |")
+    md.append(f"|--------|-------|")
+    md.append(f"| Total trades | {len(trade_log)} |")
+    md.append(f"| Settled | {len(settled)} |")
+    md.append(f"| Open/Pending | {len(unsettled)} |")
 
     if not settled:
-        report_line("\n  No settled trades yet -- run 'settle' after markets resolve.")
+        rprint("\n  No settled trades yet -- run 'settle' after markets resolve.")
+        md.append(f"")
+        md.append(f"> No settled trades yet -- run `settle` after markets resolve.")
 
-        # Show open positions summary
         if unsettled:
-            report_line(f"\nOpen Positions")
             total_exposure = sum(t.get("cost_dollars", 0) for t in unsettled)
-            report_line(f"  Total exposure: ${total_exposure:.2f}")
+            rprint(f"\nOpen Positions")
+            rprint(f"  Total exposure: ${total_exposure:.2f}")
+            md.append(f"")
+            md.append(f"## Open Positions")
+            md.append(f"")
+            md.append(f"**Total exposure:** ${total_exposure:.2f}")
+            md.append(f"")
+            md.append(f"| Ticker | Side | Contracts | Price | Edge |")
+            md.append(f"|--------|------|-----------|-------|------|")
             for t in unsettled:
-                report_line(
+                rprint(
                     f"  {t['ticker'][:40]} | {t['side'].upper()} x{t.get('contracts',0)} "
                     f"@ ${t.get('price_cents',0)/100:.2f} | edge={t.get('edge_estimated',0):.1%}"
                 )
+                md.append(
+                    f"| {t['ticker'][:40]} | {t['side'].upper()} | "
+                    f"{t.get('contracts',0)} | ${t.get('price_cents',0)/100:.2f} | "
+                    f"{t.get('edge_estimated',0):.1%} |"
+                )
 
         if save:
-            _save_report_file(lines)
+            _save_report_file(md)
         return
 
     # ── Aggregate stats
@@ -290,59 +308,112 @@ def generate_report(detail: bool = False, save: bool = False):
     avg_loss = sum(t.get("net_pnl", 0) for t in losses) / len(losses) if losses else 0
     roi = total_pnl / total_wagered if total_wagered > 0 else 0
 
-    report_line(f"\n[bold]P&L Summary[/bold]")
     pnl_color = "green" if total_pnl >= 0 else "red"
-    report_line(f"  Net P&L:         [{pnl_color}]${total_pnl:+.2f}[/{pnl_color}]")
-    report_line(f"  Total wagered:   ${total_wagered:.2f}")
-    report_line(f"  Total fees:      ${total_fees:.2f}")
-    report_line(f"  ROI:             [{pnl_color}]{roi:+.1%}[/{pnl_color}]")
+    rprint(f"\n[bold]P&L Summary[/bold]")
+    rprint(f"  Net P&L:         [{pnl_color}]${total_pnl:+.2f}[/{pnl_color}]")
+    rprint(f"  Total wagered:   ${total_wagered:.2f}")
+    rprint(f"  Total fees:      ${total_fees:.2f}")
+    rprint(f"  ROI:             [{pnl_color}]{roi:+.1%}[/{pnl_color}]")
 
-    report_line(f"\n[bold]Win/Loss[/bold]")
-    report_line(f"  Record:          {len(wins)}W - {len(losses)}L ({win_rate:.0%})")
-    report_line(f"  Avg win:         ${avg_win:+.2f}")
-    report_line(f"  Avg loss:        ${avg_loss:+.2f}")
+    md.append(f"")
+    md.append(f"## P&L Summary")
+    md.append(f"")
+    md.append(f"| Metric | Value |")
+    md.append(f"|--------|-------|")
+    md.append(f"| Net P&L | **${total_pnl:+.2f}** |")
+    md.append(f"| Total wagered | ${total_wagered:.2f} |")
+    md.append(f"| Total fees | ${total_fees:.2f} |")
+    md.append(f"| ROI | **{roi:+.1%}** |")
+
+    rprint(f"\n[bold]Win/Loss[/bold]")
+    rprint(f"  Record:          {len(wins)}W - {len(losses)}L ({win_rate:.0%})")
+    rprint(f"  Avg win:         ${avg_win:+.2f}")
+    rprint(f"  Avg loss:        ${avg_loss:+.2f}")
+
+    md.append(f"")
+    md.append(f"## Win/Loss")
+    md.append(f"")
+    md.append(f"| Metric | Value |")
+    md.append(f"|--------|-------|")
+    md.append(f"| Record | {len(wins)}W - {len(losses)}L ({win_rate:.0%}) |")
+    md.append(f"| Avg win | ${avg_win:+.2f} |")
+    md.append(f"| Avg loss | ${avg_loss:+.2f} |")
 
     if wins and losses:
         profit_factor = abs(sum(t["net_pnl"] for t in wins)) / abs(sum(t["net_pnl"] for t in losses))
-        report_line(f"  Profit factor:   {profit_factor:.2f}")
+        rprint(f"  Profit factor:   {profit_factor:.2f}")
+        md.append(f"| Profit factor | {profit_factor:.2f} |")
 
     best = max(settled, key=lambda t: t.get("net_pnl", 0))
     worst = min(settled, key=lambda t: t.get("net_pnl", 0))
-    report_line(f"  Best trade:      ${best['net_pnl']:+.2f} ({best['ticker'][:30]})")
-    report_line(f"  Worst trade:     ${worst['net_pnl']:+.2f} ({worst['ticker'][:30]})")
+    rprint(f"  Best trade:      ${best['net_pnl']:+.2f} ({best['ticker'][:30]})")
+    rprint(f"  Worst trade:     ${worst['net_pnl']:+.2f} ({worst['ticker'][:30]})")
+    md.append(f"| Best trade | ${best['net_pnl']:+.2f} (`{best['ticker'][:30]}`) |")
+    md.append(f"| Worst trade | ${worst['net_pnl']:+.2f} (`{worst['ticker'][:30]}`) |")
 
     # ── Edge calibration
-    report_line(f"\n[bold]Edge Calibration[/bold]")
     avg_edge_est = sum(t.get("edge_estimated", 0) for t in settled) / len(settled)
-    edge_realized = roi  # actual ROI is our realized edge
+    edge_realized = roi
 
-    report_line(f"  Avg estimated edge:  {avg_edge_est:.1%}")
-    report_line(f"  Realized edge (ROI): {edge_realized:+.1%}")
+    rprint(f"\n[bold]Edge Calibration[/bold]")
+    rprint(f"  Avg estimated edge:  {avg_edge_est:.1%}")
+    rprint(f"  Realized edge (ROI): {edge_realized:+.1%}")
+
+    md.append(f"")
+    md.append(f"## Edge Calibration")
+    md.append(f"")
+    md.append(f"| Metric | Value |")
+    md.append(f"|--------|-------|")
+    md.append(f"| Avg estimated edge | {avg_edge_est:.1%} |")
+    md.append(f"| Realized edge (ROI) | {edge_realized:+.1%} |")
+
     if avg_edge_est > 0:
         realization = edge_realized / avg_edge_est
-        report_line(f"  Edge realization:    {realization:.0%}")
+        rprint(f"  Edge realization:    {realization:.0%}")
+        md.append(f"| Edge realization | {realization:.0%} |")
 
-    # CLV (Closing Line Value) — measures if we got a better price than the close
+    # CLV (Closing Line Value)
     clv_trades = [t for t in settled if t.get("clv") is not None]
     if clv_trades:
         avg_clv = sum(t["clv"] for t in clv_trades) / len(clv_trades)
         positive_clv = sum(1 for t in clv_trades if t["clv"] > 0)
         clv_color = "green" if avg_clv > 0 else "red"
-        report_line(f"\n[bold]Closing Line Value (CLV)[/bold]")
-        report_line(f"  Avg CLV:             [{clv_color}]{avg_clv:+.1%}[/{clv_color}]")
-        report_line(f"  Beat the close:      {positive_clv}/{len(clv_trades)} ({positive_clv/len(clv_trades):.0%})")
+        rprint(f"\n[bold]Closing Line Value (CLV)[/bold]")
+        rprint(f"  Avg CLV:             [{clv_color}]{avg_clv:+.1%}[/{clv_color}]")
+        rprint(f"  Beat the close:      {positive_clv}/{len(clv_trades)} ({positive_clv/len(clv_trades):.0%})")
+
+        md.append(f"")
+        md.append(f"## Closing Line Value (CLV)")
+        md.append(f"")
+        md.append(f"| Metric | Value |")
+        md.append(f"|--------|-------|")
+        md.append(f"| Avg CLV | {avg_clv:+.1%} |")
+        md.append(f"| Beat the close | {positive_clv}/{len(clv_trades)} ({positive_clv/len(clv_trades):.0%}) |")
 
     # By confidence level
+    conf_rows = []
     for conf in ["high", "medium", "low"]:
         conf_trades = [t for t in settled if t.get("confidence") == conf]
         if conf_trades:
             conf_pnl = sum(t.get("net_pnl", 0) for t in conf_trades)
             conf_wins = sum(1 for t in conf_trades if t.get("settlement_won"))
-            report_line(
+            rprint(
                 f"  {conf:>8}: {len(conf_trades)} trades, "
                 f"${conf_pnl:+.2f}, "
                 f"{conf_wins}/{len(conf_trades)} wins"
             )
+            conf_rows.append(
+                f"| {conf.capitalize()} | {len(conf_trades)} | ${conf_pnl:+.2f} | "
+                f"{conf_wins}/{len(conf_trades)} |"
+            )
+
+    if conf_rows:
+        md.append(f"")
+        md.append(f"### By Confidence")
+        md.append(f"")
+        md.append(f"| Confidence | Trades | P&L | Wins |")
+        md.append(f"|------------|--------|-----|------|")
+        md.extend(conf_rows)
 
     # By category
     categories = {}
@@ -356,15 +427,24 @@ def generate_report(detail: bool = False, save: bool = False):
             categories[cat]["wins"] += 1
 
     if len(categories) > 1:
-        report_line(f"\n[bold]By Category[/bold]")
+        rprint(f"\n[bold]By Category[/bold]")
+        md.append(f"")
+        md.append(f"### By Category")
+        md.append(f"")
+        md.append(f"| Category | Trades | P&L | Wins |")
+        md.append(f"|----------|--------|-----|------|")
         for cat, stats in sorted(categories.items(), key=lambda x: -x[1]["pnl"]):
-            report_line(
+            rprint(
                 f"  {cat:>12}: {stats['trades']} trades, "
                 f"${stats['pnl']:+.2f}, "
                 f"{stats['wins']}/{stats['trades']} wins"
             )
+            md.append(
+                f"| {cat} | {stats['trades']} | ${stats['pnl']:+.2f} | "
+                f"{stats['wins']}/{stats['trades']} |"
+            )
 
-    # ── Detail table (console-only Rich table + plain-text for file)
+    # ── Detail table
     if detail:
         rprint("")
         table = Table(title="Trade Detail", show_lines=True)
@@ -377,9 +457,11 @@ def generate_report(detail: bool = False, save: bool = False):
         table.add_column("Edge Est", justify="right")
         table.add_column("ROI", justify="right")
 
-        lines.append("")
-        lines.append(f"{'Ticker':<32} {'Side':<5} {'Result':<10} {'Cost':>8} {'Revenue':>8} {'P&L':>8} {'Edge':>8} {'ROI':>6}")
-        lines.append("-" * 100)
+        md.append(f"")
+        md.append(f"## Trade Detail")
+        md.append(f"")
+        md.append(f"| Ticker | Side | Result | Cost | Revenue | P&L | Edge | ROI |")
+        md.append(f"|--------|------|--------|------|---------|-----|------|-----|")
 
         for t in sorted(settled, key=lambda x: x.get("closed_at", "")):
             pnl = t.get("net_pnl", 0)
@@ -397,18 +479,18 @@ def generate_report(detail: bool = False, save: bool = False):
                 f"{t.get('edge_estimated', 0):.1%}",
                 f"{t.get('settlement_roi', 0):+.0%}",
             )
-            lines.append(
-                f"{t['ticker'][:30]:<32} {t.get('side','').upper():<5} "
-                f"{result.upper()} ({won})  "
-                f"${t.get('cost_dollars',0):>7.2f} ${t.get('settlement_revenue',0):>7.2f} "
-                f"${pnl:>+7.2f} {t.get('edge_estimated',0):>7.1%} "
-                f"{t.get('settlement_roi',0):>+5.0%}"
+            md.append(
+                f"| `{t['ticker'][:30]}` | {t.get('side','').upper()} | "
+                f"{result.upper()} ({won}) | "
+                f"${t.get('cost_dollars',0):.2f} | ${t.get('settlement_revenue',0):.2f} | "
+                f"${pnl:+.2f} | {t.get('edge_estimated',0):.1%} | "
+                f"{t.get('settlement_roi',0):+.0%} |"
             )
         console.print(table)
 
     # ── Save to file
     if save:
-        _save_report_file(lines)
+        _save_report_file(md)
 
 
 def _save_report_file(lines: list[str]):
@@ -417,7 +499,7 @@ def _save_report_file(lines: list[str]):
     report_dir.mkdir(parents=True, exist_ok=True)
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    report_path = report_dir / f"kalshi_report_{today}.txt"
+    report_path = report_dir / f"kalshi_report_{today}.md"
 
     with open(report_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
