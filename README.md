@@ -243,7 +243,9 @@ Edge-Radar/
 │   ├── prediction/          # Crypto, weather, S&P, politics edge
 │   ├── polymarket/          # Polymarket cross-reference edge detection
 │   ├── shared/              # Config, team stats, weather, ticker display
-│   └── schedulers/          # Automated per-market recurring pipelines
+│   └── schedulers/          # Automation & scheduled scan jobs
+│       ├── morning_scans/   # Per-sport .bat scan jobs (MLB, NBA, NFL, NHL)
+│       └── automation/      # Python scripts (daily scan, Windows Task Scheduler)
 ├── tests/                   # 83 pytest tests (risk gates, edge math, weather)
 ├── docs/                    # 8 guides (see Documentation below)
 ├── data/                    # Trade history, settlements, watchlists

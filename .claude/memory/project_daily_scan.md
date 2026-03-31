@@ -11,7 +11,7 @@ Daily morning sports scan is active as of 2026-03-23.
 **How:** Windows Task Scheduler under `Edge-Radar\DailyScan`. Runs at 8:00 AM local time daily.
 
 **Manage:**
-- `python scripts/schedulers/install_windows_task.py status` — check task
-- `python scripts/schedulers/install_windows_task.py run` — trigger manually
-- `python scripts/schedulers/install_windows_task.py remove` — delete task
+- `python scripts/schedulers/automation/install_windows_task.py status` — check task
+- `python scripts/schedulers/automation/install_windows_task.py run` — trigger manually
+- `python scripts/schedulers/automation/install_windows_task.py remove` — delete task
 - `taskschd.msc` → Edge-Radar folder for GUI management

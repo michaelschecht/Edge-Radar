@@ -596,12 +596,12 @@ python scripts/kalshi/fetch_market_data.py [flags]
 
 ## daily_sports_scan.py — Daily Morning Report
 
-**Location:** `scripts/schedulers/daily_sports_scan.py`
+**Location:** `scripts/schedulers/automation/daily_sports_scan.py`
 
 **When to use:** Generate a morning edge report scanning MLB, NBA, NHL, and NFL. Run manually or schedule with Windows Task Scheduler / cron.
 
 ```bash
-python scripts/schedulers/daily_sports_scan.py [flags]
+python scripts/schedulers/automation/daily_sports_scan.py [flags]
 ```
 
 | Flag | Default | Description |
@@ -613,10 +613,10 @@ python scripts/schedulers/daily_sports_scan.py [flags]
 
 ```bash
 # Run once now, top 25
-python scripts/schedulers/daily_sports_scan.py
+python scripts/schedulers/automation/daily_sports_scan.py
 
 # Top 50 opportunities
-python scripts/schedulers/daily_sports_scan.py --top 50
+python scripts/schedulers/automation/daily_sports_scan.py --top 50
 ```
 
 **Output:** Report saved to `reports/Sports/daily_edge_reports/YYYY-MM-DD_morning_scan.md` with edge, fair value, confidence, team stats, sharp money signals, and weather notes.
@@ -625,15 +625,15 @@ python scripts/schedulers/daily_sports_scan.py --top 50
 
 ## install_windows_task.py — Windows Task Scheduler Setup
 
-**Location:** `scripts/schedulers/install_windows_task.py`
+**Location:** `scripts/schedulers/automation/install_windows_task.py`
 
 **When to use:** Install the daily morning scan as a Windows Scheduled Task that runs automatically at 8:00 AM.
 
 ```bash
-python scripts/schedulers/install_windows_task.py install   # Create the task
-python scripts/schedulers/install_windows_task.py status    # Check if installed
-python scripts/schedulers/install_windows_task.py run       # Trigger now (test)
-python scripts/schedulers/install_windows_task.py remove    # Remove the task
+python scripts/schedulers/automation/install_windows_task.py install   # Create the task
+python scripts/schedulers/automation/install_windows_task.py status    # Check if installed
+python scripts/schedulers/automation/install_windows_task.py run       # Trigger now (test)
+python scripts/schedulers/automation/install_windows_task.py remove    # Remove the task
 ```
 
 ---
