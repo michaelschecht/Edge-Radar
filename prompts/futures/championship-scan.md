@@ -3,7 +3,7 @@
 Scan all available championship/futures markets and find the best edges. Compare Kalshi prices against sportsbook outright odds.
 
 ```
-python scripts/kalshi/futures_edge.py scan --min-edge 0.01 --top 20
+python scripts/scan.py futures --min-edge 0.01 --top 20
 ```
 
 For each opportunity:
@@ -13,4 +13,4 @@ For each opportunity:
 - Whether this is a YES bet (team wins) or NO bet (team doesn't win)
 - Capital lockup period (when does this settle?)
 
-Rank by edge and tell me which 3-5 are worth betting on.
+Rank by edge and tell me which 3-5 are worth betting on. Be honest about liquidity concerns.
