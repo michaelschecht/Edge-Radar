@@ -3,7 +3,7 @@
 Scan all TV mention and word count markets for edge based on historical settlement patterns.
 
 ```
-python scripts/prediction/prediction_scanner.py scan --filter mentions --min-edge 0.05 --top 15
+python scripts/scan.py prediction --filter mentions --min-edge 0.05 --top 15
 ```
 
 Show me:

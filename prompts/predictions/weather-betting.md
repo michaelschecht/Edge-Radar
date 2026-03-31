@@ -3,7 +3,7 @@
 Scan weather markets for temperature mispricing. These are some of the most inefficient markets on Kalshi.
 
 ```
-python scripts/prediction/prediction_scanner.py scan --filter weather --min-edge 0.05 --top 15
+python scripts/scan.py prediction --filter weather --min-edge 0.05 --top 15
 ```
 
 For each opportunity:

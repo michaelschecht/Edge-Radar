@@ -4,10 +4,10 @@ Give me a quick morning overview of what's happening across all prediction marke
 
 ```
 python scripts/kalshi/kalshi_executor.py status
-python scripts/prediction/prediction_scanner.py scan --filter crypto --min-edge 0.03 --top 5
-python scripts/prediction/prediction_scanner.py scan --filter weather --min-edge 0.05 --top 5
-python scripts/prediction/prediction_scanner.py scan --filter spx --min-edge 0.03 --top 5
-python scripts/prediction/prediction_scanner.py scan --filter mentions --min-edge 0.05 --top 3
+python scripts/scan.py prediction --filter crypto --min-edge 0.03 --top 5
+python scripts/scan.py prediction --filter weather --min-edge 0.05 --top 5
+python scripts/scan.py prediction --filter spx --min-edge 0.03 --top 5
+python scripts/scan.py prediction --filter mentions --min-edge 0.05 --top 3
 ```
 
 Format as a brief:

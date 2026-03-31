@@ -3,7 +3,7 @@
 Check S&P 500 binary options for edge using current SPX price and VIX.
 
 ```
-python scripts/prediction/prediction_scanner.py scan --filter spx --min-edge 0.03 --top 15
+python scripts/scan.py prediction --filter spx --min-edge 0.03 --top 15
 ```
 
 Tell me:

@@ -3,10 +3,10 @@
 Run a weekly scan of all futures markets and compare to last week's report. Track how edges are moving.
 
 ```
-python scripts/kalshi/futures_edge.py scan --filter nfl-futures --min-edge 0.005 --top 15
-python scripts/kalshi/futures_edge.py scan --filter nba-futures --min-edge 0.005 --top 15
-python scripts/kalshi/futures_edge.py scan --filter nhl-futures --min-edge 0.005 --top 15
-python scripts/kalshi/futures_edge.py scan --filter mlb-futures --min-edge 0.005 --top 15
+python scripts/scan.py futures --filter nfl-futures --min-edge 0.005 --top 15 --save
+python scripts/scan.py futures --filter nba-futures --min-edge 0.005 --top 15 --save
+python scripts/scan.py futures --filter nhl-futures --min-edge 0.005 --top 15 --save
+python scripts/scan.py futures --filter mlb-futures --min-edge 0.005 --top 15 --save
 ```
 
 For each sport, summarize:
@@ -15,4 +15,5 @@ For each sport, summarize:
 - Any edges that closed (were available last week, gone now)
 - Top pick per sport with confidence rating
 
-Save the combined report to `reports/weekly/YYYY-MM-DD_futures_weekly.md`.
+Check previous reports in `reports/Futures/` for week-over-week comparison.
+Save the combined report to `reports/Futures/weekly/YYYY-MM-DD_futures_weekly.md`.

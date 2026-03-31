@@ -3,7 +3,7 @@
 Scan all crypto prediction markets (Bitcoin, Ethereum, XRP, Dogecoin, Solana) for mispriced binary options.
 
 ```
-python scripts/prediction/prediction_scanner.py scan --filter crypto --min-edge 0.03 --top 15
+python scripts/scan.py prediction --filter crypto --min-edge 0.03 --top 15
 ```
 
 For each opportunity tell me:
@@ -15,3 +15,8 @@ For each opportunity tell me:
 - Is this a momentum play or a mean-reversion play?
 
 Which crypto asset has the most inefficient Kalshi pricing right now?
+
+To cross-reference against Polymarket prices, add `--cross-ref`:
+```
+python scripts/scan.py prediction --filter crypto --cross-ref --min-edge 0.03 --top 15
+```
