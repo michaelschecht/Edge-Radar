@@ -72,6 +72,7 @@ Edge-Radar/
 ├── notebooks/
 │   └── analysis/                    # Research notebooks
 └── scripts/
+    ├── scan.py                      # Unified scan entry point (routes to scanners)
     ├── kalshi/                      # Kalshi betting scripts
     │   ├── kalshi_client.py         # Authenticated Kalshi API client
     │   ├── kalshi_executor.py       # Risk management & order execution
@@ -180,14 +181,14 @@ See `mcp-config/mcp-servers.md` for full setup. Quick reference:
 # Install dependencies
 pip install -r requirements.txt
 
-# Run market scanner (dry run)
-python scripts/kalshi/fetch_odds.py --market sports --dry-run
+# Unified scanner (routes to the right scanner)
+python scripts/scan.py sports --filter mlb --date today --save
+python scripts/scan.py futures --filter nba-futures
+python scripts/scan.py prediction --filter crypto --cross-ref
+python scripts/scan.py polymarket --filter crypto
 
 # Check current positions
 python scripts/kalshi/risk_check.py --report positions
-
-# Run backtest for a strategy
-python strategies/value-betting/backtest.py --days 30
 
 # Launch Claude Code with all MCP servers
 claude --config mcp-config/claude_desktop_config.json

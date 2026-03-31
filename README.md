@@ -88,10 +88,10 @@ pip install -r requirements.txt
 cp .env.example .env            # fill in KALSHI_API_KEY, ODDS_API_KEYS
 
 # 2. Scan for opportunities (preview only)
-python scripts/kalshi/edge_detector.py scan --filter nba
+python scripts/scan.py sports --filter nba
 
 # 3. Execute after reviewing
-python scripts/kalshi/edge_detector.py scan --filter nba --execute --unit-size 1 --max-bets 5
+python scripts/scan.py sports --filter nba --execute --unit-size 1 --max-bets 5
 
 # 4. Settle and check P&L
 python scripts/kalshi/kalshi_settler.py report --detail --save
@@ -108,61 +108,61 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 
 ```bash
 # Scan any sport directly
-python scripts/kalshi/edge_detector.py scan --filter nhl
-python scripts/kalshi/edge_detector.py scan --filter mlb
-python scripts/kalshi/edge_detector.py scan --filter ncaamb
+python scripts/scan.py sports --filter nhl
+python scripts/scan.py sports --filter mlb
+python scripts/scan.py sports --filter ncaamb
 
 # Execute with custom sizing
-python scripts/kalshi/edge_detector.py scan --filter mlb --execute --unit-size 1 --max-bets 10
+python scripts/scan.py sports --filter mlb --execute --unit-size 1 --max-bets 10
 
 # Tomorrow's games only, skip games you already bet on
-python scripts/kalshi/edge_detector.py scan --filter mlb --date tomorrow --exclude-open
+python scripts/scan.py sports --filter mlb --date tomorrow --exclude-open
 
 # Save scan results to watchlist
-python scripts/kalshi/edge_detector.py scan --filter nba --save
+python scripts/scan.py sports --filter nba --save
 ```
 
 **Championship Futures**
 
 ```bash
 # Scan futures markets
-python scripts/kalshi/futures_edge.py scan --filter nba-futures
-python scripts/kalshi/futures_edge.py scan --filter nhl-futures
+python scripts/scan.py futures --filter nba-futures
+python scripts/scan.py futures --filter nhl-futures
 
 # Execute futures picks
-python scripts/kalshi/futures_edge.py scan --filter mlb-futures --execute --unit-size 2 --max-bets 5
+python scripts/scan.py futures --filter mlb-futures --execute --unit-size 2 --max-bets 5
 
 # Save futures scan to watchlist
-python scripts/kalshi/futures_edge.py scan --filter nba-futures --save
+python scripts/scan.py futures --filter nba-futures --save
 ```
 
 **Prediction Markets**
 
 ```bash
 # Scan by category
-python scripts/prediction/prediction_scanner.py scan --filter crypto
-python scripts/prediction/prediction_scanner.py scan --filter weather
-python scripts/prediction/prediction_scanner.py scan --filter spx
+python scripts/scan.py prediction --filter crypto
+python scripts/scan.py prediction --filter weather
+python scripts/scan.py prediction --filter spx
 
 # Execute with sizing
-python scripts/prediction/prediction_scanner.py scan --filter crypto --execute --unit-size 1 --max-bets 5
+python scripts/scan.py prediction --filter crypto --execute --unit-size 1 --max-bets 5
 
 # Cross-reference against Polymarket
-python scripts/prediction/prediction_scanner.py scan --filter crypto --cross-ref
+python scripts/scan.py prediction --filter crypto --cross-ref
 ```
 
 **Polymarket Cross-Reference**
 
 ```bash
 # Scan for cross-market edges
-python scripts/polymarket/polymarket_edge.py scan
-python scripts/polymarket/polymarket_edge.py scan --filter crypto
+python scripts/scan.py polymarket
+python scripts/scan.py polymarket --filter crypto
 
 # Execute Polymarket-validated picks
-python scripts/polymarket/polymarket_edge.py scan --execute --unit-size 1 --max-bets 5
+python scripts/scan.py polymarket --execute --unit-size 1 --max-bets 5
 
 # Save results and find matches
-python scripts/polymarket/polymarket_edge.py scan --save
+python scripts/scan.py polymarket --save
 python scripts/polymarket/polymarket_edge.py match KXBTC-28MAR26-T88000
 ```
 
@@ -239,6 +239,7 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 ```
 Edge-Radar/
 ├── scripts/
+│   ├── scan.py              # Unified entry point → sports/futures/prediction/polymarket
 │   ├── kalshi/              # Scan ── Size ── Execute ── Settle
 │   ├── prediction/          # Crypto, weather, S&P, politics edge
 │   ├── polymarket/          # Polymarket cross-reference edge detection
