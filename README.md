@@ -289,9 +289,5 @@ All external data is **free**. Only Kalshi requires a funded account.
 ---
 
 <p align="center">
-  <sub>Built with <a href="https://claude.com/claude-code">Claude Code</a> &middot; Powered by <a href="https://kalshi.com">Kalshi</a></sub>
-</p>
-
-<p align="center">
   <a href="#top"><img src="https://img.shields.io/badge/%E2%86%91-Back%20to%20Top-6B7280?style=flat-square" alt="Back to top"></a>
 </p>
