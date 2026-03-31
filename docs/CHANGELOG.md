@@ -2,6 +2,24 @@
 
 ---
 
+## 2026-03-31 -- Scheduler Reorganization, Env & Report Cleanup
+
+### Scheduler Directory Reorganization
+- Moved 4 `.bat` morning scan jobs to `scripts/schedulers/morning_scans/`
+- Moved 2 Python automation scripts to `scripts/schedulers/automation/`
+- Fixed `PROJECT_ROOT` depth in `install_windows_task.py` for new path
+- Updated all path references in CLAUDE.md, README.md, SCRIPTS_REFERENCE.md
+
+### P7. `MAX_BET_SIZE_SPORTS` Added to `.env.example`
+- Added `MAX_BET_SIZE_SPORTS=50` — was referenced in CLAUDE.md and used by `risk_check.py` but missing from the env template
+
+### P8. Report Output Format Unified
+- Confirmed all scanners support `--save` for markdown reports
+- `kalshi_executor.py run` delegates scanning to dedicated scanners (which have `--save`), so no gap remains
+- Marked complete in roadmap
+
+---
+
 ## 2026-03-30 -- Unified CLI, Readable Displays, Date Filtering, Project Cleanup
 
 ### Unified CLI Flags Across All Scanners
