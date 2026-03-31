@@ -3,10 +3,10 @@ install_windows_task.py
 Create, update, or remove the Edge-Radar daily scan as a Windows Scheduled Task.
 
 Usage:
-    python scripts/schedulers/install_windows_task.py install    # Create the task
-    python scripts/schedulers/install_windows_task.py remove     # Remove the task
-    python scripts/schedulers/install_windows_task.py status     # Check if task exists
-    python scripts/schedulers/install_windows_task.py run        # Run the task now (test)
+    python scripts/schedulers/automation/install_windows_task.py install    # Create the task
+    python scripts/schedulers/automation/install_windows_task.py remove     # Remove the task
+    python scripts/schedulers/automation/install_windows_task.py status     # Check if task exists
+    python scripts/schedulers/automation/install_windows_task.py run        # Run the task now (test)
 """
 
 import os
@@ -19,9 +19,9 @@ from pathlib import Path
 
 TASK_NAME = "Edge-Radar\\DailyScan"
 SCAN_TIME = "08:00"  # 8:00 AM local time
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 PYTHON_EXE = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
-SCRIPT_PATH = PROJECT_ROOT / "scripts" / "schedulers" / "daily_sports_scan.py"
+SCRIPT_PATH = PROJECT_ROOT / "scripts" / "schedulers" / "automation" / "daily_sports_scan.py"
 
 
 def _run_schtasks(args: list[str], check: bool = True) -> subprocess.CompletedProcess:

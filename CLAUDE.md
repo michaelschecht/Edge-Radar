@@ -96,8 +96,14 @@ Edge-Radar/
     │   ├── ticker_display.py        # Ticker parsing: matchups, dates, team names
     │   └── report_writer.py         # Markdown scan report generator
     └── schedulers/                  # Automation helpers
-        ├── daily_sports_scan.py     # Morning edge report (all sports)
-        └── install_windows_task.py  # Windows Task Scheduler setup
+        ├── morning_scans/           # Per-sport .bat scan jobs
+        │   ├── mlb_morning_scan.bat
+        │   ├── nba_morning_scan.bat
+        │   ├── nfl_morning_scan.bat
+        │   └── nhl_morning_scan.bat
+        └── automation/              # Python automation scripts
+            ├── daily_sports_scan.py     # Morning edge report (all sports)
+            └── install_windows_task.py  # Windows Task Scheduler setup
 ```
 
 ---
@@ -187,10 +193,10 @@ python strategies/value-betting/backtest.py --days 30
 claude --config mcp-config/claude_desktop_config.json
 
 # Daily morning edge report
-python scripts/schedulers/daily_sports_scan.py
+python scripts/schedulers/automation/daily_sports_scan.py
 
 # Install as Windows Scheduled Task (8 AM daily)
-python scripts/schedulers/install_windows_task.py install
+python scripts/schedulers/automation/install_windows_task.py install
 ```
 
 ---
