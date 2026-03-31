@@ -2,7 +2,14 @@
 
 ---
 
-## 2026-03-31 -- Scheduler Reorganization, Env & Report Cleanup
+## 2026-03-31 -- Unified Scanner, Scheduler Reorganization, Env & Report Cleanup
+
+### P9. Unified Scan Entry Point (`scripts/scan.py`)
+- Single entry point routing to all 4 scanners: `sports`, `futures`, `prediction`, `polymarket`
+- Auto-inserts `scan` subcommand when omitted
+- Aliases: `sport`, `pred`, `poly`, `xref`
+- All flags forwarded directly via subprocess — no duplicate argument parsing
+- Updated Quick Start, More Examples, Daily Workflow, and Scripts Reference to use `scan.py`
 
 ### Scheduler Directory Reorganization
 - Moved 4 `.bat` morning scan jobs to `scripts/schedulers/morning_scans/`

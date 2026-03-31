@@ -7,6 +7,7 @@ Complete guide to every script, when to use it, and what flags are available.
 ## Table of Contents
 
 - [Which Script Should I Use?](#which-script-should-i-use)
+- [scan.py — Unified Scanner](#scanpy--unified-scanner)
 - [Daily Workflow](#daily-workflow)
 - [edge_detector.py — Sports Edge Scanner](#edge_detectorpy--sports-edge-scanner)
 - [futures_edge.py — Futures & Championship Scanner](#futures_edgepy--futures--championship-scanner)
@@ -27,14 +28,14 @@ Complete guide to every script, when to use it, and what flags are available.
 
 ### "I want to scan for bets"
 
-Use the **dedicated scanner** for your market type. Each scanner finds edge, shows readable matchups with game dates, and can execute directly with `--execute`.
+Use `scripts/scan.py` as the unified entry point, or call a dedicated scanner directly. All flags are forwarded.
 
-| Market | Script | Example |
-|--------|--------|---------|
-| **Sports** (NBA, MLB, NHL, NFL, NCAA, etc.) | `edge_detector.py scan` | `--filter mlb` |
-| **Championship Futures** (World Series, Super Bowl, etc.) | `futures_edge.py scan` | `--filter nba-futures` |
-| **Prediction Markets** (crypto, weather, S&P 500, politics) | `prediction_scanner.py scan` | `--filter crypto` |
-| **Polymarket Cross-Reference** (Kalshi vs Polymarket prices) | `polymarket_edge.py scan` | `--filter crypto` |
+| Market | Unified | Direct Script |
+|--------|---------|---------------|
+| **Sports** (NBA, MLB, NHL, NFL, NCAA, etc.) | `scan.py sports --filter mlb` | `edge_detector.py scan --filter mlb` |
+| **Championship Futures** (World Series, Super Bowl, etc.) | `scan.py futures --filter nba-futures` | `futures_edge.py scan --filter nba-futures` |
+| **Prediction Markets** (crypto, weather, S&P 500, politics) | `scan.py prediction --filter crypto` | `prediction_scanner.py scan --filter crypto` |
+| **Polymarket Cross-Reference** (Kalshi vs Polymarket prices) | `scan.py polymarket --filter crypto` | `polymarket_edge.py scan --filter crypto` |
 
 All scanners share the same flags: `--execute`, `--unit-size`, `--max-bets`, `--pick`, `--ticker`, `--save`, `--date`, `--exclude-open`.
 
@@ -44,10 +45,10 @@ Add `--execute` to any scanner. Without it, you get a preview table. With it, or
 
 ```bash
 # Preview first (no money risked)
-python scripts/kalshi/edge_detector.py scan --filter mlb --unit-size 1 --max-bets 10
+python scripts/scan.py sports --filter mlb --unit-size 1 --max-bets 10
 
 # Then execute (add --execute)
-python scripts/kalshi/edge_detector.py scan --filter mlb --unit-size 1 --max-bets 10 --execute
+python scripts/scan.py sports --filter mlb --unit-size 1 --max-bets 10 --execute
 ```
 
 ### "I want to check my portfolio"
@@ -79,6 +80,36 @@ For everything else, **use the dedicated scanners directly** — they show more 
 
 ---
 
+## scan.py — Unified Scanner
+
+**Location:** `scripts/scan.py`
+
+**When to use:** Single entry point for all scanners. Routes to the correct scanner based on market type. All flags are forwarded directly.
+
+```bash
+python scripts/scan.py <market-type> [flags]
+```
+
+| Market Type | Aliases | Routes To |
+|-------------|---------|-----------|
+| `sports` | `sport` | `edge_detector.py scan` |
+| `futures` | — | `futures_edge.py scan` |
+| `prediction` | `pred` | `prediction_scanner.py scan` |
+| `polymarket` | `poly`, `xref` | `polymarket_edge.py scan` |
+
+**Examples:**
+
+```bash
+python scripts/scan.py sports --filter mlb --date today --save
+python scripts/scan.py futures --filter nba-futures --top 10
+python scripts/scan.py prediction --filter crypto --cross-ref
+python scripts/scan.py polymarket --filter crypto --min-edge 0.05
+```
+
+The `scan` subcommand is auto-inserted if omitted. Use `<market-type> --help` to see the full flag list for each scanner.
+
+---
+
 ## Daily Workflow
 
 ### Morning
@@ -98,33 +129,33 @@ python scripts/kalshi/risk_check.py --report limits
 
 ```bash
 # 4. Scan sports (preview only — no money risked)
-python scripts/kalshi/edge_detector.py scan --filter nba
-python scripts/kalshi/edge_detector.py scan --filter mlb
-python scripts/kalshi/edge_detector.py scan --filter nhl
+python scripts/scan.py sports --filter nba
+python scripts/scan.py sports --filter mlb
+python scripts/scan.py sports --filter nhl
 
 # 5. Only tomorrow's games, skip open positions
-python scripts/kalshi/edge_detector.py scan --filter mlb --date tomorrow --exclude-open
+python scripts/scan.py sports --filter mlb --date tomorrow --exclude-open
 
 # 6. Scan futures
-python scripts/kalshi/futures_edge.py scan --filter nba-futures
-python scripts/kalshi/futures_edge.py scan --filter nhl-futures
+python scripts/scan.py futures --filter nba-futures
+python scripts/scan.py futures --filter nhl-futures
 
 # 7. Scan prediction markets
-python scripts/prediction/prediction_scanner.py scan --filter crypto
-python scripts/prediction/prediction_scanner.py scan --filter weather
+python scripts/scan.py prediction --filter crypto
+python scripts/scan.py prediction --filter weather
 ```
 
 ### Executing Bets
 
 ```bash
 # 8. Execute top picks from a scan
-python scripts/kalshi/edge_detector.py scan --filter mlb --execute --max-bets 10 --unit-size 1
+python scripts/scan.py sports --filter mlb --execute --max-bets 10 --unit-size 1
 
 # 9. Cherry-pick specific rows from preview
-python scripts/kalshi/edge_detector.py scan --filter nba --execute --pick '1,3,5'
+python scripts/scan.py sports --filter nba --execute --pick '1,3,5'
 
 # 10. Execute a specific ticker
-python scripts/kalshi/edge_detector.py scan --filter nba --execute --ticker KXNBAGAME-26MAR25LALBOS-LAL
+python scripts/scan.py sports --filter nba --execute --ticker KXNBAGAME-26MAR25LALBOS-LAL
 ```
 
 ### End of Day
