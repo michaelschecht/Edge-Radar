@@ -1,18 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pip show:*)",
-      "Bash(python -c \"import os; print\\(os.environ.get\\(''AGENTMAIL_API_KEY'', ''NOT SET''\\)[:10]\\)\")",
-      "Bash(python -c \":*)",
-      "Bash(python scripts/send_daily_email.py)",
-      "Bash(python -c \"import os; print\\(os.environ.get\\(''AGENTMAIL_API_KEY'', ''NOT SET''\\)[:10] + ''...'' if os.environ.get\\(''AGENTMAIL_API_KEY''\\) else ''NOT SET''\\)\")",
-      "Bash(python -c \"from agentmail import AgentMail; c = AgentMail\\(\\); inboxes = c.inboxes.list\\(\\); print\\([i.inbox_id for i in inboxes.inboxes[:5]]\\)\")",
-      "Bash(echo $AGENTMAIL_API_KEY)",
-      "Bash(python -c \"from agentmail import AgentMail; c = AgentMail\\(\\); inboxes = c.inboxes.list\\(\\); print\\([\\(i.inbox_id, i.username\\) for i in inboxes.inboxes[:5]]\\)\")",
-      "Bash(python scripts/shared/send_daily_email.py)",
-      "Bash(python -c \"from dotenv import load_dotenv; import os; load_dotenv\\(\\); print\\(os.getenv\\(''AGENTMAIL_API_KEY'',''NOT_SET''\\)[:20]+''...''\\); print\\(''INBOX:'', os.getenv\\(''AGENTMAIL_INBOX_ID'',''NOT_SET''\\)\\)\")",
-      "Bash(python scripts/temp_send_email.py)",
-      "Bash(python -c \"from dotenv import load_dotenv; import os; load_dotenv\\(\\); print\\(os.getenv\\(''AGENTMAIL_API_KEY'',''NOT_SET''\\)[:20]+''...'' if os.getenv\\(''AGENTMAIL_API_KEY''\\) else ''NOT_SET''\\)\")"
+      "Bash(*)"
     ]
   }
 }

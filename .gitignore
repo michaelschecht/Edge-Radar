@@ -10,6 +10,7 @@ keys/
 
 # === Python ===
 __pycache__/
+.pytest_cache/
 *.py[cod]
 *$py.class
 *.so
@@ -62,4 +63,5 @@ reports/sports/
 reports/Futures/
 reports/Predictions/
 docs/enhancements/
-docs/AX-Integration
+docs/AX-Integration/
+scripts/custom/
