@@ -11,6 +11,26 @@
 - All flags forwarded directly via subprocess — no duplicate argument parsing
 - Updated Quick Start, More Examples, Daily Workflow, and Scripts Reference to use `scan.py`
 
+### P10. Documentation Cleanup
+- Updated SPORTS_GUIDE: replaced all `kalshi_executor.py run` with `scan.py sports`, removed duplicated daily workflow (defers to SCRIPTS_REFERENCE), fixed composite score dimensions (3 → 4 with weights), added roadmap cross-link
+- Updated FUTURES_GUIDE and PREDICTION_MARKETS_GUIDE: `scan.py` commands, roadmap cross-links
+- Updated ARCHITECTURE: replaced duplicated Phase 2-4 task lists with pointer to ROADMAP.md
+- Added back-links from SCRIPTS_REFERENCE to all domain guides
+
+### P11. Pre-Commit Hooks (`.pre-commit-config.yaml`)
+- `detect-secrets` — credential leak prevention (requires `.secrets.baseline`)
+- `black` — code formatting (line-length 100)
+- `flake8` — linting (max-line-length 100, ignore E203/W503)
+- `check-json`, `check-yaml` — config file validation
+- `end-of-file-fixer`, `trailing-whitespace` — whitespace hygiene
+- `no-commit-to-branch` — prevents direct commits to master
+- Install: `make hooks` or `pip install pre-commit && pre-commit install`
+
+### P12. Makefile
+- 18 targets: `scan-mlb`, `scan-nba`, `scan-nhl`, `scan-nfl`, `scan-sports`, `scan-futures`, `scan-predictions`, `scan-polymarket`, `scan-all`, `status`, `risk`, `settle`, `report`, `reconcile`, `test`, `test-quick`, `install`, `hooks`
+- `make help` for full reference
+- Note: requires `make` installed (`choco install make` on Windows)
+
 ### Scheduler Directory Reorganization
 - Moved 4 `.bat` morning scan jobs to `scripts/schedulers/morning_scans/`
 - Moved 2 Python automation scripts to `scripts/schedulers/automation/`

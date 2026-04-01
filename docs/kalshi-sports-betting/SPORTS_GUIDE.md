@@ -4,6 +4,7 @@ Consolidated guide for sports betting on Kalshi: scanning markets, detecting edg
 
 For complete CLI flags and command examples, see [Scripts Reference](../SCRIPTS_REFERENCE.md).
 For risk gates and parameters, see [Architecture](../ARCHITECTURE.md).
+For enhancement history and planned features, see [Roadmap](../enhancements/ROADMAP.md).
 
 ---
 
@@ -11,7 +12,6 @@ For risk gates and parameters, see [Architecture](../ARCHITECTURE.md).
 
 - [Quick Start](#quick-start)
 - [Prerequisites](#prerequisites)
-- [Daily Workflow](#daily-workflow)
 - [Sport Filters](#sport-filters)
 - [How Edge Detection Works](#how-edge-detection-works)
 - [Market Categories](#market-categories)
@@ -30,15 +30,17 @@ For risk gates and parameters, see [Architecture](../ARCHITECTURE.md).
 python scripts/kalshi/kalshi_executor.py status
 
 # 2. Preview opportunities (no orders placed)
-python scripts/kalshi/kalshi_executor.py run
+python scripts/scan.py sports --filter mlb --date today --exclude-open
 
-# 3. Execute the top opportunities
-python scripts/kalshi/kalshi_executor.py run --execute --max-bets 5
+# 3. Execute the top picks
+python scripts/scan.py sports --filter mlb --date today --exclude-open --execute --max-bets 5
 
 # 4. After games resolve, settle and review
 python scripts/kalshi/kalshi_settler.py settle
-python scripts/kalshi/kalshi_settler.py report
+python scripts/kalshi/kalshi_settler.py report --detail --save
 ```
+
+> For the full daily workflow (morning, midday, evening), see [Daily Workflow](../SCRIPTS_REFERENCE.md#daily-workflow) in the Scripts Reference.
 
 ---
 
@@ -52,74 +54,17 @@ Before first run, verify:
    KALSHI_API_KEY=<your-key-id>
    KALSHI_PRIVATE_KEY_PATH=keys/live/kalshi_private.key
    KALSHI_BASE_URL=https://api.elections.kalshi.com/trade-api/v2
-   ODDS_API_KEY=<your-odds-api-key>
+   ODDS_API_KEYS=<your-odds-api-key>
    DRY_RUN=false
    ```
 3. **API keys** -- RSA private key in `keys/live/`
-4. **Dependencies** -- `requests`, `cryptography`, `python-dotenv`, `rich`
-
----
-
-## Daily Workflow
-
-### Morning: Scan and Execute
-
-Check positions, settle overnight results, scan today's games, review the preview table, then execute.
-
-```bash
-python scripts/kalshi/kalshi_executor.py status
-python scripts/kalshi/kalshi_settler.py settle
-python scripts/kalshi/kalshi_settler.py report
-python scripts/kalshi/kalshi_executor.py run --filter ncaamb
-python scripts/kalshi/kalshi_executor.py run --filter ncaamb --execute --max-bets 5
-```
-
-The executor pipeline performs these steps automatically:
-1. Pulls all open Kalshi markets (~5000 across all sports)
-2. Fetches sportsbook odds from The Odds API
-3. Calculates fair value via de-vigging for each matched market
-4. Filters to opportunities with edge >= minimum threshold (default 3%)
-5. Sizes bets using the configured unit size
-6. Shows a preview table; places orders only if `--execute` is passed
-
-### During the Day: Monitor
-
-Run `status` for a portfolio dashboard showing balance, open positions, resting orders, and today's wagering activity. Use direct API access for more granular checks.
-
-```bash
-python scripts/kalshi/kalshi_executor.py status
-python scripts/kalshi/kalshi_client.py positions
-python scripts/kalshi/kalshi_client.py orders
-```
-
-### Evening: Settle and Review
-
-After games finish, pull results from Kalshi, update local P&L, and review performance. Use `--detail` for a per-trade breakdown and `--save` to persist the report to disk.
-
-```bash
-python scripts/kalshi/kalshi_settler.py settle
-python scripts/kalshi/kalshi_settler.py report --detail
-python scripts/kalshi/kalshi_settler.py report --detail --save
-```
-
-Reports include: win/loss record, net P&L, total wagered, ROI, profit factor, best/worst trades, edge calibration (estimated vs. realized), and breakdowns by confidence level and market category.
-
-### Multi-Sport Scan
-
-Run a broad scan or target individual sports to find the best edges across the board.
-
-```bash
-python scripts/kalshi/edge_detector.py scan --top 30
-python scripts/kalshi/edge_detector.py scan --filter nba
-python scripts/kalshi/edge_detector.py scan --filter nhl
-python scripts/kalshi/edge_detector.py scan --filter ncaamb
-```
+4. **Dependencies** -- `pip install -r requirements.txt`
 
 ---
 
 ## Sport Filters
 
-Use `--filter` on the executor or edge detector to target a specific sport. This limits the market scan and only fetches odds for that sport, saving Odds API quota.
+Use `--filter` to target a specific sport. This limits the market scan and only fetches odds for that sport, saving Odds API quota.
 
 ### US Major Leagues
 
@@ -188,9 +133,9 @@ Use `--filter` on the executor or edge detector to target a specific sport. This
 You can pass any raw Kalshi ticker prefix directly for markets not covered by named shortcuts:
 
 ```bash
-python scripts/kalshi/edge_detector.py scan --filter KXNHLGOAL    # NHL player goals
-python scripts/kalshi/edge_detector.py scan --filter KXNBA3PT     # NBA 3-pointers
-python scripts/kalshi/edge_detector.py scan --filter KXUFCFIGHT   # UFC fights
+python scripts/scan.py sports --filter KXNHLGOAL    # NHL player goals
+python scripts/scan.py sports --filter KXNBA3PT     # NBA 3-pointers
+python scripts/scan.py sports --filter KXUFCFIGHT   # UFC fights
 ```
 
 Edge detection only works for market types with a mapped external odds source (see table above). Raw prefix filters on unsupported markets will scan but will not find edges.
@@ -203,10 +148,11 @@ The system estimates "fair value" for Kalshi markets by cross-referencing sports
 
 1. **Fetch** odds from 8-12 US sportsbooks via The Odds API
 2. **De-vig** each book's line to remove the house edge
-3. **Weighted median** — sharp books (Pinnacle, Circa) count 3x more than recreational books (DraftKings, FanDuel at 0.7x)
+3. **Weighted median** -- sharp books (Pinnacle, Circa) count 3x more than recreational books (DraftKings, FanDuel at 0.7x)
 4. **Compare** to Kalshi's current ask price
 5. **Edge** = fair value - market price
-6. **Validate** with team stats — win% from ESPN/NHL/MLB APIs adjusts confidence
+6. **Validate** with team stats -- win% from ESPN/NHL/MLB APIs adjusts confidence
+7. **Sharp money** -- ESPN open vs close odds detect reverse line movement
 
 ### Edge Detection by Market Type
 
@@ -221,19 +167,19 @@ The system estimates "fair value" for Kalshi markets by cross-referencing sports
 ### Weather Impact (NFL, MLB Totals)
 
 For outdoor NFL and MLB games, the system fetches NWS hourly forecasts for the venue and adjusts total scoring expectations:
-- **Wind > 15 mph** — reduces passing/kicking accuracy (NFL), fly ball distance (MLB)
-- **Rain > 40%** — reduces scoring in both sports
-- **Cold < 32F (NFL) / < 45F (MLB)** — affects grip and ball flight
+- **Wind > 15 mph** -- reduces passing/kicking accuracy (NFL), fly ball distance (MLB)
+- **Rain > 40%** -- reduces scoring in both sports
+- **Cold < 32F (NFL) / < 45F (MLB)** -- affects grip and ball flight
 
 Dome stadiums are automatically excluded. Weather data is stored in opportunity details when active.
 
 ### Confidence Signals
 
 Confidence (low/medium/high) is set by four factors:
-- **Book count + agreement** — 8+ books with tight consensus = high
-- **Book spread range** — if books disagree by >4 points, confidence drops (signals injury/news)
-- **Team stats** — ESPN/NHL/MLB win% data. Stats that support the bet boost confidence; stats that contradict reduce it
-- **Sharp money** — ESPN open vs close odds detect reverse line movement. When sharps are on our side, confidence goes up
+- **Book count + agreement** -- 8+ books with tight consensus = high
+- **Book spread range** -- if books disagree by >4 points, confidence drops (signals injury/news)
+- **Team stats** -- ESPN/NHL/MLB win% data. Stats that support the bet boost confidence; stats that contradict reduce it
+- **Sharp money** -- ESPN open vs close odds detect reverse line movement. When sharps are on our side, confidence goes up
 
 ### Odds API Sport Mapping
 
@@ -256,7 +202,7 @@ The system cross-references Kalshi prices against these Odds API sport keys:
 
 ## Market Categories
 
-Every Kalshi market is classified into a category. Filter by category using the edge detector's `--category` flag.
+Every Kalshi market is classified into a category. Filter by category using the `--category` flag.
 
 | Category | Description | Example |
 |----------|-------------|---------|
@@ -270,8 +216,8 @@ Every Kalshi market is classified into a category. Filter by category using the 
 You can combine `--filter` (sport) with `--category`:
 
 ```bash
-python scripts/kalshi/edge_detector.py scan --filter nba --category spread
-python scripts/kalshi/edge_detector.py scan --filter nhl --category game
+python scripts/scan.py sports --filter nba --category spread
+python scripts/scan.py sports --filter nhl --category game
 ```
 
 ---
@@ -292,7 +238,7 @@ Every bet targets a fixed dollar amount (the "unit size"). The system calculates
 | $0.50 | 2 | $1.00 |
 | $0.76 | 1 | $0.76 |
 
-No single bet can exceed `MAX_BET_SIZE_PREDICTION` (default $5, set in `.env`). This is a hard cap regardless of unit size.
+No single bet can exceed `MAX_BET_SIZE_SPORTS` (default $50, set in `.env`). This is a hard cap regardless of unit size.
 
 ---
 
@@ -304,11 +250,12 @@ Results are limited to **3 opportunities per game**. When a single matchup (e.g.
 
 ## Composite Score
 
-Each opportunity receives a composite score (0-10) combining:
+Each opportunity receives a composite score (0-10) combining four dimensions:
 
-- **Edge magnitude** -- how large the pricing discrepancy is
-- **Confidence level** -- how many sportsbooks agree on the fair value
-- **Liquidity** -- bid/ask spread and volume on the Kalshi market
+- **Edge magnitude** (40%) -- how large the pricing discrepancy is
+- **Confidence level** (30%) -- how many sportsbooks agree on the fair value
+- **Liquidity** (20%) -- bid/ask spread and volume on the Kalshi market
+- **Time to expiry** (10%) -- nearer events score slightly higher
 
 Only opportunities with a composite score >= 6.0 are eligible for execution. The minimum score is configurable via `MIN_COMPOSITE_SCORE` in `.env`.
 
@@ -322,10 +269,10 @@ Use `--pick` to select specific opportunities by index from the preview table, o
 
 ```bash
 # Pick opportunities #1, #3, and #5 from the preview
-python scripts/kalshi/kalshi_executor.py run --execute --pick 1,3,5
+python scripts/scan.py sports --filter mlb --execute --pick 1,3,5
 
 # Bet on a specific ticker
-python scripts/kalshi/kalshi_executor.py run --execute --ticker KXNBAGAME-26MAR22LALBOS-LAL
+python scripts/scan.py sports --execute --ticker KXNBAGAME-26MAR22LALBOS-LAL
 ```
 
 ### From Saved Scan
@@ -333,37 +280,38 @@ python scripts/kalshi/kalshi_executor.py run --execute --ticker KXNBAGAME-26MAR2
 Scan and save results first, then execute from the saved file to avoid re-fetching odds:
 
 ```bash
-python scripts/kalshi/edge_detector.py scan --filter ncaamb --save
+python scripts/scan.py sports --filter ncaamb --save
 python scripts/kalshi/kalshi_executor.py run --from-file --execute --max-bets 3
 ```
 
 Saved opportunities are stored in `data/watchlists/kalshi_opportunities.json`.
+
+### Date & Position Filters
+
+```bash
+# Only today's games
+python scripts/scan.py sports --filter mlb --date today
+
+# Only tomorrow's games, skip markets you already bet on
+python scripts/scan.py sports --filter mlb --date tomorrow --exclude-open
+```
+
+`--date` accepts: `today`, `tomorrow`, `YYYY-MM-DD`, `MM-DD`, or shorthand like `mar31`.
 
 ### Raising the Edge Bar
 
 For more selective betting (fewer bets, higher conviction):
 
 ```bash
-python scripts/kalshi/kalshi_executor.py run --execute --min-edge 0.05
-python scripts/kalshi/kalshi_executor.py run --execute --min-edge 0.10
+python scripts/scan.py sports --min-edge 0.05 --top 10
+python scripts/scan.py sports --min-edge 0.10 --top 5
 ```
 
 ### Combining Filters
 
 ```bash
-# NBA spreads only, 5% minimum edge, $3 bets
-python scripts/kalshi/edge_detector.py scan --filter nba --category spread --min-edge 0.05 --save
-python scripts/kalshi/kalshi_executor.py run --from-file --execute --unit-size 3
-```
-
-### Scanning Without Betting
-
-Use the edge detector standalone to research markets without placing any orders:
-
-```bash
-python scripts/kalshi/edge_detector.py scan
-python scripts/kalshi/edge_detector.py scan --save
-python scripts/kalshi/edge_detector.py scan --top 50
+# NBA spreads only, 5% minimum edge
+python scripts/scan.py sports --filter nba --category spread --min-edge 0.05 --save
 ```
 
 ### Deep Dive on a Single Market
@@ -389,6 +337,7 @@ Shows the full breakdown: matched sportsbook odds, de-vigged probabilities, calc
 
 **"ODDS_API_KEY not set"**
 - Edge detection requires a key from https://the-odds-api.com (free tier: 500 req/month)
+- Set `ODDS_API_KEYS` in `.env` (supports comma-separated keys for rotation)
 - Without it, the scanner runs but finds no opportunities
 
 **Orders show "resting" instead of "executed"**

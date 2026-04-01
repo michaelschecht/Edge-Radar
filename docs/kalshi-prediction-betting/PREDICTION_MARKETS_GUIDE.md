@@ -24,9 +24,13 @@ Non-sports prediction markets on Kalshi covering crypto, weather, S&P 500, econo
 
 ## Quick Reference
 
-See [Scripts Reference](../SCRIPTS_REFERENCE.md) for complete CLI flags. Key command: `python scripts/prediction/prediction_scanner.py scan --filter <filter>`
+See [Scripts Reference](../SCRIPTS_REFERENCE.md) for complete CLI flags. Key command:
 
-For risk gates and position sizing rules, see [Architecture](../ARCHITECTURE.md).
+```bash
+python scripts/scan.py prediction --filter <filter>
+```
+
+For risk gates and position sizing rules, see [Architecture](../ARCHITECTURE.md). For enhancement history, see [Roadmap](../enhancements/ROADMAP.md).
 
 ---
 

@@ -38,6 +38,8 @@ Edge-Radar/
 ├── CLAUDE.md                        # This file — master instructions
 ├── .env                             # API keys (NEVER commit)
 ├── .env.example                     # Template for required env vars
+├── .pre-commit-config.yaml          # Pre-commit hooks (detect-secrets, black, flake8)
+├── Makefile                         # make scan-mlb, make test, make settle, etc.
 ├── .claude/
 │   ├── agents/                      # Claude Code agent definitions
 │   │   ├── KALSHI_BETTOR.md         # Kalshi betting specialist
@@ -198,6 +200,15 @@ python scripts/schedulers/automation/daily_sports_scan.py
 
 # Install as Windows Scheduled Task (8 AM daily)
 python scripts/schedulers/automation/install_windows_task.py install
+
+# Makefile shortcuts (requires make installed)
+make scan-mlb          # Scan MLB today, exclude open, save report
+make scan-all          # Scan everything
+make status            # Portfolio status
+make settle            # Settle completed bets
+make report            # P&L report
+make test              # Run test suite
+make hooks             # Install pre-commit hooks
 ```
 
 ---
