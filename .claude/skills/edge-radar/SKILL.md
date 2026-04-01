@@ -40,9 +40,9 @@ Parse the user's intent from the arguments. The skill supports natural language 
 | `--min-edge N` | `0.03` | Minimum edge threshold (3%) |
 | `--execute`, `--go`, `--send-it` | off | Skip preview, execute immediately |
 | `--dry-run`, `--preview` | on (default) | Preview only, no orders |
-| `--save` | off | Save results/reports to disk |
-| `--date DATE` | (none) | Filter by date: `today`, `tomorrow`, `YYYY-MM-DD`, `mar31` |
-| `--exclude-open` | off | Skip markets with existing positions |
+| `--save` | off | Save results as markdown report to `reports/` |
+| `--date DATE` | (none) | Filter by date: `today`, `tomorrow`, `YYYY-MM-DD`, `mar31`, `03-30` |
+| `--exclude-open` | off | Skip markets with existing open positions |
 | `--pick '1,3,5'` | (none) | Cherry-pick specific rows from preview |
 | `--ticker TICKER` | (none) | Target a specific Kalshi ticker |
 | `--category CAT` | (none) | Market type: `game`, `spread`, `total`, `player_prop` |
@@ -50,6 +50,49 @@ Parse the user's intent from the arguments. The skill supports natural language 
 | `--top N` | `20` | Number of opportunities to show |
 | `--detail` | off | Show per-trade breakdown (for reports) |
 | `--from-file` | off | Load from saved watchlist |
+| `--report-dir PATH` | (none) | Override report output directory (used in batch jobs) |
+
+---
+
+## Unified Scanner Entry Point
+
+**All scans should use `scripts/scan.py`** — the unified router that forwards to the correct scanner:
+
+```bash
+python scripts/scan.py sports --filter mlb --date today --save
+python scripts/scan.py futures --filter nba-futures
+python scripts/scan.py prediction --filter crypto --cross-ref
+python scripts/scan.py polymarket --filter crypto
+```
+
+Aliases: `sport` = `sports`, `pred` = `prediction`, `poly`/`xref` = `polymarket`.
+
+The `scan` subcommand is auto-inserted if omitted. All flags are forwarded directly.
+
+### Makefile Shortcuts
+
+For quick access, the Makefile provides 18 targets:
+
+```bash
+make scan-mlb          # Scan MLB today, exclude open, save report
+make scan-nba          # Scan NBA
+make scan-nhl          # Scan NHL
+make scan-nfl          # Scan NFL
+make scan-sports       # All sports
+make scan-futures      # All futures
+make scan-predictions  # All prediction markets
+make scan-polymarket   # Polymarket cross-reference
+make scan-all          # Everything
+make status            # Portfolio status
+make risk              # Risk dashboard
+make settle            # Settle completed bets
+make report            # P&L report
+make reconcile         # Compare local log vs API
+make test              # Run full test suite (83 tests)
+make test-quick        # Quick test run
+make install           # Install dependencies
+make hooks             # Install pre-commit hooks
+```
 
 ---
 
@@ -120,7 +163,7 @@ Show portfolio dashboard — balance, open positions, P&L, resting orders.
 python scripts/kalshi/kalshi_executor.py status
 ```
 
-Report the key numbers clearly: balance, number of open positions, today's P&L, any resting orders. Done.
+Report the key numbers clearly: balance, number of open positions, today's P&L, any resting orders. Positions now display readable matchups and game dates (not raw tickers). Done.
 
 For a more detailed risk dashboard:
 
@@ -141,7 +184,7 @@ python scripts/kalshi/kalshi_settler.py settle
 python scripts/kalshi/kalshi_settler.py report --detail
 ```
 
-Add `--save` to persist the report as markdown.
+Add `--save` to persist the report as markdown. Reports include formatted tables with bold values and code-formatted tickers.
 
 Summarize: total settled, wins, losses, net P&L, ROI, best/worst bets. Done.
 
@@ -161,7 +204,7 @@ Report any mismatches. Done.
 
 ## Action: Risk Dashboard
 
-Full portfolio risk check with limit status.
+Full portfolio risk check with limit status. Pulls live data from Kalshi API.
 
 ```bash
 python scripts/kalshi/risk_check.py
@@ -233,21 +276,24 @@ If the daily loss limit is breached, **STOP** and inform the user. No new bets t
 
 ### Step 2: Route to the Correct Scanner
 
+**Use the unified entry point `scan.py`** — it routes to the correct scanner automatically.
+
 **Sports (game betting):**
 ```bash
-python scripts/kalshi/edge_detector.py scan \
+python scripts/scan.py sports \
   [--filter <sport>] \
   [--category <game|spread|total|player_prop>] \
   [--min-edge <threshold>] \
   [--top <N>] \
   [--date <DATE>] \
   [--exclude-open] \
+  [--report-dir <PATH>] \
   [--save]
 ```
 
 **Futures (championships):**
 ```bash
-python scripts/kalshi/futures_edge.py scan \
+python scripts/scan.py futures \
   [--filter <sport>-futures] \
   [--min-edge <threshold>] \
   [--top <N>] \
@@ -258,7 +304,7 @@ python scripts/kalshi/futures_edge.py scan \
 
 **Prediction markets:**
 ```bash
-python scripts/prediction/prediction_scanner.py scan \
+python scripts/scan.py prediction \
   [--filter <category>] \
   [--min-edge <threshold>] \
   [--top <N>] \
@@ -270,12 +316,20 @@ python scripts/prediction/prediction_scanner.py scan \
 
 **Polymarket cross-reference:**
 ```bash
-python scripts/polymarket/polymarket_edge.py scan \
+python scripts/scan.py polymarket \
   [--filter <category>] \
   [--min-edge <threshold>] \
   [--min-match <score>] \
   [--top <N>] \
   [--save]
+```
+
+**Direct scanner access** (still works for all scanners):
+```bash
+python scripts/kalshi/edge_detector.py scan [flags]
+python scripts/kalshi/futures_edge.py scan [flags]
+python scripts/prediction/prediction_scanner.py scan [flags]
+python scripts/polymarket/polymarket_edge.py scan [flags]
 ```
 
 ### Step 3: Present Results
@@ -301,11 +355,11 @@ Unless `--execute` or `--go` was passed, **always ask the user to confirm** befo
 
 ### Step 5: Execute
 
-Once confirmed, re-run the same scanner command with `--execute` added:
+Once confirmed, add `--execute` to the scan command. All 4 scanners support `--execute`, `--unit-size`, `--max-bets`, and `--pick` directly.
 
 **Sports:**
 ```bash
-python scripts/kalshi/edge_detector.py scan \
+python scripts/scan.py sports \
   --filter <sport> --execute \
   [--unit-size <N>] [--max-bets <N>] [--min-edge <N>] \
   [--pick '1,3,5'] [--ticker <TICKER>] [--date <DATE>] [--exclude-open]
@@ -313,7 +367,7 @@ python scripts/kalshi/edge_detector.py scan \
 
 **Futures:**
 ```bash
-python scripts/kalshi/futures_edge.py scan \
+python scripts/scan.py futures \
   --filter <sport>-futures --execute \
   [--unit-size <N>] [--max-bets <N>] [--min-edge <N>] \
   [--pick '1,3,5'] [--ticker <TICKER>]
@@ -321,7 +375,7 @@ python scripts/kalshi/futures_edge.py scan \
 
 **Prediction:**
 ```bash
-python scripts/prediction/prediction_scanner.py scan \
+python scripts/scan.py prediction \
   --filter <category> --execute \
   [--unit-size <N>] [--max-bets <N>] [--min-edge <N>] \
   [--pick '1,3,5'] [--ticker <TICKER>]
@@ -329,18 +383,10 @@ python scripts/prediction/prediction_scanner.py scan \
 
 **Polymarket cross-reference:**
 ```bash
-python scripts/polymarket/polymarket_edge.py scan \
+python scripts/scan.py polymarket \
   --filter <category> --execute \
   [--unit-size <N>] [--max-bets <N>] [--min-edge <N>] \
   [--pick '1,3,5'] [--ticker <TICKER>]
-```
-
-**Alternative — Unified executor** (use when loading from file or need `--prediction` shortcut):
-```bash
-python scripts/kalshi/kalshi_executor.py run \
-  [--filter <filter>] [--prediction] [--execute] \
-  [--unit-size <N>] [--max-bets <N>] [--min-edge <N>] \
-  [--from-file] [--pick '1,3,5'] [--ticker <TICKER>]
 ```
 
 ### Step 6: Report
@@ -356,23 +402,38 @@ After execution, summarize:
 
 | User Says | Command |
 |-----------|---------|
-| `/edge-radar nba` | `edge_detector.py scan --filter nba` |
-| `/edge-radar bet mlb --unit-size 2 --max-bets 10` | `edge_detector.py scan --filter mlb --unit-size 2 --max-bets 10` then confirm then `--execute` |
-| `/edge-radar mlb --date tomorrow --exclude-open` | `edge_detector.py scan --filter mlb --date tomorrow --exclude-open` |
-| `/edge-radar nba --category spread` | `edge_detector.py scan --filter nba --category spread` |
-| `/edge-radar nba-futures` | `futures_edge.py scan --filter nba-futures` |
-| `/edge-radar superbowl` | `futures_edge.py scan --filter nfl-futures` |
-| `/edge-radar crypto` | `prediction_scanner.py scan --filter crypto` |
-| `/edge-radar weather --min-edge 0.05` | `prediction_scanner.py scan --filter weather --min-edge 0.05` |
-| `/edge-radar polymarket crypto` | `polymarket_edge.py scan --filter crypto` |
+| `/edge-radar nba` | `scan.py sports --filter nba` |
+| `/edge-radar bet mlb --unit-size 2 --max-bets 10` | `scan.py sports --filter mlb --unit-size 2 --max-bets 10` then confirm then `--execute` |
+| `/edge-radar mlb --date tomorrow --exclude-open` | `scan.py sports --filter mlb --date tomorrow --exclude-open` |
+| `/edge-radar nba --category spread` | `scan.py sports --filter nba --category spread` |
+| `/edge-radar nba-futures` | `scan.py futures --filter nba-futures` |
+| `/edge-radar superbowl` | `scan.py futures --filter nfl-futures` |
+| `/edge-radar crypto` | `scan.py prediction --filter crypto` |
+| `/edge-radar weather --min-edge 0.05` | `scan.py prediction --filter weather --min-edge 0.05` |
+| `/edge-radar polymarket crypto` | `scan.py polymarket --filter crypto` |
 | `/edge-radar status` | `kalshi_executor.py status` |
 | `/edge-radar settle` | `kalshi_settler.py settle` + `report --detail` |
 | `/edge-radar reconcile` | `kalshi_settler.py reconcile` |
 | `/edge-radar risk` | `risk_check.py` |
 | `/edge-radar detail KXNBAGAME-26MAR25LALBOS-LAL` | `edge_detector.py detail KXNBAGAME-26MAR25LALBOS-LAL` |
-| `/edge-radar bet nba --go --unit-size 1 --max-bets 3` | `edge_detector.py scan --filter nba --execute --unit-size 1 --max-bets 3` (no confirmation needed) |
-| `/edge-radar scan all` | `edge_detector.py scan` (no filter = all sports) |
-| `/edge-radar bet mlb --pick '1,3,5'` | `edge_detector.py scan --filter mlb --execute --pick '1,3,5'` |
+| `/edge-radar bet nba --go --unit-size 1 --max-bets 3` | `scan.py sports --filter nba --execute --unit-size 1 --max-bets 3` (no confirmation needed) |
+| `/edge-radar scan all` | `scan.py sports` (no filter = all sports) |
+| `/edge-radar bet mlb --pick '1,3,5'` | `scan.py sports --filter mlb --execute --pick '1,3,5'` |
+
+---
+
+## Report Output
+
+When `--save` is used, all scanners generate **markdown reports** with formatted tables:
+
+| Scanner | Report Path |
+|---------|-------------|
+| Sports | `reports/Sports/{date}_{sport}_sports_scan.md` |
+| Futures | `reports/Futures/{date}_{category}_futures_scan.md` |
+| Predictions | `reports/Predictions/{date}_{category}_prediction_scan.md` |
+| Settle/P&L | `reports/` (markdown with formatted tables) |
+
+Reports include: readable matchups, game date/time, edge%, fair price, market price, confidence, composite score.
 
 ---
 
@@ -391,31 +452,77 @@ After execution, summarize:
 
 ### Morning
 ```bash
-python scripts/kalshi/kalshi_executor.py status          # Check balance & positions
-python scripts/kalshi/kalshi_settler.py settle            # Settle overnight results
-python scripts/kalshi/kalshi_settler.py report            # Quick P&L summary
-python scripts/kalshi/risk_check.py --report limits       # Check if limits breached
+make status                    # Check balance & positions
+make settle                    # Settle overnight results
+make report                    # Quick P&L summary
+make risk                      # Check if limits breached
 ```
 
 ### Scanning
 ```bash
-python scripts/kalshi/edge_detector.py scan --filter mlb --date today --exclude-open
-python scripts/kalshi/edge_detector.py scan --filter nba
-python scripts/kalshi/futures_edge.py scan --filter nba-futures
-python scripts/prediction/prediction_scanner.py scan --filter crypto
+make scan-mlb                  # MLB today, exclude open, save
+make scan-nba                  # NBA scan
+make scan-futures              # All futures
+make scan-predictions          # Prediction markets
+make scan-all                  # Everything
+```
+
+Or with full control:
+```bash
+python scripts/scan.py sports --filter mlb --date today --exclude-open --save
+python scripts/scan.py sports --filter nba
+python scripts/scan.py futures --filter nba-futures
+python scripts/scan.py prediction --filter crypto --cross-ref
 ```
 
 ### Executing
 ```bash
-python scripts/kalshi/edge_detector.py scan --filter mlb --execute --unit-size 1 --max-bets 10
-python scripts/kalshi/edge_detector.py scan --filter nba --execute --pick '1,3,5'
+python scripts/scan.py sports --filter mlb --execute --unit-size 1 --max-bets 10
+python scripts/scan.py sports --filter nba --execute --pick '1,3,5'
 ```
 
 ### Evening
 ```bash
-python scripts/kalshi/kalshi_settler.py settle
-python scripts/kalshi/kalshi_settler.py report --detail --save
-python scripts/kalshi/kalshi_settler.py reconcile
+make settle                    # Settle completed bets
+make report                    # Detailed P&L
+make reconcile                 # Compare local vs API
+```
+
+---
+
+## Automation
+
+### Scheduled Morning Scans
+
+Batch files in `scripts/schedulers/morning_scans/` run per-sport scans and save reports:
+
+```bash
+scripts/schedulers/morning_scans/mlb_morning_scan.bat
+scripts/schedulers/morning_scans/nba_morning_scan.bat
+scripts/schedulers/morning_scans/nfl_morning_scan.bat
+scripts/schedulers/morning_scans/nhl_morning_scan.bat
+```
+
+These use `--report-dir` to save to `reports/Sports/schedulers/<sport>/`.
+
+### Daily Edge Email
+
+```bash
+python scripts/custom/send_daily_email.py
+```
+
+Sends an HTML-formatted daily report via AgentMail, reading from saved scheduler reports.
+
+### Daily All-Sport Scan
+
+```bash
+python scripts/schedulers/automation/daily_sports_scan.py
+```
+
+### Windows Task Scheduler (8 AM daily)
+
+```bash
+python scripts/schedulers/automation/install_windows_task.py install
 ```
 
 ---
