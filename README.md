@@ -191,6 +191,27 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 
 ---
 
+## 🤖 Claude Code Skill
+
+Edge-Radar includes a built-in `/edge-radar` slash command for [Claude Code](https://claude.ai/claude-code) that provides a natural language interface to the entire system. Type `/edge-radar` followed by what you want to do:
+
+```
+/edge-radar status                          # Balance, open positions, P&L
+/edge-radar scan nba                        # Preview NBA opportunities
+/edge-radar bet mlb --unit-size 1           # Scan MLB + execute on confirm
+/edge-radar settle                          # Settle bets + P&L report
+/edge-radar risk                            # Full risk dashboard
+/edge-radar detail KXNBAGAME-26APR01-...    # Deep dive on a single market
+/edge-radar crypto --cross-ref              # Prediction markets + Polymarket xref
+```
+
+The skill routes natural language to the correct scanner, enforces all risk gates, and always previews before executing. All flags (`--date`, `--exclude-open`, `--pick`, `--save`, etc.) work inline. Or just describe what you want in plain English — Claude handles the routing.
+
+> [!NOTE]
+> Requires [Claude Code](https://claude.ai/claude-code) CLI, Desktop, or IDE extension. The skill is defined in `.claude/skills/edge-radar/SKILL.md`.
+
+---
+
 ## 🏗️ How It Works
 
 ```
