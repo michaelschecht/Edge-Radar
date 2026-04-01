@@ -25,7 +25,13 @@ Bet on season-long outcomes: championship winners, conference winners, MVP award
 
 ## Quick Reference
 
-See [Scripts Reference](../SCRIPTS_REFERENCE.md) for complete CLI flags. Key command: `python scripts/kalshi/futures_edge.py scan --filter <filter>`
+See [Scripts Reference](../SCRIPTS_REFERENCE.md) for complete CLI flags. Key command:
+
+```bash
+python scripts/scan.py futures --filter <filter>
+```
+
+For enhancement history, see [Roadmap](../enhancements/ROADMAP.md).
 
 ---
 

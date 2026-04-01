@@ -140,28 +140,11 @@ Quarter-Kelly criterion determines the maximum recommended size. If Kelly sugges
 
 ## Remaining Work
 
-### Phase 2: Expand Edge Sources
+For the full enhancement roadmap (completed and pending items), see [ROADMAP.md](enhancements/ROADMAP.md).
 
-| Task | Priority | Notes |
-|---|---|---|
-| Spread model recalibration | P1 | Re-derive adjustment rate from historical data; current 3%/point is heuristic |
-| Weather model (NOAA) | P1 | High-frequency daily markets, free data |
-| Economic data model (FRED) | P1 | CPI, jobs, GDP -- recurring events |
-| Player prop models | P2 | Requires additional stat data sources |
-| CLV tracking | P2 | Validates whether models actually find edge |
-
-### Phase 3: Operational Improvements
-
-| Task | Priority | Notes |
-|---|---|---|
-| Initialize SQLite database | P2 | Run `init_db.sql`, migrate trade log to DB |
-| Create `requirements.txt` | P2 | Document all Python dependencies |
-| Calibration dashboard | P2 | Estimated edge vs. realized edge over time |
-
-### Phase 4: Go Live
-
-| Task | Criteria |
-|---|---|
-| Switch to production | 500+ demo bets, Sharpe > 0.5, drawdown < 30%, edge realization > 75% |
-| Start small | $1-5 per contract on production |
-| Scale up | Increase sizing as edge is confirmed over 30+ days |
+Key remaining priorities:
+- **Starting pitcher/goalie data** -- #1 MLB edge unlock (ERA, FIP, WHIP, K/9)
+- **Bullpen availability tracker** -- high-value for MLB totals
+- **Wind direction classification** -- NWS bearing relative to stadium orientation
+- **Pre-commit hooks** -- credential leak prevention
+- **Go live criteria** -- 500+ demo bets, Sharpe > 0.5, drawdown < 30%, edge realization > 75%

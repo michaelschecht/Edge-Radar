@@ -2,6 +2,8 @@
 
 Complete guide to every script, when to use it, and what flags are available.
 
+For domain-specific guides: [Sports](kalshi-sports-betting/SPORTS_GUIDE.md) | [Futures](kalshi-futures-betting/FUTURES_GUIDE.md) | [Predictions](kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md) | [Architecture](ARCHITECTURE.md) | [Roadmap](enhancements/ROADMAP.md)
+
 ---
 
 ## Table of Contents
