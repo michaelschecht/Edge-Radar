@@ -209,6 +209,8 @@ The skill routes natural language to the correct scanner, enforces all risk gate
 
 > [!NOTE]
 > Requires [Claude Code](https://claude.ai/claude-code) CLI, Desktop, or IDE extension. The skill is defined in `.claude/skills/edge-radar/SKILL.md`.
+>
+> **Using Gemini CLI or OpenAI Codex?** The `/edge-radar` slash command is Claude Code-specific, but the commands and workflows are the same. Add the skill content from `.claude/skills/edge-radar/SKILL.md` to your `GEMINI.md` or `AGENTS.md` file to get equivalent functionality in those tools.
 
 ---
 
