@@ -8,13 +8,14 @@
 <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.11+-2ea44f?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+"></a>
 <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/Edge%20Model-Normal%20CDF-8B5CF6?style=flat-square" alt="Normal CDF"></a>
 <a href="#-supported-markets"><img src="https://img.shields.io/badge/Markets-27%20Sports-0078D4?style=flat-square" alt="Markets"></a>
-<a href="#-edge-detection"><img src="https://img.shields.io/badge/Edge-8%20Signals-8B5CF6?style=flat-square" alt="Edge Detection"></a>
+<a href="#-edge-detection"><img src="https://img.shields.io/badge/Edge-7%20Signals-8B5CF6?style=flat-square" alt="Edge Detection"></a>
+<a href="#%EF%B8%8F-risk--position-sizing"><img src="https://img.shields.io/badge/Risk-9%20Gates%20%2B%20Kelly-e74c3c?style=flat-square" alt="Risk Gates"></a>
 <a href="#-documentation"><img src="https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square" alt="Docs"></a>
 <a href="#-data-sources"><img src="https://img.shields.io/badge/APIs-9%20Free-F97316?style=flat-square" alt="APIs"></a>
 
 <img src=".claude/images/logos/logo.png" alt="Edge-Radar Banner" width="100%">
 
-> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 7 free APIs (including Polymarket), identifies mispriced contracts with a normal CDF probability model, applies risk gates, and executes limit orders — logging every decision for closing line value tracking.
+> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 7 free APIs (including Polymarket), identifies mispriced contracts with a normal CDF probability model, sizes bets with quarter-Kelly criterion, enforces 9 risk gates, and executes limit orders — logging every decision for closing line value tracking.
 
 ---
 
@@ -73,10 +74,48 @@
 | 🌧️ | **Weather** | NWS forecasts for 61 NFL/MLB venues adjust total expectations |
 | ⚠️ | **Book Disagreement** | >4pt spread range across books flags injury news |
 | 📊 | **CLV Tracking** | Closing line value validates model accuracy over time |
-| 🎯 | **Per-Game Cap** | Top 3 per matchup forces diversification |
 
 > [!IMPORTANT]
 > Every scan defaults to **preview mode**. No money is risked until you pass `--execute`.
+
+---
+
+## 🛡️ Risk & Position Sizing
+
+### Quarter-Kelly Sizing
+
+Bet size scales with edge strength. Higher-edge opportunities get more capital; marginal edges stay at the minimum unit. This is the core differentiator — flat sizing leaves money on the table.
+
+```
+bet_size = max(unit_size, 0.25 × edge × bankroll)
+```
+
+| Edge | Bankroll $50 | Contracts @ $0.40 | vs Flat ($0.50 unit) |
+|:-----|:-------------|:-------------------|:---------------------|
+| 3% | $0.38 | 1 (flat floor) | Same |
+| 8% | $1.00 | 3 | 2x more |
+| 15% | $1.88 | 5 | 4x more |
+| 25% | $3.13 | 8 | 7x more |
+
+The result is capped by max bet size ($50 sports / $100 prediction), max concentration (20% of bankroll), and available balance.
+
+### 9 Risk Gates
+
+Every order must pass all nine gates before execution:
+
+| | Gate | What it blocks |
+|:--|:-----|:---------------|
+| 1 | **Daily loss limit** | No new bets after -$250 today |
+| 2 | **Position count** | Max 10 concurrent open positions |
+| 3 | **Edge threshold** | Minimum 3% edge required |
+| 4 | **Composite score** | Must score 6.0+ across edge, confidence, liquidity |
+| 5 | **Confidence floor** | Medium or higher — requires 5+ books agreeing |
+| 6 | **Duplicate check** | Can't double up on the same market |
+| 7 | **Per-event cap** | Max 3 positions on the same game |
+| 8 | **Concentration limit** | No single position > 20% of bankroll |
+| 9 | **Bet size cap** | $50/sports, $100/prediction hard ceiling |
+
+All limits are configurable via `.env`. See [Architecture](docs/ARCHITECTURE.md) for details on how scoring, confidence, and sizing interact.
 
 ---
 
@@ -211,6 +250,28 @@ The skill routes natural language to the correct scanner, enforces all risk gate
 > Requires [Claude Code](https://claude.ai/claude-code) CLI, Desktop, or IDE extension. The skill is defined in `.claude/skills/edge-radar/SKILL.md`.
 >
 > **Using Gemini CLI or OpenAI Codex?** The `/edge-radar` slash command is Claude Code-specific, but the commands and workflows are the same. Add the skill content from `.claude/skills/edge-radar/SKILL.md` to your `GEMINI.md` or `AGENTS.md` file to get equivalent functionality in those tools.
+
+---
+
+## 🔄 Automated Daily Execution
+
+Pre-built scripts scan NFL, NBA, NHL, and MLB in a single command, rank the top 10 opportunities across all sports by composite score, and execute with Kelly sizing.
+
+```bash
+# Preview today's best picks (no bets placed)
+scripts\schedulers\same_day_executions\same_day_scan.bat
+
+# Scan + execute (places live orders via Kalshi API)
+scripts\schedulers\same_day_executions\same_day_execute.bat
+```
+
+**Recommended schedule:** 8 AM ET via Windows Task Scheduler. By 8 AM, all markets are posted, sportsbooks have sharpened lines overnight, and Kalshi's lag window is open.
+
+```bash
+schtasks /Create /TN "Edge-Radar\Daily" /TR "path\to\same_day_execute.bat" /SC DAILY /ST 08:00
+```
+
+Reports save to `reports/Sports/schedulers/same-day-executions/` with full execution details (Sport, Bet, Type, Pick, Qty, Price, Cost, Edge).
 
 ---
 
