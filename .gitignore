@@ -24,12 +24,8 @@ env/
 .venv/
 pip-wheel-metadata/
 
-# === Data files (live positions, trade history) ===
-data/positions/*.json
-data/history/*.json
-data/history/reports/
-!data/positions/.gitkeep
-!data/history/.gitkeep
+# === Data files (live positions, trade history, watchlists) ===
+data/
 
 # === Database ===
 *.db
