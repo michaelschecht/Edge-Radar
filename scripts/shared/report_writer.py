@@ -8,7 +8,7 @@ Used by all scanners when --save is passed.
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ticker_display import parse_game_datetime, format_bet_label
+from ticker_display import parse_game_datetime, format_bet_label, format_pick_label
 
 # Report directories (relative to project root)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -104,18 +104,19 @@ def save_scan_report(
             "game": "ML", "spread": "Spread", "total": "Total",
             "player_prop": "Prop", "esports": "Esports",
         }
-        lines.append("| # | Bet | Type | When | Side | Mkt | Fair | Edge | Conf | Score |")
+        lines.append("| # | Bet | Type | Pick | When | Mkt | Fair | Edge | Conf | Score |")
         lines.append("|--:|:----|:-----|:-----|:-----|----:|-----:|-----:|:-----|------:|")
         for i, o in enumerate(opportunities, 1):
             ticker = _get_attr(o, "ticker", "")
             title = _get_attr(o, "title", "")
             cat = _get_attr(o, "category", "")
+            side = _get_attr(o, "side", "")
             lines.append(
                 f"| {i} "
                 f"| {format_bet_label(ticker, title)[:35]} "
                 f"| {cat_labels.get(cat, cat.title())} "
+                f"| {format_pick_label(ticker, title, side, cat)} "
                 f"| {parse_game_datetime(ticker)} "
-                f"| {_get_attr(o, 'side', '').upper()} "
                 f"| ${_get_attr(o, 'market_price', 0):.2f} "
                 f"| ${_get_attr(o, 'fair_value', 0):.2f} "
                 f"| {_get_attr(o, 'edge', 0):+.1%} "

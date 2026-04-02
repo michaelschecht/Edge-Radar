@@ -1382,7 +1382,7 @@ def print_opportunities(opportunities: list[Opportunity]):
         rprint("[yellow]No opportunities found above edge threshold.[/yellow]")
         return
 
-    from ticker_display import parse_game_datetime, format_bet_label
+    from ticker_display import parse_game_datetime, format_bet_label, format_pick_label
 
     CATEGORY_LABELS = {
         "game": "ML",
@@ -1395,8 +1395,8 @@ def print_opportunities(opportunities: list[Opportunity]):
     table = Table(title=f"Kalshi Opportunities (edge >= {MIN_EDGE:.0%})", show_lines=True)
     table.add_column("Bet", style="cyan", max_width=35)
     table.add_column("Type", style="magenta")
+    table.add_column("Pick", style="bold white", max_width=22)
     table.add_column("When", style="dim")
-    table.add_column("Side")
     table.add_column("Mkt", justify="right")
     table.add_column("Fair", justify="right", style="green")
     table.add_column("Edge", justify="right", style="bold green")
@@ -1408,8 +1408,8 @@ def print_opportunities(opportunities: list[Opportunity]):
         table.add_row(
             format_bet_label(o.ticker, o.title),
             CATEGORY_LABELS.get(o.category, o.category.title()),
+            format_pick_label(o.ticker, o.title, o.side, o.category),
             parse_game_datetime(o.ticker),
-            o.side.upper(),
             f"${o.market_price:.2f}",
             f"${o.fair_value:.2f}",
             f"[{edge_color}]+{o.edge:.1%}[/{edge_color}]",
