@@ -439,12 +439,17 @@ Reports include: readable matchups, game date/time, edge%, fair price, market pr
 
 ## Risk Limits (Current)
 
-- **Max bet:** $5 per position (hard cap)
-- **Unit size:** $1.00 default
+- **Sizing:** Quarter-Kelly (0.25 * edge * bankroll), with flat unit size as floor
+- **Unit size:** $1.00 default (minimum per bet)
+- **Max bet (sports):** $50 per position
+- **Max bet (prediction):** $100 per position
+- **Max concentration:** 20% of bankroll per position
+- **Max per event:** 3 positions on the same game
 - **Daily loss limit:** $250
+- **Max open positions:** 10
 - **Minimum edge:** 3%
 - **Minimum composite score:** 6.0
-- **Max open positions:** 10
+- **Minimum confidence:** medium
 
 ---
 
@@ -546,5 +551,5 @@ python scripts/kalshi/kalshi_client.py market --ticker <TICKER>
 1. **Always check status first** before any scan or bet — if daily loss limit is breached, STOP.
 2. **Never execute without confirmation** unless `--execute`/`--go` was explicitly passed.
 3. **Preview is the default** — every scan shows a table first, orders only placed with `--execute`.
-4. **Position limits enforced** — no single bet exceeds $5, no more than 10 open positions.
+4. **Nine risk gates enforced** — daily loss, position count, edge, score, confidence, duplicate ticker, per-event cap, max concentration, max bet size. All checked before every order.
 5. **API keys are in `.env`** — never print, log, or expose them.

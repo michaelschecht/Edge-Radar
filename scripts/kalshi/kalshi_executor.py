@@ -52,7 +52,8 @@ TRADE_LOG_PATH = paths.TRADE_LOG_PATH
 
 # ── Risk Parameters ───────────────────────────────────────────────────────────
 
-MAX_BET_SIZE = float(os.getenv("MAX_BET_SIZE_PREDICTION", "100"))
+MAX_BET_SIZE_SPORTS = float(os.getenv("MAX_BET_SIZE_SPORTS", "50"))
+MAX_BET_SIZE_PREDICTION = float(os.getenv("MAX_BET_SIZE_PREDICTION", "100"))
 DEFAULT_BET_SIZE = float(os.getenv("DEFAULT_BET_SIZE", "10"))
 UNIT_SIZE = float(os.getenv("UNIT_SIZE", "1.00"))
 MAX_DAILY_LOSS = float(os.getenv("MAX_DAILY_LOSS", "250"))
@@ -60,10 +61,28 @@ MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "10"))
 MIN_EDGE_THRESHOLD = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
 KELLY_FRACTION = float(os.getenv("KELLY_FRACTION", "0.25"))
 MAX_CONCENTRATION = float(os.getenv("MAX_POSITION_CONCENTRATION", "0.20"))
+MAX_PER_EVENT = int(os.getenv("MAX_PER_EVENT", "3"))
 MIN_COMPOSITE_SCORE = float(os.getenv("MIN_COMPOSITE_SCORE", "6.0"))
 MIN_CONFIDENCE = os.getenv("MIN_CONFIDENCE", "medium")  # low, medium, high
 
 CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
+
+# Sports categories use the sports bet cap; everything else uses prediction cap.
+_SPORTS_CATEGORIES = {"game", "spread", "total", "player_prop", "esports"}
+
+
+def _max_bet_for(category: str) -> float:
+    """Return the max bet size based on market category."""
+    return MAX_BET_SIZE_SPORTS if category in _SPORTS_CATEGORIES else MAX_BET_SIZE_PREDICTION
+
+
+def _event_key(ticker: str) -> str:
+    """Extract the event (game) portion from a Kalshi ticker.
+
+    KXNBAGAME-26APR02SASLAC-SAS -> KXNBAGAME-26APR02SASLAC
+    """
+    parts = ticker.rsplit("-", 1)
+    return parts[0] if len(parts) > 1 else ticker
 
 
 # ── Position Sizing ──────────────────────────────────────────────────────────
@@ -97,10 +116,26 @@ def unit_size_contracts(market_price: float, unit: float | None = None) -> int:
 
 
 def size_order(opp: Opportunity, bankroll: float, open_positions: int,
-               daily_pnl: float, unit_size: float = UNIT_SIZE) -> SizedOrder:
+               daily_pnl: float, unit_size: float = UNIT_SIZE,
+               open_tickers: set[str] | None = None,
+               event_counts: dict[str, int] | None = None) -> SizedOrder:
     """
-    Apply all risk checks and size at fixed unit size.
-    Returns a SizedOrder with approval status.
+    Apply all risk checks and size the order.
+
+    Uses quarter-Kelly sizing when edge is known, capped by unit_size and
+    max bet size. Falls back to flat unit sizing if Kelly produces fewer
+    contracts than the flat unit.
+
+    Risk gates enforced:
+        1. Daily loss limit
+        2. Max open positions
+        3. Minimum edge threshold
+        4. Minimum composite score
+        5. Confidence floor
+        6. Duplicate ticker (already holding this market)
+        7. Per-event cap (max positions on the same game)
+        8. Max concentration (single position % of bankroll)
+        9. Max bet size (sports vs prediction cap)
     """
     rejection = None
 
@@ -124,6 +159,16 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     elif CONFIDENCE_RANK.get(opp.confidence, 0) < CONFIDENCE_RANK.get(MIN_CONFIDENCE, 1):
         rejection = f"confidence_too_low ({opp.confidence} < {MIN_CONFIDENCE})"
 
+    # ── Risk Gate 6: Duplicate ticker
+    elif open_tickers and opp.ticker in open_tickers:
+        rejection = f"duplicate_ticker (already holding {opp.ticker})"
+
+    # ── Risk Gate 7: Per-event cap
+    elif event_counts:
+        evt = _event_key(opp.ticker)
+        if event_counts.get(evt, 0) >= MAX_PER_EVENT:
+            rejection = f"per_event_cap ({event_counts[evt]}/{MAX_PER_EVENT} on {evt[:30]})"
+
     if rejection:
         return SizedOrder(
             opportunity=opp, contracts=0, price_cents=0,
@@ -131,22 +176,44 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
             risk_approval=f"REJECTED: {rejection}",
         )
 
-    # ── Size at fixed unit
+    # ── Size: quarter-Kelly with flat unit as floor
     price_cents = int(opp.market_price * 100)
     if price_cents <= 0:
         price_cents = 1
     if price_cents >= 100:
         price_cents = 99
 
-    contracts = unit_size_contracts(opp.market_price, unit_size)
+    # Flat unit sizing (baseline)
+    flat_contracts = unit_size_contracts(opp.market_price, unit_size)
+
+    # Quarter-Kelly sizing: bet = fraction * (edge / decimal_odds) * bankroll
+    # For binary markets: decimal_odds = 1 / market_price
+    kelly_bet = KELLY_FRACTION * opp.edge * bankroll
+    kelly_contracts = max(1, int(kelly_bet / opp.market_price)) if kelly_bet > 0 else flat_contracts
+
+    # Use the larger of flat and Kelly (Kelly scales up for high-edge bets)
+    contracts = max(flat_contracts, kelly_contracts)
     actual_cost = contracts * opp.market_price
+
+    # ── Risk Gate 8: Max concentration
+    bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
+    if bankroll_pct > MAX_CONCENTRATION:
+        contracts = max(1, int(MAX_CONCENTRATION * bankroll / opp.market_price))
+        actual_cost = contracts * opp.market_price
+        bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
+
+    # ── Risk Gate 9: Max bet size cap
+    max_bet = _max_bet_for(opp.category)
+    if actual_cost > max_bet:
+        contracts = max(1, int(max_bet / opp.market_price))
+        actual_cost = contracts * opp.market_price
+        bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
 
     # Final check: don't exceed bankroll
     if actual_cost > bankroll:
         contracts = max(1, int(bankroll / opp.market_price))
         actual_cost = contracts * opp.market_price
-
-    bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
+        bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
 
     return SizedOrder(
         opportunity=opp,
@@ -264,14 +331,22 @@ def execute_pipeline(
     rprint(f"  Balance:    [green]${bankroll:,.2f}[/green]")
     rprint(f"  Portfolio:  [green]${bal['portfolio_value']:,.2f}[/green]")
 
-    positions = client.get_positions(limit=100, count_filter="position")
-    open_count = len(positions.get("market_positions", []))
+    positions = client.get_positions(limit=200, count_filter="position")
+    market_positions = positions.get("market_positions", [])
+    open_count = len(market_positions)
     rprint(f"  Positions:  {open_count}/{MAX_OPEN_POSITIONS}")
+
+    # Build open ticker set and per-event counts for risk gates
+    open_tickers = {p.get("ticker", "") for p in market_positions}
+    event_counts: dict[str, int] = {}
+    for t in open_tickers:
+        evt = _event_key(t)
+        event_counts[evt] = event_counts.get(evt, 0) + 1
 
     trade_log = load_trade_log()
     daily_pnl = get_today_pnl(trade_log)
     rprint(f"  Today P&L:  ${daily_pnl:,.2f} (limit: -${MAX_DAILY_LOSS:,.2f})")
-    rprint(f"  Unit size:  ${UNIT_SIZE:.2f}")
+    rprint(f"  Unit size:  ${unit_size:.2f}")
 
     if daily_pnl <= -MAX_DAILY_LOSS:
         rprint("[red bold]DAILY LOSS LIMIT HIT -- no new bets allowed today[/red bold]")
@@ -281,8 +356,16 @@ def execute_pipeline(
     rprint(f"\n[bold]Risk-checking {len(opportunities)} opportunities...[/bold]")
     sized_orders: list[SizedOrder] = []
     for opp in opportunities:
-        sized = size_order(opp, bankroll, open_count + len(sized_orders), daily_pnl, unit_size)
+        sized = size_order(
+            opp, bankroll, open_count + len([s for s in sized_orders if s.risk_approval == "APPROVED"]),
+            daily_pnl, unit_size, open_tickers, event_counts,
+        )
         sized_orders.append(sized)
+        # Track newly approved positions for subsequent gate checks
+        if sized.risk_approval == "APPROVED":
+            open_tickers.add(opp.ticker)
+            evt = _event_key(opp.ticker)
+            event_counts[evt] = event_counts.get(evt, 0) + 1
 
     approved = [s for s in sized_orders if s.risk_approval == "APPROVED"]
     rejected = [s for s in sized_orders if s.risk_approval != "APPROVED"]

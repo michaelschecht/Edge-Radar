@@ -243,10 +243,11 @@ The skill routes natural language to the correct scanner, enforces all risk gate
                        YES
                         |
               +-------------------+
-              |    RISK GATES     |
+              |  RISK GATES (9)   |
               |   Daily loss cap  |
               |   Position limit  |
-              |   Min score       |
+              |   Per-event cap   |
+              |   Concentration   |
               |   Kelly sizing    |
               +-------------------+
                         |

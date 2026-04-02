@@ -17,7 +17,7 @@ import subprocess
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PYTHON = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
+PYTHON = sys.executable
 
 SCANNERS = {
     "sports":     PROJECT_ROOT / "scripts" / "kalshi"      / "edge_detector.py",
