@@ -5,6 +5,7 @@ Consolidated guide for sports betting on Kalshi: scanning markets, detecting edg
 For complete CLI flags and command examples, see [Scripts Reference](../SCRIPTS_REFERENCE.md).
 For risk gates and parameters, see [Architecture](../ARCHITECTURE.md).
 For enhancement history and planned features, see [Roadmap](../enhancements/ROADMAP.md).
+See also: [Futures Guide](../kalshi-futures-betting/FUTURES_GUIDE.md) | [Prediction Markets Guide](../kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)
 
 ---
 
@@ -281,7 +282,7 @@ Scan and save results first, then execute from the saved file to avoid re-fetchi
 
 ```bash
 python scripts/scan.py sports --filter ncaamb --save
-python scripts/kalshi/kalshi_executor.py run --from-file --execute --max-bets 3
+python scripts/scan.py sports --from-file --execute --max-bets 3
 ```
 
 Saved opportunities are stored in `data/watchlists/kalshi_opportunities.json`.

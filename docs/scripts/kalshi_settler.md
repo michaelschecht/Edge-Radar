@@ -28,6 +28,7 @@ python scripts/kalshi/kalshi_settler.py report [flags]
 |------|---------|-------------|
 | `--detail` | off | Show per-trade breakdown table (with bet type and pick labels) |
 | `--save` | off | Save markdown report to `reports/Accounts/Kalshi/kalshi_report_YYYY-MM-DD.md` |
+| `--days N` | all time | Only include trades settled in the last N days |
 
 ### Examples
 
@@ -35,19 +36,26 @@ python scripts/kalshi/kalshi_settler.py report [flags]
 # Quick summary (win/loss, net P&L, ROI)
 python scripts/kalshi/kalshi_settler.py report
 
+# Last 7 days only
+python scripts/kalshi/kalshi_settler.py report --days 7
+
+# Last month with full detail
+python scripts/kalshi/kalshi_settler.py report --days 30 --detail
+
 # Full detail with file export
 python scripts/kalshi/kalshi_settler.py report --detail --save
 ```
 
 ### Report Includes
 
-- Win/loss record
-- Net P&L and ROI
-- Profit factor
+- Win/loss record, net P&L, ROI, profit factor
 - Best/worst trades
 - Edge calibration (estimated vs. realized)
-- Breakdowns by confidence level and category
 - CLV (Closing Line Value) tracking
+- **By Confidence** — win rate, P&L, ROI, avg edge per confidence level
+- **By Category** — ML vs Spread vs Total vs Prop performance
+- **By Sport** — NBA vs NHL vs MLB vs NFL etc.
+- **By Edge Bucket** — 3-5%, 5-10%, 10-15%, 15%+ win rates and ROI
 
 ---
 

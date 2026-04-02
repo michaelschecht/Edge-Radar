@@ -102,11 +102,11 @@ python scripts/kalshi/edge_detector.py detail KXNBAGAME-26MAR25LALBOS-LAL
 ### Console Table
 
 ```
-| Bet              | Type   | Pick        | When  | Mkt   | Fair  | Edge   | Conf. | Score |
-|------------------|--------|-------------|-------|-------|-------|--------|-------|-------|
-| Phoenix @ Hornets| Total  | Over 220.5  | Apr 2 | $0.53 | $0.66 | +13.3% | MED   |   8.3 |
-| Spurs @ Clippers | ML     | Spurs win   | Apr 2 | $0.62 | $0.74 | +12.0% | MED   |   8.3 |
-| Spurs @ Clippers | Spread | Spurs -4.5  | Apr 2 | $0.53 | $0.86 | +32.5% | LOW   |   7.2 |
+| Sport | Bet              | Type   | Pick        | When  | Mkt   | Fair  | Edge   | Conf. | Score |
+|-------|------------------|--------|-------------|-------|-------|-------|--------|-------|-------|
+| NBA   | Phoenix @ Hornets| Total  | Over 220.5  | Apr 2 | $0.53 | $0.66 | +13.3% | MED   |   8.3 |
+| NBA   | Spurs @ Clippers | ML     | Spurs win   | Apr 2 | $0.62 | $0.74 | +12.0% | MED   |   8.3 |
+| NBA   | Spurs @ Clippers | Spread | Spurs -4.5  | Apr 2 | $0.53 | $0.86 | +32.5% | LOW   |   7.2 |
 ```
 
 ### Saved Report

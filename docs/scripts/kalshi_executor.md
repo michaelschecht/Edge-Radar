@@ -20,7 +20,7 @@ python scripts/kalshi/kalshi_executor.py status [flags]
 |------|---------|-------------|
 | `--save` | off | Save status report as markdown to `reports/Accounts/Kalshi/kalshi_status_YYYY-MM-DD.md` |
 
-Shows: balance, portfolio value, open positions (with bet type, pick label, matchup, and dates), today's P&L, resting orders.
+Shows: balance, portfolio value, open positions table (Bet, Type, Pick, When, Qty, Cost, P&L), today's P&L, resting orders.
 
 ### Examples
 

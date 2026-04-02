@@ -390,10 +390,14 @@ def execute_pipeline(
         parse_game_datetime, format_bet_label, format_pick_label, sport_from_ticker,
     )
 
-    table = Table(
-        title=f"{'EXECUTING' if execute else 'PREVIEW'} -- {len(to_execute)} orders",
-        show_lines=True,
-    )
+    dry_run = os.getenv("DRY_RUN", "true").lower() == "true"
+    if execute and dry_run:
+        table_title = f"DRY RUN -- {len(to_execute)} orders (DRY_RUN=true, no real orders placed)"
+    elif execute:
+        table_title = f"EXECUTING -- {len(to_execute)} orders"
+    else:
+        table_title = f"PREVIEW -- {len(to_execute)} orders"
+    table = Table(title=table_title, show_lines=True)
     cat_labels = {
         "game": "ML", "spread": "Spread", "total": "Total",
         "player_prop": "Prop", "esports": "Esports",
@@ -505,7 +509,7 @@ def execute_pipeline(
     rprint(f"  Orders placed: {len(results)}")
     rprint(f"  Trade log: {TRADE_LOG_PATH}")
 
-    return results
+    return to_execute  # Return SizedOrder objects for report writer
 
 
 # ── Status Command ────────────────────────────────────────────────────────────
