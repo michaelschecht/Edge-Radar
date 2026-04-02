@@ -163,7 +163,7 @@ Show portfolio dashboard — balance, open positions, P&L, resting orders.
 python scripts/kalshi/kalshi_executor.py status
 ```
 
-Report the key numbers clearly: balance, number of open positions, today's P&L, any resting orders. Positions now display readable matchups and game dates (not raw tickers). Done.
+Report the key numbers clearly: balance, number of open positions, today's P&L, any resting orders. Positions display Sport, Bet (matchup), Type (ML/Spread/Total/Prop), Pick (e.g., "Spurs win", "Over 220.5"), When, Qty, Cost, P&L. Done.
 
 For a more detailed risk dashboard:
 
@@ -334,7 +334,11 @@ python scripts/polymarket/polymarket_edge.py scan [flags]
 
 ### Step 3: Present Results
 
-Show the opportunity table from the scan output. Explain:
+The scan table shows: **Sport** (NBA/NHL/MLB/etc.), **Bet** (matchup), **Type** (ML/Spread/Total/Prop), **Pick** (e.g., "Spurs win", "Over 220.5", "Blazers -7.5"), **When**, **Mkt**, **Fair**, **Edge**, **Conf**, **Score**.
+
+When `--unit-size` is passed, the executor table shows: **Sport**, **Bet**, **Type**, **Pick**, **When**, **Qty**, **Price**, **Cost**, **Edge**.
+
+Explain:
 - How many opportunities were found and at what edge threshold
 - Top 2-3 picks and why they have edge (plain language)
 - Total estimated cost if all were executed
@@ -418,22 +422,28 @@ After execution, summarize:
 | `/edge-radar detail KXNBAGAME-26MAR25LALBOS-LAL` | `edge_detector.py detail KXNBAGAME-26MAR25LALBOS-LAL` |
 | `/edge-radar bet nba --go --unit-size 1 --max-bets 3` | `scan.py sports --filter nba --execute --unit-size 1 --max-bets 3` (no confirmation needed) |
 | `/edge-radar scan all` | `scan.py sports` (no filter = all sports) |
+| `/edge-radar scan all --date today` | `scan.py sports --date today` (all sports, today only) |
+| `/edge-radar bet all --unit-size .5 --max-bets 10` | `scan.py sports --unit-size .5 --max-bets 10` then confirm then `--execute` |
 | `/edge-radar bet mlb --pick '1,3,5'` | `scan.py sports --filter mlb --execute --pick '1,3,5'` |
 
 ---
 
 ## Report Output
 
-When `--save` is used, all scanners generate **markdown reports** with formatted tables:
+When `--save` is used, the report format depends on whether `--unit-size` was passed:
+
+**With `--unit-size` (execution report):** Sport, Bet, Type, Pick, Qty, Price, Cost, Edge, total cost.
+
+**Without `--unit-size` (scan report):** Sport, Bet, Type, Pick, When, Mkt, Fair, Edge, Conf, Score.
 
 | Scanner | Report Path |
 |---------|-------------|
-| Sports | `reports/Sports/{date}_{sport}_sports_scan.md` |
+| Sports (scan) | `reports/Sports/{date}_{sport}_sports_scan.md` |
+| Sports (execution) | `reports/Sports/{date}_{sport}_sports_execution.md` |
 | Futures | `reports/Futures/{date}_{category}_futures_scan.md` |
 | Predictions | `reports/Predictions/{date}_{category}_prediction_scan.md` |
-| Settle/P&L | `reports/` (markdown with formatted tables) |
-
-Reports include: readable matchups, game date/time, edge%, fair price, market price, confidence, composite score.
+| Settle/P&L | `reports/Accounts/Kalshi/` |
+| Automated | `reports/Sports/schedulers/same-day-executions/` |
 
 ---
 
@@ -497,18 +507,31 @@ make reconcile                 # Compare local vs API
 
 ## Automation
 
-### Scheduled Morning Scans
+### Same-Day Automated Execution (Primary — 8 AM ET)
 
-Batch files in `scripts/schedulers/morning_scans/` run per-sport scans and save reports:
+Scans all four major sports (NFL, NBA, NHL, MLB) in one command, ranks top 10 across all sports, and executes with Kelly sizing and all 9 risk gates.
 
 ```bash
-scripts/schedulers/morning_scans/mlb_morning_scan.bat
-scripts/schedulers/morning_scans/nba_morning_scan.bat
-scripts/schedulers/morning_scans/nfl_morning_scan.bat
-scripts/schedulers/morning_scans/nhl_morning_scan.bat
+# Preview only (no bets)
+scripts\schedulers\same_day_executions\same_day_scan.bat
+
+# Scan + execute (places live orders)
+scripts\schedulers\same_day_executions\same_day_execute.bat
 ```
 
-These use `--report-dir` to save to `reports/Sports/schedulers/<sport>/`.
+Config: `--unit-size .5`, `--max-bets 10` total, `--date today`, `--exclude-open`, `--save`.
+Reports saved to `reports/Sports/schedulers/same-day-executions/` as execution reports (with Qty/Cost).
+
+### Next-Day Scripts (Reserve — 9 PM ET)
+
+Same as above but for tomorrow's games. Available at `scripts/schedulers/next_day_executions/`. Use when locking in early lines the night before.
+
+### Per-Sport Scan-Only Scripts
+
+```
+scripts/schedulers/same_day_scans/     # Today's games by sport
+scripts/schedulers/next_day_scans/     # Tomorrow's games by sport
+```
 
 ### Daily Edge Email
 
@@ -516,17 +539,15 @@ These use `--report-dir` to save to `reports/Sports/schedulers/<sport>/`.
 python scripts/custom/send_daily_email.py
 ```
 
-Sends an HTML-formatted daily report via AgentMail, reading from saved scheduler reports.
+Sends an HTML-formatted daily report via AgentMail.
 
-### Daily All-Sport Scan
-
-```bash
-python scripts/schedulers/automation/daily_sports_scan.py
-```
-
-### Windows Task Scheduler (8 AM daily)
+### Windows Task Scheduler
 
 ```bash
+# Install same-day execution at 8 AM daily
+schtasks /Create /TN "Edge-Radar\Same-Day-Execute" /TR "D:\AI_Agents\Specialized_Agents\Edge_Radar\scripts\schedulers\same_day_executions\same_day_execute.bat" /SC DAILY /ST 08:00
+
+# Or use the Python installer for the morning scan report
 python scripts/schedulers/automation/install_windows_task.py install
 ```
 
