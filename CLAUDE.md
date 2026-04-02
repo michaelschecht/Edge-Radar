@@ -49,7 +49,7 @@ Edge-Radar/
 │   │   ├── DATA_ANALYST.md          # Quant analysis, models, backtesting
 │   │   └── PORTFOLIO_MONITOR.md     # P&L tracking, alerts, reporting
 │   └── skills/
-│       └── kalshi-bet/SKILL.md      # /kalshi-bet slash command
+│       └── edge-radar/SKILL.md      # /edge-radar slash command
 ├── docs/
 │   ├── CHANGELOG.md                 # Project history
 │   ├── SCRIPTS_REFERENCE.md         # Complete CLI reference for every script

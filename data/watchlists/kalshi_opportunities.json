@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-04-02T18:47:12.804994+00:00",
+  "generated_at": "2026-04-02T21:39:23.120145+00:00",
   "min_edge": 0.03,
-  "count": 7,
+  "count": 5,
   "opportunities": [
     {
       "ticker": "KXNHLTOTAL-26APR02NSHLA-5",
@@ -16,7 +16,7 @@
       "liquidity_score": 9.8,
       "composite_score": 9.2,
       "details": {
-        "n_books": 136,
+        "n_books": 140,
         "median_book_line": 6.5,
         "kalshi_strike": 5.5,
         "line_diff": 1.0,
@@ -39,8 +39,8 @@
           {
             "book": "fanduel",
             "line": 6.5,
-            "odds": 2.02,
-            "implied": 0.495
+            "odds": 1.98,
+            "implied": 0.5051
           },
           {
             "book": "lowvig",
@@ -59,257 +59,9 @@
           "signal_found": true,
           "sharp_side": "over",
           "agrees_with_bet": true,
-          "reason": "Total rose +3.0 pts (sharp over)",
+          "reason": "Total rose +4.0 pts (sharp over)",
           "spread_move": -2.0,
-          "total_move": 3.0
-        }
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR02PHXCHA-229",
-      "title": "Phoenix at Charlotte: Total Points",
-      "category": "total",
-      "side": "yes",
-      "market_price": 0.39,
-      "fair_value": 0.5457,
-      "edge": 0.1557,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "high",
-      "liquidity_score": 9.8,
-      "composite_score": 9.2,
-      "details": {
-        "n_books": 54,
-        "median_book_line": 230.5,
-        "kalshi_strike": 229.5,
-        "line_diff": 1.0,
-        "adjusted_prob": 0.5457,
-        "inferred_mean_total": 231.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "fanduel",
-            "line": 224.5,
-            "odds": 1.88,
-            "implied": 0.5319
-          },
-          {
-            "book": "betonlineag",
-            "line": 225.0,
-            "odds": 1.88,
-            "implied": 0.5319
-          },
-          {
-            "book": "lowvig",
-            "line": 225.0,
-            "odds": 1.89,
-            "implied": 0.5291
-          },
-          {
-            "book": "draftkings",
-            "line": 225.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betmgm",
-            "line": 225.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ],
-        "sharp_money": {
-          "signal_found": true,
-          "sharp_side": "over",
-          "agrees_with_bet": true,
-          "reason": "Total rose +5.0 pts (sharp over)",
-          "spread_move": 0.0,
-          "total_move": 5.0
-        }
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR02PHXCHA-235",
-      "title": "Phoenix at Charlotte: Total Points",
-      "category": "total",
-      "side": "yes",
-      "market_price": 0.27,
-      "fair_value": 0.4135,
-      "edge": 0.1435,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "high",
-      "liquidity_score": 9.8,
-      "composite_score": 9.2,
-      "details": {
-        "n_books": 54,
-        "median_book_line": 230.5,
-        "kalshi_strike": 235.5,
-        "line_diff": -5.0,
-        "adjusted_prob": 0.4135,
-        "inferred_mean_total": 231.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "fanduel",
-            "line": 224.5,
-            "odds": 1.88,
-            "implied": 0.5319
-          },
-          {
-            "book": "betonlineag",
-            "line": 225.0,
-            "odds": 1.88,
-            "implied": 0.5319
-          },
-          {
-            "book": "lowvig",
-            "line": 225.0,
-            "odds": 1.89,
-            "implied": 0.5291
-          },
-          {
-            "book": "draftkings",
-            "line": 225.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betmgm",
-            "line": 225.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ],
-        "sharp_money": {
-          "signal_found": true,
-          "sharp_side": "over",
-          "agrees_with_bet": true,
-          "reason": "Total rose +5.0 pts (sharp over)",
-          "spread_move": 0.0,
-          "total_move": 5.0
-        }
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR02PHXCHA-232",
-      "title": "Phoenix at Charlotte: Total Points",
-      "category": "total",
-      "side": "yes",
-      "market_price": 0.34,
-      "fair_value": 0.4793,
-      "edge": 0.1393,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "high",
-      "liquidity_score": 9.8,
-      "composite_score": 9.2,
-      "details": {
-        "n_books": 54,
-        "median_book_line": 230.5,
-        "kalshi_strike": 232.5,
-        "line_diff": -2.0,
-        "adjusted_prob": 0.4793,
-        "inferred_mean_total": 231.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "fanduel",
-            "line": 224.5,
-            "odds": 1.88,
-            "implied": 0.5319
-          },
-          {
-            "book": "betonlineag",
-            "line": 225.0,
-            "odds": 1.88,
-            "implied": 0.5319
-          },
-          {
-            "book": "lowvig",
-            "line": 225.0,
-            "odds": 1.89,
-            "implied": 0.5291
-          },
-          {
-            "book": "draftkings",
-            "line": 225.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betmgm",
-            "line": 225.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ],
-        "sharp_money": {
-          "signal_found": true,
-          "sharp_side": "over",
-          "agrees_with_bet": true,
-          "reason": "Total rose +5.0 pts (sharp over)",
-          "spread_move": 0.0,
-          "total_move": 5.0
-        }
-      }
-    },
-    {
-      "ticker": "KXNHLTOTAL-26APR02NSHLA-6",
-      "title": "Nashville vs Los Angeles: Total Goals (vs Los Angeles)",
-      "category": "total",
-      "side": "yes",
-      "market_price": 0.42,
-      "fair_value": 0.5291,
-      "edge": 0.1091,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "high",
-      "liquidity_score": 9.8,
-      "composite_score": 9.2,
-      "details": {
-        "n_books": 136,
-        "median_book_line": 6.5,
-        "kalshi_strike": 6.5,
-        "line_diff": 0.0,
-        "adjusted_prob": 0.5291,
-        "inferred_mean_total": 6.66,
-        "total_stdev": 2.2,
-        "books": [
-          {
-            "book": "betrivers",
-            "line": 6.5,
-            "odds": 1.92,
-            "implied": 0.5208
-          },
-          {
-            "book": "draftkings",
-            "line": 6.5,
-            "odds": 2.0,
-            "implied": 0.5
-          },
-          {
-            "book": "fanduel",
-            "line": 6.5,
-            "odds": 2.02,
-            "implied": 0.495
-          },
-          {
-            "book": "lowvig",
-            "line": 6.5,
-            "odds": 2.04,
-            "implied": 0.4902
-          },
-          {
-            "book": "betonlineag",
-            "line": 6.5,
-            "odds": 2.04,
-            "implied": 0.4902
-          }
-        ],
-        "sharp_money": {
-          "signal_found": true,
-          "sharp_side": "over",
-          "agrees_with_bet": true,
-          "reason": "Total rose +3.0 pts (sharp over)",
-          "spread_move": -2.0,
-          "total_move": 3.0
+          "total_move": 4.0
         }
       }
     },
@@ -323,10 +75,10 @@
       "edge": 0.1314,
       "edge_source": "odds_api_total_adjusted",
       "confidence": "high",
-      "liquidity_score": 9.6,
-      "composite_score": 9.1,
+      "liquidity_score": 9.8,
+      "composite_score": 9.2,
       "details": {
-        "n_books": 136,
+        "n_books": 140,
         "median_book_line": 6.5,
         "kalshi_strike": 7.5,
         "line_diff": -1.0,
@@ -349,8 +101,8 @@
           {
             "book": "fanduel",
             "line": 6.5,
-            "odds": 2.02,
-            "implied": 0.495
+            "odds": 1.98,
+            "implied": 0.5051
           },
           {
             "book": "lowvig",
@@ -369,81 +121,200 @@
           "signal_found": true,
           "sharp_side": "over",
           "agrees_with_bet": true,
-          "reason": "Total rose +3.0 pts (sharp over)",
+          "reason": "Total rose +4.0 pts (sharp over)",
           "spread_move": -2.0,
-          "total_move": 3.0
+          "total_move": 4.0
         }
       }
     },
     {
-      "ticker": "KXNCAABBGAME-26APR021500OREMIW-MIW",
-      "title": "Oregon vs Michigan winner? (vs Michigan)",
-      "category": "game",
+      "ticker": "KXNHLTOTAL-26APR02NSHLA-6",
+      "title": "Nashville vs Los Angeles: Total Goals (vs Los Angeles)",
+      "category": "total",
       "side": "yes",
-      "market_price": 0.32,
+      "market_price": 0.41,
+      "fair_value": 0.5291,
+      "edge": 0.1191,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "high",
+      "liquidity_score": 9.8,
+      "composite_score": 9.2,
+      "details": {
+        "n_books": 140,
+        "median_book_line": 6.5,
+        "kalshi_strike": 6.5,
+        "line_diff": 0.0,
+        "adjusted_prob": 0.5291,
+        "inferred_mean_total": 6.66,
+        "total_stdev": 2.2,
+        "books": [
+          {
+            "book": "betrivers",
+            "line": 6.5,
+            "odds": 1.92,
+            "implied": 0.5208
+          },
+          {
+            "book": "draftkings",
+            "line": 6.5,
+            "odds": 2.0,
+            "implied": 0.5
+          },
+          {
+            "book": "fanduel",
+            "line": 6.5,
+            "odds": 1.98,
+            "implied": 0.5051
+          },
+          {
+            "book": "lowvig",
+            "line": 6.5,
+            "odds": 2.04,
+            "implied": 0.4902
+          },
+          {
+            "book": "betonlineag",
+            "line": 6.5,
+            "odds": 2.04,
+            "implied": 0.4902
+          }
+        ],
+        "sharp_money": {
+          "signal_found": true,
+          "sharp_side": "over",
+          "agrees_with_bet": true,
+          "reason": "Total rose +4.0 pts (sharp over)",
+          "spread_move": -2.0,
+          "total_move": 4.0
+        }
+      }
+    },
+    {
+      "ticker": "KXNCAABBGAME-26APR022100ARSARW-ARS",
+      "title": "Arizona State vs Arizona winner? (vs Arizona)",
+      "category": "game",
+      "side": "no",
+      "market_price": 0.28,
       "fair_value": 0.5222,
-      "edge": 0.2022,
+      "edge": 0.2422,
       "edge_source": "odds_api_consensus",
       "confidence": "high",
-      "liquidity_score": 8.6,
+      "liquidity_score": 8.4,
       "composite_score": 8.9,
       "details": {
         "n_books": 13,
-        "median_fair": 0.5222,
-        "min_fair": 0.5222,
-        "max_fair": 0.692,
+        "median_fair": 0.4778,
+        "min_fair": 0.4675,
+        "max_fair": 0.6788,
         "books": {
           "fanduel": {
-            "raw_odds": 1.38,
-            "implied": 0.7246,
-            "devigged": 0.692
+            "raw_odds": 1.41,
+            "implied": 0.7092,
+            "devigged": 0.6788
           },
           "betonlineag": {
-            "raw_odds": 1.83,
-            "implied": 0.5464,
-            "devigged": 0.5222
+            "raw_odds": 2.0,
+            "implied": 0.5,
+            "devigged": 0.4778
           },
           "lowvig": {
-            "raw_odds": 1.83,
-            "implied": 0.5464,
-            "devigged": 0.5222
+            "raw_odds": 2.0,
+            "implied": 0.5,
+            "devigged": 0.4778
           },
           "betrivers": {
-            "raw_odds": 1.8,
-            "implied": 0.5556,
-            "devigged": 0.5288
+            "raw_odds": 1.96,
+            "implied": 0.5102,
+            "devigged": 0.4828
           },
           "draftkings": {
-            "raw_odds": 1.43,
-            "implied": 0.6993,
-            "devigged": 0.6697
+            "raw_odds": 1.46,
+            "implied": 0.6849,
+            "devigged": 0.6573
           },
           "bovada": {
-            "raw_odds": 1.83,
-            "implied": 0.5464,
-            "devigged": 0.5222
+            "raw_odds": 2.0,
+            "implied": 0.5,
+            "devigged": 0.4778
           },
           "betmgm": {
-            "raw_odds": 1.83,
-            "implied": 0.5464,
-            "devigged": 0.5222
+            "raw_odds": 2.0,
+            "implied": 0.5,
+            "devigged": 0.4778
           },
           "mybookieag": {
-            "raw_odds": 1.8,
-            "implied": 0.5556,
-            "devigged": 0.5288
+            "raw_odds": 2.02,
+            "implied": 0.495,
+            "devigged": 0.4712
           },
           "betus": {
-            "raw_odds": 1.83,
-            "implied": 0.5464,
-            "devigged": 0.5222
+            "raw_odds": 2.0,
+            "implied": 0.5,
+            "devigged": 0.4778
           }
         },
         "team_stats": {
           "stats_found": true,
-          "win_pct": 0.75,
-          "team_record": "15-5",
+          "win_pct": 0.389,
+          "team_record": "7-11",
           "signal": "supports"
+        }
+      }
+    },
+    {
+      "ticker": "KXNCAABBGAME-26APR021500NEWMER-NEW",
+      "title": "New Haven vs Mercyhurst winner? (vs Mercyhurst)",
+      "category": "game",
+      "side": "yes",
+      "market_price": 0.01,
+      "fair_value": 0.6103,
+      "edge": 0.6003,
+      "edge_source": "odds_api_consensus",
+      "confidence": "medium",
+      "liquidity_score": 9.8,
+      "composite_score": 8.3,
+      "details": {
+        "n_books": 6,
+        "median_fair": 0.6103,
+        "min_fair": 0.5909,
+        "max_fair": 0.6103,
+        "books": {
+          "betonlineag": {
+            "raw_odds": 1.59,
+            "implied": 0.6289,
+            "devigged": 0.6103
+          },
+          "lowvig": {
+            "raw_odds": 1.59,
+            "implied": 0.6289,
+            "devigged": 0.6103
+          },
+          "fanduel": {
+            "raw_odds": 1.62,
+            "implied": 0.6173,
+            "devigged": 0.5909
+          },
+          "draftkings": {
+            "raw_odds": 1.6,
+            "implied": 0.625,
+            "devigged": 0.6
+          },
+          "betmgm": {
+            "raw_odds": 1.62,
+            "implied": 0.6173,
+            "devigged": 0.5919
+          },
+          "betus": {
+            "raw_odds": 1.59,
+            "implied": 0.6289,
+            "devigged": 0.6074
+          }
+        },
+        "team_stats": {
+          "stats_found": true,
+          "win_pct": 0.5,
+          "team_record": "9-9",
+          "signal": "neutral"
         }
       }
     }

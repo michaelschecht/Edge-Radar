@@ -28,7 +28,7 @@ echo --- Portfolio Status (Before) ---
 echo.
 
 echo --- Scanning and Executing ---
-.venv\Scripts\python.exe scripts\scan.py sports --unit-size .5 --max-bets 10 --date today --exclude-open --save --report-dir "reports\Sports\schedulers\same-day-executions" --execute
+.venv\Scripts\python.exe scripts\scan.py sports --unit-size .5 --max-bets 5 --date today --exclude-open --save --report-dir "reports\Sports\schedulers\same-day-executions" --execute
 echo.
 
 echo --- Portfolio Status (After) ---

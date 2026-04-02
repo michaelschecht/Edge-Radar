@@ -182,11 +182,15 @@ Update trade log with settled results, then show performance report.
 ```bash
 python scripts/kalshi/kalshi_settler.py settle
 python scripts/kalshi/kalshi_settler.py report --detail
+python scripts/kalshi/kalshi_settler.py report --days 7          # Last week only
+python scripts/kalshi/kalshi_settler.py report --days 30 --save  # Last month, save to file
 ```
 
-Add `--save` to persist the report as markdown. Reports include formatted tables with bold values and code-formatted tickers.
+Add `--save` to persist the report as markdown. Use `--days N` to filter to recent trades.
 
-Summarize: total settled, wins, losses, net P&L, ROI, best/worst bets. Done.
+Reports include: P&L summary, win/loss record, edge calibration, CLV, plus dimensional breakdowns by confidence, category (ML/Spread/Total), sport, and edge bucket (3-5%, 5-10%, 10-15%, 15%+).
+
+Summarize: total settled, wins, losses, net P&L, ROI, best/worst bets, which dimensions are profitable. Done.
 
 ---
 

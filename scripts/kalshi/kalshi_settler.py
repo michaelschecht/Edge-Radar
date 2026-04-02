@@ -224,12 +224,13 @@ def settle_trades(client: KalshiClient) -> dict:
 
 # ── Performance Report ────────────────────────────────────────────────────────
 
-def generate_report(detail: bool = False, save: bool = False):
+def generate_report(detail: bool = False, save: bool = False, days: int | None = None):
     """Generate P&L and performance report from trade log.
 
     Args:
         detail: Show per-trade breakdown table.
         save: Write report to reports/Accounts/Kalshi/ with today's date.
+        days: Only include trades settled in the last N days. None = all time.
     """
     trade_log = load_trade_log()
 
@@ -240,18 +241,25 @@ def generate_report(detail: bool = False, save: bool = False):
     settled = [t for t in trade_log if t.get("closed_at") is not None]
     unsettled = [t for t in trade_log if t.get("closed_at") is None and t.get("status") != "error"]
 
+    # Apply date filter
+    if days is not None:
+        from datetime import timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        settled = [t for t in settled if (t.get("closed_at") or "") >= cutoff]
+
     # Markdown lines for file output (built alongside console output)
     md: list[str] = []
 
     generated_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
 
-    rprint(f"\n-- Kalshi Performance Report --")
+    period = f"Last {days} days" if days else "All time"
+    rprint(f"\n-- Kalshi Performance Report ({period}) --")
     rprint(f"  Generated: {generated_at}")
     rprint(f"  Total trades:    {len(trade_log)}")
     rprint(f"  Settled:         {len(settled)}")
     rprint(f"  Open/Pending:    {len(unsettled)}")
 
-    md.append(f"# Kalshi Performance Report")
+    md.append(f"# Kalshi Performance Report ({period})")
     md.append(f"")
     md.append(f"*Generated: {generated_at}*")
     md.append(f"")
@@ -389,59 +397,75 @@ def generate_report(detail: bool = False, save: bool = False):
         md.append(f"| Avg CLV | {avg_clv:+.1%} |")
         md.append(f"| Beat the close | {positive_clv}/{len(clv_trades)} ({positive_clv/len(clv_trades):.0%}) |")
 
-    # By confidence level
-    conf_rows = []
-    for conf in ["high", "medium", "low"]:
-        conf_trades = [t for t in settled if t.get("confidence") == conf]
-        if conf_trades:
-            conf_pnl = sum(t.get("net_pnl", 0) for t in conf_trades)
-            conf_wins = sum(1 for t in conf_trades if t.get("settlement_won"))
+    # ── Dimensional breakdowns
+    from ticker_display import sport_from_ticker
+
+    def _breakdown(label: str, groups: dict, md: list):
+        """Print and append a dimensional breakdown table."""
+        if not groups:
+            return
+        rprint(f"\n[bold]{label}[/bold]")
+        md.append(f"")
+        md.append(f"### {label}")
+        md.append(f"")
+        md.append(f"| {label} | Trades | Win Rate | P&L | ROI | Avg Edge |")
+        md.append(f"|{'-' * len(label)}--|--------|----------|-----|-----|----------|")
+        for name, trades_list in sorted(groups.items(), key=lambda x: -sum(t.get("net_pnl", 0) for t in x[1])):
+            n = len(trades_list)
+            w = sum(1 for t in trades_list if t.get("settlement_won"))
+            pnl = sum(t.get("net_pnl", 0) for t in trades_list)
+            wagered = sum(t.get("cost_dollars", 0) for t in trades_list)
+            roi_val = pnl / wagered if wagered > 0 else 0
+            avg_edge = sum(t.get("edge_estimated", 0) for t in trades_list) / n if n else 0
+            wr = w / n if n else 0
+            pnl_color = "green" if pnl >= 0 else "red"
             rprint(
-                f"  {conf:>8}: {len(conf_trades)} trades, "
-                f"${conf_pnl:+.2f}, "
-                f"{conf_wins}/{len(conf_trades)} wins"
-            )
-            conf_rows.append(
-                f"| {conf.capitalize()} | {len(conf_trades)} | ${conf_pnl:+.2f} | "
-                f"{conf_wins}/{len(conf_trades)} |"
-            )
-
-    if conf_rows:
-        md.append(f"")
-        md.append(f"### By Confidence")
-        md.append(f"")
-        md.append(f"| Confidence | Trades | P&L | Wins |")
-        md.append(f"|------------|--------|-----|------|")
-        md.extend(conf_rows)
-
-    # By category
-    categories = {}
-    for t in settled:
-        cat = t.get("category", "other")
-        if cat not in categories:
-            categories[cat] = {"trades": 0, "pnl": 0, "wins": 0}
-        categories[cat]["trades"] += 1
-        categories[cat]["pnl"] += t.get("net_pnl", 0)
-        if t.get("settlement_won"):
-            categories[cat]["wins"] += 1
-
-    if len(categories) > 1:
-        rprint(f"\n[bold]By Category[/bold]")
-        md.append(f"")
-        md.append(f"### By Category")
-        md.append(f"")
-        md.append(f"| Category | Trades | P&L | Wins |")
-        md.append(f"|----------|--------|-----|------|")
-        for cat, stats in sorted(categories.items(), key=lambda x: -x[1]["pnl"]):
-            rprint(
-                f"  {cat:>12}: {stats['trades']} trades, "
-                f"${stats['pnl']:+.2f}, "
-                f"{stats['wins']}/{stats['trades']} wins"
+                f"  {name:>12}: {n} trades, {w}/{n} ({wr:.0%}), "
+                f"[{pnl_color}]${pnl:+.2f}[/{pnl_color}], "
+                f"ROI {roi_val:+.0%}, avg edge {avg_edge:.1%}"
             )
             md.append(
-                f"| {cat} | {stats['trades']} | ${stats['pnl']:+.2f} | "
-                f"{stats['wins']}/{stats['trades']} |"
+                f"| {name} | {n} | {w}/{n} ({wr:.0%}) | ${pnl:+.2f} | {roi_val:+.0%} | {avg_edge:.1%} |"
             )
+
+    # By confidence level
+    conf_groups = {}
+    for t in settled:
+        conf = t.get("confidence", "unknown")
+        conf_groups.setdefault(conf, []).append(t)
+    _breakdown("By Confidence", conf_groups, md)
+
+    # By category (ML/spread/total/prop)
+    cat_groups = {}
+    cat_labels = {"game": "ML", "spread": "Spread", "total": "Total", "player_prop": "Prop"}
+    for t in settled:
+        cat = t.get("category", "other")
+        label = cat_labels.get(cat, cat.title())
+        cat_groups.setdefault(label, []).append(t)
+    _breakdown("By Category", cat_groups, md)
+
+    # By sport
+    sport_groups = {}
+    for t in settled:
+        sport = sport_from_ticker(t.get("ticker", "")) or "Other"
+        sport_groups.setdefault(sport, []).append(t)
+    _breakdown("By Sport", sport_groups, md)
+
+    # By edge bucket
+    edge_buckets = {"3-5%": [], "5-10%": [], "10-15%": [], "15%+": []}
+    for t in settled:
+        edge = t.get("edge_estimated", 0)
+        if edge >= 0.15:
+            edge_buckets["15%+"].append(t)
+        elif edge >= 0.10:
+            edge_buckets["10-15%"].append(t)
+        elif edge >= 0.05:
+            edge_buckets["5-10%"].append(t)
+        else:
+            edge_buckets["3-5%"].append(t)
+    # Remove empty buckets
+    edge_buckets = {k: v for k, v in edge_buckets.items() if v}
+    _breakdown("By Edge Bucket", edge_buckets, md)
 
     # ── Detail table
     if detail:
@@ -604,6 +628,7 @@ def main():
     report_p = sub.add_parser("report", help="Performance report")
     report_p.add_argument("--detail", action="store_true", help="Show per-trade breakdown")
     report_p.add_argument("--save", action="store_true", help="Save report to reports/Accounts/Kalshi/")
+    report_p.add_argument("--days", type=int, default=None, help="Only include trades settled in the last N days (default: all)")
 
     sub.add_parser("reconcile", help="Compare local trade log vs Kalshi API positions")
 
@@ -614,7 +639,7 @@ def main():
         settle_trades(client)
 
     elif args.command == "report":
-        generate_report(detail=args.detail, save=args.save)
+        generate_report(detail=args.detail, save=args.save, days=args.days)
 
     elif args.command == "reconcile":
         client = KalshiClient()

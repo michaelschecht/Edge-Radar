@@ -31,6 +31,7 @@ python scripts/scan.py prediction --filter <filter>
 ```
 
 For risk gates and position sizing rules, see [Architecture](../ARCHITECTURE.md). For enhancement history, see [Roadmap](../enhancements/ROADMAP.md).
+See also: [Sports Guide](../kalshi-sports-betting/SPORTS_GUIDE.md) | [Futures Guide](../kalshi-futures-betting/FUTURES_GUIDE.md)
 
 ---
 
