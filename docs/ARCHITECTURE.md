@@ -77,6 +77,81 @@ Confidence (low/medium/high) is determined by four factors:
 
 ---
 
+## How Scoring Works
+
+Four independent attributes are calculated for every opportunity. They build on each other but are derived from different data sources.
+
+```
+Sportsbook odds ──→ FAIR VALUE ──→ EDGE (vs Kalshi price)──┐
+                         │                                   │
+Book count + agreement ──→ CONFIDENCE ──────────────────────┤
+                                                             ├──→ SCORE
+Bid/ask spread ──────────→ Liquidity ───────────────────────┤
+                                                             │
+Time to expiry ──────────→ Time factor ─────────────────────┘
+```
+
+### Fair Value
+
+The model's estimate of the true probability. Derived purely from sportsbook odds:
+
+1. Fetch odds from 8-12 US sportsbooks
+2. De-vig each book's line (multiplicative method) to extract true implied probability
+3. Take the **weighted median** — sharp books (Pinnacle, Circa) weighted 3x, recreational books (DraftKings, FanDuel) weighted 0.7x
+4. For spreads/totals: infer expected margin/total from book lines, then apply **normal CDF** with sport-specific standard deviations
+
+Result: a probability (e.g., 0.74 = "74% chance this team wins").
+
+### Edge
+
+How mispriced the Kalshi contract is. Pure math, no judgment:
+
+```
+edge = fair_value - kalshi_ask_price
+```
+
+Example: fair value = $0.74, Kalshi asks $0.61 → edge = **+13.3%**
+
+A positive edge means Kalshi is underpricing the outcome relative to sportsbook consensus.
+
+### Confidence
+
+How much to trust the fair value estimate. Derived from **data quality**, not edge size. A 30% edge with low confidence may be stale data; a 3% edge with high confidence is a real, durable signal.
+
+**Base confidence** (from book consensus):
+
+| Market Type | Low | Medium | High |
+|---|---|---|---|
+| Game (ML) | < 5 books | 5+ books | 8+ books AND fair range < 5% |
+| Spread | < 3 books OR range > 4pts | 3+ books AND range ≤ 4pts | 6+ books AND range ≤ 2pts |
+| Total | < 3 books | 3+ books | (via adjustments only) |
+
+**Adjustments** (each can bump confidence up or down one level):
+- **Team stats** — win%, L10, home/away from ESPN/NHL/MLB APIs. Stats that support the bet direction bump up; contradicting stats bump down.
+- **Sharp money / line movement** — ESPN open-vs-close odds. Reverse line movement (line moves opposite to public money) that agrees with our bet bumps up; disagreement bumps down.
+
+### Score (Composite)
+
+The final ranking that combines all signals into a single 0-10 number:
+
+| Component | Weight | Source |
+|---|---|---|
+| Edge strength | 40% | `min(edge / 0.01, 10)` — scales linearly, caps at 10% edge |
+| Confidence | 30% | low = 3, medium = 6, high = 9 |
+| Liquidity | 20% | `10 - (bid_ask_spread * 20)` — tighter spread = higher score |
+| Time | 10% | Fixed at 5 (placeholder for time-to-expiry weighting) |
+
+**Example:** A bet with 8% edge, high confidence, and tight spread:
+- Edge: min(8, 10) × 0.40 = **3.2**
+- Confidence: 9 × 0.30 = **2.7**
+- Liquidity: 9.0 × 0.20 = **1.8**
+- Time: 5 × 0.10 = **0.5**
+- **Score = 8.2**
+
+The minimum score to pass risk checks is 6.0 (configurable via `MIN_COMPOSITE_SCORE`).
+
+---
+
 ## Risk Management
 
 ### Risk Gates

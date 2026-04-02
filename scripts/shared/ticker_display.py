@@ -68,7 +68,7 @@ _SPORT_PREFIXES = {
     "KXNBAGAME": "nba", "KXNBA": "nba",
     "KXNHLGAME": "nhl", "KXNHL": "nhl",
     "KXNFLGAME": "nfl", "KXNFL": "nfl",
-    "KXNCAAMB": "ncaab", "KXNCAAF": "ncaaf",
+    "KXNCAABB": "ncaab", "KXNCAAMB": "ncaab", "KXNCAAF": "ncaaf",
     "KXSOCCER": "soccer", "KXMLS": "mls",
     "KXUFC": "ufc", "KXBOX": "boxing",
     "KXGOLF": "golf", "KXPGA": "golf",
@@ -83,6 +83,23 @@ def _detect_sport(ticker: str) -> str | None:
         if ticker.startswith(prefix):
             return sport
     return None
+
+
+_SPORT_DISPLAY = {
+    "mlb": "MLB", "nba": "NBA", "nhl": "NHL", "nfl": "NFL",
+    "ncaab": "NCAAB", "ncaaf": "NCAAF", "soccer": "Soccer", "mls": "MLS",
+    "ufc": "UFC", "boxing": "Boxing", "golf": "Golf", "nascar": "NASCAR",
+    "ipl": "IPL", "esports": "Esports",
+}
+
+
+def sport_from_ticker(ticker: str) -> str:
+    """Return a display-friendly sport label from a Kalshi ticker.
+
+    Example: KXNBAGAME-26APR02SASLAC-SAS -> "NBA"
+    """
+    sport = _detect_sport(ticker)
+    return _SPORT_DISPLAY.get(sport, sport.upper() if sport else "")
 
 
 # ── Team code splitting ───────────────────────────────────────────────────────
