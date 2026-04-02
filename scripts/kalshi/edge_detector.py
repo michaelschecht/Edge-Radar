@@ -1542,9 +1542,10 @@ def main():
             opportunities = filter_exclude_tickers(opportunities, open_tickers)
             rprint(f"[dim]Excluded open positions: {before} -> {len(opportunities)} opportunities[/dim]")
 
+        sized_orders = None
         if opportunities and (args.execute or args.unit_size is not None):
             from kalshi_executor import execute_pipeline, UNIT_SIZE
-            execute_pipeline(
+            sized_orders = execute_pipeline(
                 client=client,
                 opportunities=opportunities,
                 execute=args.execute,
@@ -1557,10 +1558,16 @@ def main():
             print_opportunities(opportunities)
         if args.save and opportunities:
             save_opportunities(opportunities)
-            from report_writer import save_scan_report
-            rpt = save_scan_report(opportunities, report_type="sports",
-                                   filter_label=args.ticker_filter or "", min_edge=args.min_edge,
-                                   output_dir=args.report_dir)
+            if sized_orders:
+                from report_writer import save_execution_report
+                rpt = save_execution_report(sized_orders, report_type="sports",
+                                            filter_label=args.ticker_filter or "", min_edge=args.min_edge,
+                                            output_dir=args.report_dir)
+            else:
+                from report_writer import save_scan_report
+                rpt = save_scan_report(opportunities, report_type="sports",
+                                       filter_label=args.ticker_filter or "", min_edge=args.min_edge,
+                                       output_dir=args.report_dir)
             if rpt:
                 rprint(f"[dim]Report saved to {rpt}[/dim]")
 

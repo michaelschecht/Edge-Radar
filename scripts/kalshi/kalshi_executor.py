@@ -432,7 +432,7 @@ def execute_pipeline(
     if not execute:
         rprint("[dim]  Tip: use --pick '1,3' --execute to bet on specific rows[/dim]")
         rprint("\n[yellow]DRY RUN -- pass --execute to place these orders[/yellow]")
-        return []
+        return to_execute  # Return sized orders for reporting
 
     # ── Filter by --pick or --ticker if specified
     if pick_rows is not None:

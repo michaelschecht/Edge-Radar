@@ -289,16 +289,49 @@ python scripts/schedulers/automation/install_windows_task.py remove    # Remove 
 
 ---
 
+## Automated Execution Scripts
+
+Pre-built bat scripts that scan all four major sports (NFL, NBA, NHL, MLB) in a single command and execute the top 10 picks ranked across all sports.
+
+### Same-Day (Primary -- recommended 8 AM ET)
+
+```
+scripts/schedulers/same_day_executions/
+├── same_day_scan.bat       # Preview only -- saves execution report, no bets
+└── same_day_execute.bat    # Scan + execute -- places live orders
+```
+
+Best time: **8 AM ET**. All markets posted, sportsbook lines sharp overnight, Kalshi lag window open.
+
+### Next-Day (Reserve -- 9 PM ET)
+
+```
+scripts/schedulers/next_day_executions/
+├── next_day_scan.bat       # Preview tomorrow's games
+└── next_day_execute.bat    # Scan + execute tomorrow's games
+```
+
+Use when you want to lock in early lines the night before. Note: tomorrow's markets may not all be posted yet.
+
+### Both scripts use:
+- `--unit-size .5` (Kelly sizes up from there for high-edge bets)
+- `--max-bets 10` total across all sports
+- `--exclude-open` to skip markets with existing positions
+- `--save` with execution report (Sport, Bet, Type, Pick, Qty, Price, Cost, Edge)
+- All 9 risk gates enforced
+
+---
+
 ## Scheduling Your Own Scans
 
-For recurring scans (e.g., MLB every morning, NBA every evening), use Windows Task Scheduler or cron directly with `scan.py`:
+For recurring scans, use Windows Task Scheduler with the pre-built bat scripts or `scan.py` directly:
 
 ```bash
-# MLB daily scan at 10 AM -- finds edge, skips open positions, executes up to 10 bets
-python scripts/scan.py sports --filter mlb --unit-size 1 --max-bets 10 --exclude-open --save --execute
+# Same-day automated execution at 8 AM (recommended)
+scripts\schedulers\same_day_executions\same_day_execute.bat
 
-# NBA daily scan at 6 PM
-python scripts/scan.py sports --filter nba --unit-size 1 --max-bets 10 --exclude-open --save --execute
+# Or build your own with scan.py
+python scripts/scan.py sports --unit-size 1 --max-bets 10 --date today --exclude-open --save --execute
 
 # Settle results at 11 PM
 python scripts/kalshi/kalshi_settler.py settle
@@ -308,9 +341,9 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 To set these up in Windows Task Scheduler, use `schtasks`:
 
 ```bash
-# MLB morning scan at 10 AM daily
-schtasks /Create /TN "Edge-Radar\MLB-Scan" /TR "\".venv\Scripts\python.exe\" \"scripts\scan.py\" sports --filter mlb --unit-size 1 --max-bets 10 --exclude-open --save --execute" /SC DAILY /ST 10:00
+# Same-day execution at 8 AM daily (all sports, top 10)
+schtasks /Create /TN "Edge-Radar\Same-Day-Execute" /TR "D:\AI_Agents\Specialized_Agents\Edge_Radar\scripts\schedulers\same_day_executions\same_day_execute.bat" /SC DAILY /ST 08:00
 
-# NBA evening scan at 6 PM daily
-schtasks /Create /TN "Edge-Radar\NBA-Scan" /TR "\".venv\Scripts\python.exe\" \"scripts\scan.py\" sports --filter nba --unit-size 1 --max-bets 10 --exclude-open --save --execute" /SC DAILY /ST 18:00
+# Settle results at 11 PM daily
+schtasks /Create /TN "Edge-Radar\Settle" /TR "\".venv\Scripts\python.exe\" \"scripts\kalshi\kalshi_settler.py\" settle" /SC DAILY /ST 23:00
 ```

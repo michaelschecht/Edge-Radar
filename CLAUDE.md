@@ -99,11 +99,14 @@ Edge-Radar/
     │   ├── ticker_display.py        # Ticker parsing: matchups, dates, team names
     │   └── report_writer.py         # Markdown scan report generator
     └── schedulers/                  # Automation helpers
-        ├── morning_scans/           # Per-sport .bat scan jobs
-        │   ├── mlb_morning_scan.bat
-        │   ├── nba_morning_scan.bat
-        │   ├── nfl_morning_scan.bat
-        │   └── nhl_morning_scan.bat
+        ├── same_day_executions/     # Primary automated execution (8 AM ET)
+        │   ├── same_day_scan.bat       # Preview all sports today, top 10
+        │   └── same_day_execute.bat    # Scan + execute all sports today
+        ├── next_day_executions/     # Reserve (9 PM ET, for early lines)
+        │   ├── next_day_scan.bat       # Preview all sports tomorrow, top 10
+        │   └── next_day_execute.bat    # Scan + execute all sports tomorrow
+        ├── same_day_scans/          # Per-sport scan-only jobs (today)
+        ├── next_day_scans/          # Per-sport scan-only jobs (tomorrow)
         └── automation/              # Python automation scripts
             ├── daily_sports_scan.py     # Morning edge report (all sports)
             └── install_windows_task.py  # Windows Task Scheduler setup
