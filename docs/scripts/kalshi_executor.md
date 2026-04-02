@@ -45,17 +45,25 @@ When any scanner is called with `--execute`, it imports `execute_pipeline()` fro
 5. **Execution** (if `--execute` is passed) -- places limit orders via Kalshi API
 6. **Trade logging** -- records each trade to `data/history/`
 
-### Risk Gates
+### Risk Gates (9 gates)
 
 The pipeline rejects opportunities that fail any of these checks:
 
-| Gate | Rule |
-|------|------|
-| Confidence | Must meet minimum (default: `medium`) |
-| Composite score | Must meet minimum (default: `6.0`) |
-| Daily loss limit | Today's losses must be under `MAX_DAILY_LOSS` |
-| Max open positions | Must be under `MAX_OPEN_POSITIONS` |
-| Duplicate ticker | Can't already hold a position in this market |
+| # | Gate | Rule |
+|---|------|------|
+| 1 | Daily loss limit | Today's losses must be under `MAX_DAILY_LOSS` ($250) |
+| 2 | Max open positions | Must be under `MAX_OPEN_POSITIONS` (10) |
+| 3 | Edge threshold | Must meet `MIN_EDGE_THRESHOLD` (3%) |
+| 4 | Composite score | Must meet `MIN_COMPOSITE_SCORE` (6.0) |
+| 5 | Confidence | Must meet `MIN_CONFIDENCE` (medium) |
+| 6 | Duplicate ticker | Can't already hold a position in this market |
+| 7 | Per-event cap | Max `MAX_PER_EVENT` (3) positions on the same game |
+| 8 | Max concentration | Single position can't exceed `MAX_POSITION_CONCENTRATION` (20%) of bankroll |
+| 9 | Max bet size | Cost can't exceed `MAX_BET_SIZE_SPORTS` ($50) or `MAX_BET_SIZE_PREDICTION` ($100) |
+
+### Sizing
+
+Uses **quarter-Kelly with flat unit floor**: `bet = max(unit_size, 0.25 * edge * bankroll) / market_price` contracts. Kelly scales up high-edge bets; low-edge bets stay at the flat unit minimum. The result is capped by gates 8 and 9 above.
 
 ---
 

@@ -133,12 +133,16 @@ Edge-Radar/
 - `.env` is in `.gitignore` — verify before every commit
 
 ### Execution Gates
-Before ANY trade/bet executes, the following must be verified:
-1. ✅ `RISK_MANAGER` approval (documented in trade log)
-2. ✅ Position size ≤ defined max per market type (see Risk Limits below)
-3. ✅ Daily loss limit not breached
-4. ✅ Opportunity edge ≥ minimum threshold
-5. ✅ Market is liquid (bid/ask spread acceptable)
+Before ANY trade/bet executes, nine risk gates must pass:
+1. ✅ Daily loss limit not breached
+2. ✅ Open position count under max
+3. ✅ Opportunity edge ≥ minimum threshold
+4. ✅ Composite score ≥ minimum
+5. ✅ Model confidence ≥ minimum level
+6. ✅ Not already holding this market (duplicate ticker check)
+7. ✅ Per-event cap not exceeded (max 3 positions per game)
+8. ✅ Single position ≤ max concentration (20% of bankroll)
+9. ✅ Bet size ≤ category max ($50 sports / $100 prediction)
 
 ### Dry Run Mode
 - Default: `DRY_RUN=true` in `.env`
@@ -150,13 +154,17 @@ Before ANY trade/bet executes, the following must be verified:
 ## 💰 Risk Limits (Defaults — Adjust in .env)
 
 ```
-MAX_BET_SIZE_SPORTS=50          # USD per sports bet
-MAX_BET_SIZE_PREDICTION=100     # USD per prediction market position
-MAX_POSITION_STOCKS=500         # USD per stock/options position
+UNIT_SIZE=1.00                  # Minimum dollar amount per bet (Kelly floor)
+KELLY_FRACTION=0.25             # Quarter-Kelly sizing multiplier
+MAX_BET_SIZE_SPORTS=50          # USD per sports bet (hard cap)
+MAX_BET_SIZE_PREDICTION=100     # USD per prediction market position (hard cap)
 MAX_DAILY_LOSS=250              # USD hard stop for the day
 MAX_OPEN_POSITIONS=10           # Concurrent open positions
+MAX_PER_EVENT=3                 # Max positions on the same game/event
+MAX_POSITION_CONCENTRATION=0.20 # Max single position as % of bankroll
 MIN_EDGE_THRESHOLD=0.03         # Minimum 3% edge required
-MAX_PORTFOLIO_RISK_PCT=0.02     # Max 2% portfolio risk per trade
+MIN_COMPOSITE_SCORE=6.0         # Minimum opportunity score (0-10)
+MIN_CONFIDENCE=medium           # Minimum confidence: low, medium, high
 ```
 
 ---

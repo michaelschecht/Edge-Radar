@@ -28,7 +28,7 @@ Limit selection to the top 3 opportunities per game or event to enforce diversif
 
 ### 5. RISK-CHECK
 
-Filter opportunities through six risk gates (see Risk Management below). Reject any bet that fails a gate. Surviving opportunities are sized via quarter-Kelly criterion, capped at the fixed unit size.
+Filter opportunities through nine risk gates (see Risk Management below). Reject any bet that fails a gate. Surviving opportunities are sized via quarter-Kelly criterion, with the flat unit size as a floor. Kelly scales up high-edge bets, capped by max bet size and max concentration limits.
 
 ### 6. EXECUTE
 
@@ -81,7 +81,7 @@ Confidence (low/medium/high) is determined by four factors:
 
 ### Risk Gates
 
-Every order must pass all six gates before execution.
+Every order must pass all nine gates before execution.
 
 | Gate | Check | Reject Condition |
 |---|---|---|
@@ -90,38 +90,45 @@ Every order must pass all six gates before execution.
 | 3. Edge threshold | Calculated edge for this opportunity | Edge < `MIN_EDGE_THRESHOLD` |
 | 4. Composite score | Weighted score across edge, confidence, liquidity, time | Score < `MIN_COMPOSITE_SCORE` |
 | 5. Confidence level | Model confidence rating (low / medium / high) | Confidence < `MIN_CONFIDENCE` |
-| 6. Size limits | Proposed bet size vs. Kelly and concentration caps | Size exceeds Kelly fraction or max bet |
+| 6. Duplicate ticker | Already holding this exact market | Ticker in open positions |
+| 7. Per-event cap | Too many positions on the same game/event | Event count >= `MAX_PER_EVENT` |
+| 8. Max concentration | Single position would exceed % of bankroll | Cost > `MAX_CONCENTRATION` * bankroll |
+| 9. Max bet size | Category-aware bet size cap | Cost > `MAX_BET_SIZE_SPORTS` or `MAX_BET_SIZE_PREDICTION` |
 
 ### Risk Parameters
 
 | Env Variable | Default | Description |
 |---|---|---|
-| `UNIT_SIZE` | $1.00 | Fixed dollar amount targeted per bet |
+| `UNIT_SIZE` | $1.00 | Minimum dollar amount per bet (Kelly floor) |
+| `KELLY_FRACTION` | 0.25 | Quarter-Kelly sizing multiplier |
 | `MAX_BET_SIZE_SPORTS` | $50 | Maximum USD per sports bet |
 | `MAX_BET_SIZE_PREDICTION` | $100 | Maximum USD per prediction market position |
 | `MAX_DAILY_LOSS` | $250 | Hard stop -- no new positions after this daily loss |
 | `MAX_OPEN_POSITIONS` | 10 | Maximum concurrent open positions |
+| `MAX_PER_EVENT` | 3 | Maximum positions on the same game/event |
+| `MAX_POSITION_CONCENTRATION` | 20% | Maximum single position as % of bankroll |
 | `MIN_EDGE_THRESHOLD` | 3% | Minimum edge required to consider a bet |
 | `MIN_COMPOSITE_SCORE` | 6.0 | Minimum composite opportunity score |
 | `MIN_CONFIDENCE` | medium | Minimum model confidence level |
-| `MAX_PORTFOLIO_RISK_PCT` | 2% | Maximum portfolio risk per trade |
 
 ---
 
 ## Position Sizing
 
-All bets use fixed unit sizing. The target dollar amount per bet is set by `UNIT_SIZE` (default $1.00). The number of contracts purchased is `round(UNIT_SIZE / ask_price)`, ensuring each bet risks approximately the same dollar amount regardless of contract price.
+Bets are sized using **quarter-Kelly with a flat unit floor**. The system calculates both a flat unit size and a Kelly-optimal size, then uses whichever is larger -- so Kelly only scales up for high-edge opportunities, never below the minimum unit.
 
-Examples at UNIT_SIZE = $1.00:
+**Quarter-Kelly formula:** `bet = 0.25 * edge * bankroll / market_price`
 
-| Ask Price | Contracts | Actual Cost |
-|---|---|---|
-| $0.02 | 50 | $1.00 |
-| $0.13 | 8 | $1.04 |
-| $0.50 | 2 | $1.00 |
-| $0.76 | 1 | $0.76 |
+The result is then capped by (in order): max concentration (20% of bankroll), max bet size ($50 sports / $100 prediction), and available bankroll.
 
-Quarter-Kelly criterion determines the maximum recommended size. If Kelly suggests a larger bet than `UNIT_SIZE`, the fixed unit still applies. If Kelly suggests a smaller bet, the bet is skipped or reduced.
+Examples at UNIT_SIZE = $1.00, bankroll = $50:
+
+| Ask Price | Edge | Flat Contracts | Kelly Contracts | Used | Actual Cost |
+|---|---|---|---|---|---|
+| $0.50 | 3% | 2 | 1 | 2 (flat) | $1.00 |
+| $0.50 | 15% | 2 | 4 | 4 (Kelly) | $2.00 |
+| $0.10 | 10% | 10 | 13 | 13 (Kelly) | $1.30 |
+| $0.02 | 5% | 50 | 31 | 50 (flat) | $1.00 |
 
 ---
 

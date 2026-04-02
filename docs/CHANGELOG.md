@@ -2,6 +2,45 @@
 
 ---
 
+## 2026-04-02 -- Execution Correctness, Risk Gates, Kelly Sizing, Display Overhaul
+
+### X1. Portable Python Path
+- `scan.py` now uses `sys.executable` instead of hardcoded `.venv/Scripts/python.exe`
+- Works across any environment (CI, WSL, Docker, other machines)
+
+### X2. Nine Risk Gates Enforced in Executor
+- **Previously:** `kalshi_executor.py` loaded `KELLY_FRACTION`, `MAX_CONCENTRATION`, and `MAX_BET_SIZE` but never enforced them. Only 5 of 9 gates were active.
+- **Now:** All 9 gates enforced before every order: daily loss, position count, edge, score, confidence, duplicate ticker, per-event cap, max concentration, max bet size
+- **Kelly sizing:** Quarter-Kelly with flat unit as floor. High-edge bets get more contracts; low-edge bets stay at minimum unit size
+- **Category-aware bet caps:** Sports ($50) vs prediction ($100) separate limits
+- **Batch tracking:** Approved orders update the open ticker set and event counts in-flight so gates apply correctly across the run
+- New env vars: `MAX_PER_EVENT=3`, `MAX_POSITION_CONCENTRATION=0.20`
+
+### X3. Per-Event Position Caps (built into X2)
+- Max 3 positions per game/event (configurable via `MAX_PER_EVENT`)
+- Extracts event key from ticker (strips pick suffix) to group markets by game
+- Prevents hidden concentration where 7 of 10 positions are on the same matchup
+
+### D1. Bet Type Column
+- Added Type column (ML/Spread/Total/Prop) to all 7 output tables across scan, execute, positions, and settlement views
+- New `bet_type_from_ticker()` helper in `ticker_display.py`
+
+### D2. Descriptive Pick Column
+- Replaced raw YES/NO Side column with descriptive Pick: "Spurs win", "Over 220.5", "Blazers -7.5"
+- New `format_pick_label()` helper in `ticker_display.py`
+- Added Kalshi team abbreviation aliases (SAS, GSW, NOP, etc.)
+
+### Documentation Overhaul
+- `docs/scripts/` subdirectory: 7 dedicated script docs (edge_detector, futures_edge, prediction_scanner, polymarket_edge, kalshi_executor, kalshi_settler, risk_check)
+- `SCRIPTS_REFERENCE.md` slimmed to hub with routing table, common flags, daily workflow
+- `kalshi_executor.py` reframed as Portfolio Status + Execution Library; `run` subcommand deprecated
+- `scan.py` flags table added (13 flags documented)
+- All 25 prompts updated + 6 new prompts added (totals-only, spreads-only, multi-sport-execute, weekly-review, risk-audit, full-prediction-execute)
+- ARCHITECTURE.md, CLAUDE.md, README.md, SKILL.md, .env.example all updated with 9-gate risk model
+- ROADMAP.md restructured with 6 tiers, informed by 3rd-party assessment
+
+---
+
 ## 2026-03-31 -- Unified Scanner, Scheduler Reorganization, Env & Report Cleanup
 
 ### P9. Unified Scan Entry Point (`scripts/scan.py`)
