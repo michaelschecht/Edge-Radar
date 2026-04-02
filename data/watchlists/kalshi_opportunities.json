@@ -1,983 +1,150 @@
 {
-  "generated_at": "2026-04-01T13:05:12.400881+00:00",
+  "generated_at": "2026-04-02T00:27:48.579876+00:00",
   "min_edge": 0.03,
-  "count": 18,
+  "count": 2,
   "opportunities": [
     {
-      "ticker": "KXNBATOTAL-26APR01INDCHI-244",
-      "title": "Indiana at Chicago: Total Points",
-      "category": "total",
-      "side": "no",
-      "market_price": 0.45,
-      "fair_value": 0.7966,
-      "edge": 0.3466,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.8,
-      "composite_score": 8.3,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 244.5,
-        "line_diff": -16.0,
-        "adjusted_prob": 0.2034,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01MILHOU-220",
-      "title": "Milwaukee at Houston: Total Points",
-      "category": "total",
+      "ticker": "KXNBAGAME-26APR02SASLAC-SAS",
+      "title": "San Antonio at Los Angeles C Winner?",
+      "category": "game",
       "side": "yes",
-      "market_price": 0.45,
-      "fair_value": 0.6927,
-      "edge": 0.2427,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.8,
-      "composite_score": 8.3,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 220.5,
-        "line_diff": 8.0,
-        "adjusted_prob": 0.6927,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01MILHOU-217",
-      "title": "Milwaukee at Houston: Total Points",
-      "category": "total",
-      "side": "yes",
-      "market_price": 0.51,
-      "fair_value": 0.7487,
-      "edge": 0.2387,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.8,
-      "composite_score": 8.3,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 217.5,
-        "line_diff": 11.0,
-        "adjusted_prob": 0.7487,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01DENUTA-236",
-      "title": "Denver at Utah: Total Points",
-      "category": "total",
-      "side": "no",
-      "market_price": 0.27,
-      "fair_value": 0.65,
-      "edge": 0.38,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.4,
-      "composite_score": 8.2,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 236.5,
-        "line_diff": -8.0,
-        "adjusted_prob": 0.35,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01INDCHI-241",
-      "title": "Indiana at Chicago: Total Points",
-      "category": "total",
-      "side": "no",
-      "market_price": 0.4,
-      "fair_value": 0.7463,
-      "edge": 0.3463,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.6,
-      "composite_score": 8.2,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 241.5,
-        "line_diff": -13.0,
-        "adjusted_prob": 0.2537,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01INDCHI-238",
-      "title": "Indiana at Chicago: Total Points",
-      "category": "total",
-      "side": "no",
-      "market_price": 0.35,
-      "fair_value": 0.6902,
-      "edge": 0.3402,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.6,
-      "composite_score": 8.2,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 238.5,
-        "line_diff": -10.0,
-        "adjusted_prob": 0.3098,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01MILHOU-223",
-      "title": "Milwaukee at Houston: Total Points",
-      "category": "total",
-      "side": "yes",
-      "market_price": 0.4,
-      "fair_value": 0.6319,
-      "edge": 0.2319,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.4,
-      "composite_score": 8.2,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 223.5,
-        "line_diff": 5.0,
-        "adjusted_prob": 0.6319,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01PHIWAS-237",
-      "title": "Philadelphia at Washington: Total Points",
-      "category": "total",
-      "side": "no",
-      "market_price": 0.46,
-      "fair_value": 0.6703,
-      "edge": 0.2103,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.6,
-      "composite_score": 8.2,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 237.5,
-        "line_diff": -9.0,
-        "adjusted_prob": 0.3297,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01PHIWAS-240",
-      "title": "Philadelphia at Washington: Total Points",
-      "category": "total",
-      "side": "no",
-      "market_price": 0.52,
-      "fair_value": 0.7282,
-      "edge": 0.2082,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.6,
-      "composite_score": 8.2,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 240.5,
-        "line_diff": -12.0,
-        "adjusted_prob": 0.2718,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01PHIWAS-234",
-      "title": "Philadelphia at Washington: Total Points",
-      "category": "total",
-      "side": "no",
-      "market_price": 0.4,
-      "fair_value": 0.608,
-      "edge": 0.208,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.4,
-      "composite_score": 8.2,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 234.5,
-        "line_diff": -6.0,
-        "adjusted_prob": 0.392,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01DENUTA-239",
-      "title": "Denver at Utah: Total Points",
-      "category": "total",
-      "side": "no",
-      "market_price": 0.33,
-      "fair_value": 0.7095,
-      "edge": 0.3795,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.2,
-      "composite_score": 8.1,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 239.5,
-        "line_diff": -11.0,
-        "adjusted_prob": 0.2905,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01DENUTA-242",
-      "title": "Denver at Utah: Total Points",
-      "category": "total",
-      "side": "no",
-      "market_price": 0.39,
-      "fair_value": 0.7638,
-      "edge": 0.3738,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.2,
-      "composite_score": 8.1,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 242.5,
-        "line_diff": -14.0,
-        "adjusted_prob": 0.2362,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01ATLORL-239",
-      "title": "Atlanta at Orlando: Total Points",
-      "category": "total",
-      "side": "no",
-      "market_price": 0.64,
-      "fair_value": 0.7095,
-      "edge": 0.0695,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.6,
-      "composite_score": 7.0,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 239.5,
-        "line_diff": -11.0,
-        "adjusted_prob": 0.2905,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBASPREAD-26APR01BOSMIA-BOS7",
-      "title": "Boston wins by over 7.5 Points? (vs Miami)",
-      "category": "spread",
-      "side": "yes",
-      "market_price": 0.41,
-      "fair_value": 0.4572,
-      "edge": 0.0472,
-      "edge_source": "odds_api_spread_adjusted",
+      "market_price": 0.63,
+      "fair_value": 0.8721,
+      "edge": 0.2421,
+      "edge_source": "odds_api_consensus",
       "confidence": "high",
       "liquidity_score": 9.8,
-      "composite_score": 7.0,
+      "composite_score": 9.2,
       "details": {
-        "n_books": 9,
-        "median_book_spread": -5.5,
-        "kalshi_strike": 7.5,
-        "spread_diff": -2.0,
-        "raw_median_implied": 0.5236,
-        "adjusted_prob": 0.4572,
-        "inferred_mean_margin": 6.21,
-        "margin_stdev": 12.0,
-        "book_spread_range": 0.5,
-        "books": [
-          {
-            "book": "fanduel",
-            "spread": -5.5,
-            "odds": 1.91,
-            "implied": 0.5236
+        "n_books": 10,
+        "median_fair": 0.8721,
+        "min_fair": 0.607,
+        "max_fair": 0.8768,
+        "books": {
+          "fanduel": {
+            "raw_odds": 1.58,
+            "implied": 0.6329,
+            "devigged": 0.607
           },
-          {
-            "book": "mybookieag",
-            "spread": -5.0,
-            "odds": 1.91,
-            "implied": 0.5236
+          "draftkings": {
+            "raw_odds": 1.1,
+            "implied": 0.9091,
+            "devigged": 0.8721
           },
-          {
-            "book": "draftkings",
-            "spread": -5.5,
-            "odds": 1.95,
-            "implied": 0.5128
+          "betrivers": {
+            "raw_odds": 1.1,
+            "implied": 0.9091,
+            "devigged": 0.8642
           },
-          {
-            "book": "betrivers",
-            "spread": -5.5,
-            "odds": 1.92,
-            "implied": 0.5208
+          "lowvig": {
+            "raw_odds": 1.1,
+            "implied": 0.9091,
+            "devigged": 0.8768
           },
-          {
-            "book": "lowvig",
-            "spread": -5.5,
-            "odds": 1.94,
-            "implied": 0.5155
+          "betmgm": {
+            "raw_odds": 1.1,
+            "implied": 0.9091,
+            "devigged": 0.8721
+          },
+          "bovada": {
+            "raw_odds": 1.11,
+            "implied": 0.9009,
+            "devigged": 0.8631
+          },
+          "betus": {
+            "raw_odds": 1.1,
+            "implied": 0.9091,
+            "devigged": 0.8721
+          },
+          "mybookieag": {
+            "raw_odds": 1.11,
+            "implied": 0.9009,
+            "devigged": 0.859
+          },
+          "betonlineag": {
+            "raw_odds": 1.1,
+            "implied": 0.9091,
+            "devigged": 0.8737
           }
-        ],
+        },
         "team_stats": {
-          "stats_found": false
+          "stats_found": true,
+          "win_pct": 0.76,
+          "team_record": "57-18",
+          "signal": "supports"
         }
       }
     },
     {
-      "ticker": "KXNBATOTAL-26APR01ATLORL-233",
-      "title": "Atlanta at Orlando: Total Points",
-      "category": "total",
+      "ticker": "KXNBAGAME-26APR02CLEGSW-GSW",
+      "title": "Cleveland at Golden State Winner?",
+      "category": "game",
       "side": "no",
-      "market_price": 0.52,
-      "fair_value": 0.5865,
-      "edge": 0.0665,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
+      "market_price": 0.79,
+      "fair_value": 0.8721,
+      "edge": 0.0821,
+      "edge_source": "odds_api_consensus",
+      "confidence": "high",
       "liquidity_score": 9.8,
-      "composite_score": 6.9,
+      "composite_score": 8.4,
       "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 233.5,
-        "line_diff": -5.0,
-        "adjusted_prob": 0.4135,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
+        "n_books": 9,
+        "median_fair": 0.1279,
+        "min_fair": 0.1232,
+        "max_fair": 0.141,
+        "books": {
+          "fanduel": {
+            "raw_odds": 7.1,
+            "implied": 0.1408,
+            "devigged": 0.1352
           },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
+          "draftkings": {
+            "raw_odds": 7.5,
+            "implied": 0.1333,
+            "devigged": 0.1279
           },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
+          "betrivers": {
+            "raw_odds": 7.0,
+            "implied": 0.1429,
+            "devigged": 0.1358
           },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
+          "lowvig": {
+            "raw_odds": 7.83,
+            "implied": 0.1277,
+            "devigged": 0.1232
           },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
+          "betmgm": {
+            "raw_odds": 7.5,
+            "implied": 0.1333,
+            "devigged": 0.1279
+          },
+          "bovada": {
+            "raw_odds": 7.0,
+            "implied": 0.1429,
+            "devigged": 0.1369
+          },
+          "betus": {
+            "raw_odds": 7.5,
+            "implied": 0.1333,
+            "devigged": 0.1279
+          },
+          "mybookieag": {
+            "raw_odds": 6.76,
+            "implied": 0.1479,
+            "devigged": 0.141
+          },
+          "betonlineag": {
+            "raw_odds": 7.61,
+            "implied": 0.1314,
+            "devigged": 0.1263
           }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01SASGSW-227",
-      "title": "San Antonio at Golden State: Total Points",
-      "category": "total",
-      "side": "yes",
-      "market_price": 0.48,
-      "fair_value": 0.5457,
-      "edge": 0.0657,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.6,
-      "composite_score": 6.8,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 227.5,
-        "line_diff": 1.0,
-        "adjusted_prob": 0.5457,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01SACTOR-228",
-      "title": "Sacramento at Toronto: Total Points",
-      "category": "total",
-      "side": "yes",
-      "market_price": 0.46,
-      "fair_value": 0.5236,
-      "edge": 0.0636,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.6,
-      "composite_score": 6.8,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 228.5,
-        "line_diff": 0.0,
-        "adjusted_prob": 0.5236,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
-      }
-    },
-    {
-      "ticker": "KXNBATOTAL-26APR01SASGSW-233",
-      "title": "San Antonio at Golden State: Total Points",
-      "category": "total",
-      "side": "yes",
-      "market_price": 0.35,
-      "fair_value": 0.4135,
-      "edge": 0.0635,
-      "edge_source": "odds_api_total_adjusted",
-      "confidence": "medium",
-      "liquidity_score": 9.6,
-      "composite_score": 6.8,
-      "details": {
-        "n_books": 81,
-        "median_book_line": 228.5,
-        "kalshi_strike": 233.5,
-        "line_diff": -5.0,
-        "adjusted_prob": 0.4135,
-        "inferred_mean_total": 229.57,
-        "total_stdev": 18.0,
-        "books": [
-          {
-            "book": "draftkings",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "lowvig",
-            "line": 232.5,
-            "odds": 1.93,
-            "implied": 0.5181
-          },
-          {
-            "book": "betus",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betmgm",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          },
-          {
-            "book": "betrivers",
-            "line": 232.5,
-            "odds": 1.91,
-            "implied": 0.5236
-          }
-        ]
+        },
+        "team_stats": {
+          "stats_found": true,
+          "win_pct": 0.48,
+          "team_record": "36-39",
+          "signal": "neutral"
+        }
       }
     }
   ]

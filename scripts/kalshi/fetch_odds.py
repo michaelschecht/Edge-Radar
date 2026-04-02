@@ -205,6 +205,7 @@ def print_opportunities_table(opportunities: list):
 
     table = Table(title=f"Value Opportunities (edge ≥ {MIN_EDGE:.1%})", show_lines=True)
     table.add_column("Event", style="cyan", no_wrap=False)
+    table.add_column("Type", style="magenta")
     table.add_column("Bet", style="white")
     table.add_column("Best Odds", justify="right")
     table.add_column("Book", style="dim")
@@ -212,9 +213,16 @@ def print_opportunities_table(opportunities: list):
     table.add_column("Edge", justify="right", style="green")
     table.add_column("Score", justify="right")
 
+    cat_labels = {
+        "game": "ML", "spread": "Spread", "total": "Total",
+        "player_prop": "Prop", "esports": "Esports",
+    }
+
     for o in sorted(opportunities, key=lambda x: x["edge_estimate"], reverse=True):
+        cat = o.get("category", "")
         table.add_row(
             o["event"],
+            cat_labels.get(cat, cat.title()) if cat else "",
             o["instrument"],
             str(o["best_odds_decimal"]),
             o["best_book"],

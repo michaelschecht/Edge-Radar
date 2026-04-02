@@ -49,6 +49,18 @@ TEAM_NAMES.update(NHL_TEAMS)
 TEAM_NAMES.update(NBA_TEAMS)
 TEAM_NAMES.update(MLB_TEAMS)
 
+# Kalshi uses non-standard abbreviations for some teams — add aliases
+_KALSHI_ALIASES = {
+    "SAS": "Spurs", "GSW": "Warriors", "NOP": "Pelicans", "NYK": "Knicks",
+    "NOR": "Pelicans", "SAN": "Spurs", "GLD": "Warriors",
+    "PHO": "Suns", "CHAR": "Hornets", "BKLN": "Nets",
+    "ILST": "Illinois", "COLO": "Colorado", "UCLA": "UCLA", "UCON": "UConn",
+    "DUKE": "Duke", "ARIZ": "Arizona", "HOUS": "Houston", "FLOR": "Florida",
+    "AUBU": "Auburn", "PURD": "Purdue", "BAYLOR": "Baylor",
+}
+for alias, name in _KALSHI_ALIASES.items():
+    TEAM_NAMES.setdefault(alias, name)
+
 # ── Ticker prefix to sport mapping ────────────────────────────────────────────
 
 _SPORT_PREFIXES = {
@@ -92,6 +104,119 @@ def _split_team_codes(combined: str) -> tuple[str, str]:
         if away in TEAM_NAMES and home in TEAM_NAMES:
             return away, home
     return combined, ""
+
+
+# ── Bet type from ticker ─────────────────────────────────────────────────────
+
+def bet_type_from_ticker(ticker: str) -> str:
+    """Infer a short bet-type label from a Kalshi ticker prefix.
+
+    Examples:
+        KXNBAGAME-...  -> "ML"
+        KXNBASPREAD-.. -> "Spread"
+        KXNBATOTAL-... -> "Total"
+        KXNBA3PT-...   -> "Prop"
+    """
+    t = ticker.upper()
+    if "GAME" in t:
+        return "ML"
+    if "SPREAD" in t:
+        return "Spread"
+    if "TOTAL" in t:
+        return "Total"
+    # Player props: 3PT, BLK, REB, AST, STL, PTS, GOAL, etc.
+    prop_keywords = ("3PT", "BLK", "REB", "AST", "STL", "PTS", "GOAL", "PROP")
+    if any(kw in t for kw in prop_keywords):
+        return "Prop"
+    return ""
+
+
+def format_pick_label(ticker: str, title: str, side: str, category: str) -> str:
+    """Build a human-readable pick label that says exactly what the bet is.
+
+    Examples:
+        ML game:  "Spurs win" / "Spurs lose"
+        Total:    "Over 247.5" / "Under 247.5"
+        Spread:   "Portland -7.5" / "Portland +7.5"
+        Prop:     YES/NO fallback
+    """
+    side_upper = side.upper()
+
+    if category == "game":
+        pick_team = parse_pick_team(ticker)
+        if pick_team:
+            return f"{pick_team} win" if side_upper == "YES" else f"{pick_team} lose"
+        return side_upper
+
+    if category == "total":
+        strike = _extract_strike_from_ticker(ticker, "total")
+        if strike:
+            return f"Over {strike}" if side_upper == "YES" else f"Under {strike}"
+        # Fallback: try title
+        strike = _extract_number_from_title(title)
+        if strike:
+            return f"Over {strike}" if side_upper == "YES" else f"Under {strike}"
+        return "Over" if side_upper == "YES" else "Under"
+
+    if category == "spread":
+        strike = _extract_strike_from_ticker(ticker, "spread")
+        team, number = strike if strike else ("", "")
+        if not team:
+            # Fallback from title: "Portland wins by over 7.5 Points?"
+            number = _extract_number_from_title(title)
+            team = _extract_team_from_title(title)
+        if team and number:
+            if side_upper == "YES":
+                return f"{team} -{number}"
+            else:
+                return f"{team} +{number}"
+        if team:
+            return f"{team} covers" if side_upper == "YES" else f"{team} misses"
+        return "Covers" if side_upper == "YES" else "Doesn't cover"
+
+    # Fallback for props, prediction markets, etc.
+    return side_upper
+
+
+def _extract_strike_from_ticker(ticker: str, category: str):
+    """Extract strike info from the ticker suffix.
+
+    Total tickers:  KXNBATOTAL-26APR02NOPPOR-247  -> "247.5" (adds .5)
+    Spread tickers: KXNBASPREAD-26APR02NOPPOR-POR7 -> ("Portland", "7.5")
+    """
+    if "-" not in ticker:
+        return None
+    suffix = ticker.rsplit("-", 1)[-1]
+
+    if category == "total":
+        # Suffix is just the integer part of the strike, e.g. "247" -> 247.5
+        m = re.match(r"^[OoUu]?(\d+)$", suffix)
+        if m:
+            return f"{m.group(1)}.5"
+        return None
+
+    if category == "spread":
+        # Suffix is team abbreviation + integer, e.g. "POR7" -> Portland, 7.5
+        m = re.match(r"^([A-Z]+?)(\d+)$", suffix)
+        if m:
+            team_abbr = m.group(1)
+            team_name = TEAM_NAMES.get(team_abbr, team_abbr)
+            return (team_name, f"{m.group(2)}.5")
+        return None
+
+    return None
+
+
+def _extract_number_from_title(title: str) -> str:
+    """Pull a numeric value from a title string (fallback)."""
+    m = re.search(r"(\d+\.?\d*)\s*(?:points|pts)?", title, re.IGNORECASE)
+    return m.group(1) if m else ""
+
+
+def _extract_team_from_title(title: str) -> str:
+    """Pull a team name from a spread title like 'Portland wins by over 7.5'."""
+    m = re.match(r"^(.+?)\s+wins\s+by", title, re.IGNORECASE)
+    return m.group(1).strip() if m else ""
 
 
 # ── Date/time extraction ─────────────────────────────────────────────────────
