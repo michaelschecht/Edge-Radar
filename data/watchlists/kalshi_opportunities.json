@@ -1,150 +1,733 @@
 {
-  "generated_at": "2026-04-02T00:27:48.579876+00:00",
+  "generated_at": "2026-04-02T13:05:12.790024+00:00",
   "min_edge": 0.03,
-  "count": 2,
+  "count": 13,
   "opportunities": [
     {
-      "ticker": "KXNBAGAME-26APR02SASLAC-SAS",
+      "ticker": "KXNBATOTAL-26APR02PHXCHA-226",
+      "title": "Phoenix at Charlotte: Total Points",
+      "category": "total",
+      "side": "yes",
+      "market_price": 0.41,
+      "fair_value": 0.5893,
+      "edge": 0.1793,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "medium",
+      "liquidity_score": 9.8,
+      "composite_score": 8.3,
+      "details": {
+        "n_books": 54,
+        "median_book_line": 229.5,
+        "kalshi_strike": 226.5,
+        "line_diff": 3.0,
+        "adjusted_prob": 0.5893,
+        "inferred_mean_total": 230.57,
+        "total_stdev": 18.0,
+        "books": [
+          {
+            "book": "fanduel",
+            "line": 222.5,
+            "odds": 1.88,
+            "implied": 0.5319
+          },
+          {
+            "book": "betonlineag",
+            "line": 223.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "lowvig",
+            "line": 223.0,
+            "odds": 1.93,
+            "implied": 0.5181
+          },
+          {
+            "book": "draftkings",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "betmgm",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ]
+      }
+    },
+    {
+      "ticker": "KXNBATOTAL-26APR02PHXCHA-229",
+      "title": "Phoenix at Charlotte: Total Points",
+      "category": "total",
+      "side": "yes",
+      "market_price": 0.36,
+      "fair_value": 0.5236,
+      "edge": 0.1636,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "medium",
+      "liquidity_score": 9.8,
+      "composite_score": 8.3,
+      "details": {
+        "n_books": 54,
+        "median_book_line": 229.5,
+        "kalshi_strike": 229.5,
+        "line_diff": 0.0,
+        "adjusted_prob": 0.5236,
+        "inferred_mean_total": 230.57,
+        "total_stdev": 18.0,
+        "books": [
+          {
+            "book": "fanduel",
+            "line": 222.5,
+            "odds": 1.88,
+            "implied": 0.5319
+          },
+          {
+            "book": "betonlineag",
+            "line": 223.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "lowvig",
+            "line": 223.0,
+            "odds": 1.93,
+            "implied": 0.5181
+          },
+          {
+            "book": "draftkings",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "betmgm",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ]
+      }
+    },
+    {
+      "ticker": "KXNBAGAME-26APR02SASLAC-LAC",
       "title": "San Antonio at Los Angeles C Winner?",
       "category": "game",
-      "side": "yes",
-      "market_price": 0.63,
-      "fair_value": 0.8721,
-      "edge": 0.2421,
+      "side": "no",
+      "market_price": 0.62,
+      "fair_value": 0.7466,
+      "edge": 0.1266,
       "edge_source": "odds_api_consensus",
-      "confidence": "high",
+      "confidence": "medium",
       "liquidity_score": 9.8,
-      "composite_score": 9.2,
+      "composite_score": 8.3,
       "details": {
-        "n_books": 10,
-        "median_fair": 0.8721,
-        "min_fair": 0.607,
-        "max_fair": 0.8768,
+        "n_books": 18,
+        "median_fair": 0.2534,
+        "min_fair": 0.2433,
+        "max_fair": 0.4015,
         "books": {
           "fanduel": {
-            "raw_odds": 1.58,
-            "implied": 0.6329,
-            "devigged": 0.607
-          },
-          "draftkings": {
-            "raw_odds": 1.1,
-            "implied": 0.9091,
-            "devigged": 0.8721
-          },
-          "betrivers": {
-            "raw_odds": 1.1,
-            "implied": 0.9091,
-            "devigged": 0.8642
+            "raw_odds": 2.44,
+            "implied": 0.4098,
+            "devigged": 0.393
           },
           "lowvig": {
-            "raw_odds": 1.1,
-            "implied": 0.9091,
-            "devigged": 0.8768
-          },
-          "betmgm": {
-            "raw_odds": 1.1,
-            "implied": 0.9091,
-            "devigged": 0.8721
-          },
-          "bovada": {
-            "raw_odds": 1.11,
-            "implied": 0.9009,
-            "devigged": 0.8631
-          },
-          "betus": {
-            "raw_odds": 1.1,
-            "implied": 0.9091,
-            "devigged": 0.8721
-          },
-          "mybookieag": {
-            "raw_odds": 1.11,
-            "implied": 0.9009,
-            "devigged": 0.859
+            "raw_odds": 2.5,
+            "implied": 0.4,
+            "devigged": 0.3888
           },
           "betonlineag": {
-            "raw_odds": 1.1,
-            "implied": 0.9091,
-            "devigged": 0.8737
+            "raw_odds": 2.49,
+            "implied": 0.4016,
+            "devigged": 0.3897
+          },
+          "draftkings": {
+            "raw_odds": 2.45,
+            "implied": 0.4082,
+            "devigged": 0.3905
+          },
+          "betmgm": {
+            "raw_odds": 2.45,
+            "implied": 0.4082,
+            "devigged": 0.3905
+          },
+          "betrivers": {
+            "raw_odds": 2.48,
+            "implied": 0.4032,
+            "devigged": 0.3831
+          },
+          "bovada": {
+            "raw_odds": 2.4,
+            "implied": 0.4167,
+            "devigged": 0.4015
+          },
+          "mybookieag": {
+            "raw_odds": 2.41,
+            "implied": 0.4149,
+            "devigged": 0.3945
+          },
+          "betus": {
+            "raw_odds": 2.46,
+            "implied": 0.4065,
+            "devigged": 0.3926
           }
         },
         "team_stats": {
-          "stats_found": true,
-          "win_pct": 0.76,
-          "team_record": "57-18",
-          "signal": "supports"
+          "stats_found": false
         }
       }
     },
     {
-      "ticker": "KXNBAGAME-26APR02CLEGSW-GSW",
-      "title": "Cleveland at Golden State Winner?",
-      "category": "game",
-      "side": "no",
-      "market_price": 0.79,
-      "fair_value": 0.8721,
-      "edge": 0.0821,
-      "edge_source": "odds_api_consensus",
-      "confidence": "high",
+      "ticker": "KXNBATOTAL-26APR02MINDET-229",
+      "title": "Minnesota at Detroit: Total Points",
+      "category": "total",
+      "side": "yes",
+      "market_price": 0.4,
+      "fair_value": 0.5236,
+      "edge": 0.1236,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "medium",
       "liquidity_score": 9.8,
-      "composite_score": 8.4,
+      "composite_score": 8.3,
       "details": {
-        "n_books": 9,
-        "median_fair": 0.1279,
-        "min_fair": 0.1232,
-        "max_fair": 0.141,
-        "books": {
-          "fanduel": {
-            "raw_odds": 7.1,
-            "implied": 0.1408,
-            "devigged": 0.1352
+        "n_books": 54,
+        "median_book_line": 229.5,
+        "kalshi_strike": 229.5,
+        "line_diff": 0.0,
+        "adjusted_prob": 0.5236,
+        "inferred_mean_total": 230.57,
+        "total_stdev": 18.0,
+        "books": [
+          {
+            "book": "fanduel",
+            "line": 222.5,
+            "odds": 1.88,
+            "implied": 0.5319
           },
-          "draftkings": {
-            "raw_odds": 7.5,
-            "implied": 0.1333,
-            "devigged": 0.1279
+          {
+            "book": "betonlineag",
+            "line": 223.0,
+            "odds": 1.91,
+            "implied": 0.5236
           },
-          "betrivers": {
-            "raw_odds": 7.0,
-            "implied": 0.1429,
-            "devigged": 0.1358
+          {
+            "book": "lowvig",
+            "line": 223.0,
+            "odds": 1.93,
+            "implied": 0.5181
           },
-          "lowvig": {
-            "raw_odds": 7.83,
-            "implied": 0.1277,
-            "devigged": 0.1232
+          {
+            "book": "draftkings",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
           },
-          "betmgm": {
-            "raw_odds": 7.5,
-            "implied": 0.1333,
-            "devigged": 0.1279
-          },
-          "bovada": {
-            "raw_odds": 7.0,
-            "implied": 0.1429,
-            "devigged": 0.1369
-          },
-          "betus": {
-            "raw_odds": 7.5,
-            "implied": 0.1333,
-            "devigged": 0.1279
-          },
-          "mybookieag": {
-            "raw_odds": 6.76,
-            "implied": 0.1479,
-            "devigged": 0.141
-          },
-          "betonlineag": {
-            "raw_odds": 7.61,
-            "implied": 0.1314,
-            "devigged": 0.1263
+          {
+            "book": "betmgm",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
           }
-        },
+        ]
+      }
+    },
+    {
+      "ticker": "KXNBATOTAL-26APR02MINDET-232",
+      "title": "Minnesota at Detroit: Total Points",
+      "category": "total",
+      "side": "yes",
+      "market_price": 0.34,
+      "fair_value": 0.4572,
+      "edge": 0.1172,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "medium",
+      "liquidity_score": 9.8,
+      "composite_score": 8.3,
+      "details": {
+        "n_books": 54,
+        "median_book_line": 229.5,
+        "kalshi_strike": 232.5,
+        "line_diff": -3.0,
+        "adjusted_prob": 0.4572,
+        "inferred_mean_total": 230.57,
+        "total_stdev": 18.0,
+        "books": [
+          {
+            "book": "fanduel",
+            "line": 222.5,
+            "odds": 1.88,
+            "implied": 0.5319
+          },
+          {
+            "book": "betonlineag",
+            "line": 223.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "lowvig",
+            "line": 223.0,
+            "odds": 1.93,
+            "implied": 0.5181
+          },
+          {
+            "book": "draftkings",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "betmgm",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ]
+      }
+    },
+    {
+      "ticker": "KXNBATOTAL-26APR02PHXCHA-223",
+      "title": "Phoenix at Charlotte: Total Points",
+      "category": "total",
+      "side": "yes",
+      "market_price": 0.51,
+      "fair_value": 0.6527,
+      "edge": 0.1427,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "medium",
+      "liquidity_score": 9.6,
+      "composite_score": 8.2,
+      "details": {
+        "n_books": 54,
+        "median_book_line": 229.5,
+        "kalshi_strike": 223.5,
+        "line_diff": 6.0,
+        "adjusted_prob": 0.6527,
+        "inferred_mean_total": 230.57,
+        "total_stdev": 18.0,
+        "books": [
+          {
+            "book": "fanduel",
+            "line": 222.5,
+            "odds": 1.88,
+            "implied": 0.5319
+          },
+          {
+            "book": "betonlineag",
+            "line": 223.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "lowvig",
+            "line": 223.0,
+            "odds": 1.93,
+            "implied": 0.5181
+          },
+          {
+            "book": "draftkings",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "betmgm",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ]
+      }
+    },
+    {
+      "ticker": "KXNBATOTAL-26APR02MINDET-226",
+      "title": "Minnesota at Detroit: Total Points",
+      "category": "total",
+      "side": "yes",
+      "market_price": 0.47,
+      "fair_value": 0.5893,
+      "edge": 0.1193,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "medium",
+      "liquidity_score": 9.6,
+      "composite_score": 8.2,
+      "details": {
+        "n_books": 54,
+        "median_book_line": 229.5,
+        "kalshi_strike": 226.5,
+        "line_diff": 3.0,
+        "adjusted_prob": 0.5893,
+        "inferred_mean_total": 230.57,
+        "total_stdev": 18.0,
+        "books": [
+          {
+            "book": "fanduel",
+            "line": 222.5,
+            "odds": 1.88,
+            "implied": 0.5319
+          },
+          {
+            "book": "betonlineag",
+            "line": 223.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "lowvig",
+            "line": 223.0,
+            "odds": 1.93,
+            "implied": 0.5181
+          },
+          {
+            "book": "draftkings",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "betmgm",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ]
+      }
+    },
+    {
+      "ticker": "KXNBATOTAL-26APR02CLEGSW-232",
+      "title": "Cleveland at Golden State: Total Points",
+      "category": "total",
+      "side": "yes",
+      "market_price": 0.38,
+      "fair_value": 0.4572,
+      "edge": 0.0772,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "medium",
+      "liquidity_score": 9.8,
+      "composite_score": 7.3,
+      "details": {
+        "n_books": 54,
+        "median_book_line": 229.5,
+        "kalshi_strike": 232.5,
+        "line_diff": -3.0,
+        "adjusted_prob": 0.4572,
+        "inferred_mean_total": 230.57,
+        "total_stdev": 18.0,
+        "books": [
+          {
+            "book": "fanduel",
+            "line": 222.5,
+            "odds": 1.88,
+            "implied": 0.5319
+          },
+          {
+            "book": "betonlineag",
+            "line": 223.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "lowvig",
+            "line": 223.0,
+            "odds": 1.93,
+            "implied": 0.5181
+          },
+          {
+            "book": "draftkings",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "betmgm",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ]
+      }
+    },
+    {
+      "ticker": "KXNBATOTAL-26APR02CLEGSW-229",
+      "title": "Cleveland at Golden State: Total Points",
+      "category": "total",
+      "side": "yes",
+      "market_price": 0.46,
+      "fair_value": 0.5236,
+      "edge": 0.0636,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "medium",
+      "liquidity_score": 9.6,
+      "composite_score": 6.8,
+      "details": {
+        "n_books": 54,
+        "median_book_line": 229.5,
+        "kalshi_strike": 229.5,
+        "line_diff": 0.0,
+        "adjusted_prob": 0.5236,
+        "inferred_mean_total": 230.57,
+        "total_stdev": 18.0,
+        "books": [
+          {
+            "book": "fanduel",
+            "line": 222.5,
+            "odds": 1.88,
+            "implied": 0.5319
+          },
+          {
+            "book": "betonlineag",
+            "line": 223.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "lowvig",
+            "line": 223.0,
+            "odds": 1.93,
+            "implied": 0.5181
+          },
+          {
+            "book": "draftkings",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "betmgm",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ]
+      }
+    },
+    {
+      "ticker": "KXNBATOTAL-26APR02CLEGSW-235",
+      "title": "Cleveland at Golden State: Total Points",
+      "category": "total",
+      "side": "yes",
+      "market_price": 0.33,
+      "fair_value": 0.392,
+      "edge": 0.062,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "medium",
+      "liquidity_score": 9.8,
+      "composite_score": 6.7,
+      "details": {
+        "n_books": 54,
+        "median_book_line": 229.5,
+        "kalshi_strike": 235.5,
+        "line_diff": -6.0,
+        "adjusted_prob": 0.392,
+        "inferred_mean_total": 230.57,
+        "total_stdev": 18.0,
+        "books": [
+          {
+            "book": "fanduel",
+            "line": 222.5,
+            "odds": 1.88,
+            "implied": 0.5319
+          },
+          {
+            "book": "betonlineag",
+            "line": 223.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "lowvig",
+            "line": 223.0,
+            "odds": 1.93,
+            "implied": 0.5181
+          },
+          {
+            "book": "draftkings",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "betmgm",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ]
+      }
+    },
+    {
+      "ticker": "KXNBASPREAD-26APR02LALOKC-LAL3",
+      "title": "Los Angeles L wins by over 3.5 Points? (vs Oklahoma City)",
+      "category": "spread",
+      "side": "yes",
+      "market_price": 0.2,
+      "fair_value": 0.2718,
+      "edge": 0.0718,
+      "edge_source": "odds_api_spread_adjusted",
+      "confidence": "low",
+      "liquidity_score": 9.0,
+      "composite_score": 6.1,
+      "details": {
+        "n_books": 18,
+        "median_book_spread": 4.5,
+        "kalshi_strike": 3.5,
+        "spread_diff": 1.0,
+        "raw_median_implied": 0.5236,
+        "adjusted_prob": 0.2718,
+        "inferred_mean_margin": -3.79,
+        "margin_stdev": 12.0,
+        "book_spread_range": 6.0,
+        "books": [
+          {
+            "book": "fanduel",
+            "spread": 9.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "lowvig",
+            "spread": 9.0,
+            "odds": 1.94,
+            "implied": 0.5155
+          },
+          {
+            "book": "betonlineag",
+            "spread": 9.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "draftkings",
+            "spread": 9.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "betmgm",
+            "spread": 9.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ],
         "team_stats": {
-          "stats_found": true,
-          "win_pct": 0.48,
-          "team_record": "36-39",
-          "signal": "neutral"
+          "stats_found": false
         }
+      }
+    },
+    {
+      "ticker": "KXNBASPREAD-26APR02LALOKC-LAL6",
+      "title": "Los Angeles L wins by over 6.5 Points? (vs Oklahoma City)",
+      "category": "spread",
+      "side": "yes",
+      "market_price": 0.13,
+      "fair_value": 0.1956,
+      "edge": 0.0656,
+      "edge_source": "odds_api_spread_adjusted",
+      "confidence": "low",
+      "liquidity_score": 9.8,
+      "composite_score": 6.0,
+      "details": {
+        "n_books": 18,
+        "median_book_spread": 4.5,
+        "kalshi_strike": 6.5,
+        "spread_diff": -2.0,
+        "raw_median_implied": 0.5236,
+        "adjusted_prob": 0.1956,
+        "inferred_mean_margin": -3.79,
+        "margin_stdev": 12.0,
+        "book_spread_range": 6.0,
+        "books": [
+          {
+            "book": "fanduel",
+            "spread": 9.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "lowvig",
+            "spread": 9.0,
+            "odds": 1.94,
+            "implied": 0.5155
+          },
+          {
+            "book": "betonlineag",
+            "spread": 9.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "draftkings",
+            "spread": 9.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "betmgm",
+            "spread": 9.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ],
+        "team_stats": {
+          "stats_found": false
+        }
+      }
+    },
+    {
+      "ticker": "KXNBATOTAL-26APR02NOPPOR-238",
+      "title": "New Orleans at Portland: Total Points",
+      "category": "total",
+      "side": "no",
+      "market_price": 0.64,
+      "fair_value": 0.6703,
+      "edge": 0.0303,
+      "edge_source": "odds_api_total_adjusted",
+      "confidence": "medium",
+      "liquidity_score": 9.8,
+      "composite_score": 5.5,
+      "details": {
+        "n_books": 54,
+        "median_book_line": 229.5,
+        "kalshi_strike": 238.5,
+        "line_diff": -9.0,
+        "adjusted_prob": 0.3297,
+        "inferred_mean_total": 230.57,
+        "total_stdev": 18.0,
+        "books": [
+          {
+            "book": "fanduel",
+            "line": 222.5,
+            "odds": 1.88,
+            "implied": 0.5319
+          },
+          {
+            "book": "betonlineag",
+            "line": 223.0,
+            "odds": 1.91,
+            "implied": 0.5236
+          },
+          {
+            "book": "lowvig",
+            "line": 223.0,
+            "odds": 1.93,
+            "implied": 0.5181
+          },
+          {
+            "book": "draftkings",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          },
+          {
+            "book": "betmgm",
+            "line": 222.5,
+            "odds": 1.87,
+            "implied": 0.5348
+          }
+        ]
       }
     }
   ]
