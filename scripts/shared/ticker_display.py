@@ -94,6 +94,31 @@ def _split_team_codes(combined: str) -> tuple[str, str]:
     return combined, ""
 
 
+# ── Bet type from ticker ─────────────────────────────────────────────────────
+
+def bet_type_from_ticker(ticker: str) -> str:
+    """Infer a short bet-type label from a Kalshi ticker prefix.
+
+    Examples:
+        KXNBAGAME-...  -> "ML"
+        KXNBASPREAD-.. -> "Spread"
+        KXNBATOTAL-... -> "Total"
+        KXNBA3PT-...   -> "Prop"
+    """
+    t = ticker.upper()
+    if "GAME" in t:
+        return "ML"
+    if "SPREAD" in t:
+        return "Spread"
+    if "TOTAL" in t:
+        return "Total"
+    # Player props: 3PT, BLK, REB, AST, STL, PTS, GOAL, etc.
+    prop_keywords = ("3PT", "BLK", "REB", "AST", "STL", "PTS", "GOAL", "PROP")
+    if any(kw in t for kw in prop_keywords):
+        return "Prop"
+    return ""
+
+
 # ── Date/time extraction ─────────────────────────────────────────────────────
 
 _MONTH_MAP = {

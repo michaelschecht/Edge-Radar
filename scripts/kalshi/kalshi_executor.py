@@ -309,8 +309,14 @@ def execute_pipeline(
         title=f"{'EXECUTING' if execute else 'PREVIEW'} -- {len(to_execute)} orders",
         show_lines=True,
     )
+    cat_labels = {
+        "game": "ML", "spread": "Spread", "total": "Total",
+        "player_prop": "Prop", "esports": "Esports",
+    }
+
     table.add_column("#", justify="right", style="dim")
     table.add_column("Bet", style="cyan", max_width=45)
+    table.add_column("Type", style="magenta")
     table.add_column("When", style="dim")
     table.add_column("Side")
     table.add_column("Qty", justify="right")
@@ -336,6 +342,7 @@ def execute_pipeline(
         table.add_row(
             str(i),
             format_bet_label(s.opportunity.ticker, s.opportunity.title),
+            cat_labels.get(cat, cat.title()),
             parse_game_datetime(s.opportunity.ticker),
             side_label,
             str(s.contracts),
@@ -445,8 +452,11 @@ def show_status(client: KalshiClient, save: bool = False):
     rprint(f"  Positions:    {len(market_pos)}/{MAX_OPEN_POSITIONS}")
 
     if market_pos:
+        from ticker_display import bet_type_from_ticker
+
         table = Table(title="Open Positions", show_lines=True)
         table.add_column("Bet", style="cyan", max_width=32)
+        table.add_column("Type", style="magenta")
         table.add_column("When", style="dim")
         table.add_column("Pick", justify="center")
         table.add_column("Qty", justify="right")
@@ -465,6 +475,7 @@ def show_status(client: KalshiClient, save: bool = False):
 
             table.add_row(
                 parse_matchup(ticker) or ticker[:32],
+                bet_type_from_ticker(ticker),
                 parse_game_datetime(ticker),
                 f"{side} {pick_name}",
                 str(int(abs(yes_qty))),

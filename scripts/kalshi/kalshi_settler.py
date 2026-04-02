@@ -447,9 +447,12 @@ def generate_report(detail: bool = False, save: bool = False):
     if detail:
         from ticker_display import parse_game_datetime, format_bet_label
 
+        from ticker_display import bet_type_from_ticker
+
         rprint("")
         table = Table(title="Trade Detail", show_lines=True)
         table.add_column("Bet", style="cyan", max_width=30)
+        table.add_column("Type", style="magenta")
         table.add_column("Date", style="dim")
         table.add_column("Side")
         table.add_column("Result")
@@ -460,8 +463,8 @@ def generate_report(detail: bool = False, save: bool = False):
         md.append(f"")
         md.append(f"## Trade Detail")
         md.append(f"")
-        md.append(f"| Bet | Date | Side | Result | Cost | P&L | ROI |")
-        md.append(f"|-----|------|------|--------|------|-----|-----|")
+        md.append(f"| Bet | Type | Date | Side | Result | Cost | P&L | ROI |")
+        md.append(f"|-----|------|------|------|--------|------|-----|-----|")
 
         for t in sorted(settled, key=lambda x: x.get("closed_at", "")):
             pnl = t.get("net_pnl", 0)
@@ -472,8 +475,10 @@ def generate_report(detail: bool = False, save: bool = False):
             bet_label = format_bet_label(ticker, t.get("title", ticker))
             when = parse_game_datetime(ticker)
 
+            btype = bet_type_from_ticker(ticker)
             table.add_row(
                 bet_label[:30],
+                btype,
                 when,
                 t.get("side", "").upper(),
                 f"{result.upper()} ({won})",
@@ -482,7 +487,7 @@ def generate_report(detail: bool = False, save: bool = False):
                 f"{t.get('settlement_roi', 0):+.0%}",
             )
             md.append(
-                f"| {bet_label[:30]} | {when} | {t.get('side','').upper()} | "
+                f"| {bet_label[:30]} | {btype} | {when} | {t.get('side','').upper()} | "
                 f"{result.upper()} ({won}) | "
                 f"${t.get('cost_dollars',0):.2f} | "
                 f"${pnl:+.2f} | "

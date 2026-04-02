@@ -100,14 +100,20 @@ def save_scan_report(
                 f"| {_get_attr(o, 'confidence', '')[:3].upper()} |"
             )
     else:
-        lines.append("| # | Bet | When | Side | Mkt | Fair | Edge | Conf | Score |")
-        lines.append("|--:|:----|:-----|:-----|----:|-----:|-----:|:-----|------:|")
+        cat_labels = {
+            "game": "ML", "spread": "Spread", "total": "Total",
+            "player_prop": "Prop", "esports": "Esports",
+        }
+        lines.append("| # | Bet | Type | When | Side | Mkt | Fair | Edge | Conf | Score |")
+        lines.append("|--:|:----|:-----|:-----|:-----|----:|-----:|-----:|:-----|------:|")
         for i, o in enumerate(opportunities, 1):
             ticker = _get_attr(o, "ticker", "")
             title = _get_attr(o, "title", "")
+            cat = _get_attr(o, "category", "")
             lines.append(
                 f"| {i} "
                 f"| {format_bet_label(ticker, title)[:35]} "
+                f"| {cat_labels.get(cat, cat.title())} "
                 f"| {parse_game_datetime(ticker)} "
                 f"| {_get_attr(o, 'side', '').upper()} "
                 f"| ${_get_attr(o, 'market_price', 0):.2f} "

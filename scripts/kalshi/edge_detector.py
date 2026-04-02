@@ -1384,8 +1384,17 @@ def print_opportunities(opportunities: list[Opportunity]):
 
     from ticker_display import parse_game_datetime, format_bet_label
 
+    CATEGORY_LABELS = {
+        "game": "ML",
+        "spread": "Spread",
+        "total": "Total",
+        "player_prop": "Prop",
+        "esports": "Esports",
+    }
+
     table = Table(title=f"Kalshi Opportunities (edge >= {MIN_EDGE:.0%})", show_lines=True)
     table.add_column("Bet", style="cyan", max_width=35)
+    table.add_column("Type", style="magenta")
     table.add_column("When", style="dim")
     table.add_column("Side")
     table.add_column("Mkt", justify="right")
@@ -1398,6 +1407,7 @@ def print_opportunities(opportunities: list[Opportunity]):
         edge_color = "green" if o.edge >= 0.05 else "yellow"
         table.add_row(
             format_bet_label(o.ticker, o.title),
+            CATEGORY_LABELS.get(o.category, o.category.title()),
             parse_game_datetime(o.ticker),
             o.side.upper(),
             f"${o.market_price:.2f}",

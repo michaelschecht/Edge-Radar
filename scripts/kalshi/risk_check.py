@@ -188,8 +188,11 @@ def print_open_positions(positions: list[dict]):
         rprint("\n[dim]No open positions on Kalshi.[/dim]")
         return
 
+    from ticker_display import bet_type_from_ticker
+
     table = Table(title=f"Open Positions ({len(positions)})", show_lines=True)
     table.add_column("Bet", style="cyan", max_width=32)
+    table.add_column("Type", style="magenta")
     table.add_column("When", style="dim")
     table.add_column("Pick", justify="center")
     table.add_column("Qty", justify="right")
@@ -222,6 +225,7 @@ def print_open_positions(positions: list[dict]):
 
         table.add_row(
             matchup,
+            bet_type_from_ticker(ticker),
             when,
             pick_label,
             str(qty),
@@ -233,7 +237,7 @@ def print_open_positions(positions: list[dict]):
     pnl_style = "green" if total_pnl >= 0 else "red"
     table.add_row(
         f"[bold]TOTAL[/bold] [dim](fees: ${total_fees:.2f})[/dim]",
-        "", "", "",
+        "", "", "", "",
         f"[bold]${total_exposure:.2f}[/bold]",
         f"[bold {pnl_style}]${total_pnl:+.2f}[/bold {pnl_style}]",
     )
