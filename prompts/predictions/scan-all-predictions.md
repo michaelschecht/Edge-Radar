@@ -4,8 +4,10 @@ Run a full scan across all prediction market categories and show me the best opp
 
 ```
 python scripts/kalshi/kalshi_executor.py status
-python scripts/scan.py prediction --min-edge 0.03 --top 20
+python scripts/scan.py prediction --min-edge 0.03 --top 20 --exclude-open
 ```
+
+Output columns: Title | Date | Cat. | Side | Mkt | Fair | Edge | Conf | Score
 
 Group results by category (crypto, weather, S&P 500, mentions, companies, politics) and for each:
 - How many opportunities found
@@ -15,7 +17,7 @@ Group results by category (crypto, weather, S&P 500, mentions, companies, politi
 
 Which category has the most actionable edge right now?
 
-To also cross-reference against Polymarket:
+To cross-reference against Polymarket:
 ```
-python scripts/scan.py prediction --min-edge 0.03 --top 20 --cross-ref
+python scripts/scan.py prediction --min-edge 0.03 --top 20 --exclude-open --cross-ref
 ```

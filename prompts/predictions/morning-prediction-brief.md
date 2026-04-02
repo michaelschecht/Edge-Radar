@@ -4,11 +4,13 @@ Give me a quick morning overview of what's happening across all prediction marke
 
 ```
 python scripts/kalshi/kalshi_executor.py status
-python scripts/scan.py prediction --filter crypto --min-edge 0.03 --top 5
-python scripts/scan.py prediction --filter weather --min-edge 0.05 --top 5
-python scripts/scan.py prediction --filter spx --min-edge 0.03 --top 5
-python scripts/scan.py prediction --filter mentions --min-edge 0.05 --top 3
+python scripts/scan.py prediction --filter crypto --min-edge 0.03 --top 5 --exclude-open
+python scripts/scan.py prediction --filter weather --min-edge 0.05 --top 5 --exclude-open
+python scripts/scan.py prediction --filter spx --min-edge 0.03 --top 5 --exclude-open
+python scripts/scan.py prediction --filter mentions --min-edge 0.05 --top 3 --exclude-open
 ```
+
+Output columns: Title | Date | Cat. | Side | Mkt | Fair | Edge | Conf | Score
 
 Format as a brief:
 - **Portfolio**: balance, open positions, yesterday's P&L

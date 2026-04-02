@@ -3,8 +3,11 @@
 Check S&P 500 binary options for edge using current SPX price and VIX.
 
 ```
-python scripts/scan.py prediction --filter spx --min-edge 0.03 --top 15
+python scripts/kalshi/kalshi_executor.py status
+python scripts/scan.py prediction --filter spx --min-edge 0.03 --top 15 --exclude-open
 ```
+
+Output columns: Title | Date | Cat. | Side | Mkt | Fair | Edge | Conf | Score
 
 Tell me:
 - Current SPX price and VIX level
