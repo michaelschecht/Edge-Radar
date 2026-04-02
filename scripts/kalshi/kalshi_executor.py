@@ -303,7 +303,7 @@ def execute_pipeline(
     # ── Preview table
     to_execute = approved[:max_bets]
 
-    from ticker_display import parse_game_datetime, format_bet_label
+    from ticker_display import parse_game_datetime, format_bet_label, format_pick_label
 
     table = Table(
         title=f"{'EXECUTING' if execute else 'PREVIEW'} -- {len(to_execute)} orders",
@@ -317,8 +317,8 @@ def execute_pipeline(
     table.add_column("#", justify="right", style="dim")
     table.add_column("Bet", style="cyan", max_width=45)
     table.add_column("Type", style="magenta")
+    table.add_column("Pick", style="bold white", max_width=22)
     table.add_column("When", style="dim")
-    table.add_column("Side")
     table.add_column("Qty", justify="right")
     table.add_column("Price", justify="right")
     table.add_column("Cost", justify="right", style="green")
@@ -327,28 +327,18 @@ def execute_pipeline(
     total_cost = 0
     for i, s in enumerate(to_execute, 1):
         total_cost += s.cost_dollars
-        # Translate yes/no into human-readable labels based on category
-        side = s.opportunity.side
-        cat = s.opportunity.category
-        if cat == "total":
-            side_label = "OVER" if side == "yes" else "UNDER"
-        elif cat == "spread":
-            side_label = "COVERS" if side == "yes" else "DOESN'T COVER"
-        elif cat == "game":
-            side_label = "WIN" if side == "yes" else "LOSE"
-        else:
-            side_label = side.upper()
+        opp = s.opportunity
 
         table.add_row(
             str(i),
-            format_bet_label(s.opportunity.ticker, s.opportunity.title),
-            cat_labels.get(cat, cat.title()),
-            parse_game_datetime(s.opportunity.ticker),
-            side_label,
+            format_bet_label(opp.ticker, opp.title),
+            cat_labels.get(opp.category, opp.category.title()),
+            format_pick_label(opp.ticker, opp.title, opp.side, opp.category),
+            parse_game_datetime(opp.ticker),
             str(s.contracts),
             f"${s.price_cents / 100:.2f}",
             f"${s.cost_dollars:.2f}",
-            f"+{s.opportunity.edge:.1%}",
+            f"+{opp.edge:.1%}",
         )
     console.print(table)
     rprint(f"  Total cost: [bold]${total_cost:.2f}[/bold] of ${bankroll:.2f} available")
