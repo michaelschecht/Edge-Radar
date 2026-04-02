@@ -386,7 +386,9 @@ def execute_pipeline(
     # ── Preview table
     to_execute = approved[:max_bets]
 
-    from ticker_display import parse_game_datetime, format_bet_label, format_pick_label
+    from ticker_display import (
+        parse_game_datetime, format_bet_label, format_pick_label, sport_from_ticker,
+    )
 
     table = Table(
         title=f"{'EXECUTING' if execute else 'PREVIEW'} -- {len(to_execute)} orders",
@@ -398,6 +400,7 @@ def execute_pipeline(
     }
 
     table.add_column("#", justify="right", style="dim")
+    table.add_column("Sport", style="yellow")
     table.add_column("Bet", style="cyan", max_width=45)
     table.add_column("Type", style="magenta")
     table.add_column("Pick", style="bold white", max_width=22)
@@ -414,6 +417,7 @@ def execute_pipeline(
 
         table.add_row(
             str(i),
+            sport_from_ticker(opp.ticker),
             format_bet_label(opp.ticker, opp.title),
             cat_labels.get(opp.category, opp.category.title()),
             format_pick_label(opp.ticker, opp.title, opp.side, opp.category),
