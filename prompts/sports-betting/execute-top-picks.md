@@ -9,7 +9,9 @@ python scripts/scan.py sports --filter <sport> --min-edge 0.05 --max-bets 5 --un
 
 Replace `<sport>` with: `nba`, `nhl`, `mlb`, `nfl`, `ncaamb`, etc.
 
-1. First show me the preview -- what you plan to bet and why
+To target a specific market type, add `--category game`, `--category spread`, `--category total`, or `--category player_prop`.
+
+1. First show me the preview -- the Bet (matchup), Type, Pick, Edge, Conf, and Score for each
 2. Wait for my confirmation before executing
 3. After execution, show me: orders placed, fill status, total cost, updated balance
 4. Remind me when to run `python scripts/kalshi/kalshi_settler.py settle`
