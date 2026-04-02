@@ -57,7 +57,7 @@ log = setup_logging("prediction_scanner")
 console = Console()
 
 MIN_EDGE = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
-OPPORTUNITIES_PATH = paths.PREDICTION_OPPORTUNITIES_PATH
+
 
 
 # ── Filter Shortcuts ─────────────────────────────────────────────────────────
@@ -439,17 +439,6 @@ def print_opportunities(opportunities: list[Opportunity]):
     console.print(table)
 
 
-def save_opportunities(opportunities: list[Opportunity]):
-    data = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "count": len(opportunities),
-        "min_edge": MIN_EDGE,
-        "opportunities": [asdict(o) for o in opportunities],
-    }
-    with open(OPPORTUNITIES_PATH, "w") as f:
-        json.dump(data, f, indent=2, default=str)
-    rprint(f"[dim]Saved {len(opportunities)} opportunities to {OPPORTUNITIES_PATH}[/dim]")
-
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
@@ -533,7 +522,6 @@ def main():
             print_opportunities(opportunities)
 
         if args.save and opportunities:
-            save_opportunities(opportunities)
             from report_writer import save_scan_report
             rpt = save_scan_report(opportunities, report_type="prediction",
                                    filter_label=args.ticker_filter or "", min_edge=args.min_edge)

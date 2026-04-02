@@ -54,7 +54,7 @@ from odds_api import get_current_key, rotate_key, report_remaining
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
 MIN_EDGE = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
-OPPORTUNITIES_PATH = paths.SPORTS_OPPORTUNITIES_PATH
+
 
 
 # ── Market Categorization ────────────────────────────────────────────────────
@@ -1423,18 +1423,6 @@ def print_opportunities(opportunities: list[Opportunity]):
     console.print(table)
 
 
-def save_opportunities(opportunities: list[Opportunity]):
-    """Save opportunities to JSON for the pipeline to pick up."""
-    data = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "min_edge": MIN_EDGE,
-        "count": len(opportunities),
-        "opportunities": [asdict(o) for o in opportunities],
-    }
-    with open(OPPORTUNITIES_PATH, "w") as f:
-        json.dump(data, f, indent=2, default=str)
-    rprint(f"[dim]Saved {len(opportunities)} opportunities to {OPPORTUNITIES_PATH}[/dim]")
-
 
 def print_detail(client: KalshiClient, ticker: str):
     """Print detailed edge analysis for a single market."""
@@ -1557,7 +1545,6 @@ def main():
         else:
             print_opportunities(opportunities)
         if args.save and opportunities:
-            save_opportunities(opportunities)
             if sized_orders:
                 from report_writer import save_execution_report
                 rpt = save_execution_report(sized_orders, report_type="sports",
