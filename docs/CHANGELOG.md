@@ -30,6 +30,28 @@
 - New `format_pick_label()` helper in `ticker_display.py`
 - Added Kalshi team abbreviation aliases (SAS, GSW, NOP, etc.)
 
+### D3. Sport Column
+- Added Sport column (NBA/NHL/MLB/NFL/NCAAB/etc.) to scan table, executor preview table, and markdown reports
+- New `sport_from_ticker()` helper in `ticker_display.py`
+- Added `KXNCAABB` prefix alias for NCAA basketball championship tickers
+
+### D4. Context-Aware Report Saving
+- When `--unit-size` is passed, saves an **execution report** (Sport, Bet, Type, Pick, Qty, Price, Cost, Edge, total cost) instead of the scan report
+- When no `--unit-size`, saves the scan report as before (Mkt, Fair, Edge, Conf, Score)
+- New `save_execution_report()` function in `report_writer.py`
+- `execute_pipeline` now returns sized orders on preview (was returning `[]`) so the report writer can use them
+
+### Same-Day Automated Execution Scripts
+- New `scripts/schedulers/same_day_executions/same_day_scan.bat` — preview all sports today, top 10 across all sports
+- New `scripts/schedulers/same_day_executions/same_day_execute.bat` — scan + execute, with portfolio status before/after
+- Recommended run time: 8 AM ET (all markets posted, sportsbook lines sharp, Kalshi lag window open)
+- Single command scans NFL, NBA, NHL, MLB together, ranked by composite score, 10 bets max total
+- Next-day scripts also available at `scripts/schedulers/next_day_executions/` as reserve
+
+### How Scoring Works (ARCHITECTURE.md)
+- New section explaining the full flow: Fair Value → Edge → Confidence → Score
+- Includes dependency diagram, confidence thresholds by market type, composite score formula with weights, and worked example
+
 ### Documentation Overhaul
 - `docs/scripts/` subdirectory: 7 dedicated script docs (edge_detector, futures_edge, prediction_scanner, polymarket_edge, kalshi_executor, kalshi_settler, risk_check)
 - `SCRIPTS_REFERENCE.md` slimmed to hub with routing table, common flags, daily workflow
