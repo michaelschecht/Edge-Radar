@@ -11,7 +11,9 @@
 [![Docs](https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square)](#-documentation)  
 [![APIs](https://img.shields.io/badge/APIs-9%20Free-F97316?style=flat-square)](#-data-sources)
 
-![Edge-Radar Banner](https://file%2B.vscode-resource.vscode-cdn.net/d%3A/AI_Agents/Specialized_Agents/Edge_Radar/.claude/images/logos/logo.png)
+<p align="center">
+  <img src=".claude/images/logos/logo.png" alt="Edge-Radar Banner" width="600">
+</p>
 
 > Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 7 free APIs (including Polymarket), identifies mispriced contracts with a normal CDF probability model, sizes bets with quarter-Kelly criterion, enforces 9 risk gates, and executes limit orders — logging every decision for closing line value tracking.
 
