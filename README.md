@@ -11,7 +11,7 @@
 [![Docs](https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square)](#-documentation)  
 [![APIs](https://img.shields.io/badge/APIs-9%20Free-F97316?style=flat-square)](#-data-sources)
 
-![Edge-Radar Banner](.claude/images/logos/logo.png)
+![Edge-Radar Banner](https://file%2B.vscode-resource.vscode-cdn.net/d%3A/AI_Agents/Specialized_Agents/Edge_Radar/.claude/images/logos/logo.png)
 
 > Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 7 free APIs (including Polymarket), identifies mispriced contracts with a normal CDF probability model, sizes bets with quarter-Kelly criterion, enforces 9 risk gates, and executes limit orders — logging every decision for closing line value tracking.
 
@@ -19,7 +19,7 @@
 
 ## 📊 Supported Markets
 
-<table><tbody><tr><td width="33%" valign="top"><h3 id="🏀-sports-betting" class="md-heading" data-line="27">🏀 Sports Betting</h3><ul data-line="29"><li>NFL, NBA, and MLB</li><li>NCAAB &amp; NCAAF</li><li>UFC and Boxing</li><li>NHL and Soccer</li><li>Golf &amp; Nascar</li></ul></td><td width="33%" valign="top"><h3 id="🏆-championships" class="md-heading" data-line="38">🏆 Championships</h3><ul data-line="40"><li>NFL Super Bowl</li><li>NBA Finals</li><li>NHL Stanley Cup</li><li>MLB World Series</li><li>PGA Tour</li></ul></td><td width="33%" valign="top"><h3 id="🔮-prediction-markets" class="md-heading" data-line="49">🔮 Prediction Markets</h3><ul data-line="51"><li>Cryptocurrency</li><li>US Stock Market</li><li>Politics&nbsp;</li><li>Weather</li><li>TV and Pop Culture</li></ul></td></tr></tbody></table>
+<table><tbody><tr><td width="33%" valign="top"><h3 id="🏀-sports-betting" class="md-heading" data-line="27">🏀 Sports Betting</h3><ul data-line="29"><li>NFL, NBA, and MLB</li><li>NCAAB &amp; NCAAF</li><li>UFC and Boxing</li><li>NHL and Soccer</li><li>Golf &amp; Nascar</li></ul></td><td width="33%" valign="top"><h3 id="🏆-championships" class="md-heading" data-line="38">🏆 Championships</h3><ul data-line="40"><li>NFL Super Bowl</li><li>NBA Finals</li><li>NHL Stanley Cup</li><li>MLB World Series</li><li>PGA Tour</li></ul></td><td width="33%" valign="top"><h3 id="🔮-prediction-markets" class="md-heading" data-line="49">🔮 Prediction</h3><ul data-line="51"><li>Cryptocurrency</li><li>US Stock Market</li><li>Politics&nbsp;</li><li>Weather</li><li>TV and Pop Culture</li></ul></td></tr></tbody></table>
 
 ---
 
@@ -45,6 +45,10 @@
 ### Quarter-Kelly Sizing
 
 Bet size scales with edge strength. Higher-edge opportunities get more capital; marginal edges stay at the minimum unit. This is the core differentiator — flat sizing leaves money on the table.
+
+text
+
+Copy
 
 text
 
@@ -89,6 +93,10 @@ bash
 
 Copy
 
+bash
+
+Copy
+
 ```bash
 # 1. Install and configurepip install -r requirements.txtcp .env.example .env # fill in KALSHI_API_KEY, ODDS_API_KEYS# 2. Scan for opportunities (preview only)python scripts/scan.py sports --filter nba# 3. Execute after reviewingpython scripts/scan.py sports --filter nba --execute --unit-size 1 --max-bets 5# 4. Settle and check P&Lpython scripts/kalshi/kalshi_settler.py report --detail --save
 ```
@@ -96,9 +104,13 @@ Copy
 > \[!TIP\]  
 > All scanners share the same flags: `--execute`, `--unit-size`, `--max-bets`, `--pick`, `--ticker`, `--save`, `--date`, `--exclude-open`. Use `--date tomorrow --exclude-open` to avoid double-betting.
 
-**More Examples**  
+**More Examples**
 
 **Sports Betting**
+
+bash
+
+Copy
 
 bash
 
@@ -114,11 +126,19 @@ bash
 
 Copy
 
+bash
+
+Copy
+
 ```bash
 # Scan futures marketspython scripts/scan.py futures --filter nba-futurespython scripts/scan.py futures --filter nhl-futures# Execute futures pickspython scripts/scan.py futures --filter mlb-futures --execute --unit-size 2 --max-bets 5# Save futures scan to watchlistpython scripts/scan.py futures --filter nba-futures --save
 ```
 
 **Prediction Markets**
+
+bash
+
+Copy
 
 bash
 
@@ -134,11 +154,19 @@ bash
 
 Copy
 
+bash
+
+Copy
+
 ```bash
 # Scan for cross-market edgespython scripts/scan.py polymarketpython scripts/scan.py polymarket --filter crypto# Execute Polymarket-validated pickspython scripts/scan.py polymarket --execute --unit-size 1 --max-bets 5# Save results and find matchespython scripts/scan.py polymarket --savepython scripts/polymarket/polymarket_edge.py match KXBTC-28MAR26-T88000
 ```
 
 **Portfolio Management**
+
+bash
+
+Copy
 
 bash
 
@@ -153,6 +181,10 @@ Copy
 ## 🤖 Claude Code Skill
 
 Edge-Radar includes a built-in `/edge-radar` slash command for [Claude Code](https://claude.ai/claude-code) that provides a natural language interface to the entire system. Type `/edge-radar` followed by what you want to do:
+
+text
+
+Copy
 
 text
 
@@ -179,11 +211,19 @@ bash
 
 Copy
 
+bash
+
+Copy
+
 ```bash
 # Preview today's best picks (no bets placed)scripts\schedulers\same_day_executions\same_day_scan.bat# Scan + execute (places live orders via Kalshi API)scripts\schedulers\same_day_executions\same_day_execute.bat
 ```
 
 **Recommended schedule:** 8 AM ET via Windows Task Scheduler. By 8 AM, all markets are posted, sportsbooks have sharpened lines overnight, and Kalshi’s lag window is open.
+
+bash
+
+Copy
 
 bash
 
@@ -203,11 +243,19 @@ text
 
 Copy
 
+text
+
+Copy
+
 ```
   12 Sportsbooks                     7 Free APIs  ─────────────────                  ──────────────────  Pinnacle  (3x)                     ESPN    (standings + line movement)  Circa     (3x)                     NHL API (goal diff, L10)  BetMGM    (0.7x)                   MLB API (run diff)  FanDuel   (0.7x)                   NWS     (61 venue forecasts)  DraftKings (0.7x)                  CoinGecko (crypto volatility)  + 7 more books                     Yahoo Finance (S&P 500 + VIX)                                     Polymarket (cross-market prices)          |                                  |          v                                  v  +------------------------------------------------+  |           EDGE DETECTION ENGINE                 |  |                                                 |  |   Weighted De-Vig   ──>  Fair Value Consensus   |  |   Normal CDF Model  ──>  Spread/Total Probs     |  |   Team Stats         ──>  Confidence Signal      |  |   Sharp Money        ──>  Line Movement Signal   |  |   Weather            ──>  Outdoor Total Adjust   |  +------------------------------------------------+                        |                  Edge >= 3%?  ── NO ──>  Skip                        |                       YES                        |              +-------------------+              |  RISK GATES (9)   |              |   Daily loss cap  |              |   Position limit  |              |   Per-event cap   |              |   Concentration   |              |   Kelly sizing    |              +-------------------+                        |                EXECUTE on Kalshi                        |                Log  +  Track CLV
 ```
 
-**Project Structure**  
+**Project Structure**
+
+text
+
+Copy
 
 text
 
