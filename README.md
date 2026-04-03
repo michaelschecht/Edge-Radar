@@ -21,13 +21,13 @@
 
 ## 📊 Supported Markets
 
-<table>
-<tr>
-<td width="33%" valign="top"><h3>🏀 Sports Betting</h3><ul><li>NFL, NBA, and MLB</li><li>NCAAB &amp; NCAAF</li><li>UFC and Boxing</li><li>NHL and Soccer</li><li>Golf &amp; NASCAR</li></ul></td>
-<td width="33%" valign="top"><h3>🏆 Championships</h3><ul><li>NFL Super Bowl</li><li>NBA Finals</li><li>NHL Stanley Cup</li><li>MLB World Series</li><li>PGA Tour</li></ul></td>
-<td width="33%" valign="top"><h3>🔮 Prediction</h3><ul><li>Cryptocurrency</li><li>US Stock Market</li><li>Politics</li><li>Weather</li><li>TV and Pop Culture</li></ul></td>
-</tr>
-</table>
+| 🏀 Sports Betting | 🏆 Championships | 🔮 Prediction Markets |
+| --- | --- | --- |
+| NFL, NBA, and MLB | NFL Super Bowl | Cryptocurrency |
+| NCAAB & NCAAF | NBA Finals | US Stock Market |
+| UFC and Boxing | NHL Stanley Cup | Politics |
+| NHL and Soccer | MLB World Series | Weather |
+| Golf & NASCAR | PGA Tour | TV and Pop Culture |
 
 ---
 
