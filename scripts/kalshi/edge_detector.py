@@ -1545,7 +1545,7 @@ def main():
         else:
             print_opportunities(opportunities)
         if args.save and opportunities:
-            if sized_orders:
+            if sized_orders is not None:
                 from report_writer import save_execution_report
                 rpt = save_execution_report(sized_orders, report_type="sports",
                                             filter_label=args.ticker_filter or "", min_edge=args.min_edge,

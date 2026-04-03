@@ -151,9 +151,6 @@ def save_execution_report(
         min_edge: Minimum edge threshold used.
         output_dir: Override output directory.
     """
-    if not sized_orders:
-        return None
-
     now = datetime.now(timezone.utc)
     date_str = now.strftime("%Y-%m-%d")
 
@@ -164,7 +161,7 @@ def save_execution_report(
     filename = f"{date_str}{label}_{report_type}_execution.md"
     report_path = base_dir / filename
 
-    total_cost = sum(s.cost_dollars for s in sized_orders)
+    total_cost = sum(s.cost_dollars for s in sized_orders) if sized_orders else 0
 
     lines = [
         f"# {report_type.title()} Execution Report",
