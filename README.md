@@ -36,7 +36,7 @@
 </td>
 <td width="33%" valign="top">
 
-### 🏆 Championship Futures
+### 🏆 Championships
 
 - NFL Super Bowl &middot; NBA Finals
 - NHL Stanley Cup 
