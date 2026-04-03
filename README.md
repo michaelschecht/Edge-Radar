@@ -2,13 +2,13 @@
 
 **Automated Edge Detection & Execution for Prediction Markets**
 
-[![Kalshi Live Trading](https://img.shields.io/badge/Kalshi-Live%20Trading-e74c3c?style=flat-square)](https://kalshi.com)  
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-2ea44f?style=flat-square&logo=python&logoColor=white)](https://python.org)  
-[![Normal CDF](https://img.shields.io/badge/Edge%20Model-Normal%20CDF-8B5CF6?style=flat-square)](docs/ARCHITECTURE.md)  
-[![Markets](https://img.shields.io/badge/Markets-27%20Sports-0078D4?style=flat-square)](#-supported-markets)  
-[![Edge Detection](https://img.shields.io/badge/Edge-7%20Signals-8B5CF6?style=flat-square)](#-edge-detection)  
-[![Risk Gates](https://img.shields.io/badge/Risk-9%20Gates%20%2B%20Kelly-e74c3c?style=flat-square)](#%EF%B8%8F-risk--position-sizing)  
-[![Docs](https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square)](#-documentation)  
+[![Kalshi Live Trading](https://img.shields.io/badge/Kalshi-Live%20Trading-e74c3c?style=flat-square)](https://kalshi.com)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-2ea44f?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![Normal CDF](https://img.shields.io/badge/Edge%20Model-Normal%20CDF-8B5CF6?style=flat-square)](docs/ARCHITECTURE.md)
+[![Markets](https://img.shields.io/badge/Markets-27%20Sports-0078D4?style=flat-square)](#-supported-markets)
+[![Edge Detection](https://img.shields.io/badge/Edge-7%20Signals-8B5CF6?style=flat-square)](#-edge-detection)
+[![Risk Gates](https://img.shields.io/badge/Risk-9%20Gates%20%2B%20Kelly-e74c3c?style=flat-square)](#%EF%B8%8F-risk--position-sizing)
+[![Docs](https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square)](#-documentation)
 [![APIs](https://img.shields.io/badge/APIs-9%20Free-F97316?style=flat-square)](#-data-sources)
 
 <p align="center">
@@ -23,36 +23,9 @@
 
 <table>
 <tr>
-<td width="33%" valign="top">
-
-### 🏀 Sports Betting
-- NFL, NBA, and MLB
-- NCAAB & NCAAF
-- UFC and Boxing
-- NHL and Soccer
-- Golf & NASCAR
-
-</td>
-<td width="33%" valign="top">
-
-### 🏆 Championships
-- NFL Super Bowl
-- NBA Finals
-- NHL Stanley Cup
-- MLB World Series
-- PGA Tour
-
-</td>
-<td width="33%" valign="top">
-
-### 🔮 Prediction Markets
-- Cryptocurrency
-- US Stock Market
-- Politics
-- Weather
-- TV and Pop Culture
-
-</td>
+<td width="33%" valign="top"><h3>🏀 Sports Betting</h3><ul><li>NFL, NBA, and MLB</li><li>NCAAB &amp; NCAAF</li><li>UFC and Boxing</li><li>NHL and Soccer</li><li>Golf &amp; NASCAR</li></ul></td>
+<td width="33%" valign="top"><h3>🏆 Championships</h3><ul><li>NFL Super Bowl</li><li>NBA Finals</li><li>NHL Stanley Cup</li><li>MLB World Series</li><li>PGA Tour</li></ul></td>
+<td width="33%" valign="top"><h3>🔮 Prediction</h3><ul><li>Cryptocurrency</li><li>US Stock Market</li><li>Politics</li><li>Weather</li><li>TV and Pop Culture</li></ul></td>
 </tr>
 </table>
 
