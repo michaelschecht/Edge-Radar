@@ -19,7 +19,40 @@
 
 ## 📊 Supported Markets
 
-<table><tbody><tr><td width="33%" valign="top"><h3 id="🏀-sports-betting" class="md-heading" data-line="27">🏀 Sports Betting</h3><ul data-line="29"><li>NFL, NBA, and MLB</li><li>NCAAB &amp; NCAAF</li><li>UFC and Boxing</li><li>NHL and Soccer</li><li>Golf &amp; Nascar</li></ul></td><td width="33%" valign="top"><h3 id="🏆-championships" class="md-heading" data-line="38">🏆 Championships</h3><ul data-line="40"><li>NFL Super Bowl</li><li>NBA Finals</li><li>NHL Stanley Cup</li><li>MLB World Series</li><li>PGA Tour</li></ul></td><td width="33%" valign="top"><h3 id="🔮-prediction-markets" class="md-heading" data-line="49">🔮 Prediction</h3><ul data-line="51"><li>Cryptocurrency</li><li>US Stock Market</li><li>Politics&nbsp;</li><li>Weather</li><li>TV and Pop Culture</li></ul></td></tr></tbody></table>
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### 🏀 Sports Betting
+- NFL, NBA, and MLB
+- NCAAB & NCAAF
+- UFC and Boxing
+- NHL and Soccer
+- Golf & NASCAR
+
+</td>
+<td width="33%" valign="top">
+
+### 🏆 Championships
+- NFL Super Bowl
+- NBA Finals
+- NHL Stanley Cup
+- MLB World Series
+- PGA Tour
+
+</td>
+<td width="33%" valign="top">
+
+### 🔮 Prediction Markets
+- Cryptocurrency
+- US Stock Market
+- Politics
+- Weather
+- TV and Pop Culture
+
+</td>
+</tr>
+</table>
 
 ---
 
