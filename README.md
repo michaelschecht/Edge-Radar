@@ -48,7 +48,7 @@
 
 ### 🔮 Prediction Markets
 
-- Crypto (BTC, ETH, XRP, DOGE, SOL)
+- Cryptocurrency
 - Stock Market and Securities
 - Weather &middot; S&P 500 &middot; Politics
 - TV mentions &middot; Companies
