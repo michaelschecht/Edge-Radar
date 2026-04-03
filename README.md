@@ -27,12 +27,10 @@
 
 ### 🏀 Sports Betting
 
-**27 sport filters** Weighted from 12 US sportsbooks
-
 - NFL, NBA, and MLB
 - NCAAB & NCAAF
 - UFC and Boxing
-- Soccer, Golf, Nascar, and more!
+- Soccer, Golf & Nascar
   
 
 </td>
@@ -40,20 +38,18 @@
 
 ### 🏆 Championship Futures
 
-**7 leagues** with N-way de-vigged outrights:
-
 - NFL Super Bowl &middot; NBA Finals
-- NHL Stanley Cup &middot; MLB World Series
-- Conference winners &middot; PGA Tour
+- NHL Stanley Cup 
+- MLB World Series
+- PGA Tour
 
 </td>
 <td width="33%" valign="top">
 
 ### 🔮 Prediction Markets
 
-**11 categories** with model-specific edge:
-
 - Crypto (BTC, ETH, XRP, DOGE, SOL)
+- Stock Market and Securities
 - Weather &middot; S&P 500 &middot; Politics
 - TV mentions &middot; Companies
 
