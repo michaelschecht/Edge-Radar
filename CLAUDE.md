@@ -36,7 +36,6 @@ The system emphasizes **research-first, execute-second** discipline. No action i
 ```
 Edge-Radar/
 ├── CLAUDE.md                        # This file — master instructions
-├── .env                             # API keys (NEVER commit)
 ├── .env.example                     # Template for required env vars
 ├── .pre-commit-config.yaml          # Pre-commit hooks (detect-secrets, black, flake8)
 ├── Makefile                         # make scan-mlb, make test, make settle, etc.
@@ -56,31 +55,31 @@ Edge-Radar/
 │   ├── ARCHITECTURE.md              # System pipeline, risk gates, data flow
 │   ├── kalshi-sports-betting/       # Sports betting
 │   │   ├── SPORTS_GUIDE.md          # Filters, edge detection, workflow
-│   │   └── KALSHI_API_REFERENCE.md  # API endpoints & auth
+│   │   ├── KALSHI_API_REFERENCE.md  # API endpoints & auth
+│   │   └── MLB_FILTERING_GUIDE.md   # 10 filter categories for MLB picks
 │   ├── kalshi-prediction-betting/   # Prediction markets
 │   │   └── PREDICTION_MARKETS_GUIDE.md
 │   ├── kalshi-futures-betting/      # Championship & season-long futures
 │   │   └── FUTURES_GUIDE.md
-│   └── enhancements/               # Improvement tracking
+│   ├── mcp-config/                  # MCP server reference
+│   │   └── mcp-servers.md
+│   ├── scripts/                     # Per-script detailed docs
+│   ├── setup/                       # First-time setup & automation
+│   │   ├── SETUP_GUIDE.md           # API keys, env config, first scan
+│   │   └── AUTOMATION_GUIDE.md      # Windows Task Scheduler automated betting
+│   └── enhancements/               # Improvement tracking (gitignored)
 │       └── ROADMAP.md              # All enhancements — completed & pending
-├── mcp-config/
-│   ├── claude_desktop_config.json   # MCP server config (Windows/WSL)
-│   └── mcp-servers.md               # MCP server reference & setup
 ├── tests/                           # pytest test suite (102 tests)
-├── data/
-│   ├── positions/                   # Current open positions (JSON)
-│   ├── history/                     # Trade history logs
-│   └── watchlists/                  # Active watchlists per market
-├── notebooks/
-│   └── analysis/                    # Research notebooks
 └── scripts/
     ├── scan.py                      # Unified scan entry point (routes to scanners)
+    ├── doctor.py                    # Startup environment validator
     ├── kalshi/                      # Kalshi betting scripts
     │   ├── kalshi_client.py         # Authenticated Kalshi API client
     │   ├── kalshi_executor.py       # Risk management & order execution
     │   ├── kalshi_settler.py        # Settlement, CLV tracking & P&L reporting
     │   ├── edge_detector.py         # Edge detection (normal CDF, sharp weighting, team stats, weather)
     │   ├── futures_edge.py          # Championship futures edge detection
+    │   ├── model_calibration.py     # Brier score, calibration curve, recommendations
     │   ├── fetch_odds.py            # The Odds API integration
     │   ├── fetch_market_data.py     # Multi-asset market data fetcher
     │   └── risk_check.py            # Portfolio risk dashboard
@@ -90,7 +89,7 @@ Edge-Radar/
     │   ├── config.py                # Centralized env var configuration
     │   ├── paths.py                 # Standardized path setup
     │   ├── opportunity.py           # Opportunity dataclass
-    │   ├── trade_log.py             # Trade log I/O
+    │   ├── trade_log.py             # Trade log I/O + fill-based accounting helpers
     │   ├── odds_api.py              # Odds API key rotation
     │   ├── team_stats.py            # ESPN/NHL/MLB team performance (6 sports)
     │   ├── pitcher_stats.py         # MLB starting pitcher data (ERA, FIP, WHIP, K/9, rest)
@@ -102,17 +101,23 @@ Edge-Radar/
     │   └── report_writer.py         # Markdown scan report generator
     └── schedulers/                  # Automation helpers
         ├── same_day_executions/     # Primary automated execution (8 AM ET)
-        │   ├── same_day_scan.bat       # Preview all sports today, top 10
+        │   ├── same_day_scan.bat       # Preview all sports today
         │   └── same_day_execute.bat    # Scan + execute all sports today
         ├── next_day_executions/     # Reserve (9 PM ET, for early lines)
-        │   ├── next_day_scan.bat       # Preview all sports tomorrow, top 10
+        │   ├── next_day_scan.bat       # Preview all sports tomorrow
         │   └── next_day_execute.bat    # Scan + execute all sports tomorrow
         ├── same_day_scans/          # Per-sport scan-only jobs (today)
         ├── next_day_scans/          # Per-sport scan-only jobs (tomorrow)
         └── automation/              # Python automation scripts
             ├── daily_sports_scan.py     # Morning edge report (all sports)
-            └── install_windows_task.py  # Windows Task Scheduler setup
+            └── install_windows_task.py  # Windows Task Scheduler setup (4 profiles)
 ```
+
+**Runtime directories (gitignored, created automatically):**
+- `data/` — Trade history, settlements, watchlists (JSON)
+- `logs/` — Script execution logs
+- `reports/` — Saved scan reports, P&L reports, dashboards
+- `.env` — API keys and configuration (copy from `.env.example`)
 
 ---
 
