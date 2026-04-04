@@ -8,7 +8,7 @@ REM
 REM  Recommended run time: 8 AM ET (all markets posted, sportsbook lines sharp,
 REM  Kalshi lag window open)
 REM
-REM  Unit size: $0.50 | Max bets: 10 total | Date: today
+REM  Unit size: $0.50 | Max bets: 5 total | Date: today
 REM  All 9 risk gates enforced (Kelly sizing, per-event cap, concentration, etc.)
 REM  Report saved to: reports\Sports\schedulers\same-day-executions
 REM
