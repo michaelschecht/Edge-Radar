@@ -225,8 +225,7 @@ Examples at UNIT_SIZE = $1.00, bankroll = $50:
 For the full enhancement roadmap (completed and pending items), see [ROADMAP.md](enhancements/ROADMAP.md).
 
 Key remaining priorities:
-- **Starting pitcher/goalie data** -- #1 MLB edge unlock (ERA, FIP, WHIP, K/9)
-- **Bullpen availability tracker** -- high-value for MLB totals
+- **Backtesting framework** -- replay settled markets, calibration curve, win rate by dimension
+- **Bullpen availability tracker** -- high-value for MLB totals (pitcher data now live)
+- **NBA rest days / back-to-backs** -- 5-7 point swing, currently unmodeled
 - **Wind direction classification** -- NWS bearing relative to stadium orientation
-- **Pre-commit hooks** -- credential leak prevention
-- **Go live criteria** -- 500+ demo bets, Sharpe > 0.5, drawdown < 30%, edge realization > 75%

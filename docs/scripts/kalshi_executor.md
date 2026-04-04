@@ -39,11 +39,12 @@ python scripts/kalshi/kalshi_executor.py status --save
 When any scanner is called with `--execute`, it imports `execute_pipeline()` from this module. The pipeline:
 
 1. **Portfolio state** -- fetches balance, open positions, today's P&L
-2. **Risk check** -- validates daily loss limit, max open positions, per-trade sizing
-3. **Sizing** -- calculates contract count based on `--unit-size` and market price
-4. **Preview table** -- shows all approved orders with Bet, Type, Pick, When, Qty, Price, Cost, Edge
-5. **Execution** (if `--execute` is passed) -- places limit orders via Kalshi API
-6. **Trade logging** -- records each trade to `data/history/`
+2. **Correlated bracket dedup** -- collapses multiple totals/spread lines on the same game into the single best-scoring pick (e.g., Over 221.5, Over 224.5, Over 228.5 on BOS@MIL → keeps only the highest composite score)
+3. **Risk check** -- validates daily loss limit, max open positions, per-trade sizing
+4. **Sizing** -- calculates contract count based on `--unit-size` and market price
+5. **Preview table** -- shows all approved orders with Bet, Type, Pick, When, Qty, Price, Cost, Edge
+6. **Execution** (if `--execute` is passed) -- places limit orders via Kalshi API
+7. **Trade logging** -- records each trade to `data/history/`
 
 ### Risk Gates (9 gates)
 
@@ -57,7 +58,7 @@ The pipeline rejects opportunities that fail any of these checks:
 | 4 | Composite score | Must meet `MIN_COMPOSITE_SCORE` (6.0) |
 | 5 | Confidence | Must meet `MIN_CONFIDENCE` (medium) |
 | 6 | Duplicate ticker | Can't already hold a position in this market |
-| 7 | Per-event cap | Max `MAX_PER_EVENT` (3) positions on the same game |
+| 7 | Per-event cap | Max `MAX_PER_EVENT` (2) positions on the same game (override with `--max-per-game`) |
 | 8 | Max concentration | Single position can't exceed `MAX_POSITION_CONCENTRATION` (20%) of bankroll |
 | 9 | Max bet size | Cost can't exceed `MAX_BET_SIZE_SPORTS` ($50) or `MAX_BET_SIZE_PREDICTION` ($100) |
 

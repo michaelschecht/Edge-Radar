@@ -93,6 +93,7 @@ Edge-Radar/
     │   ├── trade_log.py             # Trade log I/O
     │   ├── odds_api.py              # Odds API key rotation
     │   ├── team_stats.py            # ESPN/NHL/MLB team performance (6 sports)
+    │   ├── pitcher_stats.py         # MLB starting pitcher data (ERA, FIP, WHIP, K/9, rest)
     │   ├── sports_weather.py        # NWS weather for NFL/MLB outdoor venues
     │   ├── line_movement.py         # ESPN line movement & sharp money detection
     │   ├── logging_setup.py         # Console + file logging
