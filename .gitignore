@@ -1,8 +1,7 @@
-# === CRITICAL: NEVER COMMIT THESE ===
+# === Secrets & Credentials (NEVER COMMIT) ===
 .env
 *.env
-.env.local
-.env.production
+.env.*
 keys/
 *.key
 *.pem
@@ -19,22 +18,28 @@ build/
 dist/
 *.egg-info/
 .eggs/
-venv/
-env/
-.venv/
 pip-wheel-metadata/
 
-# === Data files (live positions, trade history, watchlists) ===
+# === Virtual Environments ===
+.venv/
+venv/
+env/
+
+# === Runtime Data ===
 data/
+logs/
+*.log
+reports/
 
 # === Database ===
 *.db
 *.sqlite
 *.sqlite3
 
-# === Logs ===
-logs/
-*.log
+# === Cache ===
+.cache/
+cache/
+*.cache
 
 # === IDE ===
 .vscode/
@@ -50,14 +55,8 @@ Thumbs.db
 notebooks/.ipynb_checkpoints/
 notebooks/analysis/*.html
 
-# === API response caches ===
-.cache/
-cache/
-*.cache
-reports/Accounts/
-reports/sports/
-reports/Futures/
-reports/Predictions/
+# === Project-specific ===
+.claude/images/screenshots/
 docs/enhancements/
 docs/AX-Integration/
 scripts/custom/
