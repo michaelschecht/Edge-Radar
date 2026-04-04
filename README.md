@@ -52,22 +52,24 @@
 
 ## 🛡️ Risk & Position Sizing
 
-### Quarter-Kelly Sizing
+### Batch-Aware Kelly Sizing
 
-Bet size scales with edge strength. Higher-edge opportunities get more capital; marginal edges stay at the minimum unit. This is the core differentiator — flat sizing leaves money on the table.
+Bet size scales with edge strength, divided by the number of simultaneous bets so total batch exposure stays controlled. Higher-edge opportunities get more capital; marginal edges stay at the minimum unit.
 
 ```
-bet_size = max(unit_size, 0.25 × edge × bankroll)
+bet_size = max(unit_size, (KELLY_FRACTION / batch_size) × edge × bankroll)
 ```
 
-| Edge | Bankroll $50 | Contracts @ $0.40 | vs Flat ($0.50 unit) |
-| --- | --- | --- | --- |
-| 3% | $0.38 | 1 (flat floor) | Same |
-| 8% | $1.00 | 3 | 2x more |
-| 15% | $1.88 | 5 | 4x more |
-| 25% | $3.13 | 8 | 7x more |
+When placing 5 bets at once with `KELLY_FRACTION=0.50`, each bet gets `0.50/5 = 0.10` of the Kelly fraction — keeping total exposure roughly equal to what a single full-fraction bet would be.
 
-The result is capped by max bet size ($50 sports / $100 prediction), max concentration (20% of bankroll), and available balance.
+| Edge | Bankroll $50 | 1 bet (0.50) | 5 bets (0.50/5) | 10 bets (0.50/10) |
+| --- | --- | --- | --- | --- |
+| 3% | $0.75 | 2 contracts | 1 contract | 1 contract |
+| 10% | $2.50 | 6 contracts | 2 contracts | 1 contract |
+| 15% | $3.75 | 9 contracts | 2 contracts | 1 contract |
+| 25% | $6.25 | 16 contracts | 4 contracts | 2 contracts |
+
+The result is capped by max bet size ($50 sports / $100 prediction), max concentration (20% of bankroll), and available balance. `KELLY_FRACTION` is configurable in `.env` (default: 0.25).
 
 ### 9 Risk Gates
 

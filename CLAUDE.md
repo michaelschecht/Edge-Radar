@@ -160,7 +160,7 @@ Before ANY trade/bet executes, nine risk gates must pass:
 
 ```
 UNIT_SIZE=1.00                  # Minimum dollar amount per bet (Kelly floor)
-KELLY_FRACTION=0.25             # Quarter-Kelly sizing multiplier
+KELLY_FRACTION=0.25             # Kelly sizing multiplier (divided by batch size at runtime)
 MAX_BET_SIZE_SPORTS=50          # USD per sports bet (hard cap)
 MAX_BET_SIZE_PREDICTION=100     # USD per prediction market position (hard cap)
 MAX_DAILY_LOSS=250              # USD hard stop for the day

@@ -32,6 +32,12 @@
 - MLB scan time reduced from ~60s to ~35s (pitcher fetch specifically: ~60s → ~11s)
 - Single-game `get_game_pitchers()` also parallelized (2 pitchers fetched concurrently)
 
+### Batch-Aware Kelly Sizing
+- **Problem:** Kelly sizing was applied independently per bet, so placing 10 simultaneous bets could commit 10x what single-bet Kelly intends. Total batch exposure could exceed 50% of bankroll.
+- **Fix:** `size_order()` now accepts a `batch_size` parameter. Kelly fraction is divided by the number of bets in the batch: `effective_kelly = KELLY_FRACTION / batch_size`. Each bet gets its proportional share, keeping total batch exposure consistent with what single-bet Kelly would allocate.
+- `execute_pipeline()` passes `min(len(opportunities), max_bets)` as the batch size
+- `KELLY_FRACTION` is now configurable in `.env` (was only in `.env.example` before)
+
 ### Bug Fix: Pitcher Data NoneType Error
 - Fixed `AttributeError: 'NoneType' object has no attribute 'get'` when MLB Stats API returns `None` for a pitcher (TBD starters)
 - Changed `pitcher_data.get("away_pitcher", {}).get(...)` to `(pitcher_data.get("away_pitcher") or {}).get(...)` in both game and totals detection paths

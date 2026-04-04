@@ -3,7 +3,14 @@ config.py
 Centralized configuration for all Edge-Radar scripts.
 
 All tunable parameters are loaded from environment variables with sensible
-defaults. Import this module instead of scattering os.getenv() calls.
+defaults.  This module is the canonical reference for every config value
+and its default.
+
+NOTE: Some scripts still read os.getenv() directly for historical reasons.
+Migrating all consumers is tracked as H1 on the roadmap. Until then, this
+file serves as the single source of truth for what the defaults *should* be.
+If you add or change a default here, grep for the same env var in the
+codebase and update the direct reads to match.
 """
 
 import os
@@ -16,14 +23,16 @@ load_dotenv()
 # ── Risk Limits ──────────────────────────────────────────────────────────────
 
 UNIT_SIZE = float(os.getenv("UNIT_SIZE", "1.00"))
-MAX_BET_SIZE = float(os.getenv("MAX_BET_SIZE_PREDICTION", "5"))
+MAX_BET_SIZE_SPORTS = float(os.getenv("MAX_BET_SIZE_SPORTS", "50"))
+MAX_BET_SIZE_PREDICTION = float(os.getenv("MAX_BET_SIZE_PREDICTION", "100"))
 MAX_DAILY_LOSS = float(os.getenv("MAX_DAILY_LOSS", "250"))
 MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "10"))
+MAX_PER_EVENT = int(os.getenv("MAX_PER_EVENT", "2"))
+MAX_CONCENTRATION = float(os.getenv("MAX_POSITION_CONCENTRATION", "0.20"))
 MIN_EDGE_THRESHOLD = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
 MIN_COMPOSITE_SCORE = float(os.getenv("MIN_COMPOSITE_SCORE", "6.0"))
 MIN_CONFIDENCE = os.getenv("MIN_CONFIDENCE", "medium")
 KELLY_FRACTION = float(os.getenv("KELLY_FRACTION", "0.25"))
-MAX_CONCENTRATION = float(os.getenv("MAX_POSITION_CONCENTRATION", "0.20"))
 
 # ── System ───────────────────────────────────────────────────────────────────
 

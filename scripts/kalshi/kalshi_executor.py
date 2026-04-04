@@ -141,13 +141,16 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
                daily_pnl: float, unit_size: float = UNIT_SIZE,
                open_tickers: set[str] | None = None,
                event_counts: dict[str, int] | None = None,
-               max_per_event: int = MAX_PER_EVENT) -> SizedOrder:
+               max_per_event: int = MAX_PER_EVENT,
+               batch_size: int = 1) -> SizedOrder:
     """
     Apply all risk checks and size the order.
 
-    Uses quarter-Kelly sizing when edge is known, capped by unit_size and
-    max bet size. Falls back to flat unit sizing if Kelly produces fewer
-    contracts than the flat unit.
+    Uses Kelly sizing divided by batch_size when placing multiple
+    simultaneous bets. This prevents over-committing bankroll when
+    placing N bets at once (each gets kelly_fraction/N instead of
+    the full fraction). Falls back to flat unit sizing if Kelly
+    produces fewer contracts than the flat unit.
 
     Risk gates enforced:
         1. Daily loss limit
@@ -209,9 +212,11 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     # Flat unit sizing (baseline)
     flat_contracts = unit_size_contracts(opp.market_price, unit_size)
 
-    # Quarter-Kelly sizing: bet = fraction * (edge / decimal_odds) * bankroll
-    # For binary markets: decimal_odds = 1 / market_price
-    kelly_bet = KELLY_FRACTION * opp.edge * bankroll
+    # Kelly sizing divided by batch size: bet = (fraction / N) * edge * bankroll
+    # This ensures total batch exposure stays proportional to what single-bet
+    # Kelly would allocate, preventing over-commitment on simultaneous bets.
+    effective_kelly = KELLY_FRACTION / max(1, batch_size)
+    kelly_bet = effective_kelly * opp.edge * bankroll
     kelly_contracts = max(1, int(kelly_bet / opp.market_price)) if kelly_bet > 0 else flat_contracts
 
     # Use the larger of flat and Kelly (Kelly scales up for high-edge bets)
@@ -418,12 +423,15 @@ def execute_pipeline(
         rprint(f"[dim]Deduped correlated brackets: {before_dedup} -> {len(opportunities)} opportunities[/dim]")
 
     # ── Size all opportunities
-    rprint(f"\n[bold]Risk-checking {len(opportunities)} opportunities...[/bold]")
+    # Divide Kelly fraction by batch size so total exposure stays proportional
+    batch_sz = min(len(opportunities), max_bets)
+    rprint(f"\n[bold]Risk-checking {len(opportunities)} opportunities (batch={batch_sz})...[/bold]")
     sized_orders: list[SizedOrder] = []
     for opp in opportunities:
         sized = size_order(
             opp, bankroll, open_count + len([s for s in sized_orders if s.risk_approval.startswith("APPROVED")]),
             daily_pnl, unit_size, open_tickers, event_counts, per_event_limit,
+            batch_size=batch_sz,
         )
         sized_orders.append(sized)
         # Track newly approved positions for subsequent gate checks
