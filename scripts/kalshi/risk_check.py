@@ -28,7 +28,7 @@ from rich.panel import Panel
 from rich import print as rprint
 
 from kalshi_client import KalshiClient
-from trade_log import load_trade_log, get_today_pnl
+from trade_log import load_trade_log, get_today_pnl, get_filled_cost
 from ticker_display import parse_game_datetime, parse_matchup, parse_pick_team, TEAM_NAMES
 from logging_setup import setup_logging
 
@@ -273,7 +273,7 @@ def print_pnl_summary(today_trades: list[dict], daily_pnl: float):
     wins = [t for t in today_trades if t.get("net_pnl", 0) > 0]
     losses = [t for t in today_trades if t.get("net_pnl", 0) < 0]
     win_rate = len(wins) / len(today_trades) * 100 if today_trades else 0
-    total_wagered = sum(t.get("cost_dollars", 0) for t in today_trades)
+    total_wagered = sum(get_filled_cost(t) for t in today_trades)
 
     table = Table(title="Today's P&L", show_lines=True)
     table.add_column("Metric", style="cyan")
@@ -468,7 +468,7 @@ def _save_dashboard_report(client, bal, positions, resting, today_trades, daily_
     # Today's P&L
     wins = [t for t in today_trades if t.get("net_pnl", 0) > 0]
     losses = [t for t in today_trades if t.get("net_pnl", 0) < 0]
-    wagered = sum(t.get("cost_dollars", 0) for t in today_trades)
+    wagered = sum(get_filled_cost(t) for t in today_trades)
     md.append(f"")
     md.append(f"## Today's P&L")
     md.append(f"")

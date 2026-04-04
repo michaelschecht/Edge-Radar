@@ -2,6 +2,45 @@
 
 ---
 
+## 2026-04-04 (afternoon) -- Fill-Based Accounting, Sizing Gate Docs, Pitcher Parallelization
+
+### X5. Fill-Based Trade Logging
+- **Problem:** The executor logged `contracts` and `cost_dollars` from the *requested* order, not from the Kalshi API fill response. Resting or partially-filled orders overstated exposure, distorted P&L, and corrupted settlement math.
+- **Fix:** `log_trade()` now records both requested and filled values:
+  - `requested_contracts` / `requested_cost` — what we asked for
+  - `filled_contracts` / `filled_cost` — what Kalshi actually executed (primary accounting fields)
+  - `fill_status` — `resting` | `partial` | `filled`
+  - Legacy `contracts` / `cost_dollars` now reflect filled values for backward compatibility
+- New `get_filled_contracts()` and `get_filled_cost()` helpers in `trade_log.py` with backward-compatible fallback for pre-X5 trade records
+- `kalshi_settler.py` — `calculate_pnl()` uses filled values; resting orders (zero fills) skipped during settlement; settlement log and reconciliation use filled contracts
+- `risk_check.py` — "Total wagered" in P&L summary and dashboard uses filled cost
+- Execution output now flags resting and partial fills visually: `(RESTING — no fills yet)`, `(PARTIAL — 3/10 filled)`
+- **16 new regression tests** covering: fill helpers (old/new format), fully filled, partial fill, zero fill/resting, settlement P&L with fill-based cost
+
+### X6. Sizing Caps vs Reject Gates (Docs + Code)
+- **Problem:** `ARCHITECTURE.md` described gates 8 (concentration) and 9 (max bet) as reject gates, but the executor silently downsized and approved. Post-trade review couldn't tell if an order passed cleanly or was force-capped.
+- **Fix (docs):** `ARCHITECTURE.md` now correctly documents gates 1-7 as reject gates and gates 8-9 as sizing caps with "Cap — downsize to..." behavior
+- **Fix (code):** `size_order()` returns approval subtypes:
+  - `APPROVED` — clean pass, no caps hit
+  - `APPROVED_CAPPED_CONCENTRATION` — downsized by gate 8
+  - `APPROVED_CAPPED_MAX_BET` — downsized by gate 9
+- All downstream pipeline filtering updated to use `.startswith("APPROVED")`
+- **3 new tests** for clean approval, concentration cap, and max bet cap scenarios
+
+### Pitcher Stats Parallelization
+- `prefetch_mlb_pitchers()` now uses `ThreadPoolExecutor(max_workers=8)` to fetch all pitcher stats concurrently
+- MLB scan time reduced from ~60s to ~35s (pitcher fetch specifically: ~60s → ~11s)
+- Single-game `get_game_pitchers()` also parallelized (2 pitchers fetched concurrently)
+
+### Bug Fix: Pitcher Data NoneType Error
+- Fixed `AttributeError: 'NoneType' object has no attribute 'get'` when MLB Stats API returns `None` for a pitcher (TBD starters)
+- Changed `pitcher_data.get("away_pitcher", {}).get(...)` to `(pitcher_data.get("away_pitcher") or {}).get(...)` in both game and totals detection paths
+
+### Test Suite
+- **102 tests** (up from 83): +16 fill accounting, +3 approval subtypes
+
+---
+
 ## 2026-04-04 -- Per-Game Diversification, Pitcher Data, Rest Days, Calibration
 
 ### Correlated Bracket Dedup & Per-Game Cap Reduction

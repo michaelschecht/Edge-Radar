@@ -15,6 +15,7 @@ Usage:
 """
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
@@ -228,22 +229,32 @@ def get_game_pitchers(team_abbr: str, game_date: str) -> dict | None:
     if not game:
         return None
 
-    # Fetch stats for both probable pitchers
+    # Fetch stats for both probable pitchers in parallel
     away_stats = None
     home_stats = None
 
+    pids = {}
     if game.get("away_pitcher_id"):
-        away_stats = _fetch_pitcher_season_stats(game["away_pitcher_id"])
-        if away_stats and away_stats.get("has_stats"):
-            away_stats["days_rest"] = _calculate_days_rest(
-                game["away_pitcher_id"], game_date
-            )
+        pids["away"] = game["away_pitcher_id"]
     if game.get("home_pitcher_id"):
-        home_stats = _fetch_pitcher_season_stats(game["home_pitcher_id"])
-        if home_stats and home_stats.get("has_stats"):
-            home_stats["days_rest"] = _calculate_days_rest(
-                game["home_pitcher_id"], game_date
-            )
+        pids["home"] = game["home_pitcher_id"]
+
+    if pids:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = {
+                pool.submit(_fetch_pitcher_with_rest, pid, game_date): role
+                for role, pid in pids.items()
+            }
+            for future in as_completed(futures):
+                role = futures[future]
+                try:
+                    stats = future.result()
+                    if role == "away":
+                        away_stats = stats
+                    else:
+                        home_stats = stats
+                except Exception:
+                    pass
 
     # Classify matchup quality and compute adjustments
     matchup_quality, stdev_adj, confidence_signal = _classify_matchup(
@@ -331,34 +342,52 @@ def _classify_matchup(
 
 # ── Bulk Pre-fetch ───────────────────────────────────────────────────────────
 
+def _fetch_pitcher_with_rest(person_id: int, game_date: str) -> dict | None:
+    """Fetch a pitcher's season stats and days rest in one call sequence."""
+    stats = _fetch_pitcher_season_stats(person_id)
+    if stats and stats.get("has_stats"):
+        stats["days_rest"] = _calculate_days_rest(person_id, game_date)
+    return stats
+
+
 def prefetch_mlb_pitchers(game_date: str) -> dict[str, dict]:
     """Pre-fetch pitcher data for all MLB games on a date.
 
     Returns dict keyed by team abbreviation (both teams per game) -> pitcher data.
-    This avoids redundant API calls when scanning many MLB markets.
+    Fetches all pitcher stats in parallel to avoid sequential API latency.
     """
     games = _fetch_schedule(game_date)
     if not games:
         return {}
 
+    # Collect unique pitcher IDs to fetch
+    pitcher_tasks: dict[int, str] = {}  # person_id -> "away_0" / "home_0" label
+    for i, game in enumerate(games):
+        if game.get("away_pitcher_id"):
+            pitcher_tasks[game["away_pitcher_id"]] = f"away_{i}"
+        if game.get("home_pitcher_id"):
+            pitcher_tasks[game["home_pitcher_id"]] = f"home_{i}"
+
+    # Fetch all pitcher stats in parallel (max 8 concurrent to be polite)
+    pitcher_stats: dict[int, dict | None] = {}
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = {
+            pool.submit(_fetch_pitcher_with_rest, pid, game_date): pid
+            for pid in pitcher_tasks
+        }
+        for future in as_completed(futures):
+            pid = futures[future]
+            try:
+                pitcher_stats[pid] = future.result()
+            except Exception as e:
+                log.debug("Pitcher fetch failed for %d: %s", pid, e)
+                pitcher_stats[pid] = None
+
+    # Assemble results per game
     result: dict[str, dict] = {}
     for game in games:
-        # Fetch both pitchers
-        away_stats = None
-        home_stats = None
-
-        if game.get("away_pitcher_id"):
-            away_stats = _fetch_pitcher_season_stats(game["away_pitcher_id"])
-            if away_stats and away_stats.get("has_stats"):
-                away_stats["days_rest"] = _calculate_days_rest(
-                    game["away_pitcher_id"], game_date
-                )
-        if game.get("home_pitcher_id"):
-            home_stats = _fetch_pitcher_season_stats(game["home_pitcher_id"])
-            if home_stats and home_stats.get("has_stats"):
-                home_stats["days_rest"] = _calculate_days_rest(
-                    game["home_pitcher_id"], game_date
-                )
+        away_stats = pitcher_stats.get(game.get("away_pitcher_id"))
+        home_stats = pitcher_stats.get(game.get("home_pitcher_id"))
 
         matchup_quality, stdev_adj, confidence_signal = _classify_matchup(
             away_stats, home_stats
