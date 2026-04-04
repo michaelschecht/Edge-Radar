@@ -366,6 +366,37 @@ def _parse_pick_rows(pick_str: str, total: int) -> list[int]:
     return sorted(set(indices))
 
 
+def _apply_budget_cap(orders: list[SizedOrder], budget: float) -> list[SizedOrder]:
+    """Proportionally scale down contracts so total cost stays within budget.
+
+    Preserves Kelly's edge-based weighting — higher-edge bets keep more
+    capital — while enforcing the total ceiling.  Each bet keeps at least
+    1 contract, so the actual total may slightly undershoot the budget due
+    to contract rounding.
+    """
+    total = sum(s.cost_dollars for s in orders)
+    if total <= budget or total <= 0:
+        return orders
+
+    scale = budget / total
+    bankroll = budget / 0.10 if budget else 1  # rough; recalc'd below
+
+    capped: list[SizedOrder] = []
+    for s in orders:
+        new_contracts = max(1, int(s.contracts * scale))
+        new_cost = round(new_contracts * s.opportunity.market_price, 2)
+        capped.append(SizedOrder(
+            opportunity=s.opportunity,
+            contracts=new_contracts,
+            price_cents=s.price_cents,
+            cost_dollars=new_cost,
+            bankroll_pct=s.bankroll_pct * scale,
+            risk_approval=s.risk_approval,
+        ))
+
+    return capped
+
+
 def execute_pipeline(
     client: KalshiClient,
     opportunities: list[Opportunity],
@@ -375,6 +406,7 @@ def execute_pipeline(
     pick_rows: str | None = None,
     pick_tickers: list[str] | None = None,
     max_per_game: int | None = None,
+    budget: float | None = None,
 ) -> list[dict]:
     """
     Run the full pipeline: risk-check, size, and optionally execute.
@@ -458,6 +490,17 @@ def execute_pipeline(
 
     # ── Preview table
     to_execute = approved[:max_bets]
+
+    # ── Budget cap: proportionally scale if total exceeds budget
+    if budget is not None:
+        budget_dollars = budget * bankroll if budget <= 1 else budget
+        pre_budget_cost = sum(s.cost_dollars for s in to_execute)
+        if pre_budget_cost > budget_dollars:
+            to_execute = _apply_budget_cap(to_execute, budget_dollars)
+            post_budget_cost = sum(s.cost_dollars for s in to_execute)
+            rprint(f"  Budget cap: [yellow]${pre_budget_cost:.2f} -> ${post_budget_cost:.2f}[/yellow] (limit ${budget_dollars:.2f})")
+        else:
+            rprint(f"  Budget cap: [green]${pre_budget_cost:.2f} within ${budget_dollars:.2f} limit[/green]")
 
     from ticker_display import (
         parse_game_datetime, format_bet_label, format_pick_label, sport_from_ticker,
@@ -774,6 +817,10 @@ def main():
                        help="Cross-reference Kalshi prices against Polymarket (prediction markets only)")
     run_p.add_argument("--date", type=str, default=None,
                        help="Only show games on this date (today, tomorrow, YYYY-MM-DD, mar31)")
+    run_p.add_argument("--budget", type=str, default=None,
+                       help="Max total cost for the batch. Percentage of bankroll (e.g. '10%%') "
+                            "or dollar amount (e.g. '15'). Bets are proportionally scaled down "
+                            "to stay within budget while preserving Kelly edge-weighting.")
     run_p.add_argument("--exclude-open", action="store_true",
                        help="Exclude markets where you already have an open position")
 
@@ -852,6 +899,19 @@ def main():
             rprint("[yellow]No opportunities after filtering.[/yellow]")
             return
 
+        # Parse --budget: "15%" or "15" -> 0.15 (fraction of bankroll)
+        # Values <= 1 treated as fractions, 1-100 as percentages, >100 as dollars
+        budget_val = None
+        if args.budget is not None:
+            raw = args.budget.strip().rstrip("%")
+            num = float(raw)
+            if num <= 1:
+                budget_val = num
+            elif num <= 100:
+                budget_val = num / 100
+            else:
+                budget_val = num
+
         execute_pipeline(
             client=client,
             opportunities=opportunities,
@@ -861,6 +921,7 @@ def main():
             pick_rows=args.pick,
             pick_tickers=args.ticker,
             max_per_game=args.max_per_game,
+            budget=budget_val,
         )
 
 

@@ -59,4 +59,5 @@ notebooks/analysis/*.html
 .claude/images/screenshots/
 docs/enhancements/
 docs/AX-Integration/
+docs/temp/
 scripts/custom/

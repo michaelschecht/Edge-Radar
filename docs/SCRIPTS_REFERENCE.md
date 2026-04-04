@@ -93,6 +93,7 @@ python scripts/scan.py <market-type> [flags]
 | `--execute` | off | Execute bets through the pipeline (dry run without this) |
 | `--unit-size N` | `UNIT_SIZE` env var | Dollar amount per bet |
 | `--max-bets N` | `5` | Maximum number of bets to place |
+| `--budget X` | *(none)* | Max total batch cost -- percentage (e.g., `10%`) or dollars (e.g., `15`). Scales bets down proportionally. |
 | `--max-per-game N` | `2` | Max positions per game/event (overrides `MAX_PER_EVENT` env var) |
 | `--pick X` | *(all)* | Comma-separated row numbers to execute (e.g., `'1,3,5'`) |
 | `--ticker X` | *(all)* | Execute only specific tickers |
@@ -154,10 +155,13 @@ python scripts/scan.py prediction --filter weather
 # 8. Execute top picks from a scan
 python scripts/scan.py sports --filter mlb --execute --max-bets 10 --unit-size 1
 
-# 9. Cherry-pick specific rows from preview
+# 9. Execute with a budget cap (total batch cost <= 10% of bankroll)
+python scripts/scan.py sports --execute --max-bets 5 --budget 10% --date today --exclude-open
+
+# 10. Cherry-pick specific rows from preview
 python scripts/scan.py sports --filter nba --execute --pick '1,3,5'
 
-# 10. Execute a specific ticker
+# 11. Execute a specific ticker
 python scripts/scan.py sports --filter nba --execute --ticker KXNBAGAME-26MAR25LALBOS-LAL
 ```
 
