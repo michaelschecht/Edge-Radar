@@ -44,6 +44,7 @@ from team_stats import get_team_stats
 from sports_weather import get_game_weather
 from line_movement import get_line_movement
 from pitcher_stats import prefetch_mlb_pitchers
+from rest_days import prefetch_rest_data
 from logging_setup import setup_logging
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
@@ -797,7 +798,8 @@ def _sharp_money_signal(team_name: str, side: str, ticker: str,
 
 def detect_edge_game(market: dict, odds_events: list,
                      sharp_signals: dict | None = None,
-                     pitcher_data: dict | None = None) -> Opportunity | None:
+                     pitcher_data: dict | None = None,
+                     rest_data: dict | None = None) -> Opportunity | None:
     """Detect edge on game outcome markets (moneyline)."""
     ticker = market["ticker"]
     team = extract_team_from_market(market)
@@ -856,6 +858,22 @@ def detect_edge_game(market: dict, odds_events: list,
             "home": pitcher_data.get("home_pitcher", {}).get("name", "TBD"),
         }
 
+    # Rest day / back-to-back context for NBA/NHL games
+    if rest_data and rest_data.get("is_b2b"):
+        details["rest"] = {
+            "is_b2b": rest_data["is_b2b"],
+            "days_rest": rest_data["days_rest"],
+            "opponent_is_b2b": rest_data.get("opponent_is_b2b", False),
+            "rest_advantage": rest_data.get("rest_advantage", 0),
+        }
+        # B2B team on the road is a disadvantage — reduce confidence if betting YES
+        if rest_data.get("rest_advantage", 0) < 0 and side == "yes":
+            confidence = _adjust_confidence_with_stats(
+                confidence, {"stats_found": True, "signal": "contradicts"})
+        elif rest_data.get("rest_advantage", 0) > 0 and side == "yes":
+            confidence = _adjust_confidence_with_stats(
+                confidence, {"stats_found": True, "signal": "supports"})
+
     # Adjust confidence with sharp money / line movement
     sharp = _sharp_money_signal(team, side, ticker, sharp_signals or {})
     if sharp.get("signal_found"):
@@ -889,7 +907,8 @@ def detect_edge_game(market: dict, odds_events: list,
 
 
 def detect_edge_spread(market: dict, odds_events: list,
-                       sharp_signals: dict | None = None) -> Opportunity | None:
+                       sharp_signals: dict | None = None,
+                       rest_data: dict | None = None) -> Opportunity | None:
     """Detect edge on spread markets."""
     ticker = market["ticker"]
     team = extract_team_from_market(market)
@@ -940,6 +959,22 @@ def detect_edge_spread(market: dict, odds_events: list,
     stats_signal = _stats_confidence_signal(team, ticker, side)
     confidence = _adjust_confidence_with_stats(confidence, stats_signal)
     details["team_stats"] = stats_signal
+
+    # Rest day / back-to-back adjustment for spreads
+    if rest_data and (rest_data.get("is_b2b") or rest_data.get("opponent_is_b2b")):
+        details["rest"] = {
+            "is_b2b": rest_data.get("is_b2b", False),
+            "days_rest": rest_data.get("days_rest", 1),
+            "opponent_is_b2b": rest_data.get("opponent_is_b2b", False),
+            "rest_advantage": rest_data.get("rest_advantage", 0),
+        }
+        # B2B team covering a spread is harder — reduce confidence
+        if rest_data.get("rest_advantage", 0) < 0 and side == "yes":
+            confidence = _adjust_confidence_with_stats(
+                confidence, {"stats_found": True, "signal": "contradicts"})
+        elif rest_data.get("rest_advantage", 0) > 0 and side == "yes":
+            confidence = _adjust_confidence_with_stats(
+                confidence, {"stats_found": True, "signal": "supports"})
 
     # Adjust confidence with sharp money / line movement
     sharp = _sharp_money_signal(team, side, ticker, sharp_signals or {})
@@ -1012,7 +1047,8 @@ def _extract_game_date(ticker: str) -> str | None:
 
 def detect_edge_total(market: dict, odds_events: list,
                       sharp_signals: dict | None = None,
-                      pitcher_data: dict | None = None) -> Opportunity | None:
+                      pitcher_data: dict | None = None,
+                      rest_data: dict | None = None) -> Opportunity | None:
     """Detect edge on over/under total markets."""
     ticker = market["ticker"]
     strike = extract_strike(market)
@@ -1023,8 +1059,10 @@ def detect_edge_total(market: dict, odds_events: list,
     if yes_ask <= 0 or yes_ask >= 1.0:
         return None
 
-    # Apply pitcher stdev adjustment for MLB
+    # Apply pitcher stdev adjustment for MLB + rest day stdev adjustment for NBA/NHL
     stdev_adj = pitcher_data.get("stdev_adjustment", 0.0) if pitcher_data else 0.0
+    if rest_data:
+        stdev_adj += rest_data.get("stdev_adjustment", 0.0)
     result = consensus_total_prob(odds_events, strike, ticker=ticker,
                                   stdev_adjustment=stdev_adj)
     if result is None:
@@ -1101,6 +1139,24 @@ def detect_edge_total(market: dict, odds_events: list,
                 confidence, {"stats_found": True, "signal": "contradicts"})
         log.info("Pitcher matchup for %s: %s (stdev %+.2f)",
                  ticker, pitcher_data["matchup_quality"], stdev_adj)
+
+    # Rest day / back-to-back signal for totals (NBA/NHL)
+    if rest_data and (rest_data.get("is_b2b") or rest_data.get("opponent_is_b2b")):
+        details["rest"] = {
+            "is_b2b": rest_data.get("is_b2b", False),
+            "opponent_is_b2b": rest_data.get("opponent_is_b2b", False),
+            "stdev_adj": rest_data.get("stdev_adjustment", 0),
+        }
+        rsig = rest_data.get("confidence_signal", "neutral")
+        if rsig == "supports_under" and side == "no":
+            confidence = _adjust_confidence_with_stats(
+                confidence, {"stats_found": True, "signal": "supports"})
+        elif rsig == "supports_under" and side == "yes":
+            confidence = _adjust_confidence_with_stats(
+                confidence, {"stats_found": True, "signal": "contradicts"})
+        log.info("Rest day signal for %s: b2b=%s opp_b2b=%s (stdev %+.2f)",
+                 ticker, rest_data.get("is_b2b"), rest_data.get("opponent_is_b2b"),
+                 rest_data.get("stdev_adjustment", 0))
 
     # Sharp money / line movement signal for totals
     home_team = _extract_home_team_abbr(ticker)
@@ -1390,8 +1446,36 @@ def scan_all_markets(
                 matchup_types[mt] = matchup_types.get(mt, 0) + 1
             rprint(f"  Pitchers: {len(pitcher_cache) // 2} games ({matchup_types})")
 
+    # 3d. Pre-fetch rest day / back-to-back data (NBA, NHL — free ESPN API)
+    rest_cache: dict[str, dict] = {}  # team_abbr -> rest info
+    rest_sports = {"basketball_nba", "icehockey_nhl"} & sports_needed
+    for rs in rest_sports:
+        # Collect unique game dates from tickers
+        prefix_map = {v: k for k, v in KALSHI_TO_ODDS_SPORT.items()}
+        game_dates = set()
+        for m in all_markets:
+            for prefix, sport in KALSHI_TO_ODDS_SPORT.items():
+                if sport == rs and m["ticker"].startswith(prefix):
+                    gd = _extract_game_date(m["ticker"])
+                    if gd:
+                        game_dates.add(gd)
+        for gd in sorted(game_dates):
+            try:
+                day_rest = prefetch_rest_data(rs, gd)
+                rest_cache.update(day_rest)
+            except Exception as e:
+                log.debug("Rest data fetch failed for %s %s: %s", rs, gd, e)
+        if rest_cache:
+            b2b_count = sum(1 for v in rest_cache.values() if v.get("is_b2b"))
+            rprint(f"  Rest days ({rs.split('_')[-1].upper()}): {len(rest_cache)} teams, {b2b_count} on back-to-back")
+
     # 4. Run edge detection per category
     opportunities: list[Opportunity] = []
+
+    # Helper: look up rest data for a market by home team abbreviation
+    def _rest_for_market(ticker: str) -> dict | None:
+        home = _extract_home_team_abbr(ticker)
+        return rest_cache.get(home.upper()) if home else None
 
     # Game outcomes
     for m in categorized.get("game", []):
@@ -1408,7 +1492,8 @@ def scan_all_markets(
                 if home:
                     mlb_pitchers = pitcher_cache.get(home.upper())
             opp = detect_edge_game(m, odds_data[sport_key], sharp_signals=sharp_signals,
-                                   pitcher_data=mlb_pitchers)
+                                   pitcher_data=mlb_pitchers,
+                                   rest_data=_rest_for_market(m["ticker"]))
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
 
@@ -1420,7 +1505,8 @@ def scan_all_markets(
                 sport_key = sk
                 break
         if sport_key and sport_key in odds_data:
-            opp = detect_edge_spread(m, odds_data[sport_key], sharp_signals=sharp_signals)
+            opp = detect_edge_spread(m, odds_data[sport_key], sharp_signals=sharp_signals,
+                                     rest_data=_rest_for_market(m["ticker"]))
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
 
@@ -1439,7 +1525,8 @@ def scan_all_markets(
                 if home:
                     mlb_pitchers = pitcher_cache.get(home.upper())
             opp = detect_edge_total(m, odds_data[sport_key], sharp_signals=sharp_signals,
-                                    pitcher_data=mlb_pitchers)
+                                    pitcher_data=mlb_pitchers,
+                                    rest_data=_rest_for_market(m["ticker"]))
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
 
