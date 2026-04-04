@@ -156,19 +156,24 @@ The minimum score to pass risk checks is 6.0 (configurable via `MIN_COMPOSITE_SC
 
 ### Risk Gates
 
-Every order must pass all nine gates before execution.
+Every order must pass gates 1-7 before execution. Gates 8-9 are sizing caps that downsize the order rather than rejecting it outright.
 
-| Gate | Check | Reject Condition |
+| Gate | Check | Behavior |
 |---|---|---|
-| 1. Daily loss limit | Sum of realized losses today | Losses >= `MAX_DAILY_LOSS` |
-| 2. Position count | Number of open positions | Count >= `MAX_OPEN_POSITIONS` |
-| 3. Edge threshold | Calculated edge for this opportunity | Edge < `MIN_EDGE_THRESHOLD` |
-| 4. Composite score | Weighted score across edge, confidence, liquidity, time | Score < `MIN_COMPOSITE_SCORE` |
-| 5. Confidence level | Model confidence rating (low / medium / high) | Confidence < `MIN_CONFIDENCE` |
-| 6. Duplicate ticker | Already holding this exact market | Ticker in open positions |
-| 7. Per-event cap | Too many positions on the same game/event | Event count >= `MAX_PER_EVENT` |
-| 8. Max concentration | Single position would exceed % of bankroll | Cost > `MAX_CONCENTRATION` * bankroll |
-| 9. Max bet size | Category-aware bet size cap | Cost > `MAX_BET_SIZE_SPORTS` or `MAX_BET_SIZE_PREDICTION` |
+| 1. Daily loss limit | Sum of realized losses today | **Reject** if losses >= `MAX_DAILY_LOSS` |
+| 2. Position count | Number of open positions | **Reject** if count >= `MAX_OPEN_POSITIONS` |
+| 3. Edge threshold | Calculated edge for this opportunity | **Reject** if edge < `MIN_EDGE_THRESHOLD` |
+| 4. Composite score | Weighted score across edge, confidence, liquidity, time | **Reject** if score < `MIN_COMPOSITE_SCORE` |
+| 5. Confidence level | Model confidence rating (low / medium / high) | **Reject** if confidence < `MIN_CONFIDENCE` |
+| 6. Duplicate ticker | Already holding this exact market | **Reject** if ticker in open positions |
+| 7. Per-event cap | Too many positions on the same game/event | **Reject** if event count >= `MAX_PER_EVENT` |
+| 8. Max concentration | Single position would exceed % of bankroll | **Cap** — downsize to `MAX_CONCENTRATION` * bankroll |
+| 9. Max bet size | Category-aware bet size cap | **Cap** — downsize to `MAX_BET_SIZE_SPORTS` or `MAX_BET_SIZE_PREDICTION` |
+
+The trade log records the approval subtype so post-trade review can distinguish clean approvals from capped ones:
+- `APPROVED` — passed all gates, sized by Kelly/unit (no caps hit)
+- `APPROVED_CAPPED_CONCENTRATION` — approved but downsized by gate 8
+- `APPROVED_CAPPED_MAX_BET` — approved but downsized by gate 9
 
 ### Risk Parameters
 

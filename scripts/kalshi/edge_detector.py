@@ -854,8 +854,8 @@ def detect_edge_game(market: dict, odds_events: list,
     if pitcher_data and pitcher_data.get("matchup_quality") != "unknown":
         details["pitchers"] = {
             "matchup": pitcher_data["matchup_quality"],
-            "away": pitcher_data.get("away_pitcher", {}).get("name", "TBD"),
-            "home": pitcher_data.get("home_pitcher", {}).get("name", "TBD"),
+            "away": (pitcher_data.get("away_pitcher") or {}).get("name", "TBD"),
+            "home": (pitcher_data.get("home_pitcher") or {}).get("name", "TBD"),
         }
 
     # Rest day / back-to-back context for NBA/NHL games
@@ -1121,8 +1121,8 @@ def detect_edge_total(market: dict, odds_events: list,
         details["pitchers"] = {
             "matchup": pitcher_data["matchup_quality"],
             "stdev_adj": pitcher_data["stdev_adjustment"],
-            "away": pitcher_data.get("away_pitcher", {}).get("name", "TBD"),
-            "home": pitcher_data.get("home_pitcher", {}).get("name", "TBD"),
+            "away": (pitcher_data.get("away_pitcher") or {}).get("name", "TBD"),
+            "home": (pitcher_data.get("home_pitcher") or {}).get("name", "TBD"),
         }
         psig = pitcher_data.get("confidence_signal", "neutral")
         if psig == "supports_over" and side == "yes":

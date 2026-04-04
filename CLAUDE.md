@@ -66,7 +66,7 @@ Edge-Radar/
 ├── mcp-config/
 │   ├── claude_desktop_config.json   # MCP server config (Windows/WSL)
 │   └── mcp-servers.md               # MCP server reference & setup
-├── tests/                           # pytest test suite (83 tests)
+├── tests/                           # pytest test suite (102 tests)
 ├── data/
 │   ├── positions/                   # Current open positions (JSON)
 │   ├── history/                     # Trade history logs

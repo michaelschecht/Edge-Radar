@@ -218,19 +218,22 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     contracts = max(flat_contracts, kelly_contracts)
     actual_cost = contracts * opp.market_price
 
-    # ── Risk Gate 8: Max concentration
+    # ── Risk Gate 8: Max concentration (sizing cap, not reject)
+    approval = "APPROVED"
     bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
     if bankroll_pct > MAX_CONCENTRATION:
         contracts = max(1, int(MAX_CONCENTRATION * bankroll / opp.market_price))
         actual_cost = contracts * opp.market_price
         bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
+        approval = "APPROVED_CAPPED_CONCENTRATION"
 
-    # ── Risk Gate 9: Max bet size cap
+    # ── Risk Gate 9: Max bet size cap (sizing cap, not reject)
     max_bet = _max_bet_for(opp.category)
     if actual_cost > max_bet:
         contracts = max(1, int(max_bet / opp.market_price))
         actual_cost = contracts * opp.market_price
         bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
+        approval = "APPROVED_CAPPED_MAX_BET"
 
     # Final check: don't exceed bankroll
     if actual_cost > bankroll:
@@ -244,7 +247,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         price_cents=price_cents,
         cost_dollars=round(actual_cost, 2),
         bankroll_pct=round(bankroll_pct, 4),
-        risk_approval="APPROVED",
+        risk_approval=approval,
     )
 
 
@@ -253,9 +256,29 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
 
 
 def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
-    """Log an executed trade."""
+    """Log an executed trade with fill-accurate accounting.
+
+    Records both *requested* values (what we asked for) and *filled* values
+    (what Kalshi actually executed).  The primary accounting fields
+    ``filled_contracts`` / ``filled_cost`` reflect reality — resting or
+    partially-filled orders will show lower filled values than requested.
+    """
     order = order_response.get("order", order_response)
     opp = sized.opportunity
+
+    # Parse fill info from Kalshi API response
+    fill_count = int(float(order.get("fill_count_fp", "0") or "0"))
+    remaining = int(float(order.get("remaining_count_fp", "0") or "0"))
+    filled_cost = round(fill_count * opp.market_price, 4) if fill_count else 0.0
+
+    # Determine order status category
+    api_status = order.get("status", "unknown")
+    if fill_count == 0:
+        fill_status = "resting"
+    elif remaining > 0:
+        fill_status = "partial"
+    else:
+        fill_status = "filled"
 
     trade_record = {
         "trade_id": str(uuid.uuid4()),
@@ -266,13 +289,22 @@ def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
         "category": opp.category,
         "side": opp.side,
         "action": "buy",
-        "contracts": sized.contracts,
+        # Requested values (what we asked for)
+        "requested_contracts": sized.contracts,
+        "requested_cost": sized.cost_dollars,
+        # Filled values (what actually executed) — primary accounting fields
+        "filled_contracts": fill_count,
+        "filled_cost": filled_cost,
+        # Legacy fields kept for backward compatibility
+        "contracts": fill_count,
+        "cost_dollars": filled_cost,
+        "fill_count": fill_count,
+        "remaining_count": remaining,
         "price_cents": sized.price_cents,
-        "cost_dollars": sized.cost_dollars,
-        "fill_count": order.get("fill_count_fp", "0"),
         "taker_fees": order.get("taker_fees_dollars", "0"),
         "maker_fees": order.get("maker_fees_dollars", "0"),
-        "status": order.get("status", "unknown"),
+        "status": api_status,
+        "fill_status": fill_status,  # resting | partial | filled
         "edge_estimated": opp.edge,
         "fair_value": opp.fair_value,
         "market_price_at_entry": opp.market_price,
@@ -390,18 +422,18 @@ def execute_pipeline(
     sized_orders: list[SizedOrder] = []
     for opp in opportunities:
         sized = size_order(
-            opp, bankroll, open_count + len([s for s in sized_orders if s.risk_approval == "APPROVED"]),
+            opp, bankroll, open_count + len([s for s in sized_orders if s.risk_approval.startswith("APPROVED")]),
             daily_pnl, unit_size, open_tickers, event_counts, per_event_limit,
         )
         sized_orders.append(sized)
         # Track newly approved positions for subsequent gate checks
-        if sized.risk_approval == "APPROVED":
+        if sized.risk_approval.startswith("APPROVED"):
             open_tickers.add(opp.ticker)
             evt = _event_key(opp.ticker)
             event_counts[evt] = event_counts.get(evt, 0) + 1
 
-    approved = [s for s in sized_orders if s.risk_approval == "APPROVED"]
-    rejected = [s for s in sized_orders if s.risk_approval != "APPROVED"]
+    approved = [s for s in sized_orders if s.risk_approval.startswith("APPROVED")]
+    rejected = [s for s in sized_orders if not s.risk_approval.startswith("APPROVED")]
 
     rprint(f"  Approved: [green]{len(approved)}[/green]  Rejected: [red]{len(rejected)}[/red]")
 
@@ -512,12 +544,18 @@ def execute_pipeline(
             record = log_trade(order_resp, s, trade_log)
             results.append(record)
 
-            fill = order.get("fill_count_fp", "0")
+            fill = int(float(order.get("fill_count_fp", "0") or "0"))
             fees = order.get("taker_fees_dollars", "0")
+            fill_tag = ""
+            if fill == 0:
+                fill_tag = " [yellow](RESTING — no fills yet)[/yellow]"
+            elif fill < s.contracts:
+                fill_tag = f" [yellow](PARTIAL — {fill}/{s.contracts} filled)[/yellow]"
             rprint(
                 f"  [green]OK[/green] {opp.ticker} "
                 f"{opp.side.upper()} x{s.contracts} @ ${s.price_cents/100:.2f} "
-                f"-- status={status} filled={fill} fees=${fees}"
+                f"-- status={status} filled={fill}/{s.contracts} fees=${fees}"
+                f"{fill_tag}"
             )
 
         except KalshiAPIError as e:
@@ -603,7 +641,8 @@ def show_status(client: KalshiClient, save: bool = False):
     today = now.strftime("%Y-%m-%d")
     today_trades = [t for t in trade_log if t.get("timestamp", "").startswith(today)]
     daily_pnl = get_today_pnl(trade_log)
-    total_wagered = sum(t.get("cost_dollars", 0) for t in today_trades)
+    from trade_log import get_filled_cost
+    total_wagered = sum(get_filled_cost(t) for t in today_trades)
 
     if today_trades:
         rprint(f"\n  [bold]Today's Activity: {len(today_trades)} trades[/bold]")

@@ -137,3 +137,38 @@ class TestSizeOrderRiskGates:
         opp = self._make_opp(price=0.005, edge=0.10, score=8.0)
         result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
         assert result.price_cents >= 1
+
+    def test_approved_clean_when_no_caps_hit(self):
+        # Small bet, big bankroll — no caps triggered
+        opp = self._make_opp(price=0.50, edge=0.05, score=8.0)
+        result = size_order(opp, bankroll=500.0, open_positions=0, daily_pnl=0.0, unit_size=1.00)
+        assert result.risk_approval == "APPROVED"
+
+    def test_approved_capped_concentration(self):
+        # Tiny bankroll forces concentration cap
+        import kalshi_executor
+        orig = kalshi_executor.MAX_CONCENTRATION
+        try:
+            kalshi_executor.MAX_CONCENTRATION = 0.05  # 5%
+            opp = self._make_opp(price=0.10, edge=0.50, score=9.0)
+            result = size_order(opp, bankroll=10.0, open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            assert result.risk_approval == "APPROVED_CAPPED_CONCENTRATION"
+            assert result.cost_dollars <= 10.0 * 0.05 + 0.11  # within concentration limit
+        finally:
+            kalshi_executor.MAX_CONCENTRATION = orig
+
+    def test_approved_capped_max_bet(self):
+        # Big Kelly bet hits the sports max bet cap
+        import kalshi_executor
+        orig_sports = kalshi_executor.MAX_BET_SIZE_SPORTS
+        orig_conc = kalshi_executor.MAX_CONCENTRATION
+        try:
+            kalshi_executor.MAX_BET_SIZE_SPORTS = 5.0  # low cap
+            kalshi_executor.MAX_CONCENTRATION = 1.0  # disable concentration cap
+            opp = self._make_opp(price=0.10, edge=0.50, score=9.0)
+            result = size_order(opp, bankroll=500.0, open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            assert result.risk_approval == "APPROVED_CAPPED_MAX_BET"
+            assert result.cost_dollars <= 5.0 + 0.11
+        finally:
+            kalshi_executor.MAX_BET_SIZE_SPORTS = orig_sports
+            kalshi_executor.MAX_CONCENTRATION = orig_conc

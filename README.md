@@ -6,16 +6,16 @@
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-2ea44f?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![Normal CDF](https://img.shields.io/badge/Edge%20Model-Normal%20CDF-8B5CF6?style=flat-square)](docs/ARCHITECTURE.md)
 [![Markets](https://img.shields.io/badge/Markets-27%20Sports-0078D4?style=flat-square)](#-supported-markets)
-[![Edge Detection](https://img.shields.io/badge/Edge-7%20Signals-8B5CF6?style=flat-square)](#-edge-detection)
+[![Edge Detection](https://img.shields.io/badge/Edge-9%20Signals-8B5CF6?style=flat-square)](#-edge-detection)
 [![Risk Gates](https://img.shields.io/badge/Risk-9%20Gates%20%2B%20Kelly-e74c3c?style=flat-square)](#%EF%B8%8F-risk--position-sizing)
 [![Docs](https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square)](#-documentation)
-[![APIs](https://img.shields.io/badge/APIs-9%20Free-F97316?style=flat-square)](#-data-sources)
+[![APIs](https://img.shields.io/badge/APIs-9%20Free%20%2B%20Kalshi-F97316?style=flat-square)](#-data-sources)
 
 <p align="center">
   <img src=".claude/images/logos/logo.png" alt="Edge-Radar Banner" width="600">
 </p>
 
-> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 7 free APIs (including Polymarket), identifies mispriced contracts with a normal CDF probability model, sizes bets with quarter-Kelly criterion, enforces 9 risk gates, and executes limit orders — logging every decision for closing line value tracking.
+> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 9 free APIs (including Polymarket, MLB pitcher stats, and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with quarter-Kelly criterion, enforces 9 risk gates, and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
 
 ---
 
@@ -40,6 +40,8 @@
 | 📈 | **Team Stats** | ESPN/NHL/MLB win% validates or challenges book fair value |
 | 💰 | **Sharp Money** | ESPN open-vs-close odds detect reverse line movement |
 | 🌧️ | **Weather** | NWS forecasts for 61 NFL/MLB venues adjust total expectations |
+| ⚾ | **Pitcher Matchups** | MLB Stats API: ERA, FIP, WHIP, K/9, rest — adjusts total stdev |
+| 🔄 | **Rest Days** | ESPN B2B detection for NBA/NHL — fatigue adjusts stdev + confidence |
 | ⚠️ | **Book Disagreement** | >4pt spread range across books flags injury news |
 | 📊 | **CLV Tracking** | Closing line value validates model accuracy over time |
 
@@ -69,19 +71,19 @@ The result is capped by max bet size ($50 sports / $100 prediction), max concent
 
 ### 9 Risk Gates
 
-Every order must pass all nine gates before execution:
+Every order must pass gates 1-7. Gates 8-9 are sizing caps that downsize the order rather than rejecting it.
 
-|  | Gate | What it blocks |
+|  | Gate | Behavior |
 | --- | --- | --- |
-| 1 | **Daily loss limit** | No new bets after -$250 today |
-| 2 | **Position count** | Max 10 concurrent open positions |
-| 3 | **Edge threshold** | Minimum 3% edge required |
-| 4 | **Composite score** | Must score 6.0+ across edge, confidence, liquidity |
-| 5 | **Confidence floor** | Medium or higher — requires 5+ books agreeing |
-| 6 | **Duplicate check** | Can't double up on the same market |
-| 7 | **Per-event cap** | Max 2 positions on the same game |
-| 8 | **Concentration limit** | No single position > 20% of bankroll |
-| 9 | **Bet size cap** | $50/sports, $100/prediction hard ceiling |
+| 1 | **Daily loss limit** | Reject — no new bets after -$250 today |
+| 2 | **Position count** | Reject — max 10 concurrent open positions |
+| 3 | **Edge threshold** | Reject — minimum 3% edge required |
+| 4 | **Composite score** | Reject — must score 6.0+ across edge, confidence, liquidity |
+| 5 | **Confidence floor** | Reject — medium or higher, requires 5+ books agreeing |
+| 6 | **Duplicate check** | Reject — can't double up on the same market |
+| 7 | **Per-event cap** | Reject — max 2 positions on the same game |
+| 8 | **Concentration limit** | Cap — downsize to 20% of bankroll |
+| 9 | **Bet size cap** | Cap — downsize to $50/sports, $100/prediction |
 
 All limits are configurable via `.env`. See [Architecture](docs/ARCHITECTURE.md) for details on how scoring, confidence, and sizing interact.
 
@@ -250,11 +252,11 @@ Reports save to `reports/Sports/schedulers/same-day-executions/` with full execu
 ## 🏗️ How It Works
 
 ```
-  12 Sportsbooks                     7 Free APIs
+  12 Sportsbooks                     9 Free APIs
   ─────────────────                  ──────────────────
-  Pinnacle  (3x)                     ESPN    (standings + line movement)
+  Pinnacle  (3x)                     ESPN    (standings + line movement + B2B)
   Circa     (3x)                     NHL API (goal diff, L10)
-  BetMGM    (0.7x)                   MLB API (run diff)
+  BetMGM    (0.7x)                   MLB API (run diff + pitcher stats)
   FanDuel   (0.7x)                   NWS     (61 venue forecasts)
   DraftKings (0.7x)                  CoinGecko (crypto volatility)
   + 7 more books                     Yahoo Finance (S&P 500 + VIX)
@@ -268,6 +270,8 @@ Reports save to `reports/Sports/schedulers/same-day-executions/` with full execu
   |   Normal CDF Model  ──>  Spread/Total Probs     |
   |   Team Stats         ──>  Confidence Signal      |
   |   Sharp Money        ──>  Line Movement Signal   |
+  |   Pitcher Matchups   ──>  MLB Total Stdev Adj    |
+  |   Rest Days / B2B    ──>  NBA/NHL Fatigue Adj    |
   |   Weather            ──>  Outdoor Total Adjust   |
   +------------------------------------------------+
                         |
@@ -302,7 +306,7 @@ Edge-Radar/
 │   └── schedulers/          # Automation & scheduled scan jobs
 │       ├── morning_scans/   # Per-sport .bat scan jobs (MLB, NBA, NFL, NHL)
 │       └── automation/      # Python scripts (daily scan, Windows Task Scheduler)
-├── tests/                   # 83 pytest tests (risk gates, edge math, weather)
+├── tests/                   # 102 pytest tests (risk gates, fill accounting, edge math, weather)
 ├── docs/                    # 8 guides (see Documentation below)
 ├── data/                    # Trade history, settlements, watchlists
 ├── reports/                 # Markdown scan reports + P&L reports

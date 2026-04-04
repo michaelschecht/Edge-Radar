@@ -25,7 +25,7 @@ from pathlib import Path
 from trade_log import (
     load_trade_log, save_trade_log,
     load_settlement_log, save_settlement_log,
-    get_today_pnl,
+    get_today_pnl, get_filled_contracts, get_filled_cost,
 )
 
 from dotenv import load_dotenv
@@ -56,8 +56,8 @@ def calculate_pnl(trade: dict, settlement: dict) -> dict:
     """
     side = trade.get("side", "")
     result = settlement.get("market_result", "")
-    contracts = float(trade.get("fill_count") or trade.get("contracts", 0))
-    cost = float(trade.get("cost_dollars", 0))
+    contracts = get_filled_contracts(trade)
+    cost = get_filled_cost(trade)
     fees = float(trade.get("taker_fees") or 0) + float(trade.get("maker_fees") or 0)
 
     # Revenue from settlement
@@ -90,8 +90,13 @@ def settle_trades(client: KalshiClient) -> dict:
     trade_log = load_trade_log()
     settlement_log = load_settlement_log()
 
-    # Find unsettled trades
-    unsettled = [t for t in trade_log if t.get("closed_at") is None and t.get("status") != "error"]
+    # Find unsettled trades (skip zero-fill resting orders — they have no exposure)
+    unsettled = [
+        t for t in trade_log
+        if t.get("closed_at") is None
+        and t.get("status") != "error"
+        and t.get("fill_status") != "resting"
+    ]
 
     if not unsettled:
         rprint("[dim]No unsettled trades in log.[/dim]")
@@ -194,14 +199,14 @@ def settle_trades(client: KalshiClient) -> dict:
             f"(cost=${pnl['cost']:.2f}, rev=${pnl['revenue']:.2f}, fees=${pnl['fees']:.2f})"
         )
 
-        # Add to settlement log
+        # Add to settlement log (use filled values for accurate accounting)
         settlement_log.append({
             "trade_id": trade.get("trade_id"),
             "ticker": ticker,
             "side": trade.get("side"),
             "result": pnl["result"],
             "won": pnl["won"],
-            "contracts": trade.get("contracts"),
+            "contracts": int(get_filled_contracts(trade)),
             "cost": pnl["cost"],
             "revenue": pnl["revenue"],
             "fees": pnl["fees"],
@@ -275,7 +280,7 @@ def generate_report(detail: bool = False, save: bool = False, days: int | None =
         md.append(f"> No settled trades yet -- run `settle` after markets resolve.")
 
         if unsettled:
-            total_exposure = sum(t.get("cost_dollars", 0) for t in unsettled)
+            total_exposure = sum(get_filled_cost(t) for t in unsettled)
             rprint(f"\nOpen Positions")
             rprint(f"  Total exposure: ${total_exposure:.2f}")
             md.append(f"")
@@ -305,7 +310,7 @@ def generate_report(detail: bool = False, save: bool = False, days: int | None =
     losses = [t for t in settled if not t.get("settlement_won")]
 
     total_pnl = sum(t.get("net_pnl", 0) for t in settled)
-    total_wagered = sum(t.get("cost_dollars", 0) for t in settled)
+    total_wagered = sum(get_filled_cost(t) for t in settled)
     total_fees = sum(
         float(t.get("taker_fees") or 0) + float(t.get("maker_fees") or 0)
         for t in settled
@@ -414,7 +419,7 @@ def generate_report(detail: bool = False, save: bool = False, days: int | None =
             n = len(trades_list)
             w = sum(1 for t in trades_list if t.get("settlement_won"))
             pnl = sum(t.get("net_pnl", 0) for t in trades_list)
-            wagered = sum(t.get("cost_dollars", 0) for t in trades_list)
+            wagered = sum(get_filled_cost(t) for t in trades_list)
             roi_val = pnl / wagered if wagered > 0 else 0
             avg_edge = sum(t.get("edge_estimated", 0) for t in trades_list) / n if n else 0
             wr = w / n if n else 0
@@ -556,7 +561,7 @@ def reconcile_positions(client: KalshiClient):
         ticker = t.get("ticker", "")
         if ticker not in local_tickers:
             local_tickers[ticker] = {"contracts": 0, "trades": []}
-        local_tickers[ticker]["contracts"] += t.get("contracts", 0)
+        local_tickers[ticker]["contracts"] += int(get_filled_contracts(t))
         local_tickers[ticker]["trades"].append(t.get("trade_id", "?")[:8])
 
     # API: actual positions on Kalshi
