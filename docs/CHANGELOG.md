@@ -2,7 +2,7 @@
 
 ---
 
-## 2026-04-04 -- Per-Game Diversification, MLB Starting Pitcher Data
+## 2026-04-04 -- Per-Game Diversification, Pitcher Data, Rest Days, Calibration
 
 ### Correlated Bracket Dedup & Per-Game Cap Reduction
 - **Problem:** Automated execution was stacking 3 of 5 bets on the same game (e.g., Over 221.5, Over 224.5, Over 228.5 on BOS@MIL). These are highly correlated — they win or lose together.
@@ -29,6 +29,27 @@
   - `consensus_total_prob()` now accepts `stdev_adjustment` parameter
 - **`prefetch_mlb_pitchers(date)`** — bulk pre-fetch for all games on a date, indexed by team abbreviation
 - CLI: `python scripts/shared/pitcher_stats.py 2026-04-04` for a quick pitcher table
+
+### S2. NBA/NHL Back-to-Back & Rest Day Detection (`scripts/shared/rest_days.py`)
+- New module detecting back-to-backs and rest days via ESPN scoreboard API (free, no key)
+- Checks 1-4 days back per team to calculate days since last game
+- **NBA adjustments:** B2B adds +1.5 to stdev (more variance/fatigue), leans under. Well-rested (3+ days) tightens stdev by -0.5
+- **NHL adjustments:** B2B adds +0.3 stdev, slight under lean
+- Returns per team: `is_b2b`, `days_rest`, `opponent_is_b2b`, `rest_advantage`, `stdev_adjustment`, `confidence_signal`
+- **Integration in `edge_detector.py`:**
+  - Pre-fetches rest data for NBA/NHL in `scan_all_markets()` (step 3d)
+  - Totals: stdev adjusted by rest situation, confidence bumped for under when B2B
+  - Games/Spreads: confidence adjusted based on rest advantage (B2B team less likely to win/cover)
+  - Rest info attached to opportunity details for transparency
+- Auto-routes through `scan.py` — no extra flags needed
+- CLI: `python scripts/shared/rest_days.py basketball_nba 2026-04-04` for a quick rest table
+
+### W2. Model Calibration Tool (`scripts/kalshi/model_calibration.py`)
+- New script analyzing settled trades to surface calibration issues and generate prioritized recommendations
+- **Reports:** Overall Brier score, calibration curve (predicted vs realized by probability bucket), dimension breakdowns (category, confidence, sport, edge bucket), confidence x category cross-tab
+- **Recommendations engine:** Prioritized HIGH/MEDIUM/LOW actions for stdev adjustments, confidence signal fixes, edge estimation issues
+- **Parked until post-baseline data:** Calibration baseline set to 2026-04-03 — pre-baseline trades span multiple model versions and produce misleading recommendations. Re-run after 100+ post-baseline trades.
+- CLI: `python scripts/kalshi/model_calibration.py --save --days 30`
 
 ### X4. Startup Doctor (previously implemented, marked DONE in roadmap)
 - `scripts/doctor.py` verified functional — checks Python version, venv, credentials, data dirs, config, API connectivity, pre-commit hooks
