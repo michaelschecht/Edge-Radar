@@ -231,7 +231,7 @@ The skill routes natural language to the correct scanner, enforces all risk gate
 
 ## 🔄 Automated Daily Execution
 
-Pre-built scripts scan NFL, NBA, NHL, and MLB in a single command, rank the top 10 opportunities across all sports by composite score, and execute with Kelly sizing.
+Pre-built scripts scan NFL, NBA, NHL, and MLB in a single command, rank the top 10 opportunities across all sports by composite score, and execute with Kelly sizing. See the **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** for the full setup walkthrough.
 
 ```bash
 # Preview today's best picks (no bets placed)
@@ -241,13 +241,28 @@ scripts\schedulers\same_day_executions\same_day_scan.bat
 scripts\schedulers\same_day_executions\same_day_execute.bat
 ```
 
-**Recommended schedule:** 8 AM ET via Windows Task Scheduler. By 8 AM, all markets are posted, sportsbooks have sharpened lines overnight, and Kalshi's lag window is open.
+### Quick Setup with Task Scheduler
 
-```bash
-schtasks /Create /TN "Edge-Radar\Daily" /TR "path\to\same_day_execute.bat" /SC DAILY /ST 08:00
+```powershell
+# Install morning execution (8 AM) + nightly settlement (11 PM)
+python scripts/schedulers/automation/install_windows_task.py install execute
+python scripts/schedulers/automation/install_windows_task.py install settle
+
+# Check task status
+python scripts/schedulers/automation/install_windows_task.py status
+
+# Or install all four tasks at once (scan, execute, settle, next-day)
+python scripts/schedulers/automation/install_windows_task.py install all
 ```
 
-Reports save to `reports/Sports/schedulers/same-day-executions/` with full execution details (Sport, Bet, Type, Pick, Qty, Price, Cost, Edge).
+| Task | Schedule | Description |
+| --- | --- | --- |
+| `scan` | 8:00 AM | Preview scan — saves report, no bets |
+| `execute` | 8:00 AM | Scan + execute — places live orders |
+| `settle` | 11:00 PM | Settle bets, update P&L |
+| `next-day` | 9:00 PM | Scan + execute tomorrow's games |
+
+Reports save to `reports/Sports/schedulers/` with full execution details (Sport, Bet, Type, Pick, Qty, Price, Cost, Edge).
 
 ---
 
@@ -322,6 +337,7 @@ Edge-Radar/
 | Guide | Description |
 | --- | --- |
 | **[Setup Guide](docs/setup/SETUP_GUIDE.md)** | API keys, private keys, environment config, first scan |
+| **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** | Windows Task Scheduler setup for automated daily betting |
 | **[Scripts Reference](docs/SCRIPTS_REFERENCE.md)** | Every script, flag, and example |
 | **[Sports Guide](docs/kalshi-sports-betting/SPORTS_GUIDE.md)** | 27 filters, edge detection, daily workflow |
 | **[Futures Guide](docs/kalshi-futures-betting/FUTURES_GUIDE.md)** | NFL, NBA, NHL, MLB, golf championships |
