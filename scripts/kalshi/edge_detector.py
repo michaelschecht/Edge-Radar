@@ -1366,9 +1366,9 @@ def scan_all_markets(
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
 
-    # Sort by edge descending, then cap at 3 per game
+    # Sort by edge descending, then cap at 2 per game
     opportunities.sort(key=lambda o: o.edge, reverse=True)
-    opportunities = _cap_per_game(opportunities, max_per_game=3)
+    opportunities = _cap_per_game(opportunities, max_per_game=2)
 
     # Re-sort by composite score for final ranking
     opportunities.sort(key=lambda o: o.composite_score, reverse=True)

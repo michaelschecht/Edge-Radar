@@ -61,7 +61,7 @@ MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "10"))
 MIN_EDGE_THRESHOLD = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
 KELLY_FRACTION = float(os.getenv("KELLY_FRACTION", "0.25"))
 MAX_CONCENTRATION = float(os.getenv("MAX_POSITION_CONCENTRATION", "0.20"))
-MAX_PER_EVENT = int(os.getenv("MAX_PER_EVENT", "3"))
+MAX_PER_EVENT = int(os.getenv("MAX_PER_EVENT", "2"))
 MIN_COMPOSITE_SCORE = float(os.getenv("MIN_COMPOSITE_SCORE", "6.0"))
 MIN_CONFIDENCE = os.getenv("MIN_CONFIDENCE", "medium")  # low, medium, high
 
@@ -83,6 +83,28 @@ def _event_key(ticker: str) -> str:
     """
     parts = ticker.rsplit("-", 1)
     return parts[0] if len(parts) > 1 else ticker
+
+
+def dedup_correlated_brackets(opportunities: list[Opportunity]) -> list[Opportunity]:
+    """Remove correlated bracket bets from the same game, keeping the best one.
+
+    Multiple totals/spread lines on the same game (e.g., Over 221.5, Over 224.5,
+    Over 228.5) are highly correlated — they win or lose together. Stacking them
+    gives concentration risk, not diversification.
+
+    Groups opportunities by (event_key, category) and keeps only the highest
+    composite_score from each group. Different categories on the same game
+    (e.g., ML + totals) are kept since they're less correlated.
+    """
+    best: dict[tuple[str, str], Opportunity] = {}
+    for opp in opportunities:
+        key = (_event_key(opp.ticker), opp.category)
+        existing = best.get(key)
+        if existing is None or opp.composite_score > existing.composite_score:
+            best[key] = opp
+    # Preserve original sort order (by composite_score descending from scanner)
+    deduped_set = set(id(o) for o in best.values())
+    return [o for o in opportunities if id(o) in deduped_set]
 
 
 # ── Position Sizing ──────────────────────────────────────────────────────────
@@ -118,7 +140,8 @@ def unit_size_contracts(market_price: float, unit: float | None = None) -> int:
 def size_order(opp: Opportunity, bankroll: float, open_positions: int,
                daily_pnl: float, unit_size: float = UNIT_SIZE,
                open_tickers: set[str] | None = None,
-               event_counts: dict[str, int] | None = None) -> SizedOrder:
+               event_counts: dict[str, int] | None = None,
+               max_per_event: int = MAX_PER_EVENT) -> SizedOrder:
     """
     Apply all risk checks and size the order.
 
@@ -166,8 +189,8 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     # ── Risk Gate 7: Per-event cap
     elif event_counts:
         evt = _event_key(opp.ticker)
-        if event_counts.get(evt, 0) >= MAX_PER_EVENT:
-            rejection = f"per_event_cap ({event_counts[evt]}/{MAX_PER_EVENT} on {evt[:30]})"
+        if event_counts.get(evt, 0) >= max_per_event:
+            rejection = f"per_event_cap ({event_counts[evt]}/{max_per_event} on {evt[:30]})"
 
     if rejection:
         return SizedOrder(
@@ -314,6 +337,7 @@ def execute_pipeline(
     unit_size: float = UNIT_SIZE,
     pick_rows: str | None = None,
     pick_tickers: list[str] | None = None,
+    max_per_game: int | None = None,
 ) -> list[dict]:
     """
     Run the full pipeline: risk-check, size, and optionally execute.
@@ -323,6 +347,7 @@ def execute_pipeline(
         opportunities: Scored opportunities from edge detector
         execute: If True, actually place orders. If False, preview only.
         max_bets: Maximum number of bets to place in one run
+        max_per_game: Override MAX_PER_EVENT for this run
     """
     # ── Gather portfolio state
     bal = client.get_balance_dollars()
@@ -346,11 +371,19 @@ def execute_pipeline(
     trade_log = load_trade_log()
     daily_pnl = get_today_pnl(trade_log)
     rprint(f"  Today P&L:  ${daily_pnl:,.2f} (limit: -${MAX_DAILY_LOSS:,.2f})")
+    per_event_limit = max_per_game if max_per_game is not None else MAX_PER_EVENT
     rprint(f"  Unit size:  ${unit_size:.2f}")
+    rprint(f"  Per-game:   {per_event_limit} max")
 
     if daily_pnl <= -MAX_DAILY_LOSS:
         rprint("[red bold]DAILY LOSS LIMIT HIT -- no new bets allowed today[/red bold]")
         return []
+
+    # ── Deduplicate correlated brackets (e.g., multiple totals lines on same game)
+    before_dedup = len(opportunities)
+    opportunities = dedup_correlated_brackets(opportunities)
+    if len(opportunities) < before_dedup:
+        rprint(f"[dim]Deduped correlated brackets: {before_dedup} -> {len(opportunities)} opportunities[/dim]")
 
     # ── Size all opportunities
     rprint(f"\n[bold]Risk-checking {len(opportunities)} opportunities...[/bold]")
@@ -358,7 +391,7 @@ def execute_pipeline(
     for opp in opportunities:
         sized = size_order(
             opp, bankroll, open_count + len([s for s in sized_orders if s.risk_approval == "APPROVED"]),
-            daily_pnl, unit_size, open_tickers, event_counts,
+            daily_pnl, unit_size, open_tickers, event_counts, per_event_limit,
         )
         sized_orders.append(sized)
         # Track newly approved positions for subsequent gate checks
@@ -682,6 +715,8 @@ def main():
                        help=f"Dollar amount per bet (default ${UNIT_SIZE:.2f})")
     run_p.add_argument("--max-bets", type=int, default=5,
                        help="Max bets per run (default 5)")
+    run_p.add_argument("--max-per-game", type=int, default=None,
+                       help=f"Max positions per game/event (default {MAX_PER_EVENT}, env MAX_PER_EVENT)")
     run_p.add_argument("--top", type=int, default=20,
                        help="Number of opportunities to scan")
     run_p.add_argument("--pick", type=str, default=None,
@@ -778,6 +813,7 @@ def main():
             unit_size=args.unit_size,
             pick_rows=args.pick,
             pick_tickers=args.ticker,
+            max_per_game=args.max_per_game,
         )
 
 
