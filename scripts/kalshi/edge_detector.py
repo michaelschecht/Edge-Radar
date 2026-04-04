@@ -43,6 +43,7 @@ from kalshi_client import KalshiClient
 from team_stats import get_team_stats
 from sports_weather import get_game_weather
 from line_movement import get_line_movement
+from pitcher_stats import prefetch_mlb_pitchers
 from logging_setup import setup_logging
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
@@ -445,7 +446,8 @@ def _get_total_stdev(ticker: str) -> float:
 
 
 def consensus_total_prob(events: list, strike: float,
-                         ticker: str = "") -> tuple[float, dict] | None:
+                         ticker: str = "",
+                         stdev_adjustment: float = 0.0) -> tuple[float, dict] | None:
     """
     Estimate probability of total going over strike using sportsbook totals
     and a normal-distribution model.
@@ -481,7 +483,7 @@ def consensus_total_prob(events: list, strike: float,
     median_line = weighted_median(td_lines, td_weights)
     median_implied = weighted_median(td_implieds, td_weights)
 
-    stdev = _get_total_stdev(ticker)
+    stdev = _get_total_stdev(ticker) + stdev_adjustment
 
     # The book says P(total > median_line) = median_implied
     # total ~ Normal(mean, stdev)
@@ -794,7 +796,8 @@ def _sharp_money_signal(team_name: str, side: str, ticker: str,
 # ── Core Edge Detection ──────────────────────────────────────────────────────
 
 def detect_edge_game(market: dict, odds_events: list,
-                     sharp_signals: dict | None = None) -> Opportunity | None:
+                     sharp_signals: dict | None = None,
+                     pitcher_data: dict | None = None) -> Opportunity | None:
     """Detect edge on game outcome markets (moneyline)."""
     ticker = market["ticker"]
     team = extract_team_from_market(market)
@@ -843,6 +846,15 @@ def detect_edge_game(market: dict, odds_events: list,
     stats_signal = _stats_confidence_signal(team, ticker, side)
     confidence = _adjust_confidence_with_stats(confidence, stats_signal)
     details["team_stats"] = stats_signal
+
+    # Add pitcher context for MLB games (informational — moneyline odds
+    # already price in the starter heavily, so no confidence adjustment)
+    if pitcher_data and pitcher_data.get("matchup_quality") != "unknown":
+        details["pitchers"] = {
+            "matchup": pitcher_data["matchup_quality"],
+            "away": pitcher_data.get("away_pitcher", {}).get("name", "TBD"),
+            "home": pitcher_data.get("home_pitcher", {}).get("name", "TBD"),
+        }
 
     # Adjust confidence with sharp money / line movement
     sharp = _sharp_money_signal(team, side, ticker, sharp_signals or {})
@@ -999,7 +1011,8 @@ def _extract_game_date(ticker: str) -> str | None:
 
 
 def detect_edge_total(market: dict, odds_events: list,
-                      sharp_signals: dict | None = None) -> Opportunity | None:
+                      sharp_signals: dict | None = None,
+                      pitcher_data: dict | None = None) -> Opportunity | None:
     """Detect edge on over/under total markets."""
     ticker = market["ticker"]
     strike = extract_strike(market)
@@ -1010,7 +1023,10 @@ def detect_edge_total(market: dict, odds_events: list,
     if yes_ask <= 0 or yes_ask >= 1.0:
         return None
 
-    result = consensus_total_prob(odds_events, strike, ticker=ticker)
+    # Apply pitcher stdev adjustment for MLB
+    stdev_adj = pitcher_data.get("stdev_adjustment", 0.0) if pitcher_data else 0.0
+    result = consensus_total_prob(odds_events, strike, ticker=ticker,
+                                  stdev_adjustment=stdev_adj)
     if result is None:
         return None
 
@@ -1061,6 +1077,30 @@ def detect_edge_total(market: dict, odds_events: list,
             details["weather_adjustment"] = adj
             log.info("Weather adjustment for %s: %+.1f%% (%s)",
                      ticker, adj * 100, impact["reason"])
+
+    # Pitcher matchup signal for MLB totals
+    if pitcher_data and pitcher_data.get("matchup_quality") != "unknown":
+        details["pitchers"] = {
+            "matchup": pitcher_data["matchup_quality"],
+            "stdev_adj": pitcher_data["stdev_adjustment"],
+            "away": pitcher_data.get("away_pitcher", {}).get("name", "TBD"),
+            "home": pitcher_data.get("home_pitcher", {}).get("name", "TBD"),
+        }
+        psig = pitcher_data.get("confidence_signal", "neutral")
+        if psig == "supports_over" and side == "yes":
+            confidence = _adjust_confidence_with_stats(
+                confidence, {"stats_found": True, "signal": "supports"})
+        elif psig == "supports_under" and side == "no":
+            confidence = _adjust_confidence_with_stats(
+                confidence, {"stats_found": True, "signal": "supports"})
+        elif psig == "supports_over" and side == "no":
+            confidence = _adjust_confidence_with_stats(
+                confidence, {"stats_found": True, "signal": "contradicts"})
+        elif psig == "supports_under" and side == "yes":
+            confidence = _adjust_confidence_with_stats(
+                confidence, {"stats_found": True, "signal": "contradicts"})
+        log.info("Pitcher matchup for %s: %s (stdev %+.2f)",
+                 ticker, pitcher_data["matchup_quality"], stdev_adj)
 
     # Sharp money / line movement signal for totals
     home_team = _extract_home_team_abbr(ticker)
@@ -1327,6 +1367,29 @@ def scan_all_markets(
         except Exception as e:
             log.debug("Line movement fetch failed for %s: %s", sport_key, e)
 
+    # 3c. Pre-fetch MLB starting pitcher data (free, MLB Stats API)
+    pitcher_cache: dict[str, dict] = {}  # team_abbr -> pitcher matchup data
+    if "baseball_mlb" in sports_needed:
+        # Collect unique game dates from MLB market tickers
+        mlb_dates = set()
+        for m in all_markets:
+            if m["ticker"].startswith("KXMLB"):
+                gd = _extract_game_date(m["ticker"])
+                if gd:
+                    mlb_dates.add(gd)
+        for gd in sorted(mlb_dates):
+            try:
+                day_pitchers = prefetch_mlb_pitchers(gd)
+                pitcher_cache.update(day_pitchers)
+            except Exception as e:
+                log.debug("Pitcher fetch failed for %s: %s", gd, e)
+        if pitcher_cache:
+            matchup_types = {}
+            for pd in pitcher_cache.values():
+                mt = pd.get("matchup_quality", "unknown")
+                matchup_types[mt] = matchup_types.get(mt, 0) + 1
+            rprint(f"  Pitchers: {len(pitcher_cache) // 2} games ({matchup_types})")
+
     # 4. Run edge detection per category
     opportunities: list[Opportunity] = []
 
@@ -1338,7 +1401,14 @@ def scan_all_markets(
                 sport_key = sk
                 break
         if sport_key and sport_key in odds_data:
-            opp = detect_edge_game(m, odds_data[sport_key], sharp_signals=sharp_signals)
+            # Attach pitcher data for MLB games
+            mlb_pitchers = None
+            if sport_key == "baseball_mlb":
+                home = _extract_home_team_abbr(m["ticker"])
+                if home:
+                    mlb_pitchers = pitcher_cache.get(home.upper())
+            opp = detect_edge_game(m, odds_data[sport_key], sharp_signals=sharp_signals,
+                                   pitcher_data=mlb_pitchers)
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
 
@@ -1362,7 +1432,14 @@ def scan_all_markets(
                 sport_key = sk
                 break
         if sport_key and sport_key in odds_data:
-            opp = detect_edge_total(m, odds_data[sport_key], sharp_signals=sharp_signals)
+            # Attach pitcher data for MLB totals
+            mlb_pitchers = None
+            if sport_key == "baseball_mlb":
+                home = _extract_home_team_abbr(m["ticker"])
+                if home:
+                    mlb_pitchers = pitcher_cache.get(home.upper())
+            opp = detect_edge_total(m, odds_data[sport_key], sharp_signals=sharp_signals,
+                                    pitcher_data=mlb_pitchers)
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
 
@@ -1489,6 +1566,8 @@ def main():
                         help="Dollar amount per bet (default: UNIT_SIZE from .env)")
     scan_p.add_argument("--max-bets", type=int, default=5,
                         help="Maximum number of bets to place")
+    scan_p.add_argument("--max-per-game", type=int, default=None,
+                        help="Max positions per game/event (default: MAX_PER_EVENT env var)")
     scan_p.add_argument("--pick", type=str, default=None,
                         help="Comma-separated row numbers to execute (e.g., '1,3,5')")
     scan_p.add_argument("--ticker", type=str, nargs="+", default=None,
@@ -1541,6 +1620,7 @@ def main():
                 unit_size=args.unit_size or UNIT_SIZE,
                 pick_rows=args.pick,
                 pick_tickers=args.ticker,
+                max_per_game=args.max_per_game,
             )
         else:
             print_opportunities(opportunities)

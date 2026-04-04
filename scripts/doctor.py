@@ -108,7 +108,7 @@ def main():
     max_pos = os.getenv("MAX_OPEN_POSITIONS", "10")
     check(f"MAX_OPEN_POSITIONS = {max_pos}", True)
 
-    max_event = os.getenv("MAX_PER_EVENT", "3")
+    max_event = os.getenv("MAX_PER_EVENT", "2")
     check(f"MAX_PER_EVENT = {max_event}", True)
 
     # ── Kalshi API connectivity

@@ -93,6 +93,7 @@ python scripts/scan.py <market-type> [flags]
 | `--execute` | off | Execute bets through the pipeline (dry run without this) |
 | `--unit-size N` | `UNIT_SIZE` env var | Dollar amount per bet |
 | `--max-bets N` | `5` | Maximum number of bets to place |
+| `--max-per-game N` | `2` | Max positions per game/event (overrides `MAX_PER_EVENT` env var) |
 | `--pick X` | *(all)* | Comma-separated row numbers to execute (e.g., `'1,3,5'`) |
 | `--ticker X` | *(all)* | Execute only specific tickers |
 | `--category X` | *(all)* | Filter to a market category: `game`, `spread`, `total`, `player_prop`, `esports`, `other` |

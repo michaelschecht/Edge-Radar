@@ -2,6 +2,40 @@
 
 ---
 
+## 2026-04-04 -- Per-Game Diversification, MLB Starting Pitcher Data
+
+### Correlated Bracket Dedup & Per-Game Cap Reduction
+- **Problem:** Automated execution was stacking 3 of 5 bets on the same game (e.g., Over 221.5, Over 224.5, Over 228.5 on BOS@MIL). These are highly correlated — they win or lose together.
+- **Fix 1:** New `dedup_correlated_brackets()` in `kalshi_executor.py` — groups opportunities by `(event_key, category)` and keeps only the highest composite score from each group. Multiple totals lines on the same game collapse to the single best one.
+- **Fix 2:** `MAX_PER_EVENT` default lowered from 3 to 2 (allows ML + totals on the same game, but not 3 correlated lines)
+- **Fix 3:** Scanner-level `_cap_per_game` in `edge_detector.py` also lowered from 3 to 2
+- New `--max-per-game N` CLI flag on both `edge_detector.py` and `kalshi_executor.py` for session-level override
+- `size_order()` accepts `max_per_event` parameter instead of using the global directly
+
+### S1. MLB Starting Pitcher Data (`scripts/shared/pitcher_stats.py`)
+- New module fetching probable pitchers + season stats from MLB Stats API (free, no key)
+- **Stats fetched:** ERA, FIP (approximated), WHIP, K/9, innings pitched, record, days rest
+- **Pitcher tiers:** ace (ERA ≤ 3.20), mid (ERA ≤ 4.50), back (ERA > 4.50 or TBD)
+- **Matchup classification** with stdev adjustments to the total probability model:
+  - ace vs ace: -0.3 stdev (tighter game, lean under)
+  - ace vs mid: -0.15 stdev (lean under)
+  - mid vs mid: no adjustment (neutral)
+  - mid vs back: +0.2 stdev (lean over)
+  - bullpen day: +0.5 stdev (high variance, lean over)
+- **Integration in `edge_detector.py`:**
+  - Pre-fetches all pitcher data per game date in `scan_all_markets()` (step 3c)
+  - Totals: stdev adjusted by matchup quality, confidence bumped/dropped by pitcher signal
+  - Games: pitcher info attached to details (informational — moneyline odds already price in starters)
+  - `consensus_total_prob()` now accepts `stdev_adjustment` parameter
+- **`prefetch_mlb_pitchers(date)`** — bulk pre-fetch for all games on a date, indexed by team abbreviation
+- CLI: `python scripts/shared/pitcher_stats.py 2026-04-04` for a quick pitcher table
+
+### X4. Startup Doctor (previously implemented, marked DONE in roadmap)
+- `scripts/doctor.py` verified functional — checks Python version, venv, credentials, data dirs, config, API connectivity, pre-commit hooks
+- Fixed stale `MAX_PER_EVENT` default (3 → 2) in doctor display
+
+---
+
 ## 2026-04-02 -- Execution Correctness, Risk Gates, Kelly Sizing, Display Overhaul
 
 ### X1. Portable Python Path
