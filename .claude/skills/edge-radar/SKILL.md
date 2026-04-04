@@ -43,6 +43,7 @@ Parse the user's intent from the arguments. The skill supports natural language 
 | `--save` | off | Save results as markdown report to `reports/` |
 | `--date DATE` | (none) | Filter by date: `today`, `tomorrow`, `YYYY-MM-DD`, `mar31`, `03-30` |
 | `--exclude-open` | off | Skip markets with existing open positions |
+| `--budget X` | (none) | Max total batch cost — `10%` (of bankroll) or `15` (flat dollars). Proportionally scales down contracts to stay within budget while preserving Kelly edge-weighting |
 | `--pick '1,3,5'` | (none) | Cherry-pick specific rows from preview |
 | `--ticker TICKER` | (none) | Target a specific Kalshi ticker |
 | `--category CAT` | (none) | Market type: `game`, `spread`, `total`, `player_prop` |
@@ -60,6 +61,7 @@ Parse the user's intent from the arguments. The skill supports natural language 
 
 ```bash
 python scripts/scan.py sports --filter mlb --date today --save
+python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date today --exclude-open --execute
 python scripts/scan.py futures --filter nba-futures
 python scripts/scan.py prediction --filter crypto --cross-ref
 python scripts/scan.py polymarket --filter crypto
@@ -369,7 +371,7 @@ Once confirmed, add `--execute` to the scan command. All 4 scanners support `--e
 ```bash
 python scripts/scan.py sports \
   --filter <sport> --execute \
-  [--unit-size <N>] [--max-bets <N>] [--min-edge <N>] \
+  [--unit-size <N>] [--max-bets <N>] [--budget <X>] [--min-edge <N>] \
   [--pick '1,3,5'] [--ticker <TICKER>] [--date <DATE>] [--exclude-open]
 ```
 
@@ -377,7 +379,7 @@ python scripts/scan.py sports \
 ```bash
 python scripts/scan.py futures \
   --filter <sport>-futures --execute \
-  [--unit-size <N>] [--max-bets <N>] [--min-edge <N>] \
+  [--unit-size <N>] [--max-bets <N>] [--budget <X>] [--min-edge <N>] \
   [--pick '1,3,5'] [--ticker <TICKER>]
 ```
 
@@ -385,7 +387,7 @@ python scripts/scan.py futures \
 ```bash
 python scripts/scan.py prediction \
   --filter <category> --execute \
-  [--unit-size <N>] [--max-bets <N>] [--min-edge <N>] \
+  [--unit-size <N>] [--max-bets <N>] [--budget <X>] [--min-edge <N>] \
   [--pick '1,3,5'] [--ticker <TICKER>]
 ```
 
@@ -393,7 +395,7 @@ python scripts/scan.py prediction \
 ```bash
 python scripts/scan.py polymarket \
   --filter <category> --execute \
-  [--unit-size <N>] [--max-bets <N>] [--min-edge <N>] \
+  [--unit-size <N>] [--max-bets <N>] [--budget <X>] [--min-edge <N>] \
   [--pick '1,3,5'] [--ticker <TICKER>]
 ```
 
@@ -429,6 +431,8 @@ After execution, summarize:
 | `/edge-radar scan all --date today` | `scan.py sports --date today` (all sports, today only) |
 | `/edge-radar bet all --unit-size .5 --max-bets 10` | `scan.py sports --unit-size .5 --max-bets 10` then confirm then `--execute` |
 | `/edge-radar bet mlb --pick '1,3,5'` | `scan.py sports --filter mlb --execute --pick '1,3,5'` |
+| `/edge-radar bet mlb --budget 10% --max-bets 5` | `scan.py sports --filter mlb --budget 10% --max-bets 5` then confirm then `--execute` |
+| `/edge-radar bet all --budget 15 --unit-size .5` | `scan.py sports --budget 15 --unit-size .5` then confirm then `--execute` |
 
 ---
 
@@ -454,6 +458,7 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 ## Risk Limits (Current)
 
 - **Sizing:** Batch-aware Kelly — `(KELLY_FRACTION / batch_size) * edge * bankroll`, with flat unit size as floor. When placing N bets simultaneously, each gets `fraction/N` to prevent over-committing.
+- **Budget cap:** `--budget X` caps the total batch cost. Accepts `10%` (of bankroll) or `15` (flat dollars). When the batch exceeds the budget, contracts are proportionally scaled down while preserving Kelly edge-weighting (higher-edge bets keep more size). Each bet keeps at least 1 contract.
 - **Kelly fraction:** Configurable via `KELLY_FRACTION` in `.env` (default: 0.25)
 - **Unit size:** $1.00 default (minimum per bet)
 - **Max bet (sports):** $50 per position (gate 9 — sizing cap, not reject)
@@ -500,6 +505,7 @@ python scripts/scan.py prediction --filter crypto --cross-ref
 ### Executing
 ```bash
 python scripts/scan.py sports --filter mlb --execute --unit-size 1 --max-bets 10
+python scripts/scan.py sports --filter mlb --execute --unit-size .5 --max-bets 5 --budget 10%
 python scripts/scan.py sports --filter nba --execute --pick '1,3,5'
 ```
 
@@ -550,7 +556,7 @@ scripts\schedulers\same_day_executions\same_day_scan.bat
 scripts\schedulers\same_day_executions\same_day_execute.bat
 ```
 
-Config: `--unit-size .5`, `--max-bets 5` total, `--date today`, `--exclude-open`, `--save`.
+Config: `--unit-size .5`, `--max-bets 5`, `--budget 15%`, `--date today`, `--exclude-open`, `--save`.
 
 ### Per-Sport Scan-Only Scripts
 
