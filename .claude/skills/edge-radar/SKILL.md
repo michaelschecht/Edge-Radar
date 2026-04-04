@@ -88,7 +88,7 @@ make risk              # Risk dashboard
 make settle            # Settle completed bets
 make report            # P&L report
 make reconcile         # Compare local log vs API
-make test              # Run full test suite (83 tests)
+make test              # Run full test suite (102 tests)
 make test-quick        # Quick test run
 make install           # Install dependencies
 make hooks             # Install pre-commit hooks
@@ -453,17 +453,20 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 
 ## Risk Limits (Current)
 
-- **Sizing:** Quarter-Kelly (0.25 * edge * bankroll), with flat unit size as floor
+- **Sizing:** Batch-aware Kelly — `(KELLY_FRACTION / batch_size) * edge * bankroll`, with flat unit size as floor. When placing N bets simultaneously, each gets `fraction/N` to prevent over-committing.
+- **Kelly fraction:** Configurable via `KELLY_FRACTION` in `.env` (default: 0.25)
 - **Unit size:** $1.00 default (minimum per bet)
-- **Max bet (sports):** $50 per position
-- **Max bet (prediction):** $100 per position
-- **Max concentration:** 20% of bankroll per position
-- **Max per event:** 3 positions on the same game
-- **Daily loss limit:** $250
-- **Max open positions:** 10
-- **Minimum edge:** 3%
-- **Minimum composite score:** 6.0
-- **Minimum confidence:** medium
+- **Max bet (sports):** $50 per position (gate 9 — sizing cap, not reject)
+- **Max bet (prediction):** $100 per position (gate 9 — sizing cap, not reject)
+- **Max concentration:** 20% of bankroll per position (gate 8 — sizing cap, not reject)
+- **Max per event:** 2 positions on the same game (reject gate)
+- **Daily loss limit:** $250 (reject gate)
+- **Max open positions:** 10 (reject gate)
+- **Minimum edge:** 3% (reject gate)
+- **Minimum composite score:** 6.0 (reject gate)
+- **Minimum confidence:** medium (reject gate)
+
+Gates 1-7 reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_CONCENTRATION`, `APPROVED_CAPPED_MAX_BET`).
 
 ---
 
@@ -511,9 +514,33 @@ make reconcile                 # Compare local vs API
 
 ## Automation
 
-### Same-Day Automated Execution (Primary — 8 AM ET)
+See **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** for the full setup walkthrough.
 
-Scans all four major sports (NFL, NBA, NHL, MLB) in one command, ranks top 10 across all sports, and executes with Kelly sizing and all 9 risk gates.
+### Windows Task Scheduler (Recommended)
+
+```powershell
+# Install morning execution + nightly settlement
+python scripts/schedulers/automation/install_windows_task.py install execute
+python scripts/schedulers/automation/install_windows_task.py install settle
+
+# Or install all four tasks at once
+python scripts/schedulers/automation/install_windows_task.py install all
+
+# Check task status
+python scripts/schedulers/automation/install_windows_task.py status
+
+# Trigger a task immediately (test)
+python scripts/schedulers/automation/install_windows_task.py run execute
+```
+
+| Profile | Schedule | Description |
+|---------|----------|-------------|
+| `scan` | 8:00 AM | Preview scan — saves report, no bets |
+| `execute` | 8:00 AM | Scan + execute — places live orders |
+| `settle` | 11:00 PM | Settle bets, update P&L |
+| `next-day` | 9:00 PM | Scan + execute tomorrow's games |
+
+### Bat Scripts (Manual)
 
 ```bash
 # Preview only (no bets)
@@ -523,36 +550,13 @@ scripts\schedulers\same_day_executions\same_day_scan.bat
 scripts\schedulers\same_day_executions\same_day_execute.bat
 ```
 
-Config: `--unit-size .5`, `--max-bets 10` total, `--date today`, `--exclude-open`, `--save`.
-Reports saved to `reports/Sports/schedulers/same-day-executions/` as execution reports (with Qty/Cost).
-
-### Next-Day Scripts (Reserve — 9 PM ET)
-
-Same as above but for tomorrow's games. Available at `scripts/schedulers/next_day_executions/`. Use when locking in early lines the night before.
+Config: `--unit-size .5`, `--max-bets 5` total, `--date today`, `--exclude-open`, `--save`.
 
 ### Per-Sport Scan-Only Scripts
 
 ```
 scripts/schedulers/same_day_scans/     # Today's games by sport
 scripts/schedulers/next_day_scans/     # Tomorrow's games by sport
-```
-
-### Daily Edge Email
-
-```bash
-python scripts/custom/send_daily_email.py
-```
-
-Sends an HTML-formatted daily report via AgentMail.
-
-### Windows Task Scheduler
-
-```bash
-# Install same-day execution at 8 AM daily
-schtasks /Create /TN "Edge-Radar\Same-Day-Execute" /TR "D:\AI_Agents\Specialized_Agents\Edge_Radar\scripts\schedulers\same_day_executions\same_day_execute.bat" /SC DAILY /ST 08:00
-
-# Or use the Python installer for the morning scan report
-python scripts/schedulers/automation/install_windows_task.py install
 ```
 
 ---
@@ -568,6 +572,48 @@ python scripts/kalshi/kalshi_client.py orders
 python scripts/kalshi/kalshi_client.py markets --limit 50
 python scripts/kalshi/kalshi_client.py market --ticker <TICKER>
 ```
+
+---
+
+## Edge Detection Signals
+
+The scanner uses 9 signals to detect mispriced contracts:
+
+| Signal | Source | What It Does |
+|--------|--------|-------------|
+| Normal CDF Model | Math | Spread/total probabilities via bell curve with sport-specific stdev |
+| Sharp Book Weighting | Odds API | Pinnacle 3x, DraftKings 0.7x — sharp lines pull consensus |
+| Team Stats | ESPN/NHL/MLB APIs | Win%, goal/run differential validates book fair value |
+| Sharp Money | ESPN | Open-vs-close odds detect reverse line movement |
+| Pitcher Matchups | MLB Stats API | ERA, FIP, WHIP, K/9, rest days — adjusts total stdev |
+| Rest Days / B2B | ESPN | NBA/NHL back-to-back detection — fatigue adjusts stdev + confidence |
+| Weather | NWS | 61 NFL/MLB venue forecasts adjust total expectations |
+| Book Disagreement | Odds API | >4pt spread range flags injury news |
+| CLV Tracking | Kalshi | Closing line value validates model accuracy over time |
+
+MLB pitcher data is fetched in parallel (ThreadPoolExecutor, 8 workers) for speed.
+
+---
+
+## Trade Logging
+
+Orders are logged with **fill-based accounting**:
+- `requested_contracts` / `requested_cost` — what we asked for
+- `filled_contracts` / `filled_cost` — what Kalshi actually executed
+- `fill_status` — `resting` | `partial` | `filled`
+
+Resting orders (zero fills) are excluded from exposure calculations and settlement. The settler, risk dashboard, and P&L reports all use filled values, not requested.
+
+---
+
+## Calibration
+
+```bash
+python scripts/kalshi/model_calibration.py --save        # Full calibration report
+python scripts/kalshi/model_calibration.py --days 30     # Last 30 days only
+```
+
+Reports: Brier score, calibration curve (predicted vs realized), dimension breakdowns, confidence x category cross-tab, prioritized recommendations.
 
 ---
 
