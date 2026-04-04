@@ -195,9 +195,11 @@ The trade log records the approval subtype so post-trade review can distinguish 
 
 ## Position Sizing
 
-Bets are sized using **quarter-Kelly with a flat unit floor**. The system calculates both a flat unit size and a Kelly-optimal size, then uses whichever is larger -- so Kelly only scales up for high-edge opportunities, never below the minimum unit.
+Bets are sized using **batch-aware Kelly with a flat unit floor**. The system calculates both a flat unit size and a Kelly-optimal size (divided by batch size), then uses whichever is larger -- so Kelly only scales up for high-edge opportunities, never below the minimum unit.
 
-**Quarter-Kelly formula:** `bet = 0.25 * edge * bankroll / market_price`
+**Batch Kelly formula:** `bet = (KELLY_FRACTION / batch_size) * edge * bankroll`
+
+When placing N bets simultaneously, each bet's Kelly fraction is divided by N. This prevents over-committing bankroll on simultaneous bets -- total batch exposure stays proportional to what a single full-fraction bet would allocate. `KELLY_FRACTION` is configurable in `.env` (default: 0.25).
 
 The result is then capped by (in order): max concentration (20% of bankroll), max bet size ($50 sports / $100 prediction), and available bankroll.
 
