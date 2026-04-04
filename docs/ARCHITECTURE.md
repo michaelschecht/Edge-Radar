@@ -227,5 +227,5 @@ For the full enhancement roadmap (completed and pending items), see [ROADMAP.md]
 Key remaining priorities:
 - **Backtesting framework** -- replay settled markets, calibration curve, win rate by dimension
 - **Bullpen availability tracker** -- high-value for MLB totals (pitcher data now live)
-- **NBA rest days / back-to-backs** -- 5-7 point swing, currently unmodeled
+- **Injury impact scoring** -- ESPN injury reports, star player adjustments
 - **Wind direction classification** -- NWS bearing relative to stadium orientation
