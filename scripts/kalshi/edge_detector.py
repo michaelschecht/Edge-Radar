@@ -1661,6 +1661,9 @@ def main():
                         help="Execute only these specific tickers")
     scan_p.add_argument("--date", type=str, default=None,
                         help="Only show games on this date (today, tomorrow, YYYY-MM-DD, mar31)")
+    scan_p.add_argument("--budget", type=str, default=None,
+                        help="Max total cost for the batch. Percentage of bankroll (e.g. '10%%') "
+                             "or dollar amount (e.g. '15'). Bets scaled down proportionally.")
     scan_p.add_argument("--exclude-open", action="store_true",
                         help="Exclude markets where you already have an open position")
     scan_p.add_argument("--report-dir", type=str, default=None,
@@ -1697,8 +1700,23 @@ def main():
             rprint(f"[dim]Excluded open positions: {before} -> {len(opportunities)} opportunities[/dim]")
 
         sized_orders = None
-        if opportunities and (args.execute or args.unit_size is not None):
+        if opportunities and (args.execute or args.unit_size is not None or args.budget is not None):
             from kalshi_executor import execute_pipeline, UNIT_SIZE
+            # Parse --budget: "10%" -> 0.10 (fraction), "15" -> 15.0 (dollars)
+            budget_val = None
+            if args.budget is not None:
+                raw = args.budget.strip().rstrip("%")
+                num = float(raw)
+                # Treat values <= 100 without a decimal point as percentages
+                # (e.g., "15" or "15%" both mean 15% of bankroll).
+                # Values > 100 are treated as flat dollar amounts.
+                # Explicit decimals like "0.15" are treated as fractions.
+                if num <= 1:
+                    budget_val = num  # already a fraction (e.g., 0.15)
+                elif num <= 100:
+                    budget_val = num / 100  # percentage (e.g., 15 -> 0.15)
+                else:
+                    budget_val = num  # flat dollar amount (e.g., 150)
             sized_orders = execute_pipeline(
                 client=client,
                 opportunities=opportunities,
@@ -1708,6 +1726,7 @@ def main():
                 pick_rows=args.pick,
                 pick_tickers=args.ticker,
                 max_per_game=args.max_per_game,
+                budget=budget_val,
             )
         else:
             print_opportunities(opportunities)

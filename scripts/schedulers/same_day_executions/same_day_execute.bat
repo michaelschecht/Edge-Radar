@@ -8,7 +8,7 @@ REM
 REM  Recommended run time: 8 AM ET (all markets posted, sportsbook lines sharp,
 REM  Kalshi lag window open)
 REM
-REM  Unit size: $0.50 | Max bets: 5 total | Date: today
+REM  Unit size: $0.50 | Max bets: 5 total | Budget: 15% | Date: today
 REM  All 9 risk gates enforced (Kelly sizing, per-event cap, concentration, etc.)
 REM  Report saved to: reports\Sports\schedulers\same-day-executions
 REM
@@ -28,7 +28,7 @@ echo --- Portfolio Status (Before) ---
 echo.
 
 echo --- Scanning and Executing ---
-.venv\Scripts\python.exe scripts\scan.py sports --unit-size .5 --max-bets 5 --date today --exclude-open --save --report-dir "reports\Sports\schedulers\same-day-executions" --execute
+.venv\Scripts\python.exe scripts\scan.py sports --unit-size .5 --max-bets 5 --budget 15% --date today --exclude-open --save --report-dir "reports\Sports\schedulers\same-day-executions" --execute
 echo.
 
 echo --- Portfolio Status (After) ---

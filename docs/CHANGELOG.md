@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-04-04 (evening) -- Budget Cap for Batch Execution
+
+### `--budget` Flag
+- **Problem:** No way to control total batch cost. Kelly + unit sizing determines per-bet amounts independently, but there was no ceiling on the sum. Users wanting to limit daily exposure to a fixed percentage of bankroll (e.g., 10%) had no mechanism to enforce it.
+- **Fix:** New `--budget` flag on `scan.py`, `edge_detector.py`, and `kalshi_executor.py`. Accepts a percentage of bankroll (e.g., `10%`) or a flat dollar amount (e.g., `15`).
+- **How it works:** After all bets are sized normally (Kelly/flat, per-bet caps), if total cost exceeds the budget, all approved bets are proportionally scaled down. Higher-edge bets keep proportionally more capital (Kelly weighting preserved). Each bet keeps at least 1 contract, so the actual total may slightly undershoot the budget due to contract rounding.
+- **No budget = no change:** When `--budget` is omitted, the pipeline behaves exactly as before. When total is already under the budget, a green confirmation message is shown and no scaling occurs.
+- Example: `scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date today --exclude-open`
+- Files changed: `kalshi_executor.py` (new `_apply_budget_cap()`, `budget` param on `execute_pipeline`, CLI flag), `edge_detector.py` (CLI flag + pass-through), `scan.py` (help text)
+
+---
+
 ## 2026-04-04 (afternoon) -- Fill-Based Accounting, Sizing Gate Docs, Pitcher Parallelization
 
 ### X5. Fill-Based Trade Logging

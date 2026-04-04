@@ -203,6 +203,17 @@ When placing N bets simultaneously, each bet's Kelly fraction is divided by N. T
 
 The result is then capped by (in order): max concentration (20% of bankroll), max bet size ($50 sports / $100 prediction), and available bankroll.
 
+### Budget Cap (Batch-Level)
+
+An optional `--budget` flag caps the **total cost of all bets in a batch**. When the sum of individually-sized bets exceeds the budget, every bet is proportionally scaled down so the total stays within the limit. Each bet keeps at least 1 contract (so the actual total may slightly undershoot due to contract rounding). Higher-edge bets retain proportionally more capital -- Kelly's edge-based weighting is preserved.
+
+The budget accepts a percentage of bankroll (e.g., `--budget 10%`) or a flat dollar amount (e.g., `--budget 15`). When omitted, the pipeline behaves exactly as before. When the total is already under the budget, no scaling occurs.
+
+```bash
+# Cap total batch cost to 10% of bankroll
+python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date today --exclude-open
+```
+
 Examples at UNIT_SIZE = $1.00, bankroll = $50:
 
 | Ask Price | Edge | Flat Contracts | Kelly Contracts | Used | Actual Cost |

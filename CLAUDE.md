@@ -207,6 +207,9 @@ python scripts/scan.py futures --filter nba-futures
 python scripts/scan.py prediction --filter crypto --cross-ref
 python scripts/scan.py polymarket --filter crypto
 
+# Execute with budget cap (total batch cost <= 10% of bankroll)
+python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date today --exclude-open --execute
+
 # Check current positions
 python scripts/kalshi/risk_check.py --report positions
 
