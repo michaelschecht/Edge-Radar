@@ -79,7 +79,7 @@ Every order must pass all nine gates before execution:
 | 4 | **Composite score** | Must score 6.0+ across edge, confidence, liquidity |
 | 5 | **Confidence floor** | Medium or higher — requires 5+ books agreeing |
 | 6 | **Duplicate check** | Can't double up on the same market |
-| 7 | **Per-event cap** | Max 3 positions on the same game |
+| 7 | **Per-event cap** | Max 2 positions on the same game |
 | 8 | **Concentration limit** | No single position > 20% of bankroll |
 | 9 | **Bet size cap** | $50/sports, $100/prediction hard ceiling |
 
@@ -89,18 +89,23 @@ All limits are configurable via `.env`. See [Architecture](docs/ARCHITECTURE.md)
 
 ## 🚀 Quick Start
 
+> **New here?** See the full **[Setup Guide](docs/setup/SETUP_GUIDE.md)** for step-by-step instructions on API keys, private key generation, environment configuration, and your first scan.
+
 ```bash
 # 1. Install and configure
 pip install -r requirements.txt
-cp .env.example .env  # fill in KALSHI_API_KEY, ODDS_API_KEYS
+cp .env.example .env  # See setup guide for API key instructions
 
-# 2. Scan for opportunities (preview only)
+# 2. Verify everything works
+python scripts/doctor.py
+
+# 3. Scan for opportunities (preview only)
 python scripts/scan.py sports --filter nba
 
-# 3. Execute after reviewing
+# 4. Execute after reviewing
 python scripts/scan.py sports --filter nba --execute --unit-size 1 --max-bets 5
 
-# 4. Settle and check P&L
+# 5. Settle and check P&L
 python scripts/kalshi/kalshi_settler.py report --detail --save
 ```
 
@@ -310,6 +315,7 @@ Edge-Radar/
 
 | Guide | Description |
 | --- | --- |
+| **[Setup Guide](docs/setup/SETUP_GUIDE.md)** | API keys, private keys, environment config, first scan |
 | **[Scripts Reference](docs/SCRIPTS_REFERENCE.md)** | Every script, flag, and example |
 | **[Sports Guide](docs/kalshi-sports-betting/SPORTS_GUIDE.md)** | 27 filters, edge detection, daily workflow |
 | **[Futures Guide](docs/kalshi-futures-betting/FUTURES_GUIDE.md)** | NFL, NBA, NHL, MLB, golf championships |
