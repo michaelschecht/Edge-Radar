@@ -13,41 +13,6 @@ For domain-specific guides: **[Sports](kalshi-sports-betting/SPORTS_GUIDE.md)** 
 
 ## 🗺️ Which Script Should I Use?
 
-```mermaid
-graph TD
-    START((What do you\nwant to do?))
-
-    SCAN{Scan for bets}
-    EXEC{Scan + execute}
-    PORT{Check portfolio}
-    SETT{Settle + P&L}
-
-    SP["scan.py sports --filter mlb"]
-    FU["scan.py futures --filter nba-futures"]
-    PR["scan.py prediction --filter crypto"]
-    PO["scan.py polymarket --filter crypto"]
-
-    EX["Add --execute flag\nto any scan command"]
-
-    ST["kalshi_executor.py status"]
-    RC["risk_check.py"]
-    RP["risk_check.py --report positions"]
-
-    SE["kalshi_settler.py settle"]
-    RE["kalshi_settler.py report --detail"]
-
-    START --> SCAN & EXEC & PORT & SETT
-
-    SCAN --> SP & FU & PR & PO
-    EXEC --> EX
-
-    PORT --> ST & RC & RP
-    SETT --> SE & RE
-
-    style START fill:#0078D4,color:#fff
-    style EX fill:#2ea44f,color:#fff
-```
-
 | Goal | Command | Details |
 | :--- | :--- | :--- |
 | **Scan for sports bets** | `scan.py sports --filter mlb` | [edge_detector.md](scripts/edge_detector.md) |
@@ -310,33 +275,6 @@ python scripts/schedulers/automation/install_windows_task.py remove    # Remove 
 ## 🤖 Automated Execution
 
 Pre-built `.bat` scripts that scan all major sports in a single command and execute the top picks ranked by composite score.
-
-```mermaid
-graph LR
-    subgraph "Same-Day (8 AM ET)"
-        S1["same_day_scan.bat\nPreview only"]
-        S2["same_day_execute.bat\nScan + execute"]
-    end
-
-    subgraph "Next-Day (9 PM ET)"
-        N1["next_day_scan.bat\nPreview tomorrow"]
-        N2["next_day_execute.bat\nScan + execute tomorrow"]
-    end
-
-    subgraph "Account Reports"
-        W["weekly_account_report.bat\nWeekly P&L + risk snapshot"]
-        M["monthly_account_report.bat\nMonthly P&L + risk snapshot"]
-    end
-
-    subgraph "Per-Sport Scans"
-        PS["mlb_morning_scan.bat\nnba_morning_scan.bat\nnhl_morning_scan.bat\nnfl_morning_scan.bat"]
-    end
-
-    style S2 fill:#2ea44f,color:#fff
-    style N2 fill:#2ea44f,color:#fff
-    style W fill:#F97316,color:#fff
-    style M fill:#F97316,color:#fff
-```
 
 ### Same-Day (Primary — 8 AM ET)
 

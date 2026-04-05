@@ -14,70 +14,11 @@
 
 Edge-Radar is an automated edge-detection and execution pipeline for Kalshi prediction markets and sports betting. It scans thousands of open markets, cross-references prices against sportsbook consensus odds and external data models, identifies mispriced contracts, applies risk gates and position sizing, and executes limit orders — logging every decision for post-hoc calibration.
 
-```mermaid
-graph LR
-    subgraph Data Sources
-        A1[12 Sportsbooks]
-        A2[9 Free APIs]
-    end
-
-    subgraph Edge-Radar Pipeline
-        B[Fetch & Categorize]
-        C[Edge Detection Engine]
-        D[Risk Gates]
-        E[Kelly Sizing]
-        F[Execute on Kalshi]
-    end
-
-    subgraph Output
-        G[Trade Log & CLV]
-        H[Reports & P&L]
-    end
-
-    A1 --> B
-    A2 --> B
-    B --> C
-    C -->|Edge ≥ 3%| D
-    C -->|Edge < 3%| X((Skip))
-    D -->|Pass| E
-    D -->|Fail| Y((Reject))
-    E --> F
-    F --> G
-    G --> H
-
-    style C fill:#8B5CF6,color:#fff
-    style D fill:#e74c3c,color:#fff
-    style F fill:#2ea44f,color:#fff
-    style X fill:#6B7280,color:#fff
-    style Y fill:#6B7280,color:#fff
-```
-
 ---
 
 ## 🔄 Pipeline Overview
 
 The system processes every opportunity through seven sequential stages. Each stage either advances the opportunity or eliminates it.
-
-```mermaid
-graph TD
-    F1["1️⃣ FETCH\nPull 5,000+ Kalshi markets\n+ sportsbook odds + API feeds"]
-    F2["2️⃣ CATEGORIZE\nClassify: game, spread, total,\nfutures, prediction, prop"]
-    F3["3️⃣ COMPARE\nFair value vs Kalshi price\nScore: edge, confidence, liquidity, time"]
-    F4["4️⃣ CAP\nMax 3 opportunities per game\nEnforce diversification"]
-    F5["5️⃣ RISK-CHECK\n9 gates: loss limit, position count,\nedge, score, confidence, duplicates"]
-    F6["6️⃣ EXECUTE\nPlace limit orders on Kalshi\nLog edge, sizing, fill price, fees"]
-    F7["7️⃣ MONITOR\nTrack positions & resting orders\nSettle → P&L → CLV calibration"]
-
-    F1 --> F2 --> F3 --> F4 --> F5 --> F6 --> F7
-
-    style F1 fill:#0078D4,color:#fff
-    style F2 fill:#0078D4,color:#fff
-    style F3 fill:#8B5CF6,color:#fff
-    style F4 fill:#F97316,color:#fff
-    style F5 fill:#e74c3c,color:#fff
-    style F6 fill:#2ea44f,color:#fff
-    style F7 fill:#6B7280,color:#fff
-```
 
 | Stage | Action | Key Detail |
 | :--- | :--- | :--- |
@@ -94,40 +35,6 @@ graph TD
 ## 🧠 Edge Detection Models
 
 Each market type has a specialized edge model. All models produce the same output: a **fair value probability** that gets compared against the Kalshi ask price.
-
-```mermaid
-graph TD
-    subgraph "Input Layer"
-        O[Sportsbook Odds\n8-12 US books]
-        S[Team Stats\nESPN / NHL / MLB APIs]
-        W[Weather\nNWS 61 venues]
-        P[Pitcher Data\nMLB Stats API]
-        M[Market Data\nCoinGecko / Yahoo / Polymarket]
-    end
-
-    subgraph "Edge Models"
-        ML[Moneyline\n2-Way De-Vig]
-        SP[Spreads\nNormal CDF]
-        TO[Totals\nNormal CDF + Weather]
-        FU[Futures\nN-Way De-Vig]
-        PR[Predictions\nModel-Specific]
-    end
-
-    subgraph "Output"
-        FV[Fair Value Probability]
-        ED[Edge = Fair Value − Kalshi Price]
-    end
-
-    O --> ML & SP & TO & FU
-    S --> ML & SP & TO
-    W --> TO
-    P --> TO
-    M --> PR
-    ML & SP & TO & FU & PR --> FV --> ED
-
-    style FV fill:#8B5CF6,color:#fff
-    style ED fill:#2ea44f,color:#fff
-```
 
 ### Game Outcomes (Moneyline / 2-Way De-Vig)
 
@@ -174,41 +81,6 @@ For championship and season-long markets with N outcomes, de-vig the full N-way 
 ## 📐 How Scoring Works
 
 Four independent attributes are calculated for every opportunity. They build on each other but are derived from different data sources.
-
-```mermaid
-graph LR
-    subgraph "Data Sources"
-        SO[Sportsbook Odds]
-        BC[Book Count & Agreement]
-        BA[Bid/Ask Spread]
-        TE[Time to Expiry]
-    end
-
-    subgraph "Attributes"
-        FV["FAIR VALUE\n(weighted median)"]
-        EDGE["EDGE\n(fair value − Kalshi price)"]
-        CONF["CONFIDENCE\n(data quality signal)"]
-        LIQ["LIQUIDITY\n(market tightness)"]
-        TIME["TIME\n(expiry factor)"]
-    end
-
-    subgraph "Composite"
-        SCORE["SCORE (0-10)\n40% edge + 30% confidence\n+ 20% liquidity + 10% time"]
-    end
-
-    SO --> FV --> EDGE
-    BC --> CONF
-    BA --> LIQ
-    TE --> TIME
-    EDGE --> SCORE
-    CONF --> SCORE
-    LIQ --> SCORE
-    TIME --> SCORE
-
-    style SCORE fill:#F97316,color:#fff
-    style EDGE fill:#2ea44f,color:#fff
-    style CONF fill:#8B5CF6,color:#fff
-```
 
 ### Fair Value
 
@@ -282,49 +154,6 @@ The minimum score to pass risk checks is **6.0** (configurable via `MIN_COMPOSIT
 
 Every order must pass gates 1-7 before execution. Gates 8-9 are sizing caps that downsize the order rather than rejecting it.
 
-```mermaid
-graph TD
-    OPP[Opportunity\nEdge ≥ 3%]
-
-    G1{Gate 1\nDaily Loss Limit}
-    G2{Gate 2\nPosition Count}
-    G3{Gate 3\nEdge Threshold}
-    G4{Gate 4\nComposite Score}
-    G5{Gate 5\nConfidence Floor}
-    G6{Gate 6\nDuplicate Check}
-    G7{Gate 7\nPer-Event Cap}
-
-    G8["Gate 8\nConcentration Cap\n(downsize, not reject)"]
-    G9["Gate 9\nBet Size Cap\n(downsize, not reject)"]
-
-    EXEC[Execute on Kalshi]
-    REJ((Rejected))
-
-    OPP --> G1
-    G1 -->|Pass| G2
-    G1 -->|Fail| REJ
-    G2 -->|Pass| G3
-    G2 -->|Fail| REJ
-    G3 -->|Pass| G4
-    G3 -->|Fail| REJ
-    G4 -->|Pass| G5
-    G4 -->|Fail| REJ
-    G5 -->|Pass| G6
-    G5 -->|Fail| REJ
-    G6 -->|Pass| G7
-    G6 -->|Fail| REJ
-    G7 -->|Pass| G8
-    G7 -->|Fail| REJ
-    G8 --> G9
-    G9 --> EXEC
-
-    style OPP fill:#8B5CF6,color:#fff
-    style EXEC fill:#2ea44f,color:#fff
-    style REJ fill:#e74c3c,color:#fff
-    style G8 fill:#F97316,color:#fff
-    style G9 fill:#F97316,color:#fff
-```
-
 | | Gate | Check | Behavior |
 | :--- | :--- | :--- | :--- |
 | 1 | **Daily loss limit** | Sum of realized losses today | **Reject** if losses ≥ `MAX_DAILY_LOSS` |
@@ -395,51 +224,6 @@ python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date to
 ---
 
 ## 📂 Data Flow
-
-```mermaid
-graph TD
-    subgraph "Runtime Input"
-        KA[Kalshi API\nMarkets + Positions]
-        OA[The Odds API\n12 Sportsbooks]
-        EA[External APIs\nESPN, NWS, CoinGecko,\nYahoo, MLB, NHL, Polymarket]
-    end
-
-    subgraph "Processing"
-        ED[Edge Detector\nFair value + scoring]
-        EX[Executor\nRisk gates + sizing + orders]
-        ST[Settler\nSettlement + P&L]
-    end
-
-    subgraph "Data Files"
-        TL["📄 kalshi_trades.json\nTrade log: edge, sizing,\nfill price, fees, status"]
-        SL["📄 kalshi_settlements.json\nOutcome, realized P&L,\nedge calibration"]
-        WL["📄 kalshi_opportunities.json\nLatest scored opportunities"]
-        OP["📄 open_positions.json\nCurrent open positions"]
-        DB["🗄️ finagent.db\nSQLite database"]
-    end
-
-    subgraph "Reports"
-        SR["📊 Scan Reports\nreports/Sports/"]
-        PR["📊 P&L Reports\nreports/Accounts/Kalshi/"]
-    end
-
-    KA --> ED
-    OA --> ED
-    EA --> ED
-    ED --> WL
-    ED --> EX
-    EX --> TL
-    EX --> OP
-    KA --> ST
-    TL --> ST
-    ST --> SL
-    ST --> PR
-    ED --> SR
-
-    style ED fill:#8B5CF6,color:#fff
-    style EX fill:#2ea44f,color:#fff
-    style ST fill:#F97316,color:#fff
-```
 
 | File Path | Contents |
 | :--- | :--- |
