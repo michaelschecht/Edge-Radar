@@ -465,18 +465,147 @@ def _save_dashboard_report(client, bal, positions, resting, today_trades, daily_
             )
         md.append(f"| **TOTAL** | | | | **${total_exp:.2f}** | **${total_pnl_pos:+.2f}** |")
 
-    # Today's P&L
-    wins = [t for t in today_trades if t.get("net_pnl", 0) > 0]
-    losses = [t for t in today_trades if t.get("net_pnl", 0) < 0]
-    wagered = sum(get_filled_cost(t) for t in today_trades)
-    md.append(f"")
-    md.append(f"## Today's P&L")
-    md.append(f"")
-    md.append(f"| Metric | Value |")
-    md.append(f"|--------|-------|")
-    md.append(f"| Realized P&L | **${daily_pnl:+.2f}** |")
-    md.append(f"| Wagered | ${wagered:.2f} |")
-    md.append(f"| Trades | {len(today_trades)} ({len(wins)}W - {len(losses)}L) |")
+    # Recent settlements from Kalshi API (last 7 days)
+    from datetime import timedelta
+    from ticker_display import format_bet_label, bet_type_from_ticker, sport_from_ticker
+
+    try:
+        cutoff = (now - timedelta(days=7)).isoformat()
+        all_settlements = []
+        cursor = None
+        for _ in range(20):
+            resp = client.get_settlements(limit=200, cursor=cursor)
+            setts = resp.get("settlements", [])
+            all_settlements.extend(setts)
+            cursor = resp.get("cursor", "")
+            if not cursor:
+                break
+
+        recent = [s for s in all_settlements if (s.get("settled_time") or "") >= cutoff]
+
+        # Normalize settlement records
+        settled_records = []
+        for s in recent:
+            yes_count = float(s.get("yes_count_fp", 0))
+            no_count = float(s.get("no_count_fp", 0))
+            yes_cost = float(s.get("yes_total_cost_dollars", 0))
+            no_cost = float(s.get("no_total_cost_dollars", 0))
+            revenue_cents = s.get("revenue", 0)
+            revenue = revenue_cents / 100 if isinstance(revenue_cents, int) and revenue_cents > 1 else float(revenue_cents)
+            fees = float(s.get("fee_cost", 0))
+            result = s.get("market_result", "")
+            side = "yes" if yes_count > 0 and (no_count == 0 or yes_cost > no_cost) else "no"
+            cost = yes_cost if side == "yes" else no_cost
+            won = (side == "yes" and result == "yes") or (side == "no" and result == "no")
+            net_pnl = revenue - cost - fees
+
+            if cost > 0 or revenue > 0:
+                settled_records.append({
+                    "ticker": s.get("ticker", ""),
+                    "side": side, "cost": cost, "revenue": revenue,
+                    "fees": fees, "net_pnl": round(net_pnl, 4),
+                    "won": won, "result": result,
+                    "contracts": int(yes_count if side == "yes" else no_count),
+                    "settled_time": s.get("settled_time", ""),
+                })
+
+        # Settlement summary
+        if settled_records:
+            s_wins = [r for r in settled_records if r["won"]]
+            s_losses = [r for r in settled_records if not r["won"]]
+            s_pnl = sum(r["net_pnl"] for r in settled_records)
+            s_wagered = sum(r["cost"] for r in settled_records)
+            s_revenue = sum(r["revenue"] for r in settled_records)
+            s_fees = sum(r["fees"] for r in settled_records)
+            s_roi = s_pnl / s_wagered if s_wagered > 0 else 0
+            s_wr = len(s_wins) / len(settled_records) if settled_records else 0
+            s_avg_win = sum(r["net_pnl"] for r in s_wins) / len(s_wins) if s_wins else 0
+            s_avg_loss = sum(r["net_pnl"] for r in s_losses) / len(s_losses) if s_losses else 0
+
+            pnl_sign = "+" if s_pnl >= 0 else ""
+            md.append(f"")
+            md.append(f"## Settlement Summary (Last 7 Days — {len(settled_records)} bets)")
+            md.append(f"")
+            md.append(f"| Metric | Value |")
+            md.append(f"|--------|-------|")
+            md.append(f"| Record | **{len(s_wins)}W - {len(s_losses)}L ({s_wr:.0%})** |")
+            md.append(f"| Net P&L | **${s_pnl:+.2f}** |")
+            md.append(f"| Total wagered | ${s_wagered:.2f} |")
+            md.append(f"| Total revenue | ${s_revenue:.2f} |")
+            md.append(f"| Total fees | ${s_fees:.2f} |")
+            md.append(f"| ROI | **{s_roi:+.1%}** |")
+            md.append(f"| Avg win | ${s_avg_win:+.2f} |")
+            md.append(f"| Avg loss | ${s_avg_loss:+.2f} |")
+
+            if s_wins and s_losses:
+                loss_total = abs(sum(r["net_pnl"] for r in s_losses))
+                if loss_total > 0:
+                    md.append(f"| Profit factor | {abs(sum(r['net_pnl'] for r in s_wins)) / loss_total:.2f} |")
+
+            best = max(settled_records, key=lambda r: r["net_pnl"])
+            worst = min(settled_records, key=lambda r: r["net_pnl"])
+            md.append(f"| Best trade | ${best['net_pnl']:+.2f} — {format_bet_label(best['ticker'], best['ticker'])[:30]} |")
+            md.append(f"| Worst trade | ${worst['net_pnl']:+.2f} — {format_bet_label(worst['ticker'], worst['ticker'])[:30]} |")
+
+            # By sport breakdown
+            sport_groups: dict[str, list] = {}
+            for r in settled_records:
+                sport = sport_from_ticker(r["ticker"]) or "Other"
+                sport_groups.setdefault(sport, []).append(r)
+            if sport_groups:
+                md.append(f"")
+                md.append(f"### By Sport")
+                md.append(f"")
+                md.append(f"| Sport | Bets | Win Rate | P&L | ROI |")
+                md.append(f"|-------|------|----------|-----|-----|")
+                for name, recs in sorted(sport_groups.items(), key=lambda x: -sum(r["net_pnl"] for r in x[1])):
+                    n = len(recs)
+                    w = sum(1 for r in recs if r["won"])
+                    pnl = sum(r["net_pnl"] for r in recs)
+                    wag = sum(r["cost"] for r in recs)
+                    roi_v = pnl / wag if wag > 0 else 0
+                    md.append(f"| {name} | {n} | {w}/{n} ({w/n:.0%}) | ${pnl:+.2f} | {roi_v:+.0%} |")
+
+            # By type breakdown
+            type_groups: dict[str, list] = {}
+            for r in settled_records:
+                btype = bet_type_from_ticker(r["ticker"])
+                type_groups.setdefault(btype, []).append(r)
+            if type_groups:
+                md.append(f"")
+                md.append(f"### By Type")
+                md.append(f"")
+                md.append(f"| Type | Bets | Win Rate | P&L | ROI |")
+                md.append(f"|------|------|----------|-----|-----|")
+                for name, recs in sorted(type_groups.items(), key=lambda x: -sum(r["net_pnl"] for r in x[1])):
+                    n = len(recs)
+                    w = sum(1 for r in recs if r["won"])
+                    pnl = sum(r["net_pnl"] for r in recs)
+                    wag = sum(r["cost"] for r in recs)
+                    roi_v = pnl / wag if wag > 0 else 0
+                    md.append(f"| {name} | {n} | {w}/{n} ({w/n:.0%}) | ${pnl:+.2f} | {roi_v:+.0%} |")
+
+            # Recent settlement detail (last 15)
+            recent_sorted = sorted(settled_records, key=lambda x: x.get("settled_time", ""), reverse=True)[:15]
+            md.append(f"")
+            md.append(f"### Recent Settlements (latest 15)")
+            md.append(f"")
+            md.append(f"| Bet | Type | Side | Result | Qty | Cost | Revenue | P&L |")
+            md.append(f"|-----|------|------|--------|-----|------|---------|-----|")
+            for r in recent_sorted:
+                won_str = "W" if r["won"] else "L"
+                md.append(
+                    f"| {format_bet_label(r['ticker'], r['ticker'])[:30]} "
+                    f"| {bet_type_from_ticker(r['ticker'])} "
+                    f"| {r['side'].upper()} "
+                    f"| {r['result'].upper()} ({won_str}) "
+                    f"| {r['contracts']} "
+                    f"| ${r['cost']:.2f} "
+                    f"| ${r['revenue']:.2f} "
+                    f"| ${r['net_pnl']:+.2f} |"
+                )
+    except Exception as e:
+        log.warning("Could not fetch settlements for dashboard: %s", e)
 
     # Resting orders
     if resting:

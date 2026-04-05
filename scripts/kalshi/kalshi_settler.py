@@ -229,182 +229,248 @@ def settle_trades(client: KalshiClient) -> dict:
 
 # ── Performance Report ────────────────────────────────────────────────────────
 
+def _fetch_api_settlements(client: KalshiClient, days: int | None = None) -> list[dict]:
+    """Fetch all settlements from the Kalshi API, optionally filtered by date."""
+    all_settlements: list[dict] = []
+    cursor = None
+    for _ in range(20):  # safety limit
+        resp = client.get_settlements(limit=200, cursor=cursor)
+        settlements = resp.get("settlements", [])
+        all_settlements.extend(settlements)
+        cursor = resp.get("cursor", "")
+        if not cursor:
+            break
+
+    if days is not None:
+        from datetime import timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        all_settlements = [s for s in all_settlements if (s.get("settled_time") or "") >= cutoff]
+
+    return all_settlements
+
+
+def _settlement_to_record(s: dict) -> dict:
+    """Convert a Kalshi API settlement into a normalized record for reporting."""
+    yes_count = float(s.get("yes_count_fp", 0))
+    no_count = float(s.get("no_count_fp", 0))
+    yes_cost = float(s.get("yes_total_cost_dollars", 0))
+    no_cost = float(s.get("no_total_cost_dollars", 0))
+    revenue_cents = s.get("revenue", 0)
+    revenue = revenue_cents / 100 if isinstance(revenue_cents, int) and revenue_cents > 1 else float(revenue_cents)
+    fees = float(s.get("fee_cost", 0))
+    result = s.get("market_result", "")
+
+    # Determine which side we were on
+    if yes_count > 0 and no_count > 0:
+        side = "yes" if yes_cost > no_cost else "no"
+    elif yes_count > 0:
+        side = "yes"
+    else:
+        side = "no"
+
+    contracts = yes_count if side == "yes" else no_count
+    cost = yes_cost if side == "yes" else no_cost
+    won = (side == "yes" and result == "yes") or (side == "no" and result == "no")
+    net_pnl = revenue - cost - fees
+
+    return {
+        "ticker": s.get("ticker", ""),
+        "event_ticker": s.get("event_ticker", ""),
+        "side": side,
+        "contracts": int(contracts),
+        "cost": round(cost, 4),
+        "revenue": round(revenue, 4),
+        "fees": round(fees, 4),
+        "net_pnl": round(net_pnl, 4),
+        "roi": round(net_pnl / cost, 4) if cost > 0 else 0,
+        "won": won,
+        "result": result,
+        "settled_time": s.get("settled_time", ""),
+    }
+
+
 def generate_report(detail: bool = False, save: bool = False, days: int | None = None):
-    """Generate P&L and performance report from trade log.
+    """Generate P&L and performance report from Kalshi API + local trade log.
+
+    Pulls settlement data directly from the Kalshi API so the report is
+    accurate even for trades placed outside Edge-Radar (e.g. on the website).
+    Local trade log data enriches the report with edge estimates and confidence.
 
     Args:
         detail: Show per-trade breakdown table.
         save: Write report to reports/Accounts/Kalshi/ with today's date.
         days: Only include trades settled in the last N days. None = all time.
     """
+    from ticker_display import (
+        format_bet_label, bet_type_from_ticker,
+        parse_game_datetime, sport_from_ticker,
+    )
+
+    # ── Fetch data from Kalshi API ───────────────────────────────────────────
+    client = KalshiClient()
+
+    rprint("[dim]Fetching account data from Kalshi API...[/dim]")
+    api_settlements = _fetch_api_settlements(client, days=days)
+    api_positions = client.get_positions(limit=200, count_filter="position").get("market_positions", [])
+    balance = client.get_balance_dollars()
+
+    # Normalize settlements
+    settled_records = [_settlement_to_record(s) for s in api_settlements]
+    # Filter out zero-exposure settlements (no position)
+    settled_records = [r for r in settled_records if r["cost"] > 0 or r["revenue"] > 0]
+
+    # Enrich with local trade log data (edge estimates, confidence, etc.)
     trade_log = load_trade_log()
+    local_by_ticker = {}
+    for t in trade_log:
+        local_by_ticker[t.get("ticker", "")] = t
 
-    if not trade_log:
-        rprint("[yellow]No trades in log.[/yellow]")
-        return
+    for rec in settled_records:
+        local = local_by_ticker.get(rec["ticker"])
+        if local:
+            rec["edge_estimated"] = local.get("edge_estimated", 0)
+            rec["confidence"] = local.get("confidence", "")
+            rec["category"] = local.get("category", "")
+            rec["title"] = local.get("title", "")
+            rec["composite_score"] = local.get("composite_score", 0)
 
-    settled = [t for t in trade_log if t.get("closed_at") is not None]
-    unsettled = [t for t in trade_log if t.get("closed_at") is None and t.get("status") != "error"]
-
-    # Apply date filter
-    if days is not None:
-        from datetime import timedelta
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-        settled = [t for t in settled if (t.get("closed_at") or "") >= cutoff]
-
-    # Markdown lines for file output (built alongside console output)
+    # ── Markdown + console output ────────────────────────────────────────────
     md: list[str] = []
-
     generated_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-
     period = f"Last {days} days" if days else "All time"
-    rprint(f"\n-- Kalshi Performance Report ({period}) --")
-    rprint(f"  Generated: {generated_at}")
-    rprint(f"  Total trades:    {len(trade_log)}")
-    rprint(f"  Settled:         {len(settled)}")
-    rprint(f"  Open/Pending:    {len(unsettled)}")
 
-    md.append(f"# Kalshi Performance Report ({period})")
+    rprint(f"\n-- Kalshi Account Report ({period}) --")
+    rprint(f"  Generated: {generated_at}")
+
+    md.append(f"# Kalshi Account Report ({period})")
     md.append(f"")
     md.append(f"*Generated: {generated_at}*")
+
+    # ── Account Balance ──────────────────────────────────────────────────────
+    bal = balance.get("balance", 0)
+    portfolio = balance.get("portfolio_value", 0)
+    total_value = bal + portfolio
+
+    rprint(f"\n[bold]Account Balance[/bold]")
+    rprint(f"  Available:       ${bal:.2f}")
+    rprint(f"  Portfolio value: ${portfolio:.2f}")
+    rprint(f"  Total value:     ${total_value:.2f}")
+
+    md.append(f"")
+    md.append(f"## Account Balance")
     md.append(f"")
     md.append(f"| Metric | Value |")
     md.append(f"|--------|-------|")
-    md.append(f"| Total trades | {len(trade_log)} |")
-    md.append(f"| Settled | {len(settled)} |")
-    md.append(f"| Open/Pending | {len(unsettled)} |")
+    md.append(f"| Available | ${bal:.2f} |")
+    md.append(f"| Portfolio value | ${portfolio:.2f} |")
+    md.append(f"| Total value | **${total_value:.2f}** |")
 
-    if not settled:
-        rprint("\n  No settled trades yet -- run 'settle' after markets resolve.")
+    # ── Open Positions (from API) ────────────────────────────────────────────
+    live_positions = [p for p in api_positions if float(p.get("position_fp", 0)) != 0]
+
+    if live_positions:
+        rprint(f"\n[bold]Open Positions ({len(live_positions)})[/bold]")
         md.append(f"")
-        md.append(f"> No settled trades yet -- run `settle` after markets resolve.")
+        md.append(f"## Open Positions ({len(live_positions)})")
+        md.append(f"")
+        md.append(f"| Bet | Side | Contracts | Exposure |")
+        md.append(f"|-----|------|-----------|----------|")
 
-        if unsettled:
-            total_exposure = sum(get_filled_cost(t) for t in unsettled)
-            rprint(f"\nOpen Positions")
-            rprint(f"  Total exposure: ${total_exposure:.2f}")
-            md.append(f"")
-            md.append(f"## Open Positions")
-            md.append(f"")
-            md.append(f"**Total exposure:** ${total_exposure:.2f}")
-            md.append(f"")
-            md.append(f"| Ticker | Side | Contracts | Price | Edge |")
-            md.append(f"|--------|------|-----------|-------|------|")
-            for t in unsettled:
-                rprint(
-                    f"  {t['ticker'][:40]} | {t['side'].upper()} x{t.get('contracts',0)} "
-                    f"@ ${t.get('price_cents',0)/100:.2f} | edge={t.get('edge_estimated',0):.1%}"
-                )
-                md.append(
-                    f"| {t['ticker'][:40]} | {t['side'].upper()} | "
-                    f"{t.get('contracts',0)} | ${t.get('price_cents',0)/100:.2f} | "
-                    f"{t.get('edge_estimated',0):.1%} |"
-                )
+        for p in live_positions:
+            ticker = p.get("ticker", "")
+            pos = float(p.get("position_fp", 0))
+            side = "YES" if pos > 0 else "NO"
+            contracts = int(abs(pos))
+            exposure = float(p.get("market_exposure_dollars", 0))
+            local = local_by_ticker.get(ticker)
+            bet_label = format_bet_label(ticker, local.get("title", ticker) if local else ticker)
 
-        if save:
-            _save_report_file(md)
-        return
+            rprint(f"  {bet_label[:40]} | {side} x{contracts} | ${exposure:.2f}")
+            md.append(f"| {bet_label[:40]} | {side} | {contracts} | ${exposure:.2f} |")
 
-    # ── Aggregate stats
-    wins = [t for t in settled if t.get("settlement_won")]
-    losses = [t for t in settled if not t.get("settlement_won")]
+    # ── Settlement Summary ───────────────────────────────────────────────────
+    wins = [r for r in settled_records if r["won"]]
+    losses = [r for r in settled_records if not r["won"]]
 
-    total_pnl = sum(t.get("net_pnl", 0) for t in settled)
-    total_wagered = sum(get_filled_cost(t) for t in settled)
-    total_fees = sum(
-        float(t.get("taker_fees") or 0) + float(t.get("maker_fees") or 0)
-        for t in settled
-    )
-    win_rate = len(wins) / len(settled) if settled else 0
-    avg_win = sum(t.get("net_pnl", 0) for t in wins) / len(wins) if wins else 0
-    avg_loss = sum(t.get("net_pnl", 0) for t in losses) / len(losses) if losses else 0
+    total_settled = len(settled_records)
+    total_pnl = sum(r["net_pnl"] for r in settled_records)
+    total_wagered = sum(r["cost"] for r in settled_records)
+    total_revenue = sum(r["revenue"] for r in settled_records)
+    total_fees = sum(r["fees"] for r in settled_records)
+    win_rate = len(wins) / total_settled if total_settled else 0
+    avg_win = sum(r["net_pnl"] for r in wins) / len(wins) if wins else 0
+    avg_loss = sum(r["net_pnl"] for r in losses) / len(losses) if losses else 0
     roi = total_pnl / total_wagered if total_wagered > 0 else 0
 
     pnl_color = "green" if total_pnl >= 0 else "red"
-    rprint(f"\n[bold]P&L Summary[/bold]")
+
+    rprint(f"\n[bold]Settlement Summary ({total_settled} bets)[/bold]")
+    rprint(f"  Record:          {len(wins)}W - {len(losses)}L ({win_rate:.0%})")
     rprint(f"  Net P&L:         [{pnl_color}]${total_pnl:+.2f}[/{pnl_color}]")
     rprint(f"  Total wagered:   ${total_wagered:.2f}")
+    rprint(f"  Total revenue:   ${total_revenue:.2f}")
     rprint(f"  Total fees:      ${total_fees:.2f}")
     rprint(f"  ROI:             [{pnl_color}]{roi:+.1%}[/{pnl_color}]")
-
-    md.append(f"")
-    md.append(f"## P&L Summary")
-    md.append(f"")
-    md.append(f"| Metric | Value |")
-    md.append(f"|--------|-------|")
-    md.append(f"| Net P&L | **${total_pnl:+.2f}** |")
-    md.append(f"| Total wagered | ${total_wagered:.2f} |")
-    md.append(f"| Total fees | ${total_fees:.2f} |")
-    md.append(f"| ROI | **{roi:+.1%}** |")
-
-    rprint(f"\n[bold]Win/Loss[/bold]")
-    rprint(f"  Record:          {len(wins)}W - {len(losses)}L ({win_rate:.0%})")
     rprint(f"  Avg win:         ${avg_win:+.2f}")
     rprint(f"  Avg loss:        ${avg_loss:+.2f}")
 
     md.append(f"")
-    md.append(f"## Win/Loss")
+    md.append(f"## Settlement Summary ({total_settled} bets)")
     md.append(f"")
     md.append(f"| Metric | Value |")
     md.append(f"|--------|-------|")
-    md.append(f"| Record | {len(wins)}W - {len(losses)}L ({win_rate:.0%}) |")
+    md.append(f"| Record | **{len(wins)}W - {len(losses)}L ({win_rate:.0%})** |")
+    md.append(f"| Net P&L | **${total_pnl:+.2f}** |")
+    md.append(f"| Total wagered | ${total_wagered:.2f} |")
+    md.append(f"| Total revenue | ${total_revenue:.2f} |")
+    md.append(f"| Total fees | ${total_fees:.2f} |")
+    md.append(f"| ROI | **{roi:+.1%}** |")
     md.append(f"| Avg win | ${avg_win:+.2f} |")
     md.append(f"| Avg loss | ${avg_loss:+.2f} |")
 
     if wins and losses:
-        profit_factor = abs(sum(t["net_pnl"] for t in wins)) / abs(sum(t["net_pnl"] for t in losses))
-        rprint(f"  Profit factor:   {profit_factor:.2f}")
-        md.append(f"| Profit factor | {profit_factor:.2f} |")
+        loss_total = abs(sum(r["net_pnl"] for r in losses))
+        if loss_total > 0:
+            profit_factor = abs(sum(r["net_pnl"] for r in wins)) / loss_total
+            rprint(f"  Profit factor:   {profit_factor:.2f}")
+            md.append(f"| Profit factor | {profit_factor:.2f} |")
 
-    best = max(settled, key=lambda t: t.get("net_pnl", 0))
-    worst = min(settled, key=lambda t: t.get("net_pnl", 0))
-    rprint(f"  Best trade:      ${best['net_pnl']:+.2f} ({best['ticker'][:30]})")
-    rprint(f"  Worst trade:     ${worst['net_pnl']:+.2f} ({worst['ticker'][:30]})")
-    md.append(f"| Best trade | ${best['net_pnl']:+.2f} (`{best['ticker'][:30]}`) |")
-    md.append(f"| Worst trade | ${worst['net_pnl']:+.2f} (`{worst['ticker'][:30]}`) |")
+    if settled_records:
+        best = max(settled_records, key=lambda r: r["net_pnl"])
+        worst = min(settled_records, key=lambda r: r["net_pnl"])
+        best_label = format_bet_label(best["ticker"], best.get("title", best["ticker"]))
+        worst_label = format_bet_label(worst["ticker"], worst.get("title", worst["ticker"]))
+        rprint(f"  Best trade:      ${best['net_pnl']:+.2f} ({best_label[:30]})")
+        rprint(f"  Worst trade:     ${worst['net_pnl']:+.2f} ({worst_label[:30]})")
+        md.append(f"| Best trade | ${best['net_pnl']:+.2f} — {best_label[:30]} |")
+        md.append(f"| Worst trade | ${worst['net_pnl']:+.2f} — {worst_label[:30]} |")
 
-    # ── Edge calibration
-    avg_edge_est = sum(t.get("edge_estimated", 0) for t in settled) / len(settled)
-    edge_realized = roi
+    # ── Edge Calibration (only for trades with local data) ───────────────────
+    edge_trades = [r for r in settled_records if r.get("edge_estimated")]
+    if edge_trades:
+        avg_edge_est = sum(r["edge_estimated"] for r in edge_trades) / len(edge_trades)
+        edge_wagered = sum(r["cost"] for r in edge_trades)
+        edge_pnl = sum(r["net_pnl"] for r in edge_trades)
+        edge_realized = edge_pnl / edge_wagered if edge_wagered > 0 else 0
 
-    rprint(f"\n[bold]Edge Calibration[/bold]")
-    rprint(f"  Avg estimated edge:  {avg_edge_est:.1%}")
-    rprint(f"  Realized edge (ROI): {edge_realized:+.1%}")
-
-    md.append(f"")
-    md.append(f"## Edge Calibration")
-    md.append(f"")
-    md.append(f"| Metric | Value |")
-    md.append(f"|--------|-------|")
-    md.append(f"| Avg estimated edge | {avg_edge_est:.1%} |")
-    md.append(f"| Realized edge (ROI) | {edge_realized:+.1%} |")
-
-    if avg_edge_est > 0:
-        realization = edge_realized / avg_edge_est
-        rprint(f"  Edge realization:    {realization:.0%}")
-        md.append(f"| Edge realization | {realization:.0%} |")
-
-    # CLV (Closing Line Value)
-    clv_trades = [t for t in settled if t.get("clv") is not None]
-    if clv_trades:
-        avg_clv = sum(t["clv"] for t in clv_trades) / len(clv_trades)
-        positive_clv = sum(1 for t in clv_trades if t["clv"] > 0)
-        clv_color = "green" if avg_clv > 0 else "red"
-        rprint(f"\n[bold]Closing Line Value (CLV)[/bold]")
-        rprint(f"  Avg CLV:             [{clv_color}]{avg_clv:+.1%}[/{clv_color}]")
-        rprint(f"  Beat the close:      {positive_clv}/{len(clv_trades)} ({positive_clv/len(clv_trades):.0%})")
+        rprint(f"\n[bold]Edge Calibration ({len(edge_trades)} Edge-Radar trades)[/bold]")
+        rprint(f"  Avg estimated edge:  {avg_edge_est:.1%}")
+        rprint(f"  Realized edge (ROI): {edge_realized:+.1%}")
 
         md.append(f"")
-        md.append(f"## Closing Line Value (CLV)")
+        md.append(f"## Edge Calibration ({len(edge_trades)} Edge-Radar trades)")
         md.append(f"")
         md.append(f"| Metric | Value |")
         md.append(f"|--------|-------|")
-        md.append(f"| Avg CLV | {avg_clv:+.1%} |")
-        md.append(f"| Beat the close | {positive_clv}/{len(clv_trades)} ({positive_clv/len(clv_trades):.0%}) |")
+        md.append(f"| Avg estimated edge | {avg_edge_est:.1%} |")
+        md.append(f"| Realized edge (ROI) | {edge_realized:+.1%} |")
 
-    # ── Dimensional breakdowns
-    from ticker_display import sport_from_ticker
+        if avg_edge_est > 0:
+            realization = edge_realized / avg_edge_est
+            rprint(f"  Edge realization:    {realization:.0%}")
+            md.append(f"| Edge realization | {realization:.0%} |")
 
+    # ── Dimensional breakdowns ───────────────────────────────────────────────
     def _breakdown(label: str, groups: dict, md: list):
         """Print and append a dimensional breakdown table."""
         if not groups:
@@ -413,125 +479,115 @@ def generate_report(detail: bool = False, save: bool = False, days: int | None =
         md.append(f"")
         md.append(f"### {label}")
         md.append(f"")
-        md.append(f"| {label} | Trades | Win Rate | P&L | ROI | Avg Edge |")
-        md.append(f"|{'-' * len(label)}--|--------|----------|-----|-----|----------|")
-        for name, trades_list in sorted(groups.items(), key=lambda x: -sum(t.get("net_pnl", 0) for t in x[1])):
-            n = len(trades_list)
-            w = sum(1 for t in trades_list if t.get("settlement_won"))
-            pnl = sum(t.get("net_pnl", 0) for t in trades_list)
-            wagered = sum(get_filled_cost(t) for t in trades_list)
+        md.append(f"| {label} | Bets | Win Rate | P&L | ROI |")
+        md.append(f"|{'-' * max(len(label), 4)}--|------|----------|-----|-----|")
+        for name, records in sorted(groups.items(), key=lambda x: -sum(r["net_pnl"] for r in x[1])):
+            n = len(records)
+            w = sum(1 for r in records if r["won"])
+            pnl = sum(r["net_pnl"] for r in records)
+            wagered = sum(r["cost"] for r in records)
             roi_val = pnl / wagered if wagered > 0 else 0
-            avg_edge = sum(t.get("edge_estimated", 0) for t in trades_list) / n if n else 0
             wr = w / n if n else 0
             pnl_color = "green" if pnl >= 0 else "red"
             rprint(
-                f"  {name:>12}: {n} trades, {w}/{n} ({wr:.0%}), "
-                f"[{pnl_color}]${pnl:+.2f}[/{pnl_color}], "
-                f"ROI {roi_val:+.0%}, avg edge {avg_edge:.1%}"
+                f"  {name:>12}: {n} bets, {w}/{n} ({wr:.0%}), "
+                f"[{pnl_color}]${pnl:+.2f}[/{pnl_color}], ROI {roi_val:+.0%}"
             )
-            md.append(
-                f"| {name} | {n} | {w}/{n} ({wr:.0%}) | ${pnl:+.2f} | {roi_val:+.0%} | {avg_edge:.1%} |"
-            )
+            md.append(f"| {name} | {n} | {w}/{n} ({wr:.0%}) | ${pnl:+.2f} | {roi_val:+.0%} |")
 
-    # By confidence level
-    conf_groups = {}
-    for t in settled:
-        conf = t.get("confidence", "unknown")
-        conf_groups.setdefault(conf, []).append(t)
-    _breakdown("By Confidence", conf_groups, md)
+    if settled_records:
+        # By sport (derived from ticker)
+        sport_groups: dict[str, list] = {}
+        for r in settled_records:
+            sport = sport_from_ticker(r["ticker"]) or "Other"
+            sport_groups.setdefault(sport, []).append(r)
+        _breakdown("By Sport", sport_groups, md)
 
-    # By category (ML/spread/total/prop)
-    cat_groups = {}
-    cat_labels = {"game": "ML", "spread": "Spread", "total": "Total", "player_prop": "Prop"}
-    for t in settled:
-        cat = t.get("category", "other")
-        label = cat_labels.get(cat, cat.title())
-        cat_groups.setdefault(label, []).append(t)
-    _breakdown("By Category", cat_groups, md)
+        # By bet type (derived from ticker)
+        type_groups: dict[str, list] = {}
+        for r in settled_records:
+            btype = bet_type_from_ticker(r["ticker"])
+            type_groups.setdefault(btype, []).append(r)
+        _breakdown("By Type", type_groups, md)
 
-    # By sport
-    sport_groups = {}
-    for t in settled:
-        sport = sport_from_ticker(t.get("ticker", "")) or "Other"
-        sport_groups.setdefault(sport, []).append(t)
-    _breakdown("By Sport", sport_groups, md)
+        # By result
+        result_groups: dict[str, list] = {}
+        for r in settled_records:
+            result_groups.setdefault(r["side"].upper(), []).append(r)
+        _breakdown("By Side", result_groups, md)
 
-    # By edge bucket
-    edge_buckets = {"3-5%": [], "5-10%": [], "10-15%": [], "15%+": []}
-    for t in settled:
-        edge = t.get("edge_estimated", 0)
-        if edge >= 0.15:
-            edge_buckets["15%+"].append(t)
-        elif edge >= 0.10:
-            edge_buckets["10-15%"].append(t)
-        elif edge >= 0.05:
-            edge_buckets["5-10%"].append(t)
-        else:
-            edge_buckets["3-5%"].append(t)
-    # Remove empty buckets
-    edge_buckets = {k: v for k, v in edge_buckets.items() if v}
-    _breakdown("By Edge Bucket", edge_buckets, md)
-
-    # ── Detail table
-    if detail:
-        from ticker_display import parse_game_datetime, format_bet_label
-
-        from ticker_display import bet_type_from_ticker
-
+    # ── Detail table ─────────────────────────────────────────────────────────
+    if detail and settled_records:
         rprint("")
-        table = Table(title="Trade Detail", show_lines=True)
+        table = Table(title="Settlement Detail", show_lines=True)
+        table.add_column("#", style="dim", justify="right")
         table.add_column("Bet", style="cyan", max_width=30)
         table.add_column("Type", style="magenta")
         table.add_column("Date", style="dim")
         table.add_column("Side")
         table.add_column("Result")
+        table.add_column("Qty", justify="right")
         table.add_column("Cost", justify="right")
+        table.add_column("Revenue", justify="right")
         table.add_column("P&L", justify="right")
-        table.add_column("ROI", justify="right")
 
         md.append(f"")
-        md.append(f"## Trade Detail")
+        md.append(f"## Settlement Detail")
         md.append(f"")
-        md.append(f"| Bet | Type | Date | Side | Result | Cost | P&L | ROI |")
-        md.append(f"|-----|------|------|------|--------|------|-----|-----|")
+        md.append(f"| # | Bet | Type | Date | Side | Result | Qty | Cost | Revenue | P&L |")
+        md.append(f"|---|-----|------|------|------|--------|-----|------|---------|-----|")
 
-        for t in sorted(settled, key=lambda x: x.get("closed_at", "")):
-            pnl = t.get("net_pnl", 0)
-            pnl_color = "green" if pnl >= 0 else "red"
-            result = t.get("settlement_result", "?")
-            won = "W" if t.get("settlement_won") else "L"
-            ticker = t["ticker"]
-            bet_label = format_bet_label(ticker, t.get("title", ticker))
+        for i, r in enumerate(sorted(settled_records, key=lambda x: x.get("settled_time", "")), 1):
+            pnl_color = "green" if r["net_pnl"] >= 0 else "red"
+            won_str = "W" if r["won"] else "L"
+            ticker = r["ticker"]
+            bet_label = format_bet_label(ticker, r.get("title", ticker))
+            btype = bet_type_from_ticker(ticker)
             when = parse_game_datetime(ticker)
 
-            btype = bet_type_from_ticker(ticker)
             table.add_row(
+                str(i),
                 bet_label[:30],
                 btype,
                 when,
-                t.get("side", "").upper(),
-                f"{result.upper()} ({won})",
-                f"${t.get('cost_dollars', 0):.2f}",
-                f"[{pnl_color}]${pnl:+.2f}[/{pnl_color}]",
-                f"{t.get('settlement_roi', 0):+.0%}",
+                r["side"].upper(),
+                f"{r['result'].upper()} ({won_str})",
+                str(r["contracts"]),
+                f"${r['cost']:.2f}",
+                f"${r['revenue']:.2f}",
+                f"[{pnl_color}]${r['net_pnl']:+.2f}[/{pnl_color}]",
             )
             md.append(
-                f"| {bet_label[:30]} | {btype} | {when} | {t.get('side','').upper()} | "
-                f"{result.upper()} ({won}) | "
-                f"${t.get('cost_dollars',0):.2f} | "
-                f"${pnl:+.2f} | "
-                f"{t.get('settlement_roi',0):+.0%} |"
+                f"| {i} | {bet_label[:30]} | {btype} | {when} | "
+                f"{r['side'].upper()} | {r['result'].upper()} ({won_str}) | "
+                f"{r['contracts']} | ${r['cost']:.2f} | ${r['revenue']:.2f} | "
+                f"${r['net_pnl']:+.2f} |"
             )
         console.print(table)
 
+    if not settled_records:
+        rprint("\n  [dim]No settlements in this period.[/dim]")
+        md.append(f"")
+        md.append(f"> No settlements found for this period.")
+
     # ── Save to file
     if save:
-        _save_report_file(md)
+        _save_report_file(md, days=days)
 
 
-def _save_report_file(lines: list[str]):
-    """Write report lines to reports/Accounts/Kalshi/ with today's date."""
-    report_dir = Path(__file__).resolve().parent.parent.parent / "reports" / "Accounts" / "Kalshi"
+def _save_report_file(lines: list[str], days: int | None = None):
+    """Write report lines to reports/Accounts/Kalshi/ with today's date.
+
+    When ``days`` is 7 or 30, saves into a weekly/ or monthly/ subdirectory
+    so scheduled reports don't overwrite the default all-time report.
+    """
+    base = Path(__file__).resolve().parent.parent.parent / "reports" / "Accounts" / "Kalshi"
+    if days is not None and days <= 7:
+        report_dir = base / "weekly"
+    elif days is not None and days <= 30:
+        report_dir = base / "monthly"
+    else:
+        report_dir = base
     report_dir.mkdir(parents=True, exist_ok=True)
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
