@@ -82,6 +82,80 @@ For championship and season-long markets with N outcomes, de-vig the full N-way 
 
 Four independent attributes are calculated for every opportunity. They build on each other but are derived from different data sources.
 
+```mermaid
+flowchart TD
+    subgraph DATA ["📡 Data Sources"]
+        ODDS["Sportsbook Odds\n8-12 US Books"]
+        STATS["Team Stats\nESPN / NHL / MLB APIs"]
+        SHARP["Line Movement\nESPN Open→Close"]
+        WEATHER["Weather\nNWS Forecasts"]
+        MARKET["Kalshi Market\nAsk / Bid Prices"]
+    end
+
+    subgraph FAIR ["1️⃣ Fair Value"]
+        DEVIG["De-vig Each Book\nMultiplicative Method"]
+        WMED["Weighted Median\nSharp 3× · Rec 0.7×"]
+        CDF["Normal CDF\nSport-Specific σ"]
+        FV(("Fair Value\nProbability"))
+    end
+
+    subgraph EDGE_CALC ["2️⃣ Edge"]
+        DIFF["fair_value − kalshi_ask"]
+        PICK{"Pick Better Side\nYES vs NO"}
+        EV(("Edge %"))
+    end
+
+    subgraph CONF ["3️⃣ Confidence"]
+        BASE["Base Level\nBook Count + Range"]
+        ADJ1["± Team Stats\nWin% Signal"]
+        ADJ2["± Sharp Money\nReverse Line Movement"]
+        ADJ3["± Rest / B2B\nNBA · NHL"]
+        CL(("low · med · high"))
+    end
+
+    subgraph COMP ["4️⃣ Composite Score"]
+        W1["Edge Strength\n40% · min(edge/0.01, 10)"]
+        W2["Confidence\n30% · low=3 med=6 high=9"]
+        W3["Liquidity\n20% · 10 − spread×20"]
+        W4["Time\n10% · placeholder"]
+        SUM(("Score 0–10"))
+    end
+
+    GATE{"Score ≥ 6.0?"}
+    PASS["✅ → Risk Gates\n→ Kelly Sizing\n→ Execute"]
+    FAIL["❌ Filtered Out"]
+
+    ODDS --> DEVIG --> WMED --> FV
+    WMED --> CDF --> FV
+    FV --> DIFF
+    MARKET --> DIFF
+    DIFF --> PICK --> EV
+
+    ODDS --> BASE
+    BASE --> ADJ1
+    STATS --> ADJ1
+    ADJ1 --> ADJ2
+    SHARP --> ADJ2
+    ADJ2 --> ADJ3
+    ADJ3 --> CL
+
+    EV --> W1
+    CL --> W2
+    MARKET --> W3
+    W1 & W2 & W3 & W4 --> SUM
+    SUM --> GATE
+    GATE -- "Yes" --> PASS
+    GATE -- "No" --> FAIL
+
+    style DATA fill:#1e293b,stroke:#475569,color:#e2e8f0
+    style FAIR fill:#1e1b4b,stroke:#6366f1,color:#e2e8f0
+    style EDGE_CALC fill:#172554,stroke:#3b82f6,color:#e2e8f0
+    style CONF fill:#14532d,stroke:#22c55e,color:#e2e8f0
+    style COMP fill:#7c2d12,stroke:#f97316,color:#e2e8f0
+    style PASS fill:#166534,stroke:#4ade80,color:#e2e8f0
+    style FAIL fill:#7f1d1d,stroke:#ef4444,color:#e2e8f0
+```
+
 ### Fair Value
 
 The model's estimate of the true probability, derived purely from sportsbook odds:
