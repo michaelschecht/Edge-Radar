@@ -55,7 +55,6 @@ The primary workflow page. All controls are configured up front before scanning.
 | Min Bets | `--min-bets` | All |
 | Exclude Open | `--exclude-open` | All |
 | Budget % | `--budget` | Sports only |
-| Max Per Game | `--max-per-game` | Sports only |
 | Cross-Ref Polymarket | `--cross-ref` | Prediction only |
 
 **Quick Scan:** Sidebar buttons (Sports, Futures, Prediction, Polymarket) navigate directly to the scan page with that market type pre-selected.

@@ -82,7 +82,6 @@ Common flags (all scanners):
   --unit-size N    Dollar amount per bet
   --max-bets N     Max bets to place (default 5)
   --budget X       Max total cost per batch (e.g. '10%' or '15')
-  --max-bet-ratio  Max single bet as multiple of batch median (default 3.0)
   --date X         Filter by date (today, tomorrow, YYYY-MM-DD, mar31)
   --exclude-open   Skip markets with open positions
   --pick X         Comma-separated row numbers to execute

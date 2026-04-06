@@ -15,7 +15,7 @@
   <img src=".claude/images/logos/logo.png" alt="Edge-Radar Banner" width="600">
 </p>
 
-> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 9 free APIs (including Polymarket, MLB pitcher stats, and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with quarter-Kelly criterion, enforces 9 risk gates, and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
+> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 9 free APIs (including Polymarket, MLB pitcher stats, and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with Kelly criterion, enforces 8 risk gates, and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
 
 ---
 
@@ -69,23 +69,22 @@ When placing 5 bets at once with `KELLY_FRACTION=0.50`, each bet gets `0.50/5 = 
 | 15% | $3.75 | 9 contracts | 2 contracts | 1 contract |
 | 25% | $6.25 | 16 contracts | 4 contracts | 2 contracts |
 
-The result is capped by max bet size ($50 sports / $100 prediction), max concentration (20% of bankroll), and available balance. `KELLY_FRACTION` is configurable in `.env` (default: 0.25).
+The result is capped by max bet size ($100) and available balance. `KELLY_FRACTION` is configurable in `.env` (default: 0.25).
 
-### 9 Risk Gates
+### 8 Risk Gates
 
-Every order must pass gates 1-7. Gates 8-9 are sizing caps that downsize the order rather than rejecting it.
+Every order must pass gates 1-6. Gates 7-8 are sizing caps that downsize the order rather than rejecting it.
 
 |  | Gate | Behavior |
 | --- | --- | --- |
 | 1 | **Daily loss limit** | Reject — no new bets after -$250 today |
-| 2 | **Position count** | Reject — max 10 concurrent open positions |
+| 2 | **Position count** | Reject — max 50 concurrent open positions |
 | 3 | **Edge threshold** | Reject — minimum 3% edge required |
 | 4 | **Composite score** | Reject — must score 6.0+ across edge, confidence, liquidity |
-| 5 | **Confidence floor** | Reject — medium or higher, requires 5+ books agreeing |
-| 6 | **Duplicate check** | Reject — can't double up on the same market |
-| 7 | **Per-event cap** | Reject — max 2 positions on the same game |
-| 8 | **Concentration limit** | Cap — downsize to 20% of bankroll |
-| 9 | **Bet size cap** | Cap — downsize to $50/sports, $100/prediction |
+| 5 | **Duplicate check** | Reject — can't double up on the same market |
+| 6 | **Per-event cap** | Reject — max 2 positions on the same game |
+| 7 | **Bet size cap** | Cap — downsize to $100 |
+| 8 | **Bet ratio cap** | Cap — no single bet exceeds 3x the batch median cost |
 
 All limits are configurable via `.env`. See [Architecture](docs/ARCHITECTURE.md) for details on how scoring, confidence, and sizing interact.
 

@@ -4,7 +4,7 @@
 
 [![Pipeline](https://img.shields.io/badge/Pipeline-7%20Stages-0078D4?style=flat-square)](#-pipeline-overview)
 [![Edge Models](https://img.shields.io/badge/Edge%20Models-5%20Types-8B5CF6?style=flat-square)](#-edge-detection-models)
-[![Risk Gates](https://img.shields.io/badge/Risk-10%20Gates-e74c3c?style=flat-square)](#%EF%B8%8F-risk-management)
+[![Risk Gates](https://img.shields.io/badge/Risk-8%20Gates-e74c3c?style=flat-square)](#%EF%B8%8F-risk-management)
 [![Scoring](https://img.shields.io/badge/Scoring-4%20Dimensions-F97316?style=flat-square)](#-how-scoring-works)
 [![Kelly Sizing](https://img.shields.io/badge/Sizing-Batch%20Kelly-2ea44f?style=flat-square)](#-position-sizing)
 
@@ -26,7 +26,7 @@ The system processes every opportunity through seven sequential stages. Each sta
 | **2. Categorize** | Classify by type | Determines which edge model applies |
 | **3. Compare** | Fair value vs. Kalshi ask price | Score on 4 dimensions: edge, confidence, liquidity, time |
 | **4. Cap** | Limit to top 3 per game/event | Prevents concentration in a single contest |
-| **5. Risk-Check** | 10 risk gates + Kelly sizing | Reject or cap — see [Risk Management](#%EF%B8%8F-risk-management) |
+| **5. Risk-Check** | 8 risk gates + Kelly sizing | Reject or cap — see [Risk Management](#%EF%B8%8F-risk-management) |
 | **6. Execute** | Place limit orders on Kalshi | Full trade journal entry with rationale |
 | **7. Monitor** | Track positions, settle, calibrate | Realized P&L + closing line value tracking |
 
@@ -226,7 +226,7 @@ The minimum score to pass risk checks is **6.0** (configurable via `MIN_COMPOSIT
 
 ### Risk Gate Pipeline
 
-Every order must pass gates 1-7 before execution. Gates 8-10 are sizing caps that downsize the order rather than rejecting it.
+Every order must pass gates 1-6 before execution. Gates 7-8 are sizing caps that downsize the order rather than rejecting it.
 
 | | Gate | Check | Behavior |
 | :--- | :--- | :--- | :--- |
@@ -234,19 +234,16 @@ Every order must pass gates 1-7 before execution. Gates 8-10 are sizing caps tha
 | 2 | **Position count** | Number of open positions | **Reject** if count ≥ `MAX_OPEN_POSITIONS` |
 | 3 | **Edge threshold** | Calculated edge for this opportunity | **Reject** if edge < `MIN_EDGE_THRESHOLD` |
 | 4 | **Composite score** | Weighted score (edge + confidence + liquidity + time) | **Reject** if score < `MIN_COMPOSITE_SCORE` |
-| 5 | **Confidence level** | Model confidence rating | **Reject** if confidence < `MIN_CONFIDENCE` |
-| 6 | **Duplicate ticker** | Already holding this exact market | **Reject** if ticker in open positions |
-| 7 | **Per-event cap** | Too many positions on the same game | **Reject** if event count ≥ `MAX_PER_EVENT` |
-| 8 | **Max concentration** | Single position exceeds % of bankroll | **Cap** — downsize to `MAX_CONCENTRATION` × bankroll |
-| 9 | **Max bet size** | Category-aware bet size cap | **Cap** — downsize to `MAX_BET_SIZE_SPORTS` / `_PREDICTION` |
-| 10 | **Bet ratio cap** | Single bet cost vs. median batch cost | **Cap** — downsize so cost ≤ `MAX_BET_RATIO` × median batch cost |
+| 5 | **Duplicate ticker** | Already holding this exact market | **Reject** if ticker in open positions |
+| 6 | **Per-event cap** | Too many positions on the same game | **Reject** if event count ≥ `MAX_PER_EVENT` |
+| 7 | **Max bet size** | Bet exceeds max size | **Cap** — downsize to `MAX_BET_SIZE` |
+| 8 | **Bet ratio cap** | Single bet cost vs. median batch cost | **Cap** — downsize so cost ≤ `MAX_BET_RATIO` × median batch cost |
 
 > [!NOTE]
 > The trade log records approval subtypes for post-trade review:
 > - `APPROVED` — passed all gates, no caps hit
-> - `APPROVED_CAPPED_CONCENTRATION` — downsized by gate 8
-> - `APPROVED_CAPPED_MAX_BET` — downsized by gate 9
-> - `APPROVED_CAPPED_BET_RATIO` — downsized by gate 10
+> - `APPROVED_CAPPED_MAX_BET` — downsized by gate 7
+> - `APPROVED_CAPPED_BET_RATIO` — downsized by gate 8
 
 ### Risk Parameters
 
@@ -254,15 +251,12 @@ Every order must pass gates 1-7 before execution. Gates 8-10 are sizing caps tha
 | :--- | :--- | :--- |
 | `UNIT_SIZE` | $1.00 | Minimum dollar amount per bet (Kelly floor) |
 | `KELLY_FRACTION` | 0.25 | Quarter-Kelly sizing multiplier |
-| `MAX_BET_SIZE_SPORTS` | $50 | Maximum USD per sports bet |
-| `MAX_BET_SIZE_PREDICTION` | $100 | Maximum USD per prediction market position |
+| `MAX_BET_SIZE` | $100 | Maximum USD per bet (sports and prediction) |
 | `MAX_DAILY_LOSS` | $250 | Hard stop — no new positions after this daily loss |
 | `MAX_OPEN_POSITIONS` | 10 | Maximum concurrent open positions |
 | `MAX_PER_EVENT` | 3 | Maximum positions on the same game/event |
-| `MAX_POSITION_CONCENTRATION` | 20% | Maximum single position as % of bankroll |
 | `MIN_EDGE_THRESHOLD` | 3% | Minimum edge required to consider a bet |
 | `MIN_COMPOSITE_SCORE` | 6.0 | Minimum composite opportunity score |
-| `MIN_CONFIDENCE` | medium | Minimum model confidence level |
 | `MAX_BET_RATIO` | 3.0 | Max ratio of any single bet cost to median batch cost |
 
 ---
@@ -284,7 +278,7 @@ When placing N bets simultaneously, each bet's Kelly fraction is divided by N. T
 | $0.10 | 10% | 10 | 13 | 13 (Kelly) | $1.30 |
 | $0.02 | 5% | 50 | 31 | 50 (flat) | $1.00 |
 
-The result is capped by (in order): max concentration (20% of bankroll), max bet size ($50 sports / $100 prediction), and available bankroll. `KELLY_FRACTION` is configurable in `.env` (default: 0.25).
+The result is capped by (in order): max bet size ($100), bet ratio cap, and available bankroll. `KELLY_FRACTION` is configurable in `.env` (default: 0.25).
 
 ### Budget Cap (Batch-Level)
 

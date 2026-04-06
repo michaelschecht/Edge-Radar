@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from services import (
     get_client, run_scan, run_execute, opportunities_to_rows,
     SPORT_FILTERS, CATEGORY_OPTIONS, DATE_OPTIONS,
-    MIN_EDGE_THRESHOLD, MAX_PER_EVENT, DRY_RUN,
+    MIN_EDGE_THRESHOLD, DRY_RUN,
 )
 from favorites import save_favorite, delete_favorite, load_favorites
 from theme import page_header, section_label, CYAN, AMBER, RED, GREEN, DIM
@@ -49,7 +49,6 @@ def _get_defaults() -> dict:
         "budget_pct": 10,
         "max_bets": 6,
         "min_bets": 0,
-        "max_per_game": int(MAX_PER_EVENT),
         "exclude_open": True,
         "cross_ref": False,
     }
@@ -140,12 +139,8 @@ def render():
         with col11:
             budget_pct = st.number_input("Budget %", min_value=0, max_value=100, value=defaults["budget_pct"],
                                          help="0 = no budget cap")
-        with col12:
-            max_per_game = st.number_input("Max Per Game", min_value=1, max_value=5,
-                                           value=defaults["max_per_game"])
     else:
         budget_pct = 0
-        max_per_game = None
 
     # Prediction-only params
     cross_ref = False
@@ -196,7 +191,6 @@ def render():
                         "budget_pct": budget_pct,
                         "max_bets": max_bets,
                         "min_bets": min_bets,
-                        "max_per_game": max_per_game or int(MAX_PER_EVENT),
                         "exclude_open": exclude_open,
                         "cross_ref": cross_ref,
                     }
@@ -242,7 +236,6 @@ def render():
                     "max_bets": max_bets,
                     "min_bets": min_bets if min_bets > 0 else None,
                     "budget": budget_pct if budget_pct > 0 else None,
-                    "max_per_game": max_per_game,
                 }
                 st.session_state.pop("preview_orders", None)
                 st.session_state.pop("preview_console", None)
@@ -335,7 +328,6 @@ def _run_pipeline(opps, pick_indices, execute):
                 max_bets=params.get("max_bets", 5),
                 min_bets=params.get("min_bets"),
                 budget=params.get("budget"),
-                max_per_game=params.get("max_per_game"),
                 pick_indices=pick_indices,
                 execute=execute,
             )

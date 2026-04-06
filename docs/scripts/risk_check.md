@@ -59,7 +59,7 @@ Risk limit status vs configured thresholds:
 - Daily loss limit (`MAX_DAILY_LOSS`)
 - Max open positions (`MAX_OPEN_POSITIONS`)
 - Max portfolio risk per trade (`MAX_PORTFOLIO_RISK_PCT`)
-- Single bet limits (`MAX_BET_SIZE_SPORTS`, `MAX_BET_SIZE_PREDICTION`)
+- Single bet limit (`MAX_BET_SIZE`)
 
 ### `watchlist`
 Current watchlist from the last scan (if saved).

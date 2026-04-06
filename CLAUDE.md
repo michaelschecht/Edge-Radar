@@ -86,7 +86,6 @@ Edge-Radar/
     ├── polymarket/                  # Polymarket cross-reference
     │   └── polymarket_edge.py       # Cross-market edge detection via Gamma API
     ├── shared/                      # Shared modules
-    │   ├── config.py                # Centralized env var configuration
     │   ├── paths.py                 # Standardized path setup
     │   ├── opportunity.py           # Opportunity dataclass
     │   ├── trade_log.py             # Trade log I/O + fill-based accounting helpers
@@ -143,17 +142,15 @@ Edge-Radar/
 - `.env` is in `.gitignore` — verify before every commit
 
 ### Execution Gates
-Before ANY trade/bet executes, ten risk gates must pass:
+Before ANY trade/bet executes, eight risk gates must pass:
 1. ✅ Daily loss limit not breached
 2. ✅ Open position count under max
 3. ✅ Opportunity edge ≥ minimum threshold
-4. ✅ Composite score ≥ minimum
-5. ✅ Model confidence ≥ minimum level
-6. ✅ Not already holding this market (duplicate ticker check)
-7. ✅ Per-event cap not exceeded (max 3 positions per game)
-8. ✅ Single position ≤ max concentration (20% of bankroll)
-9. ✅ Bet size ≤ category max ($50 sports / $100 prediction)
-10. ✅ Single bet ≤ 3× batch median cost (bet ratio cap)
+4. ✅ Composite score ≥ minimum (confidence is factored into composite score)
+5. ✅ Not already holding this market (duplicate ticker check)
+6. ✅ Per-event cap not exceeded (max 3 positions per game)
+7. ✅ Bet size ≤ MAX_BET_SIZE ($100)
+8. ✅ Single bet ≤ 3× batch median cost (bet ratio cap)
 
 ### Dry Run Mode
 - Default: `DRY_RUN=true` in `.env`
@@ -167,16 +164,13 @@ Before ANY trade/bet executes, ten risk gates must pass:
 ```
 UNIT_SIZE=1.00                  # Minimum dollar amount per bet (Kelly floor)
 KELLY_FRACTION=0.25             # Kelly sizing multiplier (divided by batch size at runtime)
-MAX_BET_SIZE_SPORTS=50          # USD per sports bet (hard cap)
-MAX_BET_SIZE_PREDICTION=100     # USD per prediction market position (hard cap)
+MAX_BET_SIZE=100                # USD per bet, hard cap (any market type)
 MAX_DAILY_LOSS=250              # USD hard stop for the day
 MAX_OPEN_POSITIONS=10           # Concurrent open positions
 MAX_PER_EVENT=3                 # Max positions on the same game/event
 MAX_BET_RATIO=3.0               # Max single bet as multiple of batch median cost
-MAX_POSITION_CONCENTRATION=0.20 # Max single position as % of bankroll
 MIN_EDGE_THRESHOLD=0.03         # Minimum 3% edge required
 MIN_COMPOSITE_SCORE=6.0         # Minimum opportunity score (0-10)
-MIN_CONFIDENCE=medium           # Minimum confidence: low, medium, high
 ```
 
 ---

@@ -211,12 +211,13 @@ The defaults work well for getting started. Adjust as you gain confidence:
 ```env
 UNIT_SIZE=1.00                  # Minimum bet size ($1)
 KELLY_FRACTION=0.25             # Quarter-Kelly (conservative)
-MAX_BET_SIZE_SPORTS=50          # Max $50 per sports bet
-MAX_BET_SIZE_PREDICTION=100     # Max $100 per prediction bet
+MAX_BET_SIZE=100                # Hard cap per single bet
 MAX_DAILY_LOSS=250              # Stop all betting at -$250/day
 MAX_OPEN_POSITIONS=10           # Max 10 concurrent positions
 MAX_PER_EVENT=2                 # Max 2 positions per game
+MAX_BET_RATIO=3.0               # Max single bet as multiple of batch median
 MIN_EDGE_THRESHOLD=0.03         # Require 3% minimum edge
+MIN_COMPOSITE_SCORE=6.0         # Minimum opportunity score (0-10)
 ```
 
 > **Key paths are relative to the project root.** The client resolves `keys/live/kalshi_private.key` from the Edge-Radar directory automatically.
@@ -303,7 +304,7 @@ python scripts/scan.py sports --filter mlb --date today --unit-size 0.50 --max-b
 python scripts/scan.py sports --filter mlb --date today --unit-size 0.50 --max-bets 3 --execute
 ```
 
-All 9 risk gates are enforced automatically. The system will reject bets that exceed your configured limits.
+All 8 risk gates are enforced automatically. The system will reject bets that exceed your configured limits.
 
 > **Tip:** Even with `--execute`, the system shows a preview table first and logs every decision to `data/history/`. You can always check what happened with `python scripts/kalshi/kalshi_executor.py status`.
 

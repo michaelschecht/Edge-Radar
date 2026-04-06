@@ -2,6 +2,51 @@
 
 ---
 
+## 2026-04-06 -- Code Simplification (S5, S6)
+
+### S5. Deleted `config.py` (Dead Module)
+- **Problem:** `scripts/shared/config.py` defined env vars and constants (scoring weights, crypto/weather/SPX constants, `CONFIDENCE_RANK`) that were dead code -- no consumer imported them. The only two live imports were `LOG_DIR` and `LOG_LEVEL` used by `logging_setup.py`.
+- **Fix:** Deleted `config.py` entirely. `logging_setup.py` now defines `LOG_DIR` and `LOG_LEVEL` inline (reads from env with `dotenv`). `webapp/services.py` now reads its env vars directly with `os.getenv()` instead of importing from config.
+- Files changed: `config.py` (deleted), `logging_setup.py`, `webapp/services.py`
+
+### S6. Removed `MAX_POSITION_CONCENTRATION` Env Var and Risk Gate
+- **Problem:** Gate 7 (concentration cap at 20% of bankroll) was redundant with the `MAX_BET_SIZE` hard cap. The hard cap already limits any single position to $100, making a percentage-of-bankroll check unnecessary for the current bankroll range.
+- **Fix:** Removed `MAX_CONCENTRATION` variable and concentration gate from `kalshi_executor.py`. Removed `MAX_POSITION_CONCENTRATION` from `.env`, `.env.example`, and `CLAUDE.md`. Removed `APPROVED_CAPPED_CONCENTRATION` approval subtype. Renumbered remaining gates: old gate 8 (max bet size) is now gate 7, old gate 9 (bet ratio cap) is now gate 8.
+- **Gate count:** 9 gates reduced to 8. Gates 1-6 reject, gates 7-8 are sizing caps (max bet, bet ratio).
+- **Tests:** Concentration gate test removed (101 tests down to 100).
+- Files changed: `kalshi_executor.py`, `.env`, `.env.example`, `CLAUDE.md`
+
+---
+
+## 2026-04-06 -- Code Simplification (S3, S4)
+
+### S3. Removed `--max-bet-ratio` and `--max-per-game` CLI Flags
+- **Problem:** `--max-bet-ratio` and `--max-per-game` were available as CLI flags, duplicating env-only settings. This added unnecessary complexity to the CLI surface and every scanner's argument parser.
+- **Fix:** Removed `--max-bet-ratio` from `edge_detector.py`, `kalshi_executor.py`, `futures_edge.py`, `prediction_scanner.py`, `polymarket_edge.py`, and `scan.py` help text. Removed `--max-per-game` from `edge_detector.py` and `kalshi_executor.py`. Removed `max_per_game` and `max_bet_ratio` parameters from `execute_pipeline()` signature.
+- **Configuration:** Both settings are now `.env`-only: `MAX_BET_RATIO` (default 3.0) and `MAX_PER_EVENT` (default 2).
+- Files changed: `kalshi_executor.py`, `edge_detector.py`, `futures_edge.py`, `prediction_scanner.py`, `polymarket_edge.py`, `scan.py`
+
+### S4. Merged `MAX_BET_SIZE_SPORTS` / `MAX_BET_SIZE_PREDICTION` into Single `MAX_BET_SIZE`
+- **Problem:** Two separate env vars (`MAX_BET_SIZE_SPORTS=$50`, `MAX_BET_SIZE_PREDICTION=$100`) required a category lookup helper (`_max_bet_for()`) and a `_SPORTS_CATEGORIES` set in the executor. The distinction added complexity without meaningful risk benefit.
+- **Fix:** Unified into a single `MAX_BET_SIZE` env var (default $100). Removed `MAX_BET_SIZE_SPORTS`, `MAX_BET_SIZE_PREDICTION`, `_SPORTS_CATEGORIES` set, and `_max_bet_for()` helper from executor. Risk check dashboard now shows a single "Max Bet Size" row. Gate 8 uses `MAX_BET_SIZE` directly.
+- Files changed: `kalshi_executor.py`, `config.py`, `risk_check.py`, `.env.example`
+
+---
+
+## 2026-04-06 -- Code Simplification (S1, S2)
+
+### S1. Removed `DEFAULT_BET_SIZE` (Dead Code)
+- `DEFAULT_BET_SIZE` was defined in `kalshi_executor.py` but never referenced anywhere in the codebase. Removed the line. No behavioral change.
+
+### S2. Removed `MIN_CONFIDENCE` Env Var and Risk Gate
+- **Problem:** The confidence-floor risk gate (`MIN_CONFIDENCE`) was redundant. Composite score already incorporates confidence as 30% of its weight, so a low-confidence opportunity is already penalized in the score gate. Having a separate confidence gate added complexity without adding safety.
+- **Fix:** Removed the `MIN_CONFIDENCE` env var from `kalshi_executor.py`, `config.py`, and `.env.example`. Removed `CONFIDENCE_RANK` dict from executor (kept in `config.py` with a note for scoring use). Removed risk gate 5 (confidence floor). Remaining gates renumbered: old 6-10 become 5-9.
+- **Gate count:** 10 gates reduced to 9. Gates 1-4 reject, gates 5-6 reject (duplicate ticker, per-event cap), gates 7-9 are sizing caps (concentration, max bet, bet ratio).
+- **Tests:** Confidence gate test removed (102 tests down to 101).
+- Files changed: `kalshi_executor.py`, `config.py`, `.env.example`
+
+---
+
 ## 2026-04-06 -- Bet Ratio Cap (Risk Gate 10) & Markdown Table Fix
 
 ### Risk Gate 10: Bet Ratio Cap (`MAX_BET_RATIO`)

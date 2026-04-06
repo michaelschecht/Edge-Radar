@@ -8,9 +8,17 @@ Usage:
 """
 
 import logging
+import os
 from datetime import datetime, timezone
+from pathlib import Path
 
-from config import LOG_DIR, LOG_LEVEL
+from dotenv import load_dotenv
+
+load_dotenv()
+
+LOG_DIR = Path(__file__).resolve().parent.parent.parent / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 
 def setup_logging(name: str) -> logging.Logger:

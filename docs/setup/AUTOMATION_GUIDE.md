@@ -14,7 +14,7 @@ Edge-Radar includes pre-built `.bat` scripts that scan all sports, rank opportun
  11:00 PM ET ──> kalshi_settler.py    ──> Settle completed bets + update P&L
 ```
 
-All 9 risk gates are enforced on every automated run. If the daily loss limit is hit, no new bets are placed.
+All 8 risk gates are enforced on every automated run. If the daily loss limit is hit, no new bets are placed.
 
 ---
 
@@ -166,11 +166,12 @@ Edit `same_day_execute.bat` and change the scan line:
 | Variable | Recommended | Purpose |
 |----------|-------------|---------|
 | `DRY_RUN` | `false` | Must be `false` for live execution |
-| `KELLY_FRACTION` | `0.25` - `0.50` | Kelly sizing aggressiveness (divided by batch size at runtime) |
+| `KELLY_FRACTION` | `0.25` - `0.75` | Kelly sizing aggressiveness (divided by batch size at runtime) |
+| `MAX_BET_SIZE` | `100` | Hard cap in USD for any single bet |
 | `MAX_DAILY_LOSS` | `250` | Hard stop — no new bets after this daily loss |
 | `MAX_OPEN_POSITIONS` | `10` - `50` | Maximum concurrent positions |
 | `MAX_PER_EVENT` | `2` | Max positions on the same game |
-| `MIN_CONFIDENCE` | `medium` | Filter out low-confidence opportunities |
+| `MAX_BET_RATIO` | `3.0` | Max single bet as multiple of batch median cost |
 
 ---
 
@@ -212,7 +213,7 @@ Reports are saved automatically to `reports/Sports/schedulers/` on each run.
 
 ### Task runs but no bets are placed
 - Check `DRY_RUN` in `.env` — must be `false`
-- Check `MIN_CONFIDENCE` — if set to `high`, many opportunities are filtered out
+- Check `MIN_COMPOSITE_SCORE` — if set too high, opportunities are filtered out
 - Run `python scripts/doctor.py` to verify API connectivity
 
 ### Task fails to run

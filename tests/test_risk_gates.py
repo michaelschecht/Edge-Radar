@@ -77,8 +77,7 @@ class TestSizeOrderRiskGates:
         )
 
     @patch.dict(os.environ, {"MAX_DAILY_LOSS": "250", "MAX_OPEN_POSITIONS": "50",
-                              "MIN_EDGE_THRESHOLD": "0.03", "MIN_COMPOSITE_SCORE": "6.0",
-                              "MIN_CONFIDENCE": "low"})
+                              "MIN_EDGE_THRESHOLD": "0.03", "MIN_COMPOSITE_SCORE": "6.0"})
     def test_approved_when_all_gates_pass(self):
         opp = self._make_opp(edge=0.10, confidence="high", score=8.0)
         result = size_order(opp, bankroll=100.0, open_positions=5, daily_pnl=0.0)
@@ -118,13 +117,6 @@ class TestSizeOrderRiskGates:
         assert result.risk_approval != "APPROVED"
         assert "score" in result.risk_approval.lower()
 
-    @patch.dict(os.environ, {"MIN_CONFIDENCE": "high"})
-    def test_rejected_low_confidence(self):
-        opp = self._make_opp(confidence="low")
-        result = size_order(opp, bankroll=100.0, open_positions=5, daily_pnl=0.0)
-        assert result.risk_approval != "APPROVED"
-        assert "confidence" in result.risk_approval.lower()
-
     def test_contracts_capped_by_bankroll(self):
         # Very cheap price with tiny bankroll
         opp = self._make_opp(price=0.02, edge=0.10, score=8.0)
@@ -144,31 +136,15 @@ class TestSizeOrderRiskGates:
         result = size_order(opp, bankroll=500.0, open_positions=0, daily_pnl=0.0, unit_size=1.00)
         assert result.risk_approval == "APPROVED"
 
-    def test_approved_capped_concentration(self):
-        # Tiny bankroll forces concentration cap
-        import kalshi_executor
-        orig = kalshi_executor.MAX_CONCENTRATION
-        try:
-            kalshi_executor.MAX_CONCENTRATION = 0.05  # 5%
-            opp = self._make_opp(price=0.10, edge=0.50, score=9.0)
-            result = size_order(opp, bankroll=10.0, open_positions=0, daily_pnl=0.0, unit_size=1.00)
-            assert result.risk_approval == "APPROVED_CAPPED_CONCENTRATION"
-            assert result.cost_dollars <= 10.0 * 0.05 + 0.11  # within concentration limit
-        finally:
-            kalshi_executor.MAX_CONCENTRATION = orig
-
     def test_approved_capped_max_bet(self):
-        # Big Kelly bet hits the sports max bet cap
+        # Big Kelly bet hits the max bet cap
         import kalshi_executor
-        orig_sports = kalshi_executor.MAX_BET_SIZE_SPORTS
-        orig_conc = kalshi_executor.MAX_CONCENTRATION
+        orig_max = kalshi_executor.MAX_BET_SIZE
         try:
-            kalshi_executor.MAX_BET_SIZE_SPORTS = 5.0  # low cap
-            kalshi_executor.MAX_CONCENTRATION = 1.0  # disable concentration cap
+            kalshi_executor.MAX_BET_SIZE = 5.0  # low cap
             opp = self._make_opp(price=0.10, edge=0.50, score=9.0)
             result = size_order(opp, bankroll=500.0, open_positions=0, daily_pnl=0.0, unit_size=1.00)
             assert result.risk_approval == "APPROVED_CAPPED_MAX_BET"
             assert result.cost_dollars <= 5.0 + 0.11
         finally:
-            kalshi_executor.MAX_BET_SIZE_SPORTS = orig_sports
-            kalshi_executor.MAX_CONCENTRATION = orig_conc
+            kalshi_executor.MAX_BET_SIZE = orig_max

@@ -90,7 +90,7 @@ make risk              # Risk dashboard
 make settle            # Settle completed bets
 make report            # P&L report
 make reconcile         # Compare local log vs API
-make test              # Run full test suite (102 tests)
+make test              # Run full test suite (100 tests)
 make test-quick        # Quick test run
 make install           # Install dependencies
 make hooks             # Install pre-commit hooks
@@ -460,18 +460,16 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 - **Sizing:** Batch-aware Kelly — `(KELLY_FRACTION / batch_size) * edge * bankroll`, with flat unit size as floor. When placing N bets simultaneously, each gets `fraction/N` to prevent over-committing.
 - **Budget cap:** `--budget X` caps the total batch cost. Accepts `10%` (of bankroll) or `15` (flat dollars). When the batch exceeds the budget, contracts are proportionally scaled down while preserving Kelly edge-weighting (higher-edge bets keep more size). Each bet keeps at least 1 contract.
 - **Kelly fraction:** Configurable via `KELLY_FRACTION` in `.env` (default: 0.25)
-- **Unit size:** $1.00 default (minimum per bet)
-- **Max bet (sports):** $50 per position (gate 9 — sizing cap, not reject)
-- **Max bet (prediction):** $100 per position (gate 9 — sizing cap, not reject)
-- **Max concentration:** 20% of bankroll per position (gate 8 — sizing cap, not reject)
+- **Unit size:** $0.50 default (minimum per bet, overridable with `--unit-size`)
+- **Max bet size:** $100 per position (gate 7 — sizing cap, not reject)
+- **Bet ratio cap:** 3.0x batch median cost (gate 8 — sizing cap, not reject)
 - **Max per event:** 2 positions on the same game (reject gate)
 - **Daily loss limit:** $250 (reject gate)
-- **Max open positions:** 10 (reject gate)
+- **Max open positions:** 50 (reject gate)
 - **Minimum edge:** 3% (reject gate)
-- **Minimum composite score:** 6.0 (reject gate)
-- **Minimum confidence:** medium (reject gate)
+- **Minimum composite score:** 6.0 (reject gate, confidence is factored into composite)
 
-Gates 1-7 reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_CONCENTRATION`, `APPROVED_CAPPED_MAX_BET`).
+Gates 1-6 reject orders outright. Gates 7-8 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
 
 ---
 
@@ -628,5 +626,5 @@ Reports: Brier score, calibration curve (predicted vs realized), dimension break
 1. **Always check status first** before any scan or bet — if daily loss limit is breached, STOP.
 2. **Never execute without confirmation** unless `--execute`/`--go` was explicitly passed.
 3. **Preview is the default** — every scan shows a table first, orders only placed with `--execute`.
-4. **Nine risk gates enforced** — daily loss, position count, edge, score, confidence, duplicate ticker, per-event cap, max concentration, max bet size. All checked before every order.
+4. **Eight risk gates enforced** — daily loss, position count, edge, score, duplicate ticker, per-event cap, max bet size, bet ratio cap. All checked before every order.
 5. **API keys are in `.env`** — never print, log, or expose them.
