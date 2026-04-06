@@ -19,6 +19,16 @@
 - **Docs:** `docs/web-app/` — SETUP.md, USAGE.md, ARCHITECTURE.md
 - Launch: `streamlit run webapp/app.py`
 
+### Dashboard Enhancements (D1, D2, D4 + polish)
+- **D1: Quick-scan sidebar buttons** — Sports, Futures, Prediction, Polymarket buttons in sidebar pre-select market type
+- **D2: Favorite scans** — Save/load/delete named scan configs. Stored in `data/webapp/favorites.json`. Favorites appear in sidebar for one-click loading.
+- **D4: Default unit size** — Changed from $1.00 to $0.50
+- **Dynamic controls** — Filter, category, budget, max-per-game, and cross-ref controls adapt based on selected market type. Sports-only params hidden for futures/prediction/polymarket.
+- **Clear button** — Wipes all scan results, preview, and execution data for a fresh start
+- **ANSI stripping** — Console output cleaned of escape codes and rich markup before display
+- **Rich table removal** — Preview shows clean pipeline summary + Streamlit dataframe instead of box-drawing character tables
+- **Expander replacement** — All `st.expander` widgets replaced with toggle buttons (Material icon font renders as broken text in the custom theme)
+
 ---
 
 ## 2026-04-06 -- Min-Bets Safety Gate

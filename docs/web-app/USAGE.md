@@ -35,35 +35,41 @@ taskkill /F /IM streamlit.exe
 
 The primary workflow page. All controls are configured up front before scanning.
 
-**Filters:**
+**Filters** (adapt based on market type):
 
 | Control | Maps To | Description |
 |---|---|---|
 | Market Type | `sports`, `futures`, `prediction`, `polymarket` | Which scanner to use |
-| Sport Filter | `--filter` | Sport or asset (mlb, nba, crypto, etc.) |
-| Category | `--category` | Market type: game, spread, total, etc. |
+| Filter | `--filter` | Sport or asset — options change per market type |
+| Category | `--category` | Market category — disabled for futures/polymarket |
 | Date | `--date` | today, tomorrow, or all dates |
 
 **Execution Parameters:**
 
-| Control | Maps To | Description |
+| Control | Maps To | Shown For |
 |---|---|---|
-| Min Edge % | `--min-edge` | Minimum edge threshold to surface |
-| Top N | `--top` | Number of opportunities to show |
-| Unit Size ($) | `--unit-size` | Dollar amount per bet |
-| Budget % | `--budget` | Max total batch cost as % of bankroll |
-| Max Bets | `--max-bets` | Maximum bets to place |
-| Min Bets | `--min-bets` | Minimum approved bets required (0 = none) |
-| Max Per Game | `--max-per-game` | Max positions on the same game |
-| Exclude Open | `--exclude-open` | Skip markets with existing positions |
+| Min Edge % | `--min-edge` | All |
+| Top N | `--top` | All |
+| Unit Size ($) | `--unit-size` | All (default $0.50) |
+| Max Bets | `--max-bets` | All |
+| Min Bets | `--min-bets` | All |
+| Exclude Open | `--exclude-open` | All |
+| Budget % | `--budget` | Sports only |
+| Max Per Game | `--max-per-game` | Sports only |
+| Cross-Ref Polymarket | `--cross-ref` | Prediction only |
+
+**Quick Scan:** Sidebar buttons (Sports, Futures, Prediction, Polymarket) navigate directly to the scan page with that market type pre-selected.
+
+**Favorites:** Click **MANAGE FAVORITES** to save the current filter + param config with a name. Saved favorites appear in the sidebar — click to load all settings. Delete from the manage section.
 
 **Workflow:**
 
-1. Configure filters and parameters
+1. Configure filters and parameters (or click a Quick Scan / Favorite)
 2. Click **SCAN MARKETS** — finds opportunities, displays results table
 3. Optionally select specific picks from the multiselect
-4. Click **PREVIEW** — runs the full pipeline (risk gates, Kelly sizing, budget cap), shows contract quantities, costs, and approval status
+4. Click **PREVIEW** — runs the full pipeline (risk gates, Kelly sizing, budget cap), shows clean summary + order table with costs
 5. Click **EXECUTE** — places real orders (unless `DRY_RUN=true` in `.env`)
+6. Click **CLEAR** to wipe all results and start fresh
 
 ### Portfolio
 

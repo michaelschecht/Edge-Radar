@@ -39,8 +39,10 @@ def render():
             st.info(f"No new settlements. {still_open} trades still open.")
 
         if console_out.strip():
-            with st.expander("Console output"):
-                st.code(console_out)
+            if st.button("Show settle log", key="toggle_settle_log"):
+                import re
+                clean = re.sub(r'\x1b\[[0-9;]*m', '', console_out)
+                st.code(clean)
 
     # ── Report ──────────────────────────────────────────────────────────
     section_label("P&L Report")

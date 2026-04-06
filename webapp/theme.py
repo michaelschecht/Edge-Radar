@@ -132,6 +132,23 @@ def inject_css():
         color: #00d4aa;
     }
 
+    /* ── Sidebar quick-scan & favorite buttons ────────────────────── */
+    section[data-testid="stSidebar"] .stButton button {
+        background: rgba(0, 212, 170, 0.04) !important;
+        border: 1px solid #1e293b !important;
+        color: #94a3b8 !important;
+        font-size: 0.75rem !important;
+        padding: 0.4rem 0.75rem !important;
+        min-height: 0 !important;
+        transition: all 0.15s ease !important;
+    }
+
+    section[data-testid="stSidebar"] .stButton button:hover {
+        border-color: rgba(0, 212, 170, 0.4) !important;
+        color: #00d4aa !important;
+        background: rgba(0, 212, 170, 0.08) !important;
+    }
+
     /* ── Metric cards ───────────────────────────────────────────── */
     div[data-testid="stMetric"] {
         background: linear-gradient(135deg, #111827 0%, #0d1220 100%);
@@ -261,7 +278,8 @@ def inject_css():
     }
 
     /* ── Expanders ──────────────────────────────────────────────── */
-    .streamlit-expanderHeader {
+    .streamlit-expanderHeader,
+    [data-testid="stExpander"] summary {
         font-family: 'JetBrains Mono', monospace !important;
         font-size: 0.82rem;
         background: #111827 !important;
@@ -270,7 +288,14 @@ def inject_css():
         color: #94a3b8 !important;
     }
 
-    .streamlit-expanderContent {
+    /* Hide broken Material icon on expander toggle */
+    [data-testid="stExpander"] summary svg,
+    [data-testid="stExpander"] summary span[data-testid="stExpanderToggleIcon"] {
+        display: none !important;
+    }
+
+    .streamlit-expanderContent,
+    [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
         border: 1px solid #1e293b;
         border-top: none;
         border-radius: 0 0 6px 6px;
