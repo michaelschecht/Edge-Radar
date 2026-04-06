@@ -4,7 +4,7 @@
 
 [![Pipeline](https://img.shields.io/badge/Pipeline-7%20Stages-0078D4?style=flat-square)](#-pipeline-overview)
 [![Edge Models](https://img.shields.io/badge/Edge%20Models-5%20Types-8B5CF6?style=flat-square)](#-edge-detection-models)
-[![Risk Gates](https://img.shields.io/badge/Risk-9%20Gates-e74c3c?style=flat-square)](#%EF%B8%8F-risk-management)
+[![Risk Gates](https://img.shields.io/badge/Risk-10%20Gates-e74c3c?style=flat-square)](#%EF%B8%8F-risk-management)
 [![Scoring](https://img.shields.io/badge/Scoring-4%20Dimensions-F97316?style=flat-square)](#-how-scoring-works)
 [![Kelly Sizing](https://img.shields.io/badge/Sizing-Batch%20Kelly-2ea44f?style=flat-square)](#-position-sizing)
 
@@ -26,7 +26,7 @@ The system processes every opportunity through seven sequential stages. Each sta
 | **2. Categorize** | Classify by type | Determines which edge model applies |
 | **3. Compare** | Fair value vs. Kalshi ask price | Score on 4 dimensions: edge, confidence, liquidity, time |
 | **4. Cap** | Limit to top 3 per game/event | Prevents concentration in a single contest |
-| **5. Risk-Check** | 9 risk gates + Kelly sizing | Reject or cap — see [Risk Management](#%EF%B8%8F-risk-management) |
+| **5. Risk-Check** | 10 risk gates + Kelly sizing | Reject or cap — see [Risk Management](#%EF%B8%8F-risk-management) |
 | **6. Execute** | Place limit orders on Kalshi | Full trade journal entry with rationale |
 | **7. Monitor** | Track positions, settle, calibrate | Realized P&L + closing line value tracking |
 
@@ -226,7 +226,7 @@ The minimum score to pass risk checks is **6.0** (configurable via `MIN_COMPOSIT
 
 ### Risk Gate Pipeline
 
-Every order must pass gates 1-7 before execution. Gates 8-9 are sizing caps that downsize the order rather than rejecting it.
+Every order must pass gates 1-7 before execution. Gates 8-10 are sizing caps that downsize the order rather than rejecting it.
 
 | | Gate | Check | Behavior |
 | :--- | :--- | :--- | :--- |
@@ -239,12 +239,14 @@ Every order must pass gates 1-7 before execution. Gates 8-9 are sizing caps that
 | 7 | **Per-event cap** | Too many positions on the same game | **Reject** if event count ≥ `MAX_PER_EVENT` |
 | 8 | **Max concentration** | Single position exceeds % of bankroll | **Cap** — downsize to `MAX_CONCENTRATION` × bankroll |
 | 9 | **Max bet size** | Category-aware bet size cap | **Cap** — downsize to `MAX_BET_SIZE_SPORTS` / `_PREDICTION` |
+| 10 | **Bet ratio cap** | Single bet cost vs. median batch cost | **Cap** — downsize so cost ≤ `MAX_BET_RATIO` × median batch cost |
 
 > [!NOTE]
 > The trade log records approval subtypes for post-trade review:
 > - `APPROVED` — passed all gates, no caps hit
 > - `APPROVED_CAPPED_CONCENTRATION` — downsized by gate 8
 > - `APPROVED_CAPPED_MAX_BET` — downsized by gate 9
+> - `APPROVED_CAPPED_BET_RATIO` — downsized by gate 10
 
 ### Risk Parameters
 
@@ -261,6 +263,7 @@ Every order must pass gates 1-7 before execution. Gates 8-9 are sizing caps that
 | `MIN_EDGE_THRESHOLD` | 3% | Minimum edge required to consider a bet |
 | `MIN_COMPOSITE_SCORE` | 6.0 | Minimum composite opportunity score |
 | `MIN_CONFIDENCE` | medium | Minimum model confidence level |
+| `MAX_BET_RATIO` | 3.0 | Max ratio of any single bet cost to median batch cost |
 
 ---
 

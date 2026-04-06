@@ -134,6 +134,7 @@ python scripts/scan.py <market-type> [flags]
 | `--pick X` | *(all)* | Comma-separated row numbers to execute (e.g., `'1,3,5'`) |
 | `--ticker X` | *(all)* | Execute only specific tickers |
 | `--category X` | *(all)* | Market category: `game`, `spread`, `total`, `player_prop`, `esports`, `other` |
+| `--max-bet-ratio N` | `3.0` | Max ratio of any single bet cost to median batch cost (scales down outliers) |
 | `--report-dir X` | *(auto)* | Override report output directory for `--save` |
 
 > [!TIP]
@@ -380,7 +381,7 @@ All execution scripts use:
 - `--max-bets 10` — total across all sports
 - `--exclude-open` — skip markets with existing positions
 - `--save` — execution report (Sport, Bet, Type, Pick, Qty, Price, Cost, Edge)
-- All 9 risk gates enforced
+- All 10 risk gates enforced
 
 ---
 

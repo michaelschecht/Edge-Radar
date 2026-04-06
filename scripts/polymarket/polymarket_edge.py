@@ -690,6 +690,8 @@ def main():
                         help="Only show markets on this date (today, tomorrow, YYYY-MM-DD, mar31)")
     scan_p.add_argument("--exclude-open", action="store_true",
                         help="Exclude markets where you already have an open position")
+    scan_p.add_argument("--max-bet-ratio", type=float, default=None,
+                        help="Max single bet as multiple of batch median cost (default: MAX_BET_RATIO env var)")
 
     match_p = sub.add_parser("match", help="Find Polymarket match for a Kalshi ticker")
     match_p.add_argument("ticker", help="Kalshi ticker to match")
@@ -779,6 +781,7 @@ def main():
                 pick_rows=args.pick,
                 pick_tickers=args.ticker,
                 min_bets=args.min_bets,
+                max_bet_ratio=args.max_bet_ratio,
             )
         else:
             from ticker_display import parse_game_datetime
