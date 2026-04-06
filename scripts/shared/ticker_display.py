@@ -331,7 +331,7 @@ def format_bet_label(ticker: str, title: str) -> str:
     if matchup:
         return matchup
     # Strip common Kalshi title suffixes for brevity
-    label = title.replace(" Winner?", "").replace(" (vs ", " | ").rstrip(")")
+    label = title.replace(" Winner?", "").replace(" (vs ", " vs ").rstrip(")")
     return label[:45]
 
 

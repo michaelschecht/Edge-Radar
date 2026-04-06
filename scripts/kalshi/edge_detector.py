@@ -1667,6 +1667,8 @@ def main():
     scan_p.add_argument("--budget", type=str, default=None,
                         help="Max total cost for the batch. Percentage of bankroll (e.g. '10%%') "
                              "or dollar amount (e.g. '15'). Bets scaled down proportionally.")
+    scan_p.add_argument("--max-bet-ratio", type=float, default=None,
+                        help="Max single bet as multiple of batch median cost (default: MAX_BET_RATIO env var)")
     scan_p.add_argument("--exclude-open", action="store_true",
                         help="Exclude markets where you already have an open position")
     scan_p.add_argument("--report-dir", type=str, default=None,
@@ -1731,6 +1733,7 @@ def main():
                 max_per_game=args.max_per_game,
                 budget=budget_val,
                 min_bets=args.min_bets,
+                max_bet_ratio=args.max_bet_ratio,
             )
         else:
             print_opportunities(opportunities)

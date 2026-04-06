@@ -111,12 +111,14 @@ def save_scan_report(
             title = _get_attr(o, "title", "")
             cat = _get_attr(o, "category", "")
             side = _get_attr(o, "side", "")
+            bet = format_bet_label(ticker, title)[:35].replace("|", "/")
+            pick = format_pick_label(ticker, title, side, cat).replace("|", "/")
             lines.append(
                 f"| {i} "
                 f"| {sport_from_ticker(ticker)} "
-                f"| {format_bet_label(ticker, title)[:35]} "
+                f"| {bet} "
                 f"| {cat_labels.get(cat, cat.title())} "
-                f"| {format_pick_label(ticker, title, side, cat)} "
+                f"| {pick} "
                 f"| {parse_game_datetime(ticker)} "
                 f"| ${_get_attr(o, 'market_price', 0):.2f} "
                 f"| ${_get_attr(o, 'fair_value', 0):.2f} "
@@ -182,12 +184,14 @@ def save_execution_report(
 
     for i, s in enumerate(sized_orders, 1):
         opp = s.opportunity
+        bet = format_bet_label(opp.ticker, opp.title)[:35].replace("|", "/")
+        pick = format_pick_label(opp.ticker, opp.title, opp.side, opp.category).replace("|", "/")
         lines.append(
             f"| {i} "
             f"| {sport_from_ticker(opp.ticker)} "
-            f"| {format_bet_label(opp.ticker, opp.title)[:35]} "
+            f"| {bet} "
             f"| {cat_labels.get(opp.category, opp.category.title())} "
-            f"| {format_pick_label(opp.ticker, opp.title, opp.side, opp.category)} "
+            f"| {pick} "
             f"| {parse_game_datetime(opp.ticker)} "
             f"| {s.contracts} "
             f"| ${s.price_cents / 100:.2f} "

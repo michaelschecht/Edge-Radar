@@ -143,7 +143,7 @@ Edge-Radar/
 - `.env` is in `.gitignore` — verify before every commit
 
 ### Execution Gates
-Before ANY trade/bet executes, nine risk gates must pass:
+Before ANY trade/bet executes, ten risk gates must pass:
 1. ✅ Daily loss limit not breached
 2. ✅ Open position count under max
 3. ✅ Opportunity edge ≥ minimum threshold
@@ -153,6 +153,7 @@ Before ANY trade/bet executes, nine risk gates must pass:
 7. ✅ Per-event cap not exceeded (max 3 positions per game)
 8. ✅ Single position ≤ max concentration (20% of bankroll)
 9. ✅ Bet size ≤ category max ($50 sports / $100 prediction)
+10. ✅ Single bet ≤ 3× batch median cost (bet ratio cap)
 
 ### Dry Run Mode
 - Default: `DRY_RUN=true` in `.env`
@@ -171,6 +172,7 @@ MAX_BET_SIZE_PREDICTION=100     # USD per prediction market position (hard cap)
 MAX_DAILY_LOSS=250              # USD hard stop for the day
 MAX_OPEN_POSITIONS=10           # Concurrent open positions
 MAX_PER_EVENT=3                 # Max positions on the same game/event
+MAX_BET_RATIO=3.0               # Max single bet as multiple of batch median cost
 MAX_POSITION_CONCENTRATION=0.20 # Max single position as % of bankroll
 MIN_EDGE_THRESHOLD=0.03         # Minimum 3% edge required
 MIN_COMPOSITE_SCORE=6.0         # Minimum opportunity score (0-10)

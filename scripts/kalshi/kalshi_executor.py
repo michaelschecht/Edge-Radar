@@ -62,6 +62,7 @@ MIN_EDGE_THRESHOLD = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
 KELLY_FRACTION = float(os.getenv("KELLY_FRACTION", "0.25"))
 MAX_CONCENTRATION = float(os.getenv("MAX_POSITION_CONCENTRATION", "0.20"))
 MAX_PER_EVENT = int(os.getenv("MAX_PER_EVENT", "2"))
+MAX_BET_RATIO = float(os.getenv("MAX_BET_RATIO", "3.0"))
 MIN_COMPOSITE_SCORE = float(os.getenv("MIN_COMPOSITE_SCORE", "6.0"))
 MIN_CONFIDENCE = os.getenv("MIN_CONFIDENCE", "medium")  # low, medium, high
 
@@ -397,6 +398,42 @@ def _apply_budget_cap(orders: list[SizedOrder], budget: float) -> list[SizedOrde
     return capped
 
 
+def _apply_bet_ratio_cap(orders: list[SizedOrder], ratio: float = MAX_BET_RATIO) -> list[SizedOrder]:
+    """Cap any single bet that exceeds ratio × the median batch cost.
+
+    Prevents one high-edge, low-price bet from dominating a batch.
+    Only scales down outliers — other bets are untouched.
+    """
+    if len(orders) < 2 or ratio <= 0:
+        return orders
+
+    costs = sorted(s.cost_dollars for s in orders)
+    median_cost = costs[len(costs) // 2]
+    cap = median_cost * ratio
+
+    if cap <= 0:
+        return orders
+
+    capped: list[SizedOrder] = []
+    for s in orders:
+        if s.cost_dollars > cap:
+            new_contracts = max(1, int(cap / s.opportunity.market_price))
+            new_cost = round(new_contracts * s.opportunity.market_price, 2)
+            bankroll_pct = s.bankroll_pct * (new_cost / s.cost_dollars) if s.cost_dollars > 0 else s.bankroll_pct
+            capped.append(SizedOrder(
+                opportunity=s.opportunity,
+                contracts=new_contracts,
+                price_cents=s.price_cents,
+                cost_dollars=new_cost,
+                bankroll_pct=round(bankroll_pct, 4),
+                risk_approval="APPROVED_CAPPED_BET_RATIO",
+            ))
+        else:
+            capped.append(s)
+
+    return capped
+
+
 def execute_pipeline(
     client: KalshiClient,
     opportunities: list[Opportunity],
@@ -408,6 +445,7 @@ def execute_pipeline(
     max_per_game: int | None = None,
     budget: float | None = None,
     min_bets: int | None = None,
+    max_bet_ratio: float | None = None,
 ) -> list[dict]:
     """
     Run the full pipeline: risk-check, size, and optionally execute.
@@ -501,6 +539,14 @@ def execute_pipeline(
 
     # ── Preview table
     to_execute = approved[:max_bets]
+
+    # ── Bet ratio cap: prevent one bet from dominating the batch
+    effective_ratio = max_bet_ratio if max_bet_ratio is not None else MAX_BET_RATIO
+    pre_ratio_cost = sum(s.cost_dollars for s in to_execute)
+    to_execute = _apply_bet_ratio_cap(to_execute, ratio=effective_ratio)
+    post_ratio_cost = sum(s.cost_dollars for s in to_execute)
+    if post_ratio_cost < pre_ratio_cost:
+        rprint(f"  Bet ratio cap: [yellow]${pre_ratio_cost:.2f} -> ${post_ratio_cost:.2f}[/yellow] (max {effective_ratio:.1f}x median)")
 
     # ── Budget cap: proportionally scale if total exceeds budget
     if budget is not None:
@@ -834,6 +880,8 @@ def main():
                             "to stay within budget while preserving Kelly edge-weighting.")
     run_p.add_argument("--exclude-open", action="store_true",
                        help="Exclude markets where you already have an open position")
+    run_p.add_argument("--max-bet-ratio", type=float, default=None,
+                       help="Max single bet as multiple of batch median cost (default: MAX_BET_RATIO env var)")
 
     status_p = sub.add_parser("status", help="Show portfolio status")
     status_p.add_argument("--save", action="store_true",
@@ -933,6 +981,7 @@ def main():
             pick_tickers=args.ticker,
             max_per_game=args.max_per_game,
             budget=budget_val,
+            max_bet_ratio=args.max_bet_ratio,
         )
 
 

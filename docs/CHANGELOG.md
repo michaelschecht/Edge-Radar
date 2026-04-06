@@ -2,6 +2,23 @@
 
 ---
 
+## 2026-04-06 -- Bet Ratio Cap (Risk Gate 10) & Markdown Table Fix
+
+### Risk Gate 10: Bet Ratio Cap (`MAX_BET_RATIO`)
+- **Problem:** Kelly sizing could let one high-edge, low-price bet dominate a batch. For example, 41 contracts at $0.21 = $8.61 while two other bets cost ~$2 each. A single outlier absorbs most of the batch budget.
+- **Fix:** New `MAX_BET_RATIO` parameter (default 3.0). No single bet can cost more than 3x the median batch cost. Only scales down outliers -- other bets in the batch are untouched.
+- **Gate type:** Sizing cap (like gates 8-9). Downsizes the outlier rather than rejecting it. Fires after Kelly sizing and before budget cap.
+- **Usage:** Set in `.env` as `MAX_BET_RATIO=3.0` or override per-run with `--max-bet-ratio 2.0`
+- **CLI:** `--max-bet-ratio` flag added to all scanners (`edge_detector.py`, `futures_edge.py`, `prediction_scanner.py`, `polymarket_edge.py`) and `scan.py`
+- Files changed: `kalshi_executor.py` (new env var, `_apply_bet_ratio_cap()` function, `execute_pipeline()` kwarg, CLI flag), `edge_detector.py`, `futures_edge.py`, `prediction_scanner.py`, `polymarket_edge.py` (CLI flag + pass-through), `scan.py` (help text), `.env.example`, `CLAUDE.md`
+
+### Markdown Table Pipe Fix
+- **Problem:** Report markdown tables had broken column alignment on some rows. `format_bet_label()` in `ticker_display.py` was replacing `" (vs "` with `" | "`, injecting a literal pipe character into markdown table cells -- breaking the table structure.
+- **Fix:** Changed replacement from `" | "` to `" vs "` in `ticker_display.py`. Added `.replace("|", "/")` sanitization on bet and pick labels in `report_writer.py` (both scan and execution report writers) as a safety net against future pipe injection.
+- Files changed: `ticker_display.py`, `report_writer.py`
+
+---
+
 ## 2026-04-06 -- Streamlit Web Dashboard (U6)
 
 ### Web Dashboard v1.0

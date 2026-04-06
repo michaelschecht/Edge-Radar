@@ -476,6 +476,8 @@ def main():
                         help="Only show markets on this date (today, tomorrow, YYYY-MM-DD, mar31)")
     scan_p.add_argument("--exclude-open", action="store_true",
                         help="Exclude markets where you already have an open position")
+    scan_p.add_argument("--max-bet-ratio", type=float, default=None,
+                        help="Max single bet as multiple of batch median cost (default: MAX_BET_RATIO env var)")
 
     args = parser.parse_args()
 
@@ -521,6 +523,7 @@ def main():
                 pick_rows=args.pick,
                 pick_tickers=args.ticker,
                 min_bets=args.min_bets,
+                max_bet_ratio=args.max_bet_ratio,
             )
         else:
             print_opportunities(opportunities)
