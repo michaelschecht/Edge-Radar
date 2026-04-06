@@ -2,6 +2,25 @@
 
 ---
 
+## 2026-04-06 -- Streamlit Web Dashboard (U6)
+
+### Web Dashboard v1.0
+- **Purpose:** Lightweight web UI for occasional remote access. CLI remains primary interface.
+- **Stack:** Streamlit with custom dark theme (JetBrains Mono + Outfit fonts, cyan/amber/red accent palette)
+- **Pages:**
+  - **Scan & Execute** — all CLI flags as controls, scan to find opportunities, preview to see sizing/costs, execute to place orders
+  - **Portfolio** — balance, open positions, P&L, daily loss limit progress, resting orders
+  - **Settle & Report** — settle completed markets, generate P&L reports rendered as formatted markdown
+- **Architecture:** Thin service layer (`webapp/services.py`) wraps existing scanner/executor/settler functions. Captures `rich` console output via stdout redirect. No business logic duplication.
+- **Theme:** Custom CSS injection (`webapp/theme.py`) — dark terminal aesthetic with grid overlay, styled metric cards, gradient buttons
+- **Auth:** Optional password gate via `.streamlit/secrets.toml` (gitignored)
+- **Code changes:** `kalshi_settler.py` `generate_report()` now returns markdown string for web rendering
+- **Skill:** Official `streamlit/agent-skills` installed at `.claude/skills/developing-with-streamlit/` (17 sub-skills)
+- **Docs:** `docs/web-app/` — SETUP.md, USAGE.md, ARCHITECTURE.md
+- Launch: `streamlit run webapp/app.py`
+
+---
+
 ## 2026-04-06 -- Min-Bets Safety Gate
 
 ### `--min-bets` Flag

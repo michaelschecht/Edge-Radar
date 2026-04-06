@@ -55,6 +55,9 @@ Thumbs.db
 notebooks/.ipynb_checkpoints/
 notebooks/analysis/*.html
 
+# === Streamlit ===
+.streamlit/secrets.toml
+
 # === Project-specific ===
 .claude/images/screenshots/
 docs/enhancements/
