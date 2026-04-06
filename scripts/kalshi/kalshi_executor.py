@@ -407,6 +407,7 @@ def execute_pipeline(
     pick_tickers: list[str] | None = None,
     max_per_game: int | None = None,
     budget: float | None = None,
+    min_bets: int | None = None,
 ) -> list[dict]:
     """
     Run the full pipeline: risk-check, size, and optionally execute.
@@ -417,6 +418,9 @@ def execute_pipeline(
         execute: If True, actually place orders. If False, preview only.
         max_bets: Maximum number of bets to place in one run
         max_per_game: Override MAX_PER_EVENT for this run
+        min_bets: Minimum approved bets required to proceed. If fewer pass
+                  risk checks, abort execution to avoid over-concentrating
+                  the budget into too few positions.
     """
     # ── Gather portfolio state
     bal = client.get_balance_dollars()
@@ -486,6 +490,13 @@ def execute_pipeline(
 
     if not approved:
         rprint("[yellow]No opportunities passed risk checks.[/yellow]")
+        return []
+
+    # ── Min-bets gate: abort if too few approved to avoid over-concentration
+    if min_bets is not None and len(approved) < min_bets:
+        rprint(f"[yellow bold]MIN-BETS GATE: only {len(approved)} approved but "
+               f"--min-bets requires {min_bets}. Skipping execution to avoid "
+               f"over-concentrating budget into too few positions.[/yellow bold]")
         return []
 
     # ── Preview table

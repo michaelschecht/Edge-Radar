@@ -465,6 +465,9 @@ def main():
                         help="Dollar amount per bet (default: UNIT_SIZE from .env)")
     scan_p.add_argument("--max-bets", type=int, default=5,
                         help="Maximum number of bets to place")
+    scan_p.add_argument("--min-bets", type=int, default=None,
+                        help="Minimum approved bets required to proceed. If fewer pass "
+                             "risk checks, abort to avoid over-concentrating budget.")
     scan_p.add_argument("--pick", type=str, default=None,
                         help="Comma-separated row numbers to execute (e.g., '1,3,5')")
     scan_p.add_argument("--ticker", type=str, nargs="+", default=None,
@@ -517,6 +520,7 @@ def main():
                 unit_size=args.unit_size or UNIT_SIZE,
                 pick_rows=args.pick,
                 pick_tickers=args.ticker,
+                min_bets=args.min_bets,
             )
         else:
             print_opportunities(opportunities)

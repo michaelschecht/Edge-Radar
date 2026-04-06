@@ -41,10 +41,11 @@ When any scanner is called with `--execute`, it imports `execute_pipeline()` fro
 1. **Portfolio state** -- fetches balance, open positions, today's P&L
 2. **Correlated bracket dedup** -- collapses multiple totals/spread lines on the same game into the single best-scoring pick (e.g., Over 221.5, Over 224.5, Over 228.5 on BOS@MIL → keeps only the highest composite score)
 3. **Risk check** -- validates daily loss limit, max open positions, per-trade sizing
-4. **Sizing** -- calculates contract count based on `--unit-size` and market price
-5. **Preview table** -- shows all approved orders with Bet, Type, Pick, When, Qty, Price, Cost, Edge
-6. **Execution** (if `--execute` is passed) -- places limit orders via Kalshi API
-7. **Trade logging** -- records each trade to `data/history/`
+4. **Min-bets gate** -- if `--min-bets N` is set and fewer than N bets passed risk checks, abort to avoid over-concentrating the budget into too few positions
+5. **Sizing** -- calculates contract count based on `--unit-size` and market price
+6. **Preview table** -- shows all approved orders with Bet, Type, Pick, When, Qty, Price, Cost, Edge
+7. **Execution** (if `--execute` is passed) -- places limit orders via Kalshi API
+8. **Trade logging** -- records each trade to `data/history/`
 
 ### Risk Gates (9 gates)
 

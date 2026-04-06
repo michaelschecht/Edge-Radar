@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-04-06 -- Min-Bets Safety Gate
+
+### `--min-bets` Flag
+- **Problem:** With `--budget 10%` and `--max-bets 6`, if only 1-2 games pass risk checks, the entire budget gets concentrated into too few positions — defeating the purpose of diversification.
+- **Fix:** New `--min-bets N` flag across all scanners. If fewer than N opportunities pass the 9 risk gates, the pipeline aborts before execution with a clear message.
+- **How it works:** Gate fires after risk checks but before sizing/budget scaling. Returns an empty list so no orders are placed and no reports are generated for an under-diversified batch.
+- **No flag = no minimum:** When `--min-bets` is omitted (default `None`), the gate is skipped entirely — current behavior unchanged.
+- Example: `scan.py sports --unit-size .5 --max-bets 6 --min-bets 3 --budget 10% --exclude-open --execute`
+- Files changed: `kalshi_executor.py` (new gate in `execute_pipeline`), `edge_detector.py`, `prediction_scanner.py`, `polymarket_edge.py`, `futures_edge.py` (CLI flag + pass-through in all four)
+
+---
+
 ## 2026-04-04 (evening) -- Budget Cap for Batch Execution
 
 ### `--budget` Flag
