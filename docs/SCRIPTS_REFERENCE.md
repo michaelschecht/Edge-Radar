@@ -35,6 +35,75 @@ For domain-specific guides: **[Sports](kalshi-sports-betting/SPORTS_GUIDE.md)** 
 
 Single entry point for all scanners. Routes to the correct scanner based on market type. All flags are forwarded directly.
 
+```mermaid
+flowchart LR
+    CMD["python scripts/scan.py\n&lt;market-type&gt; [flags]"]
+
+    subgraph ALIAS ["Alias Resolution"]
+        direction TB
+        A1["sport → sports"]
+        A2["pred → prediction"]
+        A3["poly → polymarket"]
+        A4["xref → polymarket"]
+    end
+
+    CMD --> ALIAS
+
+    subgraph ROUTE ["Scanner Routing"]
+        direction TB
+        R1{"market\ntype?"}
+    end
+
+    ALIAS --> R1
+
+    subgraph SPORTS ["🏀 Sports"]
+        S1["edge_detector.py\nkalshi/"]
+        S1D["NBA · NHL · MLB · NFL\nNCAA · MLS · UFC · F1\n27 sport filters"]
+    end
+
+    subgraph FUTURES ["🏆 Futures"]
+        F1["futures_edge.py\nkalshi/"]
+        F1D["Championship &\nseason-long markets\nN-way de-vig"]
+    end
+
+    subgraph PRED ["📈 Predictions"]
+        P1["prediction_scanner.py\nprediction/"]
+        P1D["Crypto · Weather\nS&P 500 · Politics\nModel-specific edge"]
+    end
+
+    subgraph POLY ["🔗 Polymarket"]
+        PO1["polymarket_edge.py\npolymarket/"]
+        PO1D["Cross-market edge\nGamma API fuzzy match\nKalshi ↔ Polymarket"]
+    end
+
+    R1 -- "sports" --> S1 --> S1D
+    R1 -- "futures" --> F1 --> F1D
+    R1 -- "prediction" --> P1 --> P1D
+    R1 -- "polymarket" --> PO1 --> PO1D
+
+    subgraph INSERT ["Auto-Insert"]
+        INS["If first arg starts with '-'\nauto-prepend 'scan' subcommand"]
+    end
+
+    CMD -.-> INSERT
+
+    subgraph EXEC ["Subprocess Execution"]
+        EX["python &lt;scanner&gt; scan [flags]\nAll flags forwarded directly\nRuns from PROJECT_ROOT"]
+    end
+
+    S1D & F1D & P1D & PO1D --> EX
+
+    style CMD fill:#1e293b,stroke:#60a5fa,color:#e2e8f0
+    style ALIAS fill:#1e1b4b,stroke:#818cf8,color:#c7d2fe
+    style ROUTE fill:#172554,stroke:#3b82f6,color:#e2e8f0
+    style SPORTS fill:#14532d,stroke:#4ade80,color:#e2e8f0
+    style FUTURES fill:#7c2d12,stroke:#fb923c,color:#e2e8f0
+    style PRED fill:#581c87,stroke:#a855f7,color:#e2e8f0
+    style POLY fill:#164e63,stroke:#22d3ee,color:#e2e8f0
+    style INSERT fill:#374151,stroke:#9ca3af,color:#d1d5db
+    style EXEC fill:#1e293b,stroke:#60a5fa,color:#e2e8f0
+```
+
 ```bash
 python scripts/scan.py <market-type> [flags]
 ```
