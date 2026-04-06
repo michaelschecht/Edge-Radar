@@ -344,6 +344,7 @@ Edge-Radar/
 | **[Prediction Markets](docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** | Crypto, weather, S&P 500, politics |
 | **[Architecture](docs/ARCHITECTURE.md)** | Pipeline, risk gates, data flow |
 | **[MLB Filtering](docs/kalshi-sports-betting/MLB_FILTERING_GUIDE.md)** | 10 filter categories for MLB picks |
+| **[Web Dashboard](docs/web-app/SETUP.md)** | Streamlit dashboard setup, usage, and architecture |
 | **[Roadmap](docs/enhancements/ROADMAP.md)** | All enhancements — edge model, project quality, pending |
 | **[Changelog](docs/CHANGELOG.md)** | Full project history |
 

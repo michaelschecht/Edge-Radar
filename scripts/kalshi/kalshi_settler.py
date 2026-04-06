@@ -574,6 +574,8 @@ def generate_report(detail: bool = False, save: bool = False, days: int | None =
     if save:
         _save_report_file(md, days=days)
 
+    return "\n".join(md)
+
 
 def _save_report_file(lines: list[str], days: int | None = None):
     """Write report lines to reports/Accounts/Kalshi/ with today's date.
