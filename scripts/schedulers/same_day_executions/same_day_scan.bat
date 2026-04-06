@@ -21,7 +21,7 @@ echo  %date% %time%
 echo ============================================================
 echo.
 
-.venv\Scripts\python.exe scripts\scan.py sports --unit-size .5 --max-bets 5 --budget 15% --date today --exclude-open --save --report-dir "reports\Sports\schedulers\same-day-executions"
+.venv\Scripts\python.exe scripts\scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date today --exclude-open --save --report-dir "reports\Sports\schedulers\same-day-executions"
 
 echo.
 echo ============================================================
