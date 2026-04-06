@@ -52,29 +52,15 @@ TRADE_LOG_PATH = paths.TRADE_LOG_PATH
 
 # ── Risk Parameters ───────────────────────────────────────────────────────────
 
-MAX_BET_SIZE_SPORTS = float(os.getenv("MAX_BET_SIZE_SPORTS", "50"))
-MAX_BET_SIZE_PREDICTION = float(os.getenv("MAX_BET_SIZE_PREDICTION", "100"))
-DEFAULT_BET_SIZE = float(os.getenv("DEFAULT_BET_SIZE", "10"))
+MAX_BET_SIZE = float(os.getenv("MAX_BET_SIZE", "100"))
 UNIT_SIZE = float(os.getenv("UNIT_SIZE", "1.00"))
 MAX_DAILY_LOSS = float(os.getenv("MAX_DAILY_LOSS", "250"))
 MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "10"))
 MIN_EDGE_THRESHOLD = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
 KELLY_FRACTION = float(os.getenv("KELLY_FRACTION", "0.25"))
-MAX_CONCENTRATION = float(os.getenv("MAX_POSITION_CONCENTRATION", "0.20"))
 MAX_PER_EVENT = int(os.getenv("MAX_PER_EVENT", "2"))
 MAX_BET_RATIO = float(os.getenv("MAX_BET_RATIO", "3.0"))
 MIN_COMPOSITE_SCORE = float(os.getenv("MIN_COMPOSITE_SCORE", "6.0"))
-MIN_CONFIDENCE = os.getenv("MIN_CONFIDENCE", "medium")  # low, medium, high
-
-CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
-
-# Sports categories use the sports bet cap; everything else uses prediction cap.
-_SPORTS_CATEGORIES = {"game", "spread", "total", "player_prop", "esports"}
-
-
-def _max_bet_for(category: str) -> float:
-    """Return the max bet size based on market category."""
-    return MAX_BET_SIZE_SPORTS if category in _SPORTS_CATEGORIES else MAX_BET_SIZE_PREDICTION
 
 
 def _event_key(ticker: str) -> str:
@@ -182,15 +168,11 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     elif opp.composite_score < MIN_COMPOSITE_SCORE:
         rejection = f"score_below_minimum ({opp.composite_score:.1f} < {MIN_COMPOSITE_SCORE:.1f})"
 
-    # ── Risk Gate 5: Confidence filter
-    elif CONFIDENCE_RANK.get(opp.confidence, 0) < CONFIDENCE_RANK.get(MIN_CONFIDENCE, 1):
-        rejection = f"confidence_too_low ({opp.confidence} < {MIN_CONFIDENCE})"
-
-    # ── Risk Gate 6: Duplicate ticker
+    # ── Risk Gate 5: Duplicate ticker
     elif open_tickers and opp.ticker in open_tickers:
         rejection = f"duplicate_ticker (already holding {opp.ticker})"
 
-    # ── Risk Gate 7: Per-event cap
+    # ── Risk Gate 6: Per-event cap
     elif event_counts:
         evt = _event_key(opp.ticker)
         if event_counts.get(evt, 0) >= max_per_event:
@@ -224,19 +206,12 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     contracts = max(flat_contracts, kelly_contracts)
     actual_cost = contracts * opp.market_price
 
-    # ── Risk Gate 8: Max concentration (sizing cap, not reject)
     approval = "APPROVED"
     bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
-    if bankroll_pct > MAX_CONCENTRATION:
-        contracts = max(1, int(MAX_CONCENTRATION * bankroll / opp.market_price))
-        actual_cost = contracts * opp.market_price
-        bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
-        approval = "APPROVED_CAPPED_CONCENTRATION"
 
-    # ── Risk Gate 9: Max bet size cap (sizing cap, not reject)
-    max_bet = _max_bet_for(opp.category)
-    if actual_cost > max_bet:
-        contracts = max(1, int(max_bet / opp.market_price))
+    # ── Risk Gate 7: Max bet size cap (sizing cap, not reject)
+    if actual_cost > MAX_BET_SIZE:
+        contracts = max(1, int(MAX_BET_SIZE / opp.market_price))
         actual_cost = contracts * opp.market_price
         bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
         approval = "APPROVED_CAPPED_MAX_BET"
@@ -442,10 +417,8 @@ def execute_pipeline(
     unit_size: float = UNIT_SIZE,
     pick_rows: str | None = None,
     pick_tickers: list[str] | None = None,
-    max_per_game: int | None = None,
     budget: float | None = None,
     min_bets: int | None = None,
-    max_bet_ratio: float | None = None,
 ) -> list[dict]:
     """
     Run the full pipeline: risk-check, size, and optionally execute.
@@ -455,7 +428,6 @@ def execute_pipeline(
         opportunities: Scored opportunities from edge detector
         execute: If True, actually place orders. If False, preview only.
         max_bets: Maximum number of bets to place in one run
-        max_per_game: Override MAX_PER_EVENT for this run
         min_bets: Minimum approved bets required to proceed. If fewer pass
                   risk checks, abort execution to avoid over-concentrating
                   the budget into too few positions.
@@ -482,9 +454,8 @@ def execute_pipeline(
     trade_log = load_trade_log()
     daily_pnl = get_today_pnl(trade_log)
     rprint(f"  Today P&L:  ${daily_pnl:,.2f} (limit: -${MAX_DAILY_LOSS:,.2f})")
-    per_event_limit = max_per_game if max_per_game is not None else MAX_PER_EVENT
     rprint(f"  Unit size:  ${unit_size:.2f}")
-    rprint(f"  Per-game:   {per_event_limit} max")
+    rprint(f"  Per-game:   {MAX_PER_EVENT} max")
 
     if daily_pnl <= -MAX_DAILY_LOSS:
         rprint("[red bold]DAILY LOSS LIMIT HIT -- no new bets allowed today[/red bold]")
@@ -504,7 +475,7 @@ def execute_pipeline(
     for opp in opportunities:
         sized = size_order(
             opp, bankroll, open_count + len([s for s in sized_orders if s.risk_approval.startswith("APPROVED")]),
-            daily_pnl, unit_size, open_tickers, event_counts, per_event_limit,
+            daily_pnl, unit_size, open_tickers, event_counts, MAX_PER_EVENT,
             batch_size=batch_sz,
         )
         sized_orders.append(sized)
@@ -541,12 +512,11 @@ def execute_pipeline(
     to_execute = approved[:max_bets]
 
     # ── Bet ratio cap: prevent one bet from dominating the batch
-    effective_ratio = max_bet_ratio if max_bet_ratio is not None else MAX_BET_RATIO
     pre_ratio_cost = sum(s.cost_dollars for s in to_execute)
-    to_execute = _apply_bet_ratio_cap(to_execute, ratio=effective_ratio)
+    to_execute = _apply_bet_ratio_cap(to_execute)
     post_ratio_cost = sum(s.cost_dollars for s in to_execute)
     if post_ratio_cost < pre_ratio_cost:
-        rprint(f"  Bet ratio cap: [yellow]${pre_ratio_cost:.2f} -> ${post_ratio_cost:.2f}[/yellow] (max {effective_ratio:.1f}x median)")
+        rprint(f"  Bet ratio cap: [yellow]${pre_ratio_cost:.2f} -> ${post_ratio_cost:.2f}[/yellow] (max {MAX_BET_RATIO:.1f}x median)")
 
     # ── Budget cap: proportionally scale if total exceeds budget
     if budget is not None:
@@ -862,8 +832,6 @@ def main():
                        help=f"Dollar amount per bet (default ${UNIT_SIZE:.2f})")
     run_p.add_argument("--max-bets", type=int, default=5,
                        help="Max bets per run (default 5)")
-    run_p.add_argument("--max-per-game", type=int, default=None,
-                       help=f"Max positions per game/event (default {MAX_PER_EVENT}, env MAX_PER_EVENT)")
     run_p.add_argument("--top", type=int, default=20,
                        help="Number of opportunities to scan")
     run_p.add_argument("--pick", type=str, default=None,
@@ -880,8 +848,6 @@ def main():
                             "to stay within budget while preserving Kelly edge-weighting.")
     run_p.add_argument("--exclude-open", action="store_true",
                        help="Exclude markets where you already have an open position")
-    run_p.add_argument("--max-bet-ratio", type=float, default=None,
-                       help="Max single bet as multiple of batch median cost (default: MAX_BET_RATIO env var)")
 
     status_p = sub.add_parser("status", help="Show portfolio status")
     status_p.add_argument("--save", action="store_true",
@@ -979,9 +945,7 @@ def main():
             unit_size=args.unit_size,
             pick_rows=args.pick,
             pick_tickers=args.ticker,
-            max_per_game=args.max_per_game,
             budget=budget_val,
-            max_bet_ratio=args.max_bet_ratio,
         )
 
 

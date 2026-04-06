@@ -38,8 +38,7 @@ console = Console()
 log = setup_logging("risk_check")
 
 # ── Risk Limits (from .env with defaults) ─────────────────────────────────────
-MAX_BET_SPORTS      = float(os.getenv("MAX_BET_SIZE_SPORTS", 50))
-MAX_BET_PREDICTION  = float(os.getenv("MAX_BET_SIZE_PREDICTION", 100))
+MAX_BET_SIZE        = float(os.getenv("MAX_BET_SIZE", 100))
 MAX_DAILY_LOSS      = float(os.getenv("MAX_DAILY_LOSS", 250))
 MAX_OPEN_POSITIONS  = int(os.getenv("MAX_OPEN_POSITIONS", 10))
 MIN_EDGE            = float(os.getenv("MIN_EDGE_THRESHOLD", 0.03))
@@ -158,16 +157,9 @@ def print_limits_status(daily_pnl: float, open_count: int):
         "[green]OK[/green]" if open_count < MAX_OPEN_POSITIONS else "[red]AT LIMIT[/red]"
     )
     table.add_row(
-        "Max Bet (Sports)",
+        "Max Bet Size",
         "—",
-        f"${MAX_BET_SPORTS:.0f}",
-        "—",
-        "[green]OK[/green]"
-    )
-    table.add_row(
-        "Max Bet (Prediction)",
-        "—",
-        f"${MAX_BET_PREDICTION:.0f}",
+        f"${MAX_BET_SIZE:.0f}",
         "—",
         "[green]OK[/green]"
     )

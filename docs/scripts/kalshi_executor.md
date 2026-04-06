@@ -47,25 +47,24 @@ When any scanner is called with `--execute`, it imports `execute_pipeline()` fro
 7. **Execution** (if `--execute` is passed) -- places limit orders via Kalshi API
 8. **Trade logging** -- records each trade to `data/history/`
 
-### Risk Gates (9 gates)
+### Risk Gates (8 gates)
 
 The pipeline rejects opportunities that fail any of these checks:
 
 | # | Gate | Rule |
 |---|------|------|
 | 1 | Daily loss limit | Today's losses must be under `MAX_DAILY_LOSS` ($250) |
-| 2 | Max open positions | Must be under `MAX_OPEN_POSITIONS` (10) |
+| 2 | Max open positions | Must be under `MAX_OPEN_POSITIONS` (50) |
 | 3 | Edge threshold | Must meet `MIN_EDGE_THRESHOLD` (3%) |
-| 4 | Composite score | Must meet `MIN_COMPOSITE_SCORE` (6.0) |
-| 5 | Confidence | Must meet `MIN_CONFIDENCE` (medium) |
-| 6 | Duplicate ticker | Can't already hold a position in this market |
-| 7 | Per-event cap | Max `MAX_PER_EVENT` (2) positions on the same game (override with `--max-per-game`) |
-| 8 | Max concentration | Single position can't exceed `MAX_POSITION_CONCENTRATION` (20%) of bankroll |
-| 9 | Max bet size | Cost can't exceed `MAX_BET_SIZE_SPORTS` ($50) or `MAX_BET_SIZE_PREDICTION` ($100) |
+| 4 | Composite score | Must meet `MIN_COMPOSITE_SCORE` (6.0) — confidence is factored into composite |
+| 5 | Duplicate ticker | Can't already hold a position in this market |
+| 6 | Per-event cap | Max `MAX_PER_EVENT` (2) positions on the same game |
+| 7 | Max bet size | Cost can't exceed `MAX_BET_SIZE` ($100) |
+| 8 | Bet ratio cap | Single bet can't exceed `MAX_BET_RATIO` (3.0) times the batch median cost |
 
 ### Sizing
 
-Uses **quarter-Kelly with flat unit floor**: `bet = max(unit_size, 0.25 * edge * bankroll) / market_price` contracts. Kelly scales up high-edge bets; low-edge bets stay at the flat unit minimum. The result is capped by gates 8 and 9 above.
+Uses **Kelly with flat unit floor**: `bet = max(unit_size, kelly_fraction * edge * bankroll) / market_price` contracts. Kelly scales up high-edge bets; low-edge bets stay at the flat unit minimum. The result is capped by gates 7-8 above.
 
 ---
 

@@ -5,6 +5,7 @@ Imports existing scanner, executor, settler, and risk functions.
 Captures rich console output so Streamlit can render its own tables.
 """
 
+import os
 import sys
 from io import StringIO
 from pathlib import Path
@@ -31,10 +32,12 @@ from ticker_display import (
     parse_game_datetime, format_bet_label, format_pick_label,
     sport_from_ticker, bet_type_from_ticker,
 )
-from config import (
-    MAX_DAILY_LOSS, MAX_OPEN_POSITIONS, MAX_PER_EVENT,
-    MIN_EDGE_THRESHOLD, MIN_COMPOSITE_SCORE, DRY_RUN,
-)
+MAX_DAILY_LOSS = float(os.getenv("MAX_DAILY_LOSS", "250"))
+MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "10"))
+MAX_PER_EVENT = int(os.getenv("MAX_PER_EVENT", "2"))
+MIN_EDGE_THRESHOLD = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
+MIN_COMPOSITE_SCORE = float(os.getenv("MIN_COMPOSITE_SCORE", "6.0"))
+DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
 
 
 @contextmanager
@@ -110,7 +113,6 @@ def run_execute(
     max_bets: int = 5,
     min_bets: int | None = None,
     budget: float | None = None,
-    max_per_game: int | None = None,
     pick_indices: list[int] | None = None,
     execute: bool = False,
 ) -> tuple[list, str]:
@@ -139,7 +141,6 @@ def run_execute(
             execute=execute,
             max_bets=max_bets,
             unit_size=unit_size,
-            max_per_game=max_per_game,
             budget=budget_val,
             min_bets=min_bets,
         )

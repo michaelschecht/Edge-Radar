@@ -167,10 +167,13 @@ Browse-only futures (use raw prefix): `KXNFLMVP`, `KXNBAMVP`, `KXNBAROY`, `KXNBA
 
 ### Risk Awareness
 
-- **MAX_BET_SIZE_PREDICTION**: $5 per bet (hard cap in .env)
-- **UNIT_SIZE**: $1.00 default per bet
+- **MAX_BET_SIZE**: $100 per bet (hard cap in .env)
+- **UNIT_SIZE**: $0.50 default per bet (Kelly floor)
+- **KELLY_FRACTION**: 0.75 (divided by batch size at runtime)
 - **MAX_DAILY_LOSS**: $250 daily stop
-- **MAX_OPEN_POSITIONS**: configurable in .env
+- **MAX_OPEN_POSITIONS**: 50 (configurable in .env)
+- **MAX_PER_EVENT**: 2 positions per game
+- **MAX_BET_RATIO**: 3.0x batch median (prevents one bet dominating)
 - **MIN_EDGE_THRESHOLD**: 3% minimum edge
 - **MIN_COMPOSITE_SCORE**: 6.0 minimum score
 

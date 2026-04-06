@@ -239,7 +239,7 @@ Every bet targets a fixed dollar amount (the "unit size"). The system calculates
 | $0.50 | 2 | $1.00 |
 | $0.76 | 1 | $0.76 |
 
-No single bet can exceed `MAX_BET_SIZE_SPORTS` (default $50, set in `.env`). This is a hard cap regardless of unit size.
+No single bet can exceed `MAX_BET_SIZE` (default $100, set in `.env`). This is a hard cap regardless of unit size.
 
 ---
 

@@ -1656,8 +1656,6 @@ def main():
     scan_p.add_argument("--min-bets", type=int, default=None,
                         help="Minimum approved bets required to proceed. If fewer pass "
                              "risk checks, abort to avoid over-concentrating budget.")
-    scan_p.add_argument("--max-per-game", type=int, default=None,
-                        help="Max positions per game/event (default: MAX_PER_EVENT env var)")
     scan_p.add_argument("--pick", type=str, default=None,
                         help="Comma-separated row numbers to execute (e.g., '1,3,5')")
     scan_p.add_argument("--ticker", type=str, nargs="+", default=None,
@@ -1667,8 +1665,6 @@ def main():
     scan_p.add_argument("--budget", type=str, default=None,
                         help="Max total cost for the batch. Percentage of bankroll (e.g. '10%%') "
                              "or dollar amount (e.g. '15'). Bets scaled down proportionally.")
-    scan_p.add_argument("--max-bet-ratio", type=float, default=None,
-                        help="Max single bet as multiple of batch median cost (default: MAX_BET_RATIO env var)")
     scan_p.add_argument("--exclude-open", action="store_true",
                         help="Exclude markets where you already have an open position")
     scan_p.add_argument("--report-dir", type=str, default=None,
@@ -1730,10 +1726,8 @@ def main():
                 unit_size=args.unit_size or UNIT_SIZE,
                 pick_rows=args.pick,
                 pick_tickers=args.ticker,
-                max_per_game=args.max_per_game,
                 budget=budget_val,
                 min_bets=args.min_bets,
-                max_bet_ratio=args.max_bet_ratio,
             )
         else:
             print_opportunities(opportunities)
