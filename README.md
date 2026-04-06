@@ -267,46 +267,46 @@ Reports save to `reports/Sports/schedulers/` with full execution details (Sport,
 
 ## 🏗️ How It Works
 
-```
-  12 Sportsbooks                     9 Free APIs
-  ─────────────────                  ──────────────────
-  Pinnacle  (3x)                     ESPN    (standings + line movement + B2B)
-  Circa     (3x)                     NHL API (goal diff, L10)
-  BetMGM    (0.7x)                   MLB API (run diff + pitcher stats)
-  FanDuel   (0.7x)                   NWS     (61 venue forecasts)
-  DraftKings (0.7x)                  CoinGecko (crypto volatility)
-  + 7 more books                     Yahoo Finance (S&P 500 + VIX)
-                                     Polymarket (cross-market prices)
-          |                                  |
-          v                                  v
-  +------------------------------------------------+
-  |           EDGE DETECTION ENGINE                 |
-  |                                                 |
-  |   Weighted De-Vig   ──>  Fair Value Consensus   |
-  |   Normal CDF Model  ──>  Spread/Total Probs     |
-  |   Team Stats         ──>  Confidence Signal      |
-  |   Sharp Money        ──>  Line Movement Signal   |
-  |   Pitcher Matchups   ──>  MLB Total Stdev Adj    |
-  |   Rest Days / B2B    ──>  NBA/NHL Fatigue Adj    |
-  |   Weather            ──>  Outdoor Total Adjust   |
-  +------------------------------------------------+
-                        |
-                  Edge >= 3%?  ── NO ──>  Skip
-                        |
-                       YES
-                        |
-              +-------------------+
-              |  RISK GATES (9)   |
-              |   Daily loss cap  |
-              |   Position limit  |
-              |   Per-event cap   |
-              |   Concentration   |
-              |   Kelly sizing    |
-              +-------------------+
-                        |
-                EXECUTE on Kalshi
-                        |
-                Log  +  Track CLV
+```mermaid
+flowchart TB
+    subgraph DATA ["📡 Data Sources"]
+        direction LR
+        BOOKS["12 Sportsbooks\nPinnacle 3x · Circa 3x · BetMGM\nFanDuel · DraftKings + 7 more"]
+        APIS["9 Free APIs\nESPN · NHL · MLB · NWS\nCoinGecko · Yahoo · Polymarket"]
+    end
+
+    subgraph ENGINE ["🔍 Edge Detection Engine — 7 Signals"]
+        direction LR
+        E1["Weighted De-Vig\n→ Fair Value"]
+        E2["Normal CDF\n→ Spread/Total"]
+        E3["Team Stats\n→ Confidence"]
+        E4["Sharp Money\n→ Line Movement"]
+        E5["Pitcher Matchups\n→ MLB Stdev"]
+        E6["Rest Days / B2B\n→ Fatigue Adj"]
+        E7["Weather\n→ Outdoor Adj"]
+    end
+
+    Q{"Edge ≥ 3%?"}
+
+    subgraph RISK ["🛡️ 8 Risk Gates"]
+        direction LR
+        G12["1 Daily loss\n2 Position count"]
+        G34["3 Edge threshold\n4 Composite score"]
+        G56["5 Duplicate check\n6 Per-event cap"]
+        G78["7 Bet size cap $100\n8 Bet ratio cap 3x"]
+    end
+
+    subgraph EXEC ["🎯 Size → Execute → Log"]
+        direction LR
+        K["Kelly Sizing\nunit floor · batch-aware"]
+        ORDER["Limit Order\non Kalshi"]
+        LOG["Log Trade\n+ Track CLV"]
+    end
+
+    DATA --> ENGINE --> Q
+    Q -- "YES" --> RISK --> EXEC
+    Q -- "NO" --> SKIP["Skip"]
+    K --> ORDER --> LOG
 ```
 
 **Project Structure**
@@ -322,7 +322,7 @@ Edge-Radar/
 │   └── schedulers/          # Automation & scheduled scan jobs
 │       ├── morning_scans/   # Per-sport .bat scan jobs (MLB, NBA, NFL, NHL)
 │       └── automation/      # Python scripts (daily scan, Windows Task Scheduler)
-├── tests/                   # 102 pytest tests (risk gates, fill accounting, edge math, weather)
+├── tests/                   # 100 pytest tests (risk gates, fill accounting, edge math, weather)
 ├── docs/                    # 8 guides (see Documentation below)
 ├── data/                    # Trade history, settlements, watchlists
 ├── reports/                 # Markdown scan reports + P&L reports
