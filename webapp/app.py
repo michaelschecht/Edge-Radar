@@ -14,8 +14,10 @@ st.set_page_config(
 )
 
 # Inject theme CSS before anything else renders
-from theme import inject_css, CYAN, DIM
+from theme import inject_css, section_label, CYAN, DIM
 inject_css()
+
+from favorites import load_favorites
 
 
 def check_password() -> bool:
@@ -56,10 +58,11 @@ def check_password() -> bool:
     return False
 
 
-NAV_ITEMS = {
-    "Scan & Execute": "scan",
-    "Portfolio": "portfolio",
-    "Settle & Report": "settle",
+QUICK_SCANS = {
+    "Sports": "sports",
+    "Futures": "futures",
+    "Prediction": "prediction",
+    "Polymarket": "polymarket",
 }
 
 
@@ -70,7 +73,7 @@ def main():
     # ── Sidebar ─────────────────────────────────────────────────────────
     with st.sidebar:
         st.markdown("""
-        <div style="padding: 0.5rem 0 1.5rem 0;">
+        <div style="padding: 0.5rem 0 1rem 0;">
             <div style="font-family:Outfit,sans-serif; font-weight:700;
                         font-size:1.3rem; color:#00d4aa; letter-spacing:-0.02em;">
                 EDGE-RADAR
@@ -82,12 +85,34 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
+        # ── Main navigation ─────────────────────────────────────────
         page = st.radio(
             "NAV",
-            list(NAV_ITEMS.keys()),
+            ["Scan & Execute", "Portfolio", "Settle & Report"],
             index=0,
             label_visibility="collapsed",
         )
+
+        # ── Quick scan buttons ──────────────────────────────────────
+        section_label("Quick Scan")
+
+        for label, market_type in QUICK_SCANS.items():
+            if st.button(label, key=f"qs_{market_type}", use_container_width=True):
+                st.session_state.quick_scan_market = market_type
+                # Force nav to scan page
+                st.session_state["nav_radio"] = "Scan & Execute"
+                st.rerun()
+
+        # ── Favorite scans ──────────────────────────────────────────
+        favs = load_favorites()
+        if favs:
+            section_label("Favorites")
+            for fav in favs:
+                fav_label = fav.get("name", "Unnamed")
+                if st.button(fav_label, key=f"fav_{fav_label}", use_container_width=True):
+                    st.session_state.quick_scan_market = fav.get("market_type", "sports")
+                    st.session_state.favorite_params = fav
+                    st.rerun()
 
         # Sidebar footer
         st.markdown("""

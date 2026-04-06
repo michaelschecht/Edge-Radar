@@ -1,5 +1,6 @@
 """Scan & Execute page — all controls up front, scan to find, preview to size, execute to place."""
 
+import re
 import streamlit as st
 import pandas as pd
 import sys
@@ -10,9 +11,61 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from services import (
     get_client, run_scan, run_execute, opportunities_to_rows,
     SPORT_FILTERS, CATEGORY_OPTIONS, DATE_OPTIONS,
-    MIN_EDGE_THRESHOLD, UNIT_SIZE, MAX_PER_EVENT, DRY_RUN,
+    MIN_EDGE_THRESHOLD, MAX_PER_EVENT, DRY_RUN,
 )
+from favorites import save_favorite, delete_favorite, load_favorites
 from theme import page_header, section_label, CYAN, AMBER, RED, GREEN, DIM
+
+MARKET_TYPES = ["sports", "futures", "prediction", "polymarket"]
+DEFAULT_UNIT_SIZE = 0.50
+
+# Category options per market type
+CATEGORIES_BY_TYPE = {
+    "sports": ["all", "game", "spread", "total", "player_prop", "esports", "other"],
+    "futures": [],
+    "prediction": ["all", "crypto", "weather", "spx", "mentions", "companies", "politics"],
+    "polymarket": ["all", "crypto", "weather", "spx", "politics", "companies"],
+}
+
+# Filter options per market type
+FILTERS_BY_TYPE = {
+    "sports": ["(none)"] + SPORT_FILTERS,
+    "futures": ["(none)", "nba-futures", "nhl-futures", "mlb-futures", "nfl-futures", "pga-futures"],
+    "prediction": ["(none)", "crypto", "weather", "spx", "mentions", "companies", "politics"],
+    "polymarket": ["(none)", "crypto", "weather", "spx", "politics", "companies"],
+}
+
+
+def _get_defaults() -> dict:
+    """Get default values, overridden by quick-scan or favorite if set."""
+    defaults = {
+        "market_type": "sports",
+        "sport_filter": "(none)",
+        "category": "all",
+        "date": "all dates",
+        "min_edge": int(MIN_EDGE_THRESHOLD * 100),
+        "top_n": 20,
+        "unit_size": DEFAULT_UNIT_SIZE,
+        "budget_pct": 10,
+        "max_bets": 6,
+        "min_bets": 0,
+        "max_per_game": int(MAX_PER_EVENT),
+        "exclude_open": True,
+        "cross_ref": False,
+    }
+
+    # Quick-scan button sets market type
+    if "quick_scan_market" in st.session_state:
+        defaults["market_type"] = st.session_state.pop("quick_scan_market")
+
+    # Favorite loads all params
+    if "favorite_params" in st.session_state:
+        fav = st.session_state.pop("favorite_params")
+        for key in defaults:
+            if key in fav:
+                defaults[key] = fav[key]
+
+    return defaults
 
 
 def render():
@@ -27,59 +80,155 @@ def render():
         </div>
         """, unsafe_allow_html=True)
 
+    defaults = _get_defaults()
+
     # ── Scan Filters ────────────────────────────────────────────────────
     section_label("Filters")
 
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        market_type = st.selectbox("Market Type", ["sports", "futures", "prediction", "polymarket"])
+        mt_index = MARKET_TYPES.index(defaults["market_type"]) if defaults["market_type"] in MARKET_TYPES else 0
+        market_type = st.selectbox("Market Type", MARKET_TYPES, index=mt_index)
+
+    # Dynamic filter and category options based on market type
+    filter_options = FILTERS_BY_TYPE.get(market_type, ["(none)"])
+    category_options = CATEGORIES_BY_TYPE.get(market_type, [])
+
     with col2:
-        sport_filter = st.selectbox("Sport Filter", ["(none)"] + SPORT_FILTERS)
+        sf_index = filter_options.index(defaults["sport_filter"]) if defaults["sport_filter"] in filter_options else 0
+        sport_filter = st.selectbox("Filter", filter_options, index=sf_index)
+
     with col3:
-        category = st.selectbox("Category", CATEGORY_OPTIONS)
+        if category_options:
+            cat_index = category_options.index(defaults["category"]) if defaults["category"] in category_options else 0
+            category = st.selectbox("Category", category_options, index=cat_index)
+        else:
+            st.selectbox("Category", ["n/a"], disabled=True)
+            category = None
+
     with col4:
-        date = st.selectbox("Date", DATE_OPTIONS)
+        date_index = DATE_OPTIONS.index(defaults["date"]) if defaults["date"] in DATE_OPTIONS else 0
+        date = st.selectbox("Date", DATE_OPTIONS, index=date_index)
 
     # ── Execution Parameters ────────────────────────────────────────────
     section_label("Execution Parameters")
 
+    # Row 1: universal params
     col5, col6, col7, col8 = st.columns(4)
 
     with col5:
-        min_edge = st.slider("Min Edge %", 1, 20, int(MIN_EDGE_THRESHOLD * 100)) / 100
+        min_edge = st.slider("Min Edge %", 1, 20, defaults["min_edge"]) / 100
     with col6:
-        top_n = st.number_input("Top N", min_value=1, max_value=50, value=20)
+        top_n = st.number_input("Top N", min_value=1, max_value=50, value=defaults["top_n"])
     with col7:
-        unit_size = st.number_input("Unit Size ($)", min_value=0.1, value=float(UNIT_SIZE), step=0.5)
+        unit_size = st.number_input("Unit Size ($)", min_value=0.1, value=float(defaults["unit_size"]), step=0.5)
     with col8:
-        budget_pct = st.number_input("Budget %", min_value=0, max_value=100, value=10,
-                                     help="0 = no budget cap")
+        exclude_open = st.checkbox("Exclude Open Positions", value=defaults["exclude_open"])
 
+    # Row 2: conditional params based on market type
     col9, col10, col11, col12 = st.columns(4)
 
     with col9:
-        max_bets = st.number_input("Max Bets", min_value=1, max_value=20, value=6)
+        max_bets = st.number_input("Max Bets", min_value=1, max_value=20, value=defaults["max_bets"])
     with col10:
-        min_bets = st.number_input("Min Bets", min_value=0, max_value=20, value=0,
+        min_bets = st.number_input("Min Bets", min_value=0, max_value=20, value=defaults["min_bets"],
                                    help="0 = no minimum")
-    with col11:
-        max_per_game = st.number_input("Max Per Game", min_value=1, max_value=5,
-                                       value=int(MAX_PER_EVENT))
-    with col12:
-        exclude_open = st.checkbox("Exclude Open Positions", value=True)
 
-    st.markdown("<div style='height:0.75rem'></div>", unsafe_allow_html=True)
+    # Sports-only params
+    if market_type == "sports":
+        with col11:
+            budget_pct = st.number_input("Budget %", min_value=0, max_value=100, value=defaults["budget_pct"],
+                                         help="0 = no budget cap")
+        with col12:
+            max_per_game = st.number_input("Max Per Game", min_value=1, max_value=5,
+                                           value=defaults["max_per_game"])
+    else:
+        budget_pct = 0
+        max_per_game = None
 
-    # ── Scan button ─────────────────────────────────────────────────────
-    if st.button("SCAN MARKETS", type="primary", use_container_width=True):
+    # Prediction-only params
+    cross_ref = False
+    if market_type == "prediction":
+        with col11:
+            cross_ref = st.checkbox("Cross-Ref Polymarket", value=defaults.get("cross_ref", False))
+
+    st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
+
+    # ── Scan + Clear buttons ────────────────────────────────────────────
+    btn_col1, btn_col2 = st.columns([4, 1])
+
+    with btn_col2:
+        if st.button("CLEAR", use_container_width=True):
+            for key in ["scan_results", "scan_console", "scan_market_type", "exec_params",
+                        "preview_orders", "preview_console", "execute_orders", "execute_console"]:
+                st.session_state.pop(key, None)
+            st.rerun()
+
+    with btn_col1:
+        scan_clicked = st.button("SCAN MARKETS", type="primary", use_container_width=True)
+
+    # ── Save as favorite (toggle section, no expander) ────────────────
+    if "show_favorites" not in st.session_state:
+        st.session_state.show_favorites = False
+
+    if st.button("MANAGE FAVORITES", use_container_width=True):
+        st.session_state.show_favorites = not st.session_state.show_favorites
+        st.rerun()
+
+    if st.session_state.show_favorites:
+        section_label("Save Current Config")
+        fcol1, fcol2 = st.columns([3, 1])
+        with fcol1:
+            fav_name = st.text_input("Favorite name", placeholder="e.g. MLB Today", label_visibility="collapsed")
+        with fcol2:
+            if st.button("Save", use_container_width=True):
+                if fav_name.strip():
+                    fav_data = {
+                        "name": fav_name.strip(),
+                        "market_type": market_type,
+                        "sport_filter": sport_filter,
+                        "category": category or "all",
+                        "date": date,
+                        "min_edge": int(min_edge * 100),
+                        "top_n": top_n,
+                        "unit_size": unit_size,
+                        "budget_pct": budget_pct,
+                        "max_bets": max_bets,
+                        "min_bets": min_bets,
+                        "max_per_game": max_per_game or int(MAX_PER_EVENT),
+                        "exclude_open": exclude_open,
+                        "cross_ref": cross_ref,
+                    }
+                    save_favorite(fav_data)
+                    st.success(f"Saved '{fav_name.strip()}'")
+                    st.rerun()
+                else:
+                    st.warning("Enter a name")
+
+        # List existing favorites with delete buttons
+        favs = load_favorites()
+        if favs:
+            section_label("Saved Favorites")
+            for fav in favs:
+                dcol1, dcol2 = st.columns([4, 1])
+                with dcol1:
+                    params_str = f"{fav.get('market_type', '')} | {fav.get('sport_filter', '')} | {fav.get('date', '')}"
+                    st.caption(f"**{fav['name']}** — {params_str}")
+                with dcol2:
+                    if st.button("Del", key=f"del_{fav['name']}", use_container_width=True):
+                        delete_favorite(fav["name"])
+                        st.rerun()
+
+    # ── Run scan ────────────────────────────────────────────────────────
+    if scan_clicked:
         with st.spinner("Scanning markets..."):
             try:
                 client = get_client()
                 opps, console_out = run_scan(
                     client=client,
                     ticker_filter=sport_filter if sport_filter != "(none)" else None,
-                    category_filter=category if category != "all" else None,
+                    category_filter=category if category and category != "all" else None,
                     date_filter=date if date != "all dates" else None,
                     min_edge=min_edge,
                     top_n=top_n,
@@ -109,8 +258,9 @@ def render():
             st.success(f"Found {len(opps)} opportunities")
 
         if console_out.strip():
-            with st.expander("Raw console output"):
-                st.code(console_out)
+            clean = _strip_ansi(console_out)
+            if st.button("Show scan log", key="toggle_scan_log"):
+                st.code(clean)
 
     # ── Results table ───────────────────────────────────────────────────
     opps = st.session_state.get("scan_results", [])
@@ -181,7 +331,7 @@ def _run_pipeline(opps, pick_indices, execute):
             sized_orders, console_out = run_execute(
                 client=client,
                 opportunities=opps,
-                unit_size=params.get("unit_size", UNIT_SIZE),
+                unit_size=params.get("unit_size", DEFAULT_UNIT_SIZE),
                 max_bets=params.get("max_bets", 5),
                 min_bets=params.get("min_bets"),
                 budget=params.get("budget"),
@@ -202,6 +352,39 @@ def _run_pipeline(opps, pick_indices, execute):
         st.session_state["preview_console"] = console_out
 
 
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes and rich markup from console output."""
+    # Remove ANSI escape sequences
+    text = re.sub(r'\x1b\[[0-9;]*m', '', text)
+    # Remove rich markup like [bold], [green], [/green], [dim], etc.
+    text = re.sub(r'\[/?[a-z0-9; ]+\]', '', text)
+    return text
+
+
+def _extract_pipeline_summary(console_out: str) -> str:
+    """Extract the useful summary lines from pipeline console output, skip the table."""
+    clean = _strip_ansi(console_out)
+    summary_lines = []
+    skip = False
+    for line in clean.split('\n'):
+        stripped = line.strip()
+        # Skip the rich table (box-drawing characters)
+        if any(c in stripped for c in ['┏', '┃', '┡', '│', '├', '└', '━', '─']):
+            skip = True
+            continue
+        if skip and not stripped:
+            skip = False
+            continue
+        if skip:
+            continue
+        # Skip lines that are just the table footer hints
+        if 'Tip: use --pick' in stripped or 'DRY RUN -- pass --execute' in stripped:
+            continue
+        if stripped:
+            summary_lines.append(stripped)
+    return '\n'.join(summary_lines)
+
+
 def _display_orders(sized_orders, console_out, is_preview):
     """Display sized order results."""
     color = CYAN if is_preview else GREEN
@@ -209,9 +392,11 @@ def _display_orders(sized_orders, console_out, is_preview):
 
     section_label(label)
 
+    # Show clean pipeline summary (portfolio state, risk checks, budget cap)
     if console_out.strip():
-        with st.expander("Pipeline output", expanded=True):
-            st.code(console_out)
+        summary = _extract_pipeline_summary(console_out)
+        if summary.strip():
+            st.code(summary)
 
     if sized_orders:
         order_rows = []
