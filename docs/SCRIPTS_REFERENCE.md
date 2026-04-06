@@ -128,6 +128,7 @@ python scripts/scan.py <market-type> [flags]
 | `--execute` | off | Execute bets through the pipeline (dry run without this) |
 | `--unit-size N` | `UNIT_SIZE` env | Dollar amount per bet |
 | `--max-bets N` | `5` | Maximum number of bets to place |
+| `--min-bets N` | *(none)* | Minimum approved bets required — aborts if fewer pass risk checks |
 | `--budget X` | *(none)* | Max total batch cost — percentage (`10%`) or dollars (`15`) |
 | `--max-per-game N` | `2` | Max positions per game/event |
 | `--pick X` | *(all)* | Comma-separated row numbers to execute (e.g., `'1,3,5'`) |

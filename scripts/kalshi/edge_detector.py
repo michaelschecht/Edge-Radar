@@ -1653,6 +1653,9 @@ def main():
                         help="Dollar amount per bet (default: UNIT_SIZE from .env)")
     scan_p.add_argument("--max-bets", type=int, default=5,
                         help="Maximum number of bets to place")
+    scan_p.add_argument("--min-bets", type=int, default=None,
+                        help="Minimum approved bets required to proceed. If fewer pass "
+                             "risk checks, abort to avoid over-concentrating budget.")
     scan_p.add_argument("--max-per-game", type=int, default=None,
                         help="Max positions per game/event (default: MAX_PER_EVENT env var)")
     scan_p.add_argument("--pick", type=str, default=None,
@@ -1727,6 +1730,7 @@ def main():
                 pick_tickers=args.ticker,
                 max_per_game=args.max_per_game,
                 budget=budget_val,
+                min_bets=args.min_bets,
             )
         else:
             print_opportunities(opportunities)
