@@ -51,6 +51,9 @@ agentmail==0.4.5                  # Daily edge report email delivery
 # === Odds & Stats APIs ===
 # No official SDK — use requests directly with API keys
 
+# === Web Dashboard ===
+streamlit>=1.33.0                  # Streamlit web UI (uses @st.dialog, st.fragment)
+
 # === Utilities ===
 rich==13.7.0                      # Terminal tables & formatted output
 # loguru==0.7.2                   # planned — structured logging

@@ -69,10 +69,22 @@ Edge-Radar/
 │   │   └── AUTOMATION_GUIDE.md      # Windows Task Scheduler automated betting
 │   └── enhancements/               # Improvement tracking (gitignored)
 │       └── ROADMAP.md              # All enhancements — completed & pending
-├── tests/                           # pytest test suite (102 tests)
+├── app/
+│   └── domain/                      # Typed domain objects (A1)
+│       ├── opportunity.py           # Opportunity dataclass (canonical source)
+│       ├── risk.py                  # RiskDecision dataclass
+│       └── execution.py            # ExecutionPreview, ExecutionResult
+├── webapp/                          # Streamlit web dashboard (U6)
+│   ├── app.py                       # Entry point (streamlit run webapp/app.py)
+│   ├── services.py                  # Thin wrapper around core scripts
+│   ├── theme.py                     # Dark terminal aesthetic CSS
+│   └── views/                       # Page modules (scan, portfolio, settle)
+├── tests/                           # pytest test suite (150 tests)
 └── scripts/
     ├── scan.py                      # Unified scan entry point (routes to scanners)
     ├── doctor.py                    # Startup environment validator
+    ├── backtest/                    # Backtesting framework (W1)
+    │   └── backtester.py            # Strategy analysis, equity curve, signal breakdowns
     ├── kalshi/                      # Kalshi betting scripts
     │   ├── kalshi_client.py         # Authenticated Kalshi API client
     │   ├── kalshi_executor.py       # Risk management & order execution
@@ -212,6 +224,16 @@ python scripts/kalshi/risk_check.py --report positions
 # Launch Claude Code with all MCP servers
 claude --config mcp-config/claude_desktop_config.json
 
+# Backtesting
+python scripts/backtest/backtester.py                      # Full analysis report
+python scripts/backtest/backtester.py --simulate --save     # Strategy comparison + save
+python scripts/backtest/backtester.py --sport mlb           # MLB only
+python scripts/backtest/backtester.py --min-edge 0.10       # Edge >= 10% only
+python scripts/backtest/backtester.py --confidence medium   # Medium confidence only
+
+# Streamlit web dashboard
+streamlit run webapp/app.py
+
 # Daily morning edge report
 python scripts/schedulers/automation/daily_sports_scan.py
 
@@ -224,7 +246,9 @@ make scan-all          # Scan everything
 make status            # Portfolio status
 make settle            # Settle completed bets
 make report            # P&L report
-make test              # Run test suite
+make backtest          # Run backtester (full report)
+make backtest-sim      # Backtester with strategy simulation + saved report
+make test              # Run test suite (150 tests)
 make hooks             # Install pre-commit hooks
 ```
 

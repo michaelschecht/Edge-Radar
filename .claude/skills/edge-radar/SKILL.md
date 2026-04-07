@@ -29,6 +29,7 @@ Parse the user's intent from the arguments. The skill supports natural language 
 | `detail <TICKER>`, `lookup <TICKER>` | **Detail** | Deep dive on a single market |
 | `odds <sport>` | **Raw Odds** | Show sportsbook odds without edge detection |
 | `data <type>` | **Market Data** | Fetch stock/crypto/prediction market data |
+| `backtest`, `analyze`, `performance` | **Backtest** | Run backtester on settled trades |
 | Any sport/market name alone (e.g., `nba`, `mlb`, `crypto`) | **Scan** | Default to scan for that filter |
 
 ### Flag Parsing
@@ -618,6 +619,34 @@ python scripts/kalshi/model_calibration.py --days 30     # Last 30 days only
 ```
 
 Reports: Brier score, calibration curve (predicted vs realized), dimension breakdowns, confidence x category cross-tab, prioritized recommendations.
+
+---
+
+## Backtesting
+
+```bash
+python scripts/backtest/backtester.py                        # Full analysis
+python scripts/backtest/backtester.py --simulate --save       # Strategy comparison + save
+python scripts/backtest/backtester.py --sport mlb             # MLB only
+python scripts/backtest/backtester.py --category total        # Totals only
+python scripts/backtest/backtester.py --confidence medium     # Medium confidence only
+python scripts/backtest/backtester.py --min-edge 0.10         # Edge >= 10%
+python scripts/backtest/backtester.py --after 2026-04-01      # Recent trades only
+```
+
+Reports: equity curve, max drawdown, Sharpe ratio, profit factor, win/lose streaks, breakdowns by sport/category/confidence/edge bucket, calibration curve (predicted prob vs actual win rate), strategy simulation comparing filter strategies.
+
+Flags: `--sport`, `--category`, `--confidence`, `--min-edge`, `--after`, `--simulate`, `--save`, `--quiet`.
+
+---
+
+## Web Dashboard
+
+```bash
+streamlit run webapp/app.py
+```
+
+3 pages: Scan & Execute (with confirmation dialog), Portfolio (auto-refresh, P&L color coding), Settle & Report (settlement history, CSV export). Dark terminal theme, favorites, quick-scan sidebar.
 
 ---
 

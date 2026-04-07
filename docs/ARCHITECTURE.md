@@ -316,7 +316,7 @@ For the full enhancement roadmap (completed and pending items), see [ROADMAP.md]
 
 | Priority | Enhancement | Status |
 | :--- | :--- | :--- |
-| 🔴 High | Backtesting framework — replay settled markets, calibration curve | Planned |
+| ✅ Done | Backtesting framework — equity curve, Sharpe, drawdown, signal breakdowns, strategy simulation | 2026-04-07 |
 | 🟠 Medium | Bullpen availability tracker — high-value for MLB totals | Planned |
 | 🟡 Normal | Injury impact scoring — ESPN injury reports, star player adjustments | Planned |
 | 🟡 Normal | Wind direction classification — NWS bearing relative to stadium orientation | Planned |
