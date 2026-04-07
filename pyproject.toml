@@ -1,0 +1,33 @@
+[project]
+name = "edge-radar"
+version = "0.1.0"
+description = "Prediction market & sports betting intelligence system"
+requires-python = ">=3.11"
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*", "webapp*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# These paths are added to sys.path before test collection, replacing
+# the .pth file hack.  `pytest` now works with any Python interpreter.
+pythonpath = [
+    "scripts/shared",
+    "scripts/kalshi",
+    "scripts/prediction",
+    "scripts/polymarket",
+    "scripts/schedulers",
+    "scripts",
+]
+
+[tool.black]
+line-length = 120
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
