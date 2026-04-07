@@ -4,6 +4,8 @@ Single source of truth for the Opportunity dataclass.
 
 Used by both sports (kalshi/edge_detector.py) and prediction
 (prediction/prediction_scanner.py) edge detection pipelines.
+
+Also re-exported by app.domain for the web app layer.
 """
 
 from dataclasses import dataclass

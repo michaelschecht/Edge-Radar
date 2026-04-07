@@ -61,6 +61,7 @@ doctor:
 
 install:
 	pip install -r requirements.txt
+	pip install -e .
 
 hooks:
 	pip install pre-commit

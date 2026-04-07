@@ -299,7 +299,17 @@ def render():
 
     with bcol2:
         if st.button("EXECUTE", type="primary", use_container_width=True):
-            _run_pipeline(opps, pick_indices, execute=True)
+            # Store what we need in session state so the dialog can access it
+            st.session_state["_confirm_opps"] = opps
+            st.session_state["_confirm_picks"] = pick_indices
+            _show_execute_confirmation()
+
+    # ── Run confirmed execution (after dialog rerun) ─────────────────
+    if st.session_state.get("_execute_confirmed"):
+        confirmed_opps = st.session_state.pop("_execute_confirmed_opps", [])
+        confirmed_picks = st.session_state.pop("_execute_confirmed_picks", None)
+        st.session_state.pop("_execute_confirmed", None)
+        _run_pipeline(confirmed_opps, confirmed_picks, execute=True)
 
     # ── Show results ────────────────────────────────────────────────────
     if "preview_orders" in st.session_state:
@@ -311,6 +321,65 @@ def render():
         _display_orders(st.session_state["execute_orders"],
                         st.session_state.get("execute_console", ""),
                         is_preview=False)
+
+
+@st.dialog("Confirm Execution")
+def _show_execute_confirmation():
+    """Show a confirmation dialog before placing real orders."""
+    opps = st.session_state.get("_confirm_opps", [])
+    pick_indices = st.session_state.get("_confirm_picks")
+
+    n_picks = len(pick_indices) if pick_indices else len(opps)
+    params = st.session_state.get("exec_params", {})
+    max_bets = params.get("max_bets", 5)
+    unit_size = params.get("unit_size", DEFAULT_UNIT_SIZE)
+    n_orders = min(n_picks, max_bets)
+
+    mode_color = AMBER if DRY_RUN else RED
+    mode_label = "DRY RUN" if DRY_RUN else "LIVE"
+
+    st.markdown(
+        f'<p style="font-family:JetBrains Mono,monospace; font-size:0.95rem; '
+        f'color:{mode_color}; font-weight:600; text-align:center; margin-bottom:0.5rem;">'
+        f'{mode_label} MODE</p>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""<div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08);
+                border-radius:6px; padding:0.8rem 1rem; margin-bottom:1rem;
+                font-family:JetBrains Mono,monospace; font-size:0.82rem; color:#e2e8f0;">
+            <b>Opportunities:</b> {n_picks} selected<br>
+            <b>Max orders:</b> {max_bets}<br>
+            <b>Unit size:</b> ${unit_size:.2f}<br>
+            <b>Orders to place:</b> up to {n_orders}
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+    if not DRY_RUN:
+        st.markdown(
+            f'<p style="font-family:JetBrains Mono,monospace; font-size:0.78rem; '
+            f'color:{RED};">This will place real orders with real money.</p>',
+            unsafe_allow_html=True,
+        )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Cancel", use_container_width=True):
+            st.session_state.pop("_confirm_opps", None)
+            st.session_state.pop("_confirm_picks", None)
+            st.rerun()
+    with col2:
+        label = "Confirm (Dry Run)" if DRY_RUN else "Confirm & Place Orders"
+        if st.button(label, type="primary", use_container_width=True):
+            # Set flag so the main page runs the pipeline after rerun
+            st.session_state["_execute_confirmed"] = True
+            st.session_state["_execute_confirmed_opps"] = opps
+            st.session_state["_execute_confirmed_picks"] = pick_indices
+            st.session_state.pop("_confirm_opps", None)
+            st.session_state.pop("_confirm_picks", None)
+            st.rerun()
 
 
 def _run_pipeline(opps, pick_indices, execute):
