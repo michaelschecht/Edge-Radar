@@ -65,3 +65,8 @@ docs/AX-Integration/
 docs/temp/
 scripts/custom/
 scripts/schedulers/
+
+# === Repos ===
+/repos/
+# aX Platform CLI config (contains token)
+.ax/

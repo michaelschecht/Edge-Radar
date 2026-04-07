@@ -44,7 +44,7 @@ Fetch head-to-head odds from 8-12 US sportsbooks. De-vig each book's line using 
 
 Fetch spread lines from sportsbooks and compute weighted median spread and implied probability. Infer expected score margin using the book's line, then model the final margin as **Normal(mean, stdev)** with sport-specific standard deviations. Calculate `P(margin > strike)` via normal CDF.
 
-| Sport | Standard Deviation | Notes |
+| Sport | Base Stdev | Notes |
 | :--- | :--- | :--- |
 | NBA | 12 | Higher variance, blowouts common |
 | NCAAB | 11 | Similar to NBA, slightly tighter |
@@ -52,16 +52,20 @@ Fetch spread lines from sportsbooks and compute weighted median spread and impli
 | MLB | 3.5 | Low scoring, tight games |
 | NHL | 2.5 | Lowest variance sport |
 
+**Dynamic stdev adjustments** are compounded on top of the base value. Rest/B2B status and weather conditions each contribute an additive adjustment, widening the distribution when uncertainty is higher. See the weather adjustment table below for stdev values.
+
 ### Totals (Normal CDF + Weather)
 
-Same CDF approach as spreads for expected total. For NFL and MLB outdoor games, a **weather adjustment** is applied via NWS hourly forecasts:
+Same CDF approach as spreads for expected total. For NFL and MLB outdoor games, a **weather adjustment** is applied via NWS hourly forecasts. Weather affects both fair value (scoring shift) and stdev (uncertainty):
 
-| Condition | Impact | Adjustment |
+| Condition | Fair Value Shift | Stdev Adjustment |
 | :--- | :--- | :--- |
-| Wind > 15 mph | Reduces scoring | Over fair value decreased |
-| Rain > 40% | Reduces scoring | Over fair value decreased |
-| Extreme cold | Reduces scoring | Over fair value decreased |
-| Dome stadium | No weather effect | Auto-excluded from adjustments |
+| Wind > 15 mph | Over fair value decreased | +0.1 to +0.5 (by severity) |
+| Rain > 40% | Over fair value decreased | +0.1 to +0.5 (by severity) |
+| Extreme cold | Over fair value decreased | +0.1 to +0.5 (by severity) |
+| Dome stadium | No weather effect | 0.0 (auto-excluded) |
+
+**Stdev severity tiers:** severe = +0.5, moderate = +0.3, mild = +0.1, none = 0.0. For totals, pitcher rest and rest/B2B adjustments are also compounded into the stdev alongside weather.
 
 ### Futures (N-Way De-Vig)
 
@@ -316,6 +320,7 @@ For the full enhancement roadmap (completed and pending items), see [ROADMAP.md]
 | 🟠 Medium | Bullpen availability tracker — high-value for MLB totals | Planned |
 | 🟡 Normal | Injury impact scoring — ESPN injury reports, star player adjustments | Planned |
 | 🟡 Normal | Wind direction classification — NWS bearing relative to stadium orientation | Planned |
+| ✅ Done | Dynamic stdev adjustment — weather/rest/pitcher compound stdev in CDF model | 2026-04-06 |
 
 ---
 
