@@ -172,22 +172,34 @@ def get_portfolio_data(client: KalshiClient) -> dict:
 
 
 def format_positions_for_display(positions: list[dict]) -> list[dict]:
-    """Convert raw position dicts to display-friendly rows."""
+    """Convert raw Kalshi position dicts to display-friendly rows.
+
+    Kalshi API fields:
+        position_fp: str — signed contract count (positive=YES, negative=NO)
+        total_traded_dollars: str — cost basis
+        market_exposure_dollars: str — current market value
+        fees_paid_dollars: str — fees paid
+        realized_pnl_dollars: str — realized P&L
+    """
     rows = []
     for p in positions:
         ticker = p.get("ticker", "")
         title = p.get("title", ticker)
-        side = "YES" if p.get("position", 0) > 0 else "NO"
-        qty = abs(p.get("position", 0))
-        avg_price = p.get("average_price", 0)
-        if isinstance(avg_price, int) and avg_price > 1:
-            avg_price = avg_price / 100
-        cost = qty * avg_price
-        market_price = p.get("market_price", 0)
-        if isinstance(market_price, int) and market_price > 1:
-            market_price = market_price / 100
-        value = qty * market_price
-        pnl = value - cost
+
+        # position_fp is a string like "3.00" (YES) or "-3.00" (NO)
+        position_fp = float(p.get("position_fp", 0))
+        side = "YES" if position_fp > 0 else "NO"
+        qty = abs(int(position_fp))
+
+        cost = float(p.get("total_traded_dollars", 0))
+        exposure = float(p.get("market_exposure_dollars", 0))
+        fees = float(p.get("fees_paid_dollars", 0))
+
+        # Avg price per contract
+        avg_price = cost / qty if qty > 0 else 0
+
+        # Unrealized P&L: exposure - cost - fees
+        pnl = exposure - cost - fees
 
         rows.append({
             "Sport": sport_from_ticker(ticker),
@@ -197,7 +209,7 @@ def format_positions_for_display(positions: list[dict]) -> list[dict]:
             "Qty": qty,
             "Avg Price": f"${avg_price:.2f}",
             "Cost": f"${cost:.2f}",
-            "Value": f"${value:.2f}",
+            "Value": f"${exposure:.2f}",
             "P&L": f"${pnl:+.2f}",
         })
     return rows
@@ -217,6 +229,17 @@ def run_report(detail: bool = False, days: int | None = None) -> tuple[str, str]
     with capture_console() as buf:
         md = generate_report(detail=detail, save=False, days=days)
     return md or "", buf.getvalue()
+
+
+# ── Settlement History ──────────────────────────────────────────────────
+
+def get_settlement_history(limit: int = 50) -> list[dict]:
+    """Load recent settlements from the settlement log."""
+    from trade_log import load_settlement_log
+    settlements = load_settlement_log()
+    # Most recent first
+    settlements.sort(key=lambda s: s.get("settled_at", ""), reverse=True)
+    return settlements[:limit]
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────

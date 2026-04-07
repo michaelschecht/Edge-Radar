@@ -201,6 +201,27 @@ python scripts/kalshi/kalshi_settler.py settle
 python scripts/kalshi/kalshi_settler.py report --detail --save
 ```
 
+**Backtesting**
+
+```bash
+# Full backtest analysis
+python scripts/backtest/backtester.py
+
+# Strategy simulation (compares edge thresholds, confidence levels, categories)
+python scripts/backtest/backtester.py --simulate --save
+
+# Filter by sport, category, confidence, or edge threshold
+python scripts/backtest/backtester.py --sport mlb
+python scripts/backtest/backtester.py --confidence medium --min-edge 0.10
+```
+
+**Web Dashboard**
+
+```bash
+# Launch Streamlit dashboard (scan, portfolio, settle)
+streamlit run webapp/app.py
+```
+
 </details>
 
 ---
@@ -322,7 +343,9 @@ Edge-Radar/
 │   └── schedulers/          # Automation & scheduled scan jobs
 │       ├── morning_scans/   # Per-sport .bat scan jobs (MLB, NBA, NFL, NHL)
 │       └── automation/      # Python scripts (daily scan, Windows Task Scheduler)
-├── tests/                   # 100 pytest tests (risk gates, fill accounting, edge math, weather)
+├── app/domain/              # Typed domain objects (Opportunity, RiskDecision, ExecutionPreview)
+├── webapp/                  # Streamlit web dashboard (scan, portfolio, settle)
+├── tests/                   # 150 pytest tests (risk gates, fill accounting, edge math, backtester)
 ├── docs/                    # 8 guides (see Documentation below)
 ├── data/                    # Trade history, settlements, watchlists
 ├── reports/                 # Markdown scan reports + P&L reports

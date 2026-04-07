@@ -22,6 +22,7 @@ pythonpath = [
     "scripts/prediction",
     "scripts/polymarket",
     "scripts/schedulers",
+    "scripts/backtest",
     "scripts",
 ]
 

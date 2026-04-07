@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import sys
 from pathlib import Path
+from datetime import timedelta
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from services import get_client, get_portfolio_data, format_positions_for_display
@@ -13,11 +14,36 @@ from theme import page_header, metric_row, section_label, CYAN, GREEN, RED, AMBE
 def render():
     page_header("Portfolio", "Live positions, balance, and risk status")
 
-    if st.button("REFRESH", type="primary"):
-        st.session_state.pop("portfolio_data", None)
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        auto = st.toggle("Auto-refresh (30s)", value=st.session_state.get("portfolio_auto", False),
+                         key="portfolio_auto")
+    with col2:
+        if st.button("REFRESH", type="primary"):
+            st.session_state.pop("portfolio_data", None)
 
-    # Fetch or use cached data
-    if "portfolio_data" not in st.session_state:
+    if auto:
+        _portfolio_content_auto()
+    else:
+        _portfolio_content()
+
+
+@st.fragment(run_every=timedelta(seconds=30))
+def _portfolio_content_auto():
+    """Auto-refreshing portfolio fragment (runs every 30s)."""
+    _fetch_and_render()
+
+
+def _portfolio_content():
+    """Manual-refresh portfolio content."""
+    _fetch_and_render()
+
+
+def _fetch_and_render():
+    """Fetch portfolio data and render all sections."""
+    # Always fetch fresh when auto-refreshing; use cache otherwise
+    auto = st.session_state.get("portfolio_auto", False)
+    if auto or "portfolio_data" not in st.session_state:
         with st.spinner("Fetching portfolio data..."):
             try:
                 client = get_client()
@@ -74,7 +100,7 @@ def render():
 
     positions = data["positions"]
     if not positions:
-        st.markdown(f"""
+        st.markdown("""
         <div style="text-align:center; padding:2rem; color:#475569;
                     font-family:JetBrains Mono,monospace; font-size:0.82rem;">
             No open positions
@@ -83,7 +109,45 @@ def render():
     else:
         rows = format_positions_for_display(positions)
         df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+
+        # Numeric P&L for summary stats
+        df["pnl_num"] = df["P&L"].apply(lambda x: float(x.replace("$", "").replace("+", "")))
+
+        st.dataframe(
+            df.drop(columns=["pnl_num"]),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "P&L": st.column_config.TextColumn("P&L", width="small"),
+            },
+        )
+
+        # Color-coded P&L summary below table
+        total_pnl = df["pnl_num"].sum()
+        pnl_color = GREEN if total_pnl >= 0 else RED
+        winning = (df["pnl_num"] > 0).sum()
+        losing = (df["pnl_num"] < 0).sum()
+        flat = (df["pnl_num"] == 0).sum()
+
+        pcol1, pcol2 = st.columns([4, 1])
+        with pcol1:
+            st.markdown(
+                f'<div style="font-family:JetBrains Mono,monospace; font-size:0.78rem; '
+                f'padding:0.25rem 0.5rem;">'
+                f'<span style="color:{GREEN};">{winning}W</span> · '
+                f'<span style="color:{RED};">{losing}L</span>'
+                f'{f" · {flat}F" if flat else ""} · '
+                f'Unrealized: <span style="color:{pnl_color}; font-weight:600;">'
+                f'${total_pnl:+,.2f}</span></div>',
+                unsafe_allow_html=True,
+            )
+        with pcol2:
+            st.download_button(
+                "Export CSV",
+                df.drop(columns=["pnl_num"]).to_csv(index=False),
+                file_name="edge_radar_positions.csv",
+                mime="text/csv",
+            )
 
     # ── Resting orders ──────────────────────────────────────────────────
     resting = data["resting_orders"]

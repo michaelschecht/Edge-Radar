@@ -88,7 +88,7 @@ def main():
         # ── Main navigation ─────────────────────────────────────────
         page = st.radio(
             "NAV",
-            ["Scan & Execute", "Portfolio", "Settle & Report"],
+            ["Scan & Execute", "Portfolio", "Settle & Report", "Backtest"],
             index=0,
             label_visibility="collapsed",
         )
@@ -132,6 +132,9 @@ def main():
     elif page == "Settle & Report":
         from views import settle_page
         settle_page.render()
+    elif page == "Backtest":
+        from views import backtest_page
+        backtest_page.render()
 
 
 if __name__ == "__main__":

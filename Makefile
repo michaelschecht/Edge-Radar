@@ -46,6 +46,12 @@ report:
 reconcile:
 	$(PYTHON) scripts/kalshi/kalshi_settler.py reconcile
 
+backtest:
+	$(PYTHON) scripts/backtest/backtester.py
+
+backtest-sim:
+	$(PYTHON) scripts/backtest/backtester.py --simulate --save
+
 # ── Testing ──────────────────────────────────────────────────────────────────
 
 test:
@@ -89,6 +95,8 @@ help:
 	@echo "  make settle            Settle completed bets"
 	@echo "  make report            P&L report (saved to file)"
 	@echo "  make reconcile         Verify trade log integrity"
+	@echo "  make backtest          Run backtester (full report)"
+	@echo "  make backtest-sim      Run backtester with strategy simulation"
 	@echo ""
 	@echo "Other:"
 	@echo "  make test              Run full test suite"
@@ -97,4 +105,4 @@ help:
 	@echo "  make install           Install dependencies"
 	@echo "  make hooks             Install pre-commit hooks"
 
-.PHONY: scan-mlb scan-nba scan-nhl scan-nfl scan-sports scan-futures scan-predictions scan-polymarket scan-all status risk settle report reconcile test test-quick doctor install hooks help
+.PHONY: scan-mlb scan-nba scan-nhl scan-nfl scan-sports scan-futures scan-predictions scan-polymarket scan-all status risk settle report reconcile backtest backtest-sim test test-quick doctor install hooks help

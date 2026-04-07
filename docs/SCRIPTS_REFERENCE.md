@@ -233,6 +233,36 @@ Each script has a dedicated doc with full flag tables, examples, methodology, an
 | `kalshi_settler.py` | Settlement, P&L reporting, reconciliation | [kalshi_settler.md](scripts/kalshi_settler.md) |
 | `risk_check.py` | Portfolio risk dashboard & limits gating | [risk_check.md](scripts/risk_check.md) |
 
+### 📊 Analysis & Backtesting
+
+| Script | Purpose | Docs |
+| :--- | :--- | :--- |
+| `backtest/backtester.py` | Strategy backtesting — equity curve, Sharpe, drawdown, signal breakdowns, strategy simulation | [backtester.md](scripts/backtester.md) |
+| `model_calibration.py` | Brier score, calibration curve, dimension breakdowns, recommendations | |
+
+**Backtester usage:**
+
+```bash
+python scripts/backtest/backtester.py                         # Full analysis
+python scripts/backtest/backtester.py --simulate --save       # Strategy comparison + save
+python scripts/backtest/backtester.py --sport mlb             # MLB only
+python scripts/backtest/backtester.py --category total        # Totals only
+python scripts/backtest/backtester.py --confidence medium     # Medium confidence only
+python scripts/backtest/backtester.py --min-edge 0.10         # Edge >= 10%
+python scripts/backtest/backtester.py --after 2026-04-01      # Recent trades only
+```
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--sport SPORT` | *(all)* | Filter by sport (mlb, nba, nhl, ncaab, etc.) |
+| `--category CAT` | *(all)* | Filter by category (game, spread, total) |
+| `--confidence CONF` | *(all)* | Filter by confidence (low, medium, high) |
+| `--min-edge N` | *(none)* | Minimum edge threshold (e.g., 0.10) |
+| `--after DATE` | *(none)* | Only trades settled after date (YYYY-MM-DD) |
+| `--simulate` | `false` | Run strategy comparison across filter combinations |
+| `--save` | `false` | Save markdown report to `reports/backtest/` |
+| `--quiet` | `false` | Skip terminal output (useful with `--save`) |
+
 ---
 
 ## 🔧 Utility Scripts

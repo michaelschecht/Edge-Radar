@@ -281,6 +281,13 @@ def render():
         }
     )
 
+    st.download_button(
+        "Export CSV",
+        df.to_csv(index=False),
+        file_name="edge_radar_scan.csv",
+        mime="text/csv",
+    )
+
     # ── Pick rows + Preview/Execute ─────────────────────────────────────
     section_label("Order Selection")
 
@@ -408,6 +415,12 @@ def _run_pipeline(opps, pick_indices, execute):
         st.session_state["execute_orders"] = sized_orders or []
         st.session_state["execute_console"] = console_out
         st.session_state.pop("preview_orders", None)
+        n = len(sized_orders) if sized_orders else 0
+        if n > 0:
+            total = sum(s.cost_dollars for s in sized_orders if hasattr(s, "cost_dollars"))
+            st.toast(f"Placed {n} orders (${total:.2f})", icon="\u2705")
+        else:
+            st.toast("No orders passed risk checks", icon="\u26a0\ufe0f")
     else:
         st.session_state["preview_orders"] = sized_orders or []
         st.session_state["preview_console"] = console_out
