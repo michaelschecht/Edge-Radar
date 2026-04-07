@@ -241,18 +241,24 @@ def weather_scoring_adjustment(weather: dict, sport: str) -> dict:
             adjustment -= 0.03
             reasons.append(f"cold ({temp:.0f}F)")
 
-    # Severity classification
+    # Severity classification + stdev adjustment
+    # Bad weather increases scoring variance (games become less predictable)
     if adjustment <= -0.10:
         severity = "severe"
+        stdev_adj = 0.5
     elif adjustment <= -0.05:
         severity = "moderate"
+        stdev_adj = 0.3
     elif adjustment < 0:
         severity = "mild"
+        stdev_adj = 0.1
     else:
         severity = "none"
+        stdev_adj = 0.0
 
     return {
         "adjustment": round(adjustment, 3),
+        "stdev_adjustment": stdev_adj,
         "reason": ", ".join(reasons) if reasons else "no weather impact",
         "severity": severity,
     }
@@ -289,7 +295,7 @@ def get_game_weather(team_abbr: str, sport: str, game_date: str) -> dict | None:
         return {
             "venue_type": "dome",
             "weather": None,
-            "scoring_impact": {"adjustment": 0.0, "reason": "dome stadium", "severity": "none"},
+            "scoring_impact": {"adjustment": 0.0, "stdev_adjustment": 0.0, "reason": "dome stadium", "severity": "none"},
         }
 
     weather = _get_game_time_weather(office, grid_x, grid_y, game_date)

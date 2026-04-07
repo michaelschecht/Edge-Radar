@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-04-06 -- Dynamic Stdev Adjustment (S5 Enhancement)
+
+### S5. Dynamic Stdev Adjustment for Weather
+- **Problem:** Sport-specific standard deviations in the normal CDF model were static constants. Weather, rest/B2B, and pitcher signals adjusted confidence or fair value, but only pitcher and rest affected the CDF stdev (and only for totals, not spreads). Spreads had no dynamic stdev adjustment at all.
+- **Fix:** Weather now contributes a `stdev_adjustment` alongside its existing fair-value shift. The adjustment scales by severity: severe (+0.5), moderate (+0.3), mild (+0.1), none (0.0). Dome stadiums always return 0.0. Both `detect_edge_spread()` and `detect_edge_total()` now compound all applicable stdev adjustments (weather + rest for spreads; weather + rest + pitcher for totals).
+- **Spread improvement:** `consensus_spread_prob()` now accepts a `stdev_adjustment` parameter, bringing spreads to parity with totals. Previously spreads used only the static sport-specific stdev.
+- **Caching:** New `_weather_for_market()` cached helper in `scan_all_markets()` fetches weather once per home team, avoiding duplicate NWS API calls across spread and total markets for the same game.
+- **Effect:** Bad weather increases the stdev in the normal CDF model, making the system more conservative on alternate lines where uncertainty compounds. Spreads now benefit from the same dynamic stdev pipeline that totals already had.
+- Files changed: `scripts/shared/sports_weather.py` (added `stdev_adjustment` to return dict), `scripts/kalshi/edge_detector.py` (`consensus_spread_prob()` accepts stdev_adjustment, `detect_edge_spread()` and `detect_edge_total()` accept weather_data, new `_weather_for_market()` cache helper)
+
+---
+
 ## 2026-04-06 -- Code Simplification (S5, S6)
 
 ### S5. Deleted `config.py` (Dead Module)

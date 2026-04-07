@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*)"
+      "Bash(*)",
+      "mcp__ax-gcp__whoami",
+      "mcp__ax-gcp__spaces",
+      "mcp__ax-gcp__messages",
+      "mcp__ax-channel__reply",
+      "mcp__github__fork_repository",
+      "mcp__github__create_pull_request"
     ]
   }
 }

@@ -343,7 +343,8 @@ def _get_margin_stdev(ticker: str) -> float:
 
 
 def consensus_spread_prob(events: list, team_name: str, strike: float,
-                          ticker: str = "") -> tuple[float, dict] | None:
+                          ticker: str = "",
+                          stdev_adjustment: float = 0.0) -> tuple[float, dict] | None:
     """
     Estimate probability of a team winning by > strike points using
     sportsbook spreads and a normal-distribution model.
@@ -386,7 +387,7 @@ def consensus_spread_prob(events: list, team_name: str, strike: float,
     median_spread = weighted_median(sd_spreads, sd_weights)
     median_implied = weighted_median(sd_implieds, sd_weights)
 
-    stdev = _get_margin_stdev(ticker)
+    stdev = _get_margin_stdev(ticker) + stdev_adjustment
 
     # The book says the team covers median_spread with median_implied probability.
     # Book spread is negative for favorites: spread=-5.5 means "favored by 5.5".
@@ -908,7 +909,8 @@ def detect_edge_game(market: dict, odds_events: list,
 
 def detect_edge_spread(market: dict, odds_events: list,
                        sharp_signals: dict | None = None,
-                       rest_data: dict | None = None) -> Opportunity | None:
+                       rest_data: dict | None = None,
+                       weather_data: dict | None = None) -> Opportunity | None:
     """Detect edge on spread markets."""
     ticker = market["ticker"]
     team = extract_team_from_market(market)
@@ -920,7 +922,15 @@ def detect_edge_spread(market: dict, odds_events: list,
     if yes_ask <= 0 or yes_ask >= 1.0:
         return None
 
-    result = consensus_spread_prob(odds_events, team, strike, ticker=ticker)
+    # Build compound stdev adjustment from rest + weather
+    stdev_adj = 0.0
+    if rest_data:
+        stdev_adj += rest_data.get("stdev_adjustment", 0.0)
+    if weather_data and weather_data.get("scoring_impact"):
+        stdev_adj += weather_data["scoring_impact"].get("stdev_adjustment", 0.0)
+
+    result = consensus_spread_prob(odds_events, team, strike, ticker=ticker,
+                                   stdev_adjustment=stdev_adj)
     if result is None:
         return None
 
@@ -1048,7 +1058,8 @@ def _extract_game_date(ticker: str) -> str | None:
 def detect_edge_total(market: dict, odds_events: list,
                       sharp_signals: dict | None = None,
                       pitcher_data: dict | None = None,
-                      rest_data: dict | None = None) -> Opportunity | None:
+                      rest_data: dict | None = None,
+                      weather_data: dict | None = None) -> Opportunity | None:
     """Detect edge on over/under total markets."""
     ticker = market["ticker"]
     strike = extract_strike(market)
@@ -1059,10 +1070,12 @@ def detect_edge_total(market: dict, odds_events: list,
     if yes_ask <= 0 or yes_ask >= 1.0:
         return None
 
-    # Apply pitcher stdev adjustment for MLB + rest day stdev adjustment for NBA/NHL
+    # Compound stdev adjustment from pitcher + rest + weather
     stdev_adj = pitcher_data.get("stdev_adjustment", 0.0) if pitcher_data else 0.0
     if rest_data:
         stdev_adj += rest_data.get("stdev_adjustment", 0.0)
+    if weather_data and weather_data.get("scoring_impact"):
+        stdev_adj += weather_data["scoring_impact"].get("stdev_adjustment", 0.0)
     result = consensus_total_prob(odds_events, strike, ticker=ticker,
                                   stdev_adjustment=stdev_adj)
     if result is None:
@@ -1091,15 +1104,8 @@ def detect_edge_total(market: dict, odds_events: list,
 
     confidence = "low" if details["n_books"] < 3 else "medium"
 
-    # Weather adjustment for outdoor sports (NFL, MLB)
-    weather_data = None
-    sport = _sport_from_ticker(ticker)
-    if sport in ("americanfootball_nfl", "americanfootball_ncaaf", "baseball_mlb"):
-        home_team = _extract_home_team_abbr(ticker)
-        game_date = _extract_game_date(ticker)
-        if home_team and game_date:
-            weather_data = get_game_weather(home_team, sport, game_date)
-
+    # Weather fair-value adjustment for outdoor sports (NFL, MLB)
+    # (stdev adjustment was already applied above in the compound stdev_adj)
     if weather_data and weather_data.get("scoring_impact"):
         impact = weather_data["scoring_impact"]
         adj = impact["adjustment"]
@@ -1113,8 +1119,9 @@ def detect_edge_total(market: dict, odds_events: list,
             edge = fair - market_price
             details["weather"] = weather_data
             details["weather_adjustment"] = adj
-            log.info("Weather adjustment for %s: %+.1f%% (%s)",
-                     ticker, adj * 100, impact["reason"])
+            details["weather_stdev_adj"] = impact.get("stdev_adjustment", 0.0)
+            log.info("Weather adjustment for %s: %+.1f%% fair, %+.2f stdev (%s)",
+                     ticker, adj * 100, impact.get("stdev_adjustment", 0.0), impact["reason"])
 
     # Pitcher matchup signal for MLB totals
     if pitcher_data and pitcher_data.get("matchup_quality") != "unknown":
@@ -1477,6 +1484,27 @@ def scan_all_markets(
         home = _extract_home_team_abbr(ticker)
         return rest_cache.get(home.upper()) if home else None
 
+    # Helper: fetch weather data for outdoor sports (NFL, MLB)
+    weather_cache: dict[str, dict | None] = {}
+
+    def _weather_for_market(ticker: str) -> dict | None:
+        home = _extract_home_team_abbr(ticker)
+        if not home:
+            return None
+        if home in weather_cache:
+            return weather_cache[home]
+        sport = _sport_from_ticker(ticker)
+        if sport not in ("americanfootball_nfl", "americanfootball_ncaaf", "baseball_mlb"):
+            weather_cache[home] = None
+            return None
+        game_date = _extract_game_date(ticker)
+        if not game_date:
+            weather_cache[home] = None
+            return None
+        data = get_game_weather(home, sport, game_date)
+        weather_cache[home] = data
+        return data
+
     # Game outcomes
     for m in categorized.get("game", []):
         sport_key = None
@@ -1506,7 +1534,8 @@ def scan_all_markets(
                 break
         if sport_key and sport_key in odds_data:
             opp = detect_edge_spread(m, odds_data[sport_key], sharp_signals=sharp_signals,
-                                     rest_data=_rest_for_market(m["ticker"]))
+                                     rest_data=_rest_for_market(m["ticker"]),
+                                     weather_data=_weather_for_market(m["ticker"]))
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
 
@@ -1526,7 +1555,8 @@ def scan_all_markets(
                     mlb_pitchers = pitcher_cache.get(home.upper())
             opp = detect_edge_total(m, odds_data[sport_key], sharp_signals=sharp_signals,
                                     pitcher_data=mlb_pitchers,
-                                    rest_data=_rest_for_market(m["ticker"]))
+                                    rest_data=_rest_for_market(m["ticker"]),
+                                    weather_data=_weather_for_market(m["ticker"]))
             if opp and opp.edge >= min_edge:
                 opportunities.append(opp)
 
