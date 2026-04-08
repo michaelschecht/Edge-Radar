@@ -42,6 +42,7 @@ class KalshiClient:
         self,
         api_key: str | None = None,
         private_key_path: str | None = None,
+        private_key_content: str | None = None,
         base_url: str | None = None,
     ):
         self.api_key = api_key or os.getenv("KALSHI_API_KEY", "")
@@ -49,24 +50,36 @@ class KalshiClient:
             "KALSHI_BASE_URL", "https://api.elections.kalshi.com/trade-api/v2"
         )).rstrip("/")
 
-        key_path = private_key_path or os.getenv("KALSHI_PRIVATE_KEY_PATH", "")
-        if not key_path:
-            raise FileNotFoundError(
-                "KALSHI_PRIVATE_KEY_PATH is not set. "
-                "Set it in .env or pass private_key_path to KalshiClient."
-            )
-        # Resolve relative paths from project root
-        key_file = Path(key_path)
-        if not key_file.is_absolute():
-            key_file = Path(__file__).resolve().parent.parent.parent / key_path.lstrip("/\\")
+        # Load private key — inline content takes priority over file path.
+        # This allows Streamlit Cloud (st.secrets) or KALSHI_PRIVATE_KEY env
+        # var to provide the PEM content directly without a file on disk.
+        key_content = private_key_content or self._resolve_key_content()
 
-        if not key_file.exists():
-            raise FileNotFoundError(
-                f"Kalshi private key not found at {key_file}. "
-                "Set KALSHI_PRIVATE_KEY_PATH in .env"
+        if key_content:
+            self._private_key = serialization.load_pem_private_key(
+                key_content.encode(), password=None, backend=default_backend()
             )
+        else:
+            # Fall back to file path (local dev with .env)
+            key_path = private_key_path or os.getenv("KALSHI_PRIVATE_KEY_PATH", "")
+            if not key_path:
+                raise FileNotFoundError(
+                    "Kalshi credentials not configured. Set KALSHI_PRIVATE_KEY "
+                    "(inline PEM) or KALSHI_PRIVATE_KEY_PATH (file) in .env or "
+                    "Streamlit secrets."
+                )
+            # Resolve relative paths from project root
+            key_file = Path(key_path)
+            if not key_file.is_absolute():
+                key_file = Path(__file__).resolve().parent.parent.parent / key_path.lstrip("/\\")
 
-        self._private_key = self._load_private_key(key_file)
+            if not key_file.exists():
+                raise FileNotFoundError(
+                    f"Kalshi private key not found at {key_file}. "
+                    "Set KALSHI_PRIVATE_KEY_PATH in .env"
+                )
+            self._private_key = self._load_private_key(key_file)
+
         self.is_demo = "demo" in self.base_url
         self.dry_run = os.getenv("DRY_RUN", "true").lower() == "true"
 
@@ -75,6 +88,18 @@ class KalshiClient:
             "DEMO" if self.is_demo else "LIVE",
             self.dry_run,
         )
+
+    @staticmethod
+    def _resolve_key_content() -> str:
+        """Check for inline PEM content from env var or Streamlit secrets."""
+        content = os.getenv("KALSHI_PRIVATE_KEY", "")
+        if content:
+            return content
+        try:
+            import streamlit as st
+            return st.secrets["kalshi"]["private_key"]
+        except Exception:
+            return ""
 
     # ── Authentication ────────────────────────────────────────────────────────
 
