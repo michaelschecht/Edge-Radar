@@ -156,9 +156,10 @@ KALSHI_TO_ODDS_SPORT = {
     "KXUFCFIGHT":      "mma_mixed_martial_arts",
     "KXBOXING":        "boxing_boxing",
     # --- Motorsports ---
-    "KXF1":            "motorsport_formula_one",
+    # NOTE: The Odds API does not support F1 or NASCAR — no sport keys exist.
+    # KXF1 and KXNASCARRACE markets are scanned on Kalshi but scored without external odds.
     # --- Golf ---
-    "KXPGATOUR":       "golf_pga_championship",
+    "KXPGATOUR":       "golf_pga_championship_winner",
     # --- Cricket ---
     "KXIPL":           "cricket_ipl",
 }
@@ -1368,6 +1369,7 @@ def scan_all_markets(
     category_filter: str | None = None,
     ticker_filter: str | None = None,
     top_n: int = 20,
+    date_filter: str | None = None,
 ) -> list[Opportunity]:
     """
     Scan all open Kalshi markets and score them for edge.
@@ -1375,6 +1377,8 @@ def scan_all_markets(
     Args:
         ticker_filter: Filter markets by ticker prefix. Can be a shortcut name
                        (ncaamb, nba, nhl, mlb, esports) or a raw prefix like "KXNCAAMB".
+        date_filter: YYYY-MM-DD string. When set, markets are filtered to this date
+                     before fetching external odds, saving Odds API quota.
 
     Returns list of Opportunity objects sorted by composite score.
     """
@@ -1450,6 +1454,16 @@ def scan_all_markets(
     expired = before - len(all_markets)
     if expired:
         rprint(f"  Skipped {expired} expired/in-progress markets")
+
+    # 1b. Apply date filter early to reduce Odds API calls
+    if date_filter:
+        before_date = len(all_markets)
+        all_markets = [m for m in all_markets
+                       if _extract_game_date(m["ticker"]) == date_filter
+                       or _extract_game_date(m["ticker"]) is None]
+        skipped_date = before_date - len(all_markets)
+        if skipped_date:
+            rprint(f"  Date pre-filter ({date_filter}): {before_date} -> {len(all_markets)} markets")
 
     # 2. Categorize
     categorized: dict[str, list] = {}
@@ -1774,20 +1788,27 @@ def main():
     client = KalshiClient()
 
     if args.command == "scan":
+        # Resolve date early so it can be passed into scan for Odds API optimization
+        resolved_date = None
+        if args.date:
+            from ticker_display import resolve_date_arg
+            resolved_date = resolve_date_arg(args.date)
+
         opportunities = scan_all_markets(
             client,
             min_edge=args.min_edge,
             category_filter=args.category,
             ticker_filter=args.ticker_filter,
             top_n=args.top,
+            date_filter=resolved_date,
         )
-        # Apply date and open-position filters
-        if opportunities and args.date:
-            from ticker_display import filter_by_date, resolve_date_arg
-            target = resolve_date_arg(args.date)
+        # Apply date filter on opportunities (catches any edge cases the early filter missed)
+        if opportunities and resolved_date:
+            from ticker_display import filter_by_date
             before = len(opportunities)
-            opportunities = filter_by_date(opportunities, target)
-            rprint(f"[dim]Date filter ({target}): {before} -> {len(opportunities)} opportunities[/dim]")
+            opportunities = filter_by_date(opportunities, resolved_date)
+            if len(opportunities) < before:
+                rprint(f"[dim]Date filter ({resolved_date}): {before} -> {len(opportunities)} opportunities[/dim]")
         if opportunities and args.exclude_open:
             from ticker_display import filter_exclude_tickers
             positions = client.get_positions(limit=200, count_filter="position")

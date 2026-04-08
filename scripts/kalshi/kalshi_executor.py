@@ -894,24 +894,31 @@ def main():
         else:
             # Use sports edge detector
             rprint("[bold]Running fresh sports market scan...[/bold]")
+            # Resolve date early so scan_all_markets can pre-filter before Odds API calls
+            resolved_date = None
+            if args.date:
+                from ticker_display import resolve_date_arg
+                resolved_date = resolve_date_arg(args.date)
             opportunities = scan_all_markets(
                 scan_client,
                 min_edge=args.min_edge,
                 ticker_filter=args.ticker_filter,
                 top_n=args.top,
+                date_filter=resolved_date,
             )
 
         if not opportunities:
             rprint("[yellow]No opportunities found.[/yellow]")
             return
 
-        # Apply date and open-position filters
+        # Apply date filter on opportunities (catches any edge cases the early filter missed)
         if args.date:
             from ticker_display import filter_by_date, resolve_date_arg
             target = resolve_date_arg(args.date)
             before = len(opportunities)
             opportunities = filter_by_date(opportunities, target)
-            rprint(f"[dim]Date filter ({target}): {before} -> {len(opportunities)} opportunities[/dim]")
+            if len(opportunities) < before:
+                rprint(f"[dim]Date filter ({target}): {before} -> {len(opportunities)} opportunities[/dim]")
         if args.exclude_open:
             from ticker_display import filter_exclude_tickers
             positions = client.get_positions(limit=200, count_filter="position")
