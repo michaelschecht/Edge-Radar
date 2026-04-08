@@ -18,6 +18,28 @@ for subdir in ["scripts/kalshi", "scripts/shared", "scripts/prediction", "script
     if p not in sys.path:
         sys.path.insert(0, p)
 
+# On Streamlit Cloud, inject secrets into os.environ so all existing
+# os.getenv() calls in scripts (odds_api, edge_detector, etc.) work
+# without modification. Must run before any script imports.
+try:
+    import streamlit as st
+    _secrets_map = {
+        "ODDS_API_KEY": lambda: st.secrets["odds"]["api_key"],
+        "ODDS_API_KEYS": lambda: st.secrets["odds"]["api_keys"],
+        "KALSHI_API_KEY": lambda: st.secrets["kalshi"]["api_key"],
+        "KALSHI_PRIVATE_KEY": lambda: st.secrets["kalshi"]["private_key"],
+        "KALSHI_BASE_URL": lambda: st.secrets["kalshi"]["base_url"],
+        "DRY_RUN": lambda: st.secrets["DRY_RUN"],
+    }
+    for env_var, getter in _secrets_map.items():
+        if env_var not in os.environ:
+            try:
+                os.environ[env_var] = getter()
+            except (KeyError, FileNotFoundError):
+                pass
+except Exception:
+    pass
+
 from kalshi_client import KalshiClient
 from edge_detector import scan_all_markets, FILTER_SHORTCUTS
 from kalshi_executor import execute_pipeline, UNIT_SIZE
