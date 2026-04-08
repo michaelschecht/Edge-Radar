@@ -44,13 +44,13 @@ try:
     for env_var, getter in _secrets_map.items():
         if env_var not in os.environ:
             try:
-                os.environ[env_var] = getter()
+                os.environ[env_var] = str(getter())
             except (KeyError, FileNotFoundError):
                 pass
     for key in _flat_keys:
         if key not in os.environ:
             try:
-                os.environ[key] = st.secrets[key]
+                os.environ[key] = str(st.secrets[key])
             except (KeyError, FileNotFoundError):
                 pass
 except Exception:
