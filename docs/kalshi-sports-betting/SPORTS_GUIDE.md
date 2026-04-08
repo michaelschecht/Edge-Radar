@@ -65,7 +65,7 @@ Before first run, verify:
 
 ## Sport Filters
 
-Use `--filter` to target a specific sport. This limits the market scan and only fetches odds for that sport, saving Odds API quota.
+Use `--filter` to target a specific sport. Supports comma-separated values for multi-sport scans (e.g., `--filter mlb,nhl`). This limits the market scan and only fetches odds for those sports, saving Odds API quota.
 
 ### US Major Leagues
 
@@ -82,42 +82,42 @@ Use `--filter` to target a specific sport. This limits the market scan and only 
 |--------|-------|-------------|----------------|
 | `ncaamb` | NCAA Men's Basketball | Games, spreads, totals, MOP | Yes -- game, spread, total |
 | `ncaabb` | NCAA Basketball (additional) | Games | Yes -- game |
-| `ncaawb` | NCAA Women's Basketball | Games | No |
-| `ncaafb` | NCAA Football | Games | No |
+| `ncaawb` | NCAA Women's Basketball | Games | Yes -- game |
+| `ncaafb` | NCAA Football | Games | Yes -- game |
 
 ### Soccer / Football
 
 | Filter | Sport | Key Markets | Edge Detection |
 |--------|-------|-------------|----------------|
-| `soccer` | All soccer (combined) | All leagues below | No |
-| `mls` | MLS | Games, spreads, totals | No |
-| `ucl` | Champions League | Outright winner | No |
-| `epl` | English Premier League | Outright winner | No |
-| `laliga` | La Liga | Outright winner | No |
-| `seriea` | Serie A | Outright winner | No |
-| `bundesliga` | Bundesliga | Outright winner | No |
-| `ligue1` | Ligue 1 | Outright winner | No |
+| `soccer` | All soccer (combined) | All leagues below | Yes -- game |
+| `mls` | MLS | Games, spreads, totals | Yes -- game, spread, total |
+| `ucl` | Champions League | Match winner | Yes -- game |
+| `epl` | English Premier League | Match winner | Yes -- game |
+| `laliga` | La Liga | Match winner | Yes -- game |
+| `seriea` | Serie A | Match winner | Yes -- game |
+| `bundesliga` | Bundesliga | Match winner | Yes -- game |
+| `ligue1` | Ligue 1 | Match winner | Yes -- game |
 
 ### Combat Sports
 
 | Filter | Sport | Key Markets | Edge Detection |
 |--------|-------|-------------|----------------|
-| `ufc` | UFC / MMA | Fight winners | No |
-| `boxing` | Boxing | Fight winners | No |
+| `ufc` | UFC / MMA | Fight winners | Yes -- game |
+| `boxing` | Boxing | Fight winners | Yes -- game |
 
 ### Motorsports
 
 | Filter | Sport | Key Markets | Edge Detection |
 |--------|-------|-------------|----------------|
-| `f1` | Formula 1 | Drivers + constructors championship | No |
+| `f1` | Formula 1 | Drivers + constructors championship | Yes -- game |
 | `nascar` | NASCAR | Race winners | No |
 
 ### Other Sports
 
 | Filter | Sport | Key Markets | Edge Detection |
 |--------|-------|-------------|----------------|
-| `pga` | PGA Golf | Tournament winners | No |
-| `ipl` | IPL Cricket | Outright winner | No |
+| `pga` | PGA Golf | Tournament winners | Yes -- game |
+| `ipl` | IPL Cricket | Match winner | Yes -- game |
 
 ### Esports
 
@@ -127,7 +127,7 @@ Use `--filter` to target a specific sport. This limits the market scan and only 
 | `lol` | League of Legends | Map + match winners | No |
 | `esports` | All esports | CS2 + LoL combined | No |
 
-> **Edge Detection = "Yes"** means the system cross-references sportsbook odds for a calculated edge. **"No"** means markets are browsable and bettable, but edge is estimated from market microstructure only (liquidity, spread analysis).
+> **Edge Detection = "Yes"** means the system cross-references sportsbook odds via the Odds API for a calculated edge. **"No"** means markets are browsable and bettable, but edge is estimated from market microstructure only (liquidity, spread analysis).
 
 ### Raw Ticker Prefixes
 
@@ -188,16 +188,26 @@ The system cross-references Kalshi prices against these Odds API sport keys:
 
 | Kalshi Prefix | Odds API Sport Key | Bet Types Supported |
 |---------------|-------------------|---------------------|
-| KXNBAGAME | `basketball_nba` | Moneyline (h2h) |
-| KXNBASPREAD | `basketball_nba` | Spreads |
-| KXNBATOTAL | `basketball_nba` | Totals (over/under) |
-| KXNCAAMBGAME | `basketball_ncaab` | Moneyline (h2h) |
-| KXNCAAMBSPREAD | `basketball_ncaab` | Spreads |
-| KXNCAAMBTOTAL | `basketball_ncaab` | Totals (over/under) |
-| KXNHLGAME | `icehockey_nhl` | Moneyline (h2h) |
-| KXNHLSPREAD | `icehockey_nhl` | Spreads |
-| KXNHLTOTAL | `icehockey_nhl` | Totals (over/under) |
+| KXNBAGAME/SPREAD/TOTAL | `basketball_nba` | Moneyline, spreads, totals |
+| KXNHLGAME/SPREAD/TOTAL | `icehockey_nhl` | Moneyline, spreads, totals |
 | KXMLBGAME | `baseball_mlb` | Moneyline (h2h) |
+| KXNFLGAME/SPREAD/TOTAL | `americanfootball_nfl` | Moneyline, spreads, totals |
+| KXNCAAMBGAME/SPREAD/TOTAL | `basketball_ncaab` | Moneyline, spreads, totals |
+| KXNCAABBGAME | `basketball_ncaab` | Moneyline (h2h) |
+| KXNCAAFBGAME | `americanfootball_ncaaf` | Moneyline (h2h) |
+| KXNCAAWBGAME | `basketball_wncaab` | Moneyline (h2h) |
+| KXMLSGAME/SPREAD/TOTAL | `soccer_usa_mls` | Moneyline, spreads, totals |
+| KXEPL | `soccer_epl` | Moneyline (h2h) |
+| KXUCL | `soccer_uefa_champs_league` | Moneyline (h2h) |
+| KXLALIGA | `soccer_spain_la_liga` | Moneyline (h2h) |
+| KXSERIEA | `soccer_italy_serie_a` | Moneyline (h2h) |
+| KXBUNDESLIGA | `soccer_germany_bundesliga` | Moneyline (h2h) |
+| KXLIGUE1 | `soccer_france_ligue_one` | Moneyline (h2h) |
+| KXUFCFIGHT | `mma_mixed_martial_arts` | Moneyline (h2h) |
+| KXBOXING | `boxing_boxing` | Moneyline (h2h) |
+| KXF1 | `motorsport_formula_one` | Race winner |
+| KXPGATOUR | `golf_pga_championship` | Tournament winner |
+| KXIPL | `cricket_ipl` | Moneyline (h2h) |
 
 ---
 

@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-04-08 -- Full Sports Coverage & Multi-Filter Support
+
+### Expanded Odds API Sport Mapping (4 -> 18 sports)
+- **Problem:** `KALSHI_TO_ODDS_SPORT` only mapped 4 sports (NBA, NHL, MLB, NCAAB). All other sports -- NFL, soccer, UFC, boxing, F1, NASCAR, PGA, IPL, college football/women's basketball -- were fetched from Kalshi but silently dropped because no external odds existed to calculate edge against.
+- **Fix:** Added mappings for all 14 missing sports with Odds API coverage: NFL (`americanfootball_nfl`), NCAA Football (`americanfootball_ncaaf`), NCAA Women's Basketball (`basketball_wncaab`), MLS (`soccer_usa_mls`), EPL (`soccer_epl`), UCL (`soccer_uefa_champs_league`), La Liga (`soccer_spain_la_liga`), Serie A (`soccer_italy_serie_a`), Bundesliga (`soccer_germany_bundesliga`), Ligue 1 (`soccer_france_ligue_one`), UFC (`mma_mixed_martial_arts`), Boxing (`boxing_boxing`), F1 (`motorsport_formula_one`), PGA (`golf_pga_championship`), IPL (`cricket_ipl`).
+- **CATEGORY_MAP expanded:** Added 18 new ticker prefix -> category mappings (NFL game/spread/total, MLS game/spread/total, all soccer leagues, UFC, boxing, IPL, F1, NASCAR, PGA, NCAA women's basketball) so these markets get properly categorized instead of falling to "other".
+- **No-filter scan expanded:** Since the unfiltered scan (`scan.py sports`) uses `KALSHI_TO_ODDS_SPORT` keys to determine which prefixes to fetch, this change automatically expands coverage from 11 to 30 prefixes.
+
+### Comma-Separated Multi-Filter (`--filter mlb,nhl`)
+- **Problem:** `--filter` only accepted a single sport. Scanning two sports required two separate runs, wasting Odds API quota and time.
+- **Fix:** `--filter` now accepts comma-separated values. Each value is resolved independently through `FILTER_SHORTCUTS`, and all prefixes are merged. Example: `--filter mlb,nhl` fetches all MLB and NHL prefixes in one scan.
+- **Futures guard:** Single-value futures filters (e.g., `--filter nba-futures`) still route to the dedicated futures scanner as before.
+- Files changed: `scripts/kalshi/edge_detector.py`
+
+---
+
 ## 2026-04-08 -- Streamlit Community Cloud Deployment
 
 ### Web Dashboard Live at edge-radar.streamlit.app

@@ -119,7 +119,7 @@ python scripts/scan.py <market-type> [flags]
 
 | Flag | Default | Description |
 | :--- | :--- | :--- |
-| `--filter X` | *(none)* | Filter by sport/asset/category (e.g., `mlb`, `nba`, `crypto`, `weather`) |
+| `--filter X` | *(none)* | Filter by sport/asset/category — comma-separated for multi-sport (e.g., `mlb`, `mlb,nhl`, `crypto`) |
 | `--min-edge N` | `0.03` | Minimum edge threshold to surface an opportunity |
 | `--top N` | `20` | Number of top opportunities to display |
 | `--date X` | *(all dates)* | Filter by game date (`today`, `tomorrow`, `YYYY-MM-DD`, `mar31`) |
@@ -142,6 +142,7 @@ python scripts/scan.py <market-type> [flags]
 
 ```bash
 python scripts/scan.py sports --filter mlb --date today --save
+python scripts/scan.py sports --filter mlb,nhl --date today --save
 python scripts/scan.py sports --filter nba --category total --date tomorrow
 python scripts/scan.py futures --filter nba-futures --top 10
 python scripts/scan.py prediction --filter crypto --cross-ref

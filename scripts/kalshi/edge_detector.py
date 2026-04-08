@@ -63,46 +63,104 @@ MIN_EDGE = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
 
 # Map Kalshi ticker prefixes to categories
 CATEGORY_MAP = {
+    # --- Game (moneyline / winner) ---
     "KXMLBGAME":     "game",
     "KXNHLGAME":     "game",
     "KXNBAGAME":     "game",
     "KXNCAABBGAME":  "game",
     "KXNCAAMBGAME":  "game",
     "KXNCAAFBGAME":  "game",
+    "KXNCAAWBGAME":  "game",
+    "KXNFLGAME":     "game",
+    "KXMLSGAME":     "game",
+    "KXUCL":         "game",
+    "KXEPL":         "game",
+    "KXLALIGA":      "game",
+    "KXSERIEA":      "game",
+    "KXBUNDESLIGA":  "game",
+    "KXLIGUE1":      "game",
+    "KXUFCFIGHT":    "game",
+    "KXBOXING":      "game",
+    "KXIPL":         "game",
+    # --- Spread ---
     "KXNBASPREAD":   "spread",
     "KXNHLSPREAD":   "spread",
     "KXNCAAMBSPREAD":"spread",
+    "KXNFLSPREAD":   "spread",
+    "KXMLSSPREAD":   "spread",
+    # --- Total ---
     "KXNHLTOTAL":    "total",
     "KXNBATOTAL":    "total",
     "KXNCAAMBTOTAL": "total",
+    "KXNFLTOTAL":    "total",
+    "KXMLSTOTAL":    "total",
+    # --- Player props ---
     "KXNHLGOAL":     "player_prop",
     "KXNHLPTS":      "player_prop",
     "KXNHLAST":      "player_prop",
     "KXNHLFIRSTGOAL":"player_prop",
     "KXNBABLK":      "player_prop",
+    # --- Mentions ---
     "KXNBAMENTION":  "mention",
     "KXFOXNEWSMENTION": "mention",
     "KXPOLITICSMENTION":"mention",
     "KXLASTWORDCOUNT":"mention",
+    # --- Esports ---
     "KXCS2MAP":      "esports",
     "KXCS2GAME":     "esports",
     "KXLOLMAP":      "esports",
     "KXLOLGAME":     "esports",
+    # --- Motorsports / Golf (race/tournament winner) ---
+    "KXF1":          "game",
+    "KXNASCARRACE":  "game",
+    "KXPGATOUR":     "game",
 }
 
 # Map Kalshi ticker prefixes to Odds API sport keys
+# Full list: https://the-odds-api.com/sports-odds-data/sports-apis.html
 KALSHI_TO_ODDS_SPORT = {
-    "KXMLBGAME":    "baseball_mlb",
-    "KXNHLGAME":    "icehockey_nhl",
-    "KXNBAGAME":    "basketball_nba",
-    "KXNBASPREAD":  "basketball_nba",
-    "KXNBATOTAL":   "basketball_nba",
-    "KXNCAABBGAME": "basketball_ncaab",
-    "KXNCAAMBGAME": "basketball_ncaab",
-    "KXNCAAMBSPREAD":"basketball_ncaab",
-    "KXNCAAMBTOTAL": "basketball_ncaab",
-    "KXNHLTOTAL":   "icehockey_nhl",
-    "KXNHLSPREAD":  "icehockey_nhl",
+    # --- MLB ---
+    "KXMLBGAME":       "baseball_mlb",
+    # --- NHL ---
+    "KXNHLGAME":       "icehockey_nhl",
+    "KXNHLTOTAL":      "icehockey_nhl",
+    "KXNHLSPREAD":     "icehockey_nhl",
+    # --- NBA ---
+    "KXNBAGAME":       "basketball_nba",
+    "KXNBASPREAD":     "basketball_nba",
+    "KXNBATOTAL":      "basketball_nba",
+    # --- NFL ---
+    "KXNFLGAME":       "americanfootball_nfl",
+    "KXNFLSPREAD":     "americanfootball_nfl",
+    "KXNFLTOTAL":      "americanfootball_nfl",
+    # --- College Basketball ---
+    "KXNCAABBGAME":    "basketball_ncaab",
+    "KXNCAAMBGAME":    "basketball_ncaab",
+    "KXNCAAMBSPREAD":  "basketball_ncaab",
+    "KXNCAAMBTOTAL":   "basketball_ncaab",
+    # --- College Football ---
+    "KXNCAAFBGAME":    "americanfootball_ncaaf",
+    # --- College Women's Basketball ---
+    "KXNCAAWBGAME":    "basketball_wncaab",
+    # --- Soccer ---
+    "KXMLSGAME":       "soccer_usa_mls",
+    "KXMLSSPREAD":     "soccer_usa_mls",
+    "KXMLSTOTAL":      "soccer_usa_mls",
+    "KXUCL":           "soccer_uefa_champs_league",
+    "KXEPL":           "soccer_epl",
+    "KXLALIGA":        "soccer_spain_la_liga",
+    "KXSERIEA":        "soccer_italy_serie_a",
+    "KXBUNDESLIGA":    "soccer_germany_bundesliga",
+    "KXLIGUE1":        "soccer_france_ligue_one",
+    # --- Combat Sports ---
+    "KXUFCFIGHT":      "mma_mixed_martial_arts",
+    "KXBOXING":        "boxing_boxing",
+    # --- Motorsports ---
+    "KXF1":            "motorsport_formula_one",
+    # --- Golf ---
+    "KXPGATOUR":       "golf_pga_championship",
+    # --- Cricket ---
+    "KXIPL":           "cricket_ipl",
 }
 
 
@@ -1320,24 +1378,32 @@ def scan_all_markets(
 
     Returns list of Opportunity objects sorted by composite score.
     """
-    # Resolve ticker filter
+    # Resolve ticker filter (supports comma-separated, e.g. "mlb,nhl")
     filter_prefixes = None
     if ticker_filter:
-        shortcut = ticker_filter.lower()
+        shortcuts = [s.strip().lower() for s in ticker_filter.split(",")]
 
         # Route futures filters to the dedicated futures scanner
-        if shortcut in FILTER_SHORTCUTS and FILTER_SHORTCUTS[shortcut][0].startswith("__FUTURES__"):
+        if len(shortcuts) == 1 and shortcuts[0] in FILTER_SHORTCUTS and FILTER_SHORTCUTS[shortcuts[0]][0].startswith("__FUTURES__"):
             from futures_edge import scan_futures_markets
-            futures_filter = shortcut if shortcut != "futures" else None
+            futures_filter = shortcuts[0] if shortcuts[0] != "futures" else None
             return scan_futures_markets(client, min_edge=min_edge,
                                         ticker_filter=futures_filter, top_n=top_n)
 
-        if shortcut in FILTER_SHORTCUTS:
-            filter_prefixes = FILTER_SHORTCUTS[shortcut]
-            rprint(f"[bold]Filter: {shortcut} -> {', '.join(filter_prefixes)}[/bold]")
+        filter_prefixes = []
+        raw_prefixes = []
+        for shortcut in shortcuts:
+            if shortcut in FILTER_SHORTCUTS:
+                filter_prefixes.extend(FILTER_SHORTCUTS[shortcut])
+            else:
+                filter_prefixes.append(shortcut.upper())
+                raw_prefixes.append(shortcut.upper())
+
+        label = ", ".join(shortcuts)
+        if raw_prefixes:
+            rprint(f"[bold]Filter: {label} -> {', '.join(filter_prefixes)}[/bold]")
         else:
-            filter_prefixes = [ticker_filter.upper()]
-            rprint(f"[bold]Filter: ticker prefix {filter_prefixes[0]}[/bold]")
+            rprint(f"[bold]Filter: {label} -> {len(filter_prefixes)} prefixes[/bold]")
 
     # 1. Fetch markets from Kalshi
     rprint("[bold]Fetching Kalshi markets...[/bold]")
