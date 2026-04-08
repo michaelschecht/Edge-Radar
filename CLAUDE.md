@@ -217,11 +217,12 @@ make test        make hooks
 
 ## Session Startup Checklist
 
-1. Read `data/positions/open_positions.json` — current exposure
-2. Read `data/history/today_trades.json` — today's P&L
-3. Check daily loss limit — if breached, **NO** new positions
-4. Confirm `DRY_RUN` setting in `.env`
-5. Pull latest market data before analysis
+1. Run `git sync-master` — sync local master with remote (user works on `mike_win-desktop`, pushes to remote master; local master goes stale without this)
+2. Read `data/positions/open_positions.json` — current exposure
+3. Read `data/history/today_trades.json` — today's P&L
+4. Check daily loss limit — if breached, **NO** new positions
+5. Confirm `DRY_RUN` setting in `.env`
+6. Pull latest market data before analysis
 
 ---
 
