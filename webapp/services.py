@@ -76,8 +76,6 @@ MAX_PER_EVENT = int(os.getenv("MAX_PER_EVENT", "2"))
 MIN_EDGE_THRESHOLD = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
 MIN_COMPOSITE_SCORE = float(os.getenv("MIN_COMPOSITE_SCORE", "6.0"))
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() in ("true", "1", "yes")
-# Expose raw value for debugging Cloud secrets injection
-_DRY_RUN_RAW = os.getenv("DRY_RUN", "__UNSET__")
 
 
 @contextmanager
