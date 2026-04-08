@@ -21,6 +21,10 @@ for subdir in ["scripts/kalshi", "scripts/shared", "scripts/prediction", "script
 # On Streamlit Cloud, inject secrets into os.environ so all existing
 # os.getenv() calls in scripts (odds_api, edge_detector, etc.) work
 # without modification. Must run before any script imports.
+#
+# Supports two TOML layouts:
+#   Nested:    [kalshi] / api_key = "..."    → mapped via _secrets_map
+#   Flat:      KALSHI_API_KEY = "..."        → mapped via _flat_keys
 try:
     import streamlit as st
     _secrets_map = {
@@ -31,10 +35,22 @@ try:
         "KALSHI_BASE_URL": lambda: st.secrets["kalshi"]["base_url"],
         "DRY_RUN": lambda: st.secrets["DRY_RUN"],
     }
+    # Also check for flat top-level keys (e.g. ODDS_API_KEY = "...")
+    _flat_keys = [
+        "ODDS_API_KEY", "ODDS_API_KEYS",
+        "KALSHI_API_KEY", "KALSHI_PRIVATE_KEY", "KALSHI_BASE_URL",
+        "DRY_RUN",
+    ]
     for env_var, getter in _secrets_map.items():
         if env_var not in os.environ:
             try:
                 os.environ[env_var] = getter()
+            except (KeyError, FileNotFoundError):
+                pass
+    for key in _flat_keys:
+        if key not in os.environ:
+            try:
+                os.environ[key] = st.secrets[key]
             except (KeyError, FileNotFoundError):
                 pass
 except Exception:
