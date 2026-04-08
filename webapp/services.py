@@ -53,7 +53,26 @@ def capture_console():
 
 
 def get_client() -> KalshiClient:
-    """Create an authenticated Kalshi client."""
+    """Create an authenticated Kalshi client.
+
+    On Streamlit Cloud, reads credentials from st.secrets["kalshi"].
+    Locally, reads from .env as usual.
+    Raises FileNotFoundError with a clear message if credentials are missing.
+    """
+    import streamlit as st
+
+    # Try to pull credentials from Streamlit secrets (Cloud deployment)
+    try:
+        kalshi_secrets = st.secrets["kalshi"]
+        return KalshiClient(
+            api_key=kalshi_secrets.get("api_key"),
+            private_key_content=kalshi_secrets.get("private_key"),
+            base_url=kalshi_secrets.get("base_url"),
+        )
+    except (KeyError, FileNotFoundError):
+        pass
+
+    # Fall back to .env-based config (local dev)
     return KalshiClient()
 
 
