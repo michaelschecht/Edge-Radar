@@ -18,7 +18,7 @@ python scripts/kalshi/edge_detector.py scan [flags]
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--filter FILTER` | (none) | Sport/prefix filter: `nba`, `nhl`, `mlb`, `nfl`, `ncaamb`, `ncaafb`, `soccer`, `mma`, `esports`, or raw ticker prefix (`KXNBA`) |
+| `--filter FILTER` | (none) | Sport/prefix filter — single (`nba`) or comma-separated (`mlb,nhl`). Named filters: `nba`, `nhl`, `mlb`, `nfl`, `ncaamb`, `ncaabb`, `ncaawb`, `ncaafb`, `soccer`, `mls`, `epl`, `ucl`, `laliga`, `seriea`, `bundesliga`, `ligue1`, `ufc`, `boxing`, `f1`, `nascar`, `pga`, `ipl`, `cs2`, `lol`, `esports`, or raw ticker prefix (`KXNBA`) |
 | `--category CAT` | (none) | Filter by market type: `game`, `spread`, `total`, `player_prop`, `esports`, `other` |
 | `--min-edge N` | `0.03` | Minimum edge threshold |
 | `--top N` | `20` | Number of top opportunities |
@@ -40,6 +40,9 @@ python scripts/scan.py sports --filter nba --category game
 
 # Tomorrow's MLB games only, skip open positions
 python scripts/scan.py sports --filter mlb --date tomorrow --exclude-open
+
+# Scan MLB and NHL together
+python scripts/scan.py sports --filter mlb,nhl --date today
 
 # Execute top 10 MLB picks at $1 each
 python scripts/scan.py sports --filter mlb --execute --unit-size 1 --max-bets 10
@@ -84,16 +87,33 @@ python scripts/kalshi/edge_detector.py detail KXNBAGAME-26MAR25LALBOS-LAL
 
 ### Sport Filters
 
+Supports comma-separated multi-filter (e.g., `--filter mlb,nhl`).
+
 | Filter | Ticker Prefixes | Odds API Key |
 |--------|----------------|--------------|
-| `nba` | KXNBAGAME, KXNBASPREAD, KXNBATOTAL, KXNBA3PT, KXNBABLK, ... | `basketball_nba` |
-| `mlb` | KXMLBGAME, KXMLBSPREAD, KXMLBTOTAL, KXMLBHR, ... | `baseball_mlb` |
-| `nhl` | KXNHLGAME, KXNHLSPREAD, KXNHLTOTAL, KXNHLGOAL, ... | `icehockey_nhl` |
+| `nba` | KXNBAGAME, KXNBASPREAD, KXNBATOTAL, ... | `basketball_nba` |
+| `nhl` | KXNHLGAME, KXNHLSPREAD, KXNHLTOTAL, ... | `icehockey_nhl` |
+| `mlb` | KXMLBGAME, KXMLBPLAYOFFS | `baseball_mlb` |
 | `nfl` | KXNFLGAME, KXNFLSPREAD, KXNFLTOTAL, ... | `americanfootball_nfl` |
 | `ncaamb` | KXNCAAMBGAME, KXNCAAMBSPREAD, KXNCAAMBTOTAL | `basketball_ncaab` |
-| `soccer` | KXSOCCER, KXEPL, KXUCL, ... | `soccer_epl`, `soccer_uefa_champs_league` |
-| `mma` | KXUFC | `mma_mixed_martial_arts` |
-| `esports` | KXCSGO, KXLOL | -- |
+| `ncaabb` | KXNCAABBGAME | `basketball_ncaab` |
+| `ncaafb` | KXNCAAFBGAME | `americanfootball_ncaaf` |
+| `ncaawb` | KXNCAAWBGAME | `basketball_wncaab` |
+| `mls` | KXMLSGAME, KXMLSSPREAD, KXMLSTOTAL | `soccer_usa_mls` |
+| `epl` | KXEPL | `soccer_epl` |
+| `ucl` | KXUCL | `soccer_uefa_champs_league` |
+| `laliga` | KXLALIGA | `soccer_spain_la_liga` |
+| `seriea` | KXSERIEA | `soccer_italy_serie_a` |
+| `bundesliga` | KXBUNDESLIGA | `soccer_germany_bundesliga` |
+| `ligue1` | KXLIGUE1 | `soccer_france_ligue_one` |
+| `soccer` | All soccer leagues combined | (all soccer keys) |
+| `ufc` | KXUFCFIGHT | `mma_mixed_martial_arts` |
+| `boxing` | KXBOXING | `boxing_boxing` |
+| `f1` | KXF1, KXF1CONSTRUCTORS | `motorsport_formula_one` |
+| `nascar` | KXNASCARRACE | -- |
+| `pga` | KXPGATOUR | `golf_pga_championship` |
+| `ipl` | KXIPL | `cricket_ipl` |
+| `esports` | KXCS2MAP, KXCS2GAME, KXLOLMAP, KXLOLGAME | -- |
 
 ---
 

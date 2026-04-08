@@ -183,6 +183,7 @@ pip install -r requirements.txt
 
 # Scan (preview only)
 python scripts/scan.py sports --filter mlb --date today --save
+python scripts/scan.py sports --filter mlb,nhl --date today --save
 python scripts/scan.py futures --filter nba-futures
 python scripts/scan.py prediction --filter crypto --cross-ref
 python scripts/scan.py polymarket --filter crypto
