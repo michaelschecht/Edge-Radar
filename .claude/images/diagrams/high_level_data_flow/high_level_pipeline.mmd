@@ -1,0 +1,39 @@
+flowchart TB
+    subgraph DATA ["📡 Data Sources"]
+        direction LR
+        BOOKS["12 Sportsbooks\nPinnacle 3x · Circa 3x · BetMGM\nFanDuel · DraftKings + 7 more"]
+        APIS["9 Free APIs\nESPN · NHL · MLB · NWS\nCoinGecko · Yahoo · Polymarket"]
+    end
+
+    subgraph ENGINE ["🔍 Edge Detection Engine — 7 Signals"]
+        direction LR
+        E1["Weighted De-Vig\n→ Fair Value"]
+        E2["Normal CDF\n→ Spread/Total"]
+        E3["Team Stats\n→ Confidence"]
+        E4["Sharp Money\n→ Line Movement"]
+        E5["Pitcher Matchups\n→ MLB Stdev"]
+        E6["Rest Days / B2B\n→ Fatigue Adj"]
+        E7["Weather\n→ Outdoor Adj"]
+    end
+
+    Q{"Edge ≥ 3%?"}
+
+    subgraph RISK ["🛡️ 8 Risk Gates"]
+        direction LR
+        G12["1 Daily loss\n2 Position count"]
+        G34["3 Edge threshold\n4 Composite score"]
+        G56["5 Duplicate check\n6 Per-event cap"]
+        G78["7 Bet size cap $100\n8 Bet ratio cap 3x"]
+    end
+
+    subgraph EXEC ["🎯 Size → Execute → Log"]
+        direction LR
+        K["Kelly Sizing\nunit floor · batch-aware"]
+        ORDER["Limit Order\non Kalshi"]
+        LOG["Log Trade\n+ Track CLV"]
+    end
+
+    DATA --> ENGINE --> Q
+    Q -- "YES" --> RISK --> EXEC
+    Q -- "NO" --> SKIP["Skip"]
+    K --> ORDER --> LOG

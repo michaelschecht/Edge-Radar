@@ -288,46 +288,24 @@ Reports save to `reports/Sports/schedulers/` with full execution details (Sport,
 
 ## 🏗️ How It Works
 
-```mermaid
-flowchart TB
-    subgraph DATA ["📡 Data Sources"]
-        direction LR
-        BOOKS["12 Sportsbooks\nPinnacle 3x · Circa 3x · BetMGM\nFanDuel · DraftKings + 7 more"]
-        APIS["9 Free APIs\nESPN · NHL · MLB · NWS\nCoinGecko · Yahoo · Polymarket"]
-    end
+`scan.py` is the single entry point. It routes to the right scanner based on your command — sports, futures, prediction, or polymarket.
 
-    subgraph ENGINE ["🔍 Edge Detection Engine — 7 Signals"]
-        direction LR
-        E1["Weighted De-Vig\n→ Fair Value"]
-        E2["Normal CDF\n→ Spread/Total"]
-        E3["Team Stats\n→ Confidence"]
-        E4["Sharp Money\n→ Line Movement"]
-        E5["Pitcher Matchups\n→ MLB Stdev"]
-        E6["Rest Days / B2B\n→ Fatigue Adj"]
-        E7["Weather\n→ Outdoor Adj"]
-    end
+**Sports betting** pulls consensus odds from 12 sportsbooks via The Odds API, then layers on team stats (ESPN, NHL, MLB), starting pitcher data, rest/back-to-back detection, sharp money signals from line movement, and NWS weather forecasts for outdoor venues. All of these feed into the edge detector, which builds a fair-value probability using a normal CDF model with sharp-book weighting (Pinnacle 3x, Circa 3x) and compares it against the Kalshi contract price. Any gap is edge.
 
-    Q{"Edge ≥ 3%?"}
+**Prediction markets** work the same way but with different data sources — CoinGecko for crypto volatility, Yahoo Finance for S&P 500/VIX, NWS for weather brackets. The `--cross-ref` flag adds Polymarket prices as a second opinion.
 
-    subgraph RISK ["🛡️ 8 Risk Gates"]
-        direction LR
-        G12["1 Daily loss\n2 Position count"]
-        G34["3 Edge threshold\n4 Composite score"]
-        G56["5 Duplicate check\n6 Per-event cap"]
-        G78["7 Bet size cap $100\n8 Bet ratio cap 3x"]
-    end
+**Futures** (championship markets) cross-reference sportsbook futures odds against Kalshi contract prices for season-long bets.
 
-    subgraph EXEC ["🎯 Size → Execute → Log"]
-        direction LR
-        K["Kelly Sizing\nunit floor · batch-aware"]
-        ORDER["Limit Order\non Kalshi"]
-        LOG["Log Trade\n+ Track CLV"]
-    end
+Every opportunity that clears the minimum edge threshold (3%) gets scored on a 0–10 composite scale, then run through 8 risk gates — daily loss limit, position count, duplicate check, per-event cap, bet sizing caps, and more. Survivors are sized using batch-aware Kelly criterion and placed as limit orders on Kalshi. Every decision is logged with fill-accurate accounting for closing line value tracking.
 
-    DATA --> ENGINE --> Q
-    Q -- "YES" --> RISK --> EXEC
-    Q -- "NO" --> SKIP["Skip"]
-    K --> ORDER --> LOG
+```
+Sportsbooks / Market APIs → Fair Value Probability
+                                    ↕ compare
+                            Kalshi Contract Price
+                                    ↓
+                        Edge ≥ 3%? → Composite Score
+                                    ↓
+                            8 Risk Gates → Kelly Sizing → Limit Order → Log + CLV
 ```
 
 **Project Structure**
@@ -351,6 +329,36 @@ Edge-Radar/
 ├── reports/                 # Markdown scan reports + P&L reports
 └── .claude/                 # Agents, skills, memory
 ```
+
+---
+
+## 📉 Backtesting
+
+Analyze settled trades to evaluate strategy performance, signal quality, and risk-adjusted returns. The backtester reads from your settlement log and computes win rates, ROI, profit factor, Sharpe ratio, equity curves, max drawdown, and calibration data — broken down by sport, bet category, confidence level, and edge bucket.
+
+```bash
+# Full analysis report across all settled trades
+python scripts/backtest/backtester.py
+
+# Filter by sport, confidence, or edge threshold
+python scripts/backtest/backtester.py --sport mlb
+python scripts/backtest/backtester.py --confidence high --min-edge 0.10
+
+# Strategy simulation — compares edge thresholds, confidence tiers, and categories
+python scripts/backtest/backtester.py --simulate --save
+```
+
+| Metric | Description |
+| --- | --- |
+| **Win Rate** | Percentage of settled trades that won |
+| **ROI** | Net P&L divided by total wagered |
+| **Profit Factor** | Total wins / total losses — above 1.0 is profitable |
+| **Sharpe Ratio** | Risk-adjusted return based on daily P&L volatility |
+| **Max Drawdown** | Largest peak-to-trough decline in cumulative P&L |
+| **Equity Curve** | Cumulative P&L over time, trade by trade |
+| **Calibration** | Predicted win probability vs. actual win rate by bucket |
+
+The `--simulate` flag runs what-if scenarios: what if you only took high-edge bets? Only spreads? Only high-confidence picks? Results are compared side-by-side so you can tune your filters. Use `--save` to export the report as markdown to `reports/`.
 
 ---
 
