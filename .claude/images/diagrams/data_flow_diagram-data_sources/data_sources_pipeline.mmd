@@ -1,0 +1,127 @@
+flowchart TD
+    %% ═══════════════════════════════════════════════
+    %% Edge-Radar: Data Sources → Execution Pipeline
+    %% ═══════════════════════════════════════════════
+
+    %% ── Entry Point ────────────────────────────────
+    scan["🔀 scan.py\nUnified Entry Point"]
+
+    scan -->|"--filter mlb nba nhl nfl ..."| SPORTS_PATH
+    scan -->|"--filter crypto weather sp500"| PREDICT_PATH
+
+    %% ── SPORTS PIPELINE (Left) ─────────────────────
+    subgraph SPORTS_PATH ["⚾ Sports Betting Pipeline"]
+        direction TB
+
+        subgraph S_APIs ["External APIs"]
+            direction LR
+            s1["🎰 The Odds API\n12 US Sportsbooks"]
+            s2["📺 ESPN\nNBA·NFL·NCAAB·NCAAF"]
+            s3["🏒 NHL Stats API"]
+            s4["⚾ MLB Stats API"]
+            s5["🌦️ NWS Weather\n61 Venues"]
+        end
+
+        subgraph S_Scripts ["Ingestion Scripts"]
+            direction LR
+            fetch_odds["fetch_odds.py\nConsensus Lines"]
+            team_stats["team_stats.py\n6 Sports"]
+            pitcher["pitcher_stats.py\nERA·FIP·WHIP·K/9"]
+            weather["sports_weather.py\nWind·Rain·Temp"]
+            sharp["line_movement.py\nSharp Money"]
+        end
+
+        s1 --> fetch_odds
+        s2 --> team_stats
+        s2 --> sharp
+        s3 --> team_stats
+        s4 --> team_stats
+        s4 --> pitcher
+        s5 --> weather
+    end
+
+    %% ── PREDICTION PIPELINE (Right) ────────────────
+    subgraph PREDICT_PATH ["📈 Prediction Market Pipeline"]
+        direction TB
+
+        subgraph P_APIs ["External APIs"]
+            direction LR
+            p1["🪙 CoinGecko\nCrypto Prices·24h Vol"]
+            p2["📊 Yahoo Finance\nS&P 500·VIX"]
+        end
+
+        subgraph P_Scripts ["Ingestion Scripts"]
+            direction LR
+            fetch_market["fetch_market_data.py\nMulti-Asset Fetcher"]
+        end
+
+        p1 --> fetch_market
+        p2 --> fetch_market
+    end
+
+    %% ── SHARED: Kalshi + Polymarket ────────────────
+    subgraph EXCHANGE ["🏦 Exchange Layer"]
+        direction LR
+        kalshi["🎯 Kalshi API\nRSA Auth · Market Prices"]
+        poly["🔮 Polymarket\nGamma API Cross-Ref"]
+    end
+
+    kalshi --> kalshi_client["kalshi_client.py\nAuthenticated Client"]
+    poly --> poly_edge["polymarket_edge.py\nCross-Market Prices"]
+
+    %% ── CONVERGENCE: Edge Detection ────────────────
+    fetch_odds --> edge_detector
+    team_stats --> edge_detector
+    pitcher --> edge_detector
+    weather --> edge_detector
+    sharp --> edge_detector
+    fetch_market --> edge_detector
+    kalshi_client -->|"Kalshi Market\nPrices"| edge_detector
+    poly_edge -.->|"optional\n--cross-ref"| edge_detector
+
+    edge_detector["🧠 edge_detector.py\nNormal CDF Probability\nSharp Book Weighting\nTeam Performance Adj\nWeather Adjustments\n━━━━━━━━━━━━━━━━━\nComposite Score 0–10"]
+
+    %% ── RISK GATES ─────────────────────────────────
+    edge_detector -->|"Scored\nOpportunities"| risk_check
+
+    risk_check["🛡️ risk_check.py\n━━━━━━━━━━━━━━━━━━━━\n① Daily loss limit ≤ $250\n② Open positions ≤ 10\n③ Edge ≥ 3%\n④ Composite ≥ 6.0\n⑤ No duplicate ticker\n⑥ Per-event ≤ 3\n⑦ Bet size ≤ $100\n⑧ Bet ratio ≤ 3× median"]
+
+    %% ── EXECUTION ──────────────────────────────────
+    risk_check -->|"✅ All 8 gates pass"| executor
+    risk_check -->|"❌ Any gate fails"| blocked(["🚫 Rejected"])
+
+    executor["🚀 kalshi_executor.py\nKelly Criterion Sizing\nOrder Placement"]
+
+    executor -->|"Submit Order"| kalshi_client
+    executor --> settler
+
+    settler["📊 kalshi_settler.py\nSettlement · CLV Tracking\nP&L Reporting"]
+
+    settler -->|"Read Results"| kalshi_client
+
+    %% ── STYLES ─────────────────────────────────────
+    classDef entryNode fill:#E0E7FF,stroke:#4F46E5,stroke-width:2px,color:#312E81
+    classDef sportsApi fill:#DBEAFE,stroke:#2563EB,stroke-width:1.5px,color:#1E3A5F
+    classDef sportsScript fill:#C7D2FE,stroke:#4338CA,stroke-width:1.5px,color:#312E81
+    classDef predictApi fill:#FEF3C7,stroke:#D97706,stroke-width:1.5px,color:#78350F
+    classDef predictScript fill:#FDE68A,stroke:#B45309,stroke-width:1.5px,color:#78350F
+    classDef exchangeNode fill:#D1FAE5,stroke:#059669,stroke-width:1.5px,color:#064E3B
+    classDef exchangeScript fill:#A7F3D0,stroke:#047857,stroke-width:1.5px,color:#064E3B
+    classDef edgeNode fill:#FEF9C3,stroke:#CA8A04,stroke-width:2px,color:#713F12
+    classDef riskNode fill:#FFE4E6,stroke:#E11D48,stroke-width:2px,color:#881337
+    classDef execNode fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
+    classDef settleNode fill:#D1FAE5,stroke:#059669,stroke-width:2px,color:#064E3B
+    classDef blockedNode fill:#FCA5A5,stroke:#DC2626,stroke-width:2px,color:#7F1D1D
+
+    class scan entryNode
+    class s1,s2,s3,s4,s5 sportsApi
+    class fetch_odds,team_stats,pitcher,weather,sharp sportsScript
+    class p1,p2 predictApi
+    class fetch_market predictScript
+    class kalshi,poly exchangeNode
+    class kalshi_client,poly_edge exchangeScript
+    class edge_detector edgeNode
+    class risk_check riskNode
+    class executor execNode
+    class settler settleNode
+    class blocked blockedNode

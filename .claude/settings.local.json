@@ -8,7 +8,9 @@
       "mcp__ax-channel__reply",
       "mcp__github__fork_repository",
       "mcp__github__create_pull_request",
-      "mcp__ax-channel__get_messages"
+      "mcp__ax-channel__get_messages",
+      "mcp__ax-platform__spaces",
+      "mcp__ax-platform__context"
     ]
   }
 }
