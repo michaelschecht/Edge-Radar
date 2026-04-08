@@ -28,23 +28,40 @@
 <tr>
 <td width="33%" valign="top">
 
-#### Sports Betting
-NFL | NBA | MLB | NHL | NCAAB | NCAAF | UFC | Boxing | Soccer | MLS | F1 | NASCAR | PGA | IPL | Esports
-<br><sub>27 sport filters via The Odds API</sub>
+#### 🏟️ Sports Betting
+
+🏈 NFL · 🏀 NBA · ⚾ MLB · 🏒 NHL
+🎓 NCAAB · NCAAF · 🥊 UFC · Boxing
+⚽ Soccer · MLS · 🏎️ F1 · NASCAR
+⛳ PGA · 🏏 IPL · 🎮 Esports
+
+<sub><b>27 filters</b> · 18 sports with Odds API edge detection</sub>
 
 </td>
 <td width="33%" valign="top">
 
-#### Championship Futures
-Super Bowl | NBA Finals | Stanley Cup | World Series | PGA Tour
-<br><sub>Season-long markets cross-referenced against sportsbook futures</sub>
+#### 🏆 Championship Futures
+
+🏈 Super Bowl
+🏀 NBA Finals
+🏒 Stanley Cup
+⚾ World Series
+⛳ PGA Tour
+
+<sub><b>N-way de-vig</b> · cross-referenced against sportsbook outrights</sub>
 
 </td>
 <td width="33%" valign="top">
 
-#### Prediction Markets
-Crypto | S&P 500 | Weather | Politics | Pop Culture
-<br><sub>CoinGecko, Yahoo Finance, NWS, Polymarket cross-ref</sub>
+#### 📈 Prediction Markets
+
+₿ Crypto (BTC, ETH, XRP, SOL, DOGE)
+📊 S&P 500 + VIX
+🌡️ Weather (13 cities)
+🗳️ Politics
+🔗 Polymarket cross-ref
+
+<sub><b>5 categories</b> · CoinGecko, Yahoo Finance, NWS, Gamma API</sub>
 
 </td>
 </tr>
