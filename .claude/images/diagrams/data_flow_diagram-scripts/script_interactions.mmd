@@ -1,0 +1,148 @@
+flowchart LR
+    %% ═══════════════════════════════════════════════
+    %% Edge-Radar: Script Interaction Map
+    %% Left → Right: Entry → Scanners → Execution
+    %% ═══════════════════════════════════════════════
+
+    %% ── COLUMN 1: ENTRY POINTS ─────────────────────
+    subgraph ENTRY ["🚪 Entry Points"]
+        direction TB
+        scan["🔀 scan.py\nUnified CLI"]
+        daily["⏰ daily_sports_scan.py\n8AM Scheduler"]
+        webapp["🌐 webapp/services.py\nStreamlit UI"]
+    end
+
+    %% ── COLUMN 2: SCANNER ROUTING ──────────────────
+    subgraph SCANNERS ["🔍 Scanner Pipelines"]
+        direction TB
+        edge_detector["🧠 edge_detector.py\nSports Edge Detection\nscan_all_markets()"]
+        futures_edge["🏆 futures_edge.py\nChampionship Futures"]
+        pred_scanner["📈 prediction_scanner.py\nCrypto·Weather·S&P·Politics"]
+        poly_edge["🔮 polymarket_edge.py\nGamma API Cross-Ref"]
+    end
+
+    scan -->|"subprocess\nsports"| edge_detector
+    scan -->|"subprocess\nfutures"| futures_edge
+    scan -->|"subprocess\nprediction"| pred_scanner
+    scan -->|"subprocess\npolymarket"| poly_edge
+    daily --> edge_detector
+    webapp --> edge_detector
+
+    %% ── COLUMN 2b: SCANNER SUPPORT MODULES ────────
+    subgraph SPORTS_MOD ["📊 Sports Modules"]
+        direction TB
+        team_stats["team_stats.py — 6 Sports"]
+        pitcher["pitcher_stats.py — MLB"]
+        weather["sports_weather.py — 61 Venues"]
+        sharp["line_movement.py — Sharp $"]
+        rest["rest_days.py — B2B"]
+    end
+
+    subgraph PRED_MOD ["📈 Prediction Modules"]
+        direction TB
+        crypto["crypto_edge.py"]
+        wx["weather_edge.py"]
+        spx["spx_edge.py"]
+        mention["mentions_edge.py"]
+        company["companies_edge.py"]
+        politics["politics_edge.py"]
+        prob["probability.py"]
+    end
+
+    edge_detector --> team_stats
+    edge_detector --> pitcher
+    edge_detector --> weather
+    edge_detector --> sharp
+    edge_detector --> rest
+
+    pred_scanner --> crypto
+    pred_scanner --> wx
+    pred_scanner --> spx
+    pred_scanner --> mention
+    pred_scanner --> company
+    pred_scanner --> politics
+    pred_scanner --> poly_edge
+    crypto --> prob
+    mention --> prob
+
+    %% ── COLUMN 3: KALSHI HUB ──────────────────────
+    kalshi_client["🎯 kalshi_client.py\nRSA Auth\nKalshiClient()"]
+
+    edge_detector --> kalshi_client
+    pred_scanner --> kalshi_client
+    daily --> kalshi_client
+    webapp --> kalshi_client
+
+    %% ── COLUMN 4: EXECUTION ────────────────────────
+    subgraph EXEC ["🚀 Execution"]
+        direction TB
+        executor["kalshi_executor.py\nKelly Sizing · Orders"]
+        settler["kalshi_settler.py\nSettlement · CLV · P&L"]
+    end
+
+    executor -->|"scan_all_markets()"| edge_detector
+    executor --> kalshi_client
+    executor --> settler
+    settler --> kalshi_client
+    webapp --> executor
+    webapp --> settler
+
+    %% ── COLUMN 5: ANALYSIS ─────────────────────────
+    subgraph ANALYSIS ["📋 Analysis"]
+        direction TB
+        risk_check["risk_check.py\nPortfolio Dashboard"]
+        model_cal["model_calibration.py\nBrier Score"]
+        backtester["backtester.py\nStrategy Backtest"]
+    end
+
+    risk_check --> kalshi_client
+    webapp --> risk_check
+
+    %% ── BOTTOM: SHARED FOUNDATION ──────────────────
+    subgraph SHARED ["🔧 Shared Foundation — scripts/shared/"]
+        direction TB
+        opportunity["📦 opportunity.py — Dataclass"]
+        trade_log["📒 trade_log.py — Trade I/O"]
+        ticker["🏷️ ticker_display.py — Parsing"]
+        report["📝 report_writer.py — Reports"]
+        odds_api["🔑 odds_api.py — Key Rotation"]
+    end
+
+    edge_detector --> opportunity
+    edge_detector --> report
+    edge_detector --> odds_api
+    futures_edge --> opportunity
+    futures_edge --> odds_api
+    pred_scanner --> opportunity
+    executor --> opportunity
+    executor --> trade_log
+    settler --> trade_log
+    risk_check --> trade_log
+    risk_check --> ticker
+    model_cal --> trade_log
+    model_cal --> ticker
+    backtester --> trade_log
+    backtester --> ticker
+    report --> ticker
+    webapp --> trade_log
+
+    %% ── STYLES ─────────────────────────────────────
+    classDef entry fill:#E0E7FF,stroke:#4F46E5,stroke-width:2.5px,color:#312E81
+    classDef scanner fill:#FEF9C3,stroke:#CA8A04,stroke-width:2px,color:#713F12
+    classDef predMod fill:#FFF7ED,stroke:#EA580C,stroke-width:1.5px,color:#7C2D12
+    classDef sportsMod fill:#E0F2FE,stroke:#0284C7,stroke-width:1.5px,color:#0C4A6E
+    classDef hub fill:#CCFBF1,stroke:#0D9488,stroke-width:2.5px,color:#134E4A
+    classDef execNode fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
+    classDef analysisNode fill:#FDF2F8,stroke:#DB2777,stroke-width:1.5px,color:#831843
+    classDef sharedNode fill:#DBEAFE,stroke:#2563EB,stroke-width:1.5px,color:#1E3A5F
+    classDef probNode fill:#FFEDD5,stroke:#C2410C,stroke-width:1.5px,color:#7C2D12
+
+    class scan,daily,webapp entry
+    class edge_detector,futures_edge,pred_scanner,poly_edge scanner
+    class crypto,wx,spx,mention,company,politics predMod
+    class team_stats,pitcher,weather,sharp,rest sportsMod
+    class kalshi_client hub
+    class executor,settler execNode
+    class risk_check,model_cal,backtester analysisNode
+    class opportunity,trade_log,ticker,report,odds_api sharedNode
+    class prob probNode
