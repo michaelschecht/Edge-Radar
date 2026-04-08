@@ -1,6 +1,6 @@
 # Web Dashboard Usage
 
-**Navigating the Edge-Radar dashboard — local or cloud.**
+**Navigating the Edge-Radar Streamlit dashboard — local or cloud.**
 
 ---
 
@@ -8,13 +8,12 @@
 
 | Environment | URL |
 |-------------|-----|
-| **Cloud** | [edge-radar.streamlit.app](https://edge-radar.streamlit.app) (password-gated) |
+| **Cloud** | Your Streamlit Cloud URL (see [Setup Guide](SETUP.md#cloud-deployment)) |
 | **Local** | `http://localhost:8501` |
 
 ### Starting Locally
 
 ```bash
-cd D:\AI_Agents\Specialized_Agents\Edge_Radar
 streamlit run webapp/app.py
 ```
 

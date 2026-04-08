@@ -8,7 +8,7 @@
 
 | Environment | URL | Credentials |
 |-------------|-----|-------------|
-| **Cloud** | [edge-radar.streamlit.app](https://edge-radar.streamlit.app) | Streamlit Cloud secrets |
+| **Cloud** | Your Streamlit Cloud URL | Streamlit Cloud secrets |
 | **Local** | `http://localhost:8501` | `.env` + optional `secrets.toml` |
 
 Both environments run the same code. See [Setup Guide](SETUP.md) for Cloud configuration.
