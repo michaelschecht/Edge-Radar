@@ -53,7 +53,11 @@ def capture_console():
 
 
 def get_client() -> KalshiClient:
-    """Create an authenticated Kalshi client."""
+    """Create an authenticated Kalshi client.
+
+    Raises FileNotFoundError with a clear message if credentials are missing.
+    Callers in the webapp should catch this and display st.error().
+    """
     return KalshiClient()
 
 

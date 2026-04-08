@@ -50,6 +50,11 @@ class KalshiClient:
         )).rstrip("/")
 
         key_path = private_key_path or os.getenv("KALSHI_PRIVATE_KEY_PATH", "")
+        if not key_path:
+            raise FileNotFoundError(
+                "KALSHI_PRIVATE_KEY_PATH is not set. "
+                "Set it in .env or pass private_key_path to KalshiClient."
+            )
         # Resolve relative paths from project root
         key_file = Path(key_path)
         if not key_file.is_absolute():
