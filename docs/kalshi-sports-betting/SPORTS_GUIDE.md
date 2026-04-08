@@ -109,8 +109,8 @@ Use `--filter` to target a specific sport. Supports comma-separated values for m
 
 | Filter | Sport | Key Markets | Edge Detection |
 |--------|-------|-------------|----------------|
-| `f1` | Formula 1 | Drivers + constructors championship | Yes -- game |
-| `nascar` | NASCAR | Race winners | No |
+| `f1` | Formula 1 | Drivers + constructors championship | No (not on Odds API) |
+| `nascar` | NASCAR | Race winners | No (not on Odds API) |
 
 ### Other Sports
 
@@ -205,8 +205,7 @@ The system cross-references Kalshi prices against these Odds API sport keys:
 | KXLIGUE1 | `soccer_france_ligue_one` | Moneyline (h2h) |
 | KXUFCFIGHT | `mma_mixed_martial_arts` | Moneyline (h2h) |
 | KXBOXING | `boxing_boxing` | Moneyline (h2h) |
-| KXF1 | `motorsport_formula_one` | Race winner |
-| KXPGATOUR | `golf_pga_championship` | Tournament winner |
+| KXPGATOUR | `golf_pga_championship_winner` | Tournament winner |
 | KXIPL | `cricket_ipl` | Moneyline (h2h) |
 
 ---

@@ -40,6 +40,10 @@ try:
         "ODDS_API_KEY", "ODDS_API_KEYS",
         "KALSHI_API_KEY", "KALSHI_PRIVATE_KEY", "KALSHI_BASE_URL",
         "DRY_RUN",
+        # Risk parameters
+        "UNIT_SIZE", "KELLY_FRACTION", "MAX_BET_SIZE",
+        "MAX_DAILY_LOSS", "MAX_OPEN_POSITIONS", "MAX_PER_EVENT",
+        "MAX_BET_RATIO", "MIN_EDGE_THRESHOLD", "MIN_COMPOSITE_SCORE",
     ]
     for env_var, getter in _secrets_map.items():
         if env_var not in os.environ:
@@ -140,6 +144,11 @@ def run_scan(
     """
     Run a sports scan and return (opportunities, console_output).
     """
+    # Resolve date early so scan_all_markets can pre-filter before Odds API calls
+    resolved_date = None
+    if date_filter and date_filter != "all dates":
+        resolved_date = resolve_date_arg(date_filter)
+
     with capture_console() as buf:
         opportunities = scan_all_markets(
             client,
@@ -147,11 +156,11 @@ def run_scan(
             category_filter=category_filter,
             ticker_filter=ticker_filter,
             top_n=top_n,
+            date_filter=resolved_date,
         )
 
-        if opportunities and date_filter and date_filter != "all dates":
-            target = resolve_date_arg(date_filter)
-            opportunities = filter_by_date(opportunities, target)
+        if opportunities and resolved_date:
+            opportunities = filter_by_date(opportunities, resolved_date)
 
         if opportunities and exclude_open:
             positions = client.get_positions(limit=200, count_filter="position")

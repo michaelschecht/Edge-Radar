@@ -20,7 +20,7 @@ Read relevant memory files before starting work to avoid re-learning prior conte
 | **Prediction Markets** | Crypto (BTC, ETH, XRP, DOGE, SOL), weather (13 cities), S&P 500 | CoinGecko, Yahoo Finance, NWS |
 | **Championship Futures** | NFL, NBA, NHL, MLB, PGA | Sportsbook futures odds |
 | **Execution Pipeline** | Unified scan → risk-check → size → execute | Kalshi API (RSA-signed) |
-| **Web Dashboard** | Streamlit app — scan, execute, portfolio, settle | Deploy your own (see `docs/web-app/SETUP.md`) |
+| **Web Dashboard** | Streamlit app — scan, execute, portfolio, settle | Deploy your own (see `docs/web-app/LOCAL.md`) |
 
 <details>
 <summary><b>Planned (not yet implemented)</b></summary>
@@ -201,7 +201,7 @@ python scripts/backtest/backtester.py --simulate --save
 streamlit run webapp/app.py
 
 # Dashboard (live)
-# See docs/web-app/SETUP.md for Cloud deployment instructions
+# See docs/web-app/LOCAL.md for Cloud deployment instructions
 
 # Automation
 python scripts/schedulers/automation/daily_sports_scan.py

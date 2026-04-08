@@ -109,9 +109,9 @@ Supports comma-separated multi-filter (e.g., `--filter mlb,nhl`).
 | `soccer` | All soccer leagues combined | (all soccer keys) |
 | `ufc` | KXUFCFIGHT | `mma_mixed_martial_arts` |
 | `boxing` | KXBOXING | `boxing_boxing` |
-| `f1` | KXF1, KXF1CONSTRUCTORS | `motorsport_formula_one` |
-| `nascar` | KXNASCARRACE | -- |
-| `pga` | KXPGATOUR | `golf_pga_championship` |
+| `f1` | KXF1, KXF1CONSTRUCTORS | -- (not on Odds API) |
+| `nascar` | KXNASCARRACE | -- (not on Odds API) |
+| `pga` | KXPGATOUR | `golf_pga_championship_winner` |
 | `ipl` | KXIPL | `cricket_ipl` |
 | `esports` | KXCS2MAP, KXCS2GAME, KXLOLMAP, KXLOLGAME | -- |
 
