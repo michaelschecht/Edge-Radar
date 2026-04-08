@@ -21,13 +21,25 @@ CATEGORY_OPTIONS = ["All", "game", "spread", "total"]
 CONFIDENCE_OPTIONS = ["All", "low", "medium", "high"]
 
 
+def _is_cloud() -> bool:
+    """Detect Streamlit Cloud environment."""
+    import os
+    return os.path.exists("/mount/src")
+
+
 def render():
     page_header("Backtest", "Analyze settled trades and compare strategies")
 
     # ── Load data ──────────────────────────────────────────────────────
     all_trades = load_trades()
     if not all_trades:
-        st.warning("No settled trades found. Run settle first to populate settlement history.")
+        if _is_cloud():
+            st.info(
+                "Backtesting requires local trade history which doesn't persist on Streamlit Cloud. "
+                "Use the local dashboard or CLI for backtest analysis."
+            )
+        else:
+            st.warning("No settled trades found. Run settle first to populate settlement history.")
         return
 
     st.markdown(

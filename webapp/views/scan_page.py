@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from services import (
     get_client, run_scan, run_execute, opportunities_to_rows,
     SPORT_FILTERS, CATEGORY_OPTIONS, DATE_OPTIONS,
-    MIN_EDGE_THRESHOLD, DRY_RUN, _DRY_RUN_RAW,
+    MIN_EDGE_THRESHOLD, DRY_RUN,
 )
 from favorites import save_favorite, delete_favorite, load_favorites
 from theme import page_header, section_label, CYAN, AMBER, RED, GREEN, DIM
@@ -76,7 +76,6 @@ def render():
                     border-radius:6px; padding:0.6rem 1rem; margin-bottom:1rem;
                     font-family:JetBrains Mono,monospace; font-size:0.78rem; color:{AMBER};">
             DRY_RUN=true &mdash; no real orders will be placed
-            <span style="color:#475569; font-size:0.65rem;">(raw={_DRY_RUN_RAW})</span>
         </div>
         """, unsafe_allow_html=True)
 

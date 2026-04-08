@@ -10,8 +10,28 @@ from services import get_client, run_settle, run_report, get_settlement_history
 from theme import page_header, section_label, CYAN, GREEN, RED, AMBER
 
 
+_CLOUD_NOTICE = """
+<div style="background:rgba(100,116,139,0.08); border:1px solid rgba(100,116,139,0.2);
+            border-radius:6px; padding:0.8rem 1rem; margin-bottom:1rem;
+            font-family:JetBrains Mono,monospace; font-size:0.78rem; color:#94a3b8;">
+    <b>Cloud note:</b> Settlement history and P&amp;L reports rely on local trade logs
+    that don&rsquo;t persist on Streamlit Cloud. Settle will run against the Kalshi API,
+    but history resets on app reboot. For full reporting, use the local dashboard or CLI.
+</div>
+"""
+
+
+def _is_cloud() -> bool:
+    """Detect Streamlit Cloud environment."""
+    import os
+    return os.path.exists("/mount/src")
+
+
 def render():
     page_header("Settle & Report", "Close out completed markets and review performance")
+
+    if _is_cloud():
+        st.markdown(_CLOUD_NOTICE, unsafe_allow_html=True)
 
     # ── Settle ──────────────────────────────────────────────────────────
     section_label("Settle Completed Markets")
