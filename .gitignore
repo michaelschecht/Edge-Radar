@@ -61,9 +61,7 @@ notebooks/analysis/*.html
 # === Project-specific ===
 .claude/images/screenshots/
 .claude/memory/
-docs/enhancements/
-docs/AX-Integration/
-docs/temp/
+docs/my-documents/
 scripts/custom/
 scripts/schedulers/
 

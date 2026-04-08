@@ -1,16 +1,6 @@
 # Web Dashboard Setup
 
-**Install and configure the Edge-Radar Streamlit dashboard.**
-
----
-
-## Live Dashboard
-
-The dashboard is deployed on Streamlit Community Cloud:
-
-**https://edge-radar.streamlit.app**
-
-Password-gated. Credentials managed via Streamlit Cloud secrets.
+**Deploy your own Edge-Radar Streamlit dashboard — locally or on Streamlit Community Cloud.**
 
 ---
 
@@ -25,7 +15,6 @@ Password-gated. Credentials managed via Streamlit Cloud secrets.
 ### Start the Dashboard
 
 ```bash
-cd D:\AI_Agents\Specialized_Agents\Edge_Radar
 streamlit run webapp/app.py
 ```
 
@@ -65,26 +54,33 @@ When no secrets file exists, the dashboard runs without a password gate.
 
 ### Streamlit Cloud
 
-Secrets are managed in the app's **Settings > Secrets** panel. See [Cloud Deployment](#cloud-deployment) below.
+Secrets are managed in your app's **Settings > Secrets** panel. See [Cloud Deployment](#cloud-deployment) below.
 
 ---
 
 ## Cloud Deployment
 
-The dashboard is deployed on **Streamlit Community Cloud** (free tier).
+You can deploy your own instance on **Streamlit Community Cloud** (free tier).
 
-### Configuration
+### Steps
+
+1. Fork or clone this repository to your own GitHub account
+2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub
+3. Click **New app** and configure:
 
 | Setting | Value |
 |---------|-------|
-| **Repo** | `michaelschecht/Edge-Radar` |
-| **Branch** | `master` |
+| **Repo** | `your-github-username/Edge-Radar` |
+| **Branch** | `master` (or your default branch) |
 | **Main file** | `webapp/app.py` |
-| **URL** | `https://edge-radar.streamlit.app` |
+
+4. Choose a custom subdomain (e.g., `your-name-edge-radar.streamlit.app`)
+5. Add secrets in **Settings > Secrets** (see below)
+6. Deploy
 
 ### Secrets
 
-In **Settings > Secrets**, add the following TOML:
+In your app's **Settings > Secrets**, add the following TOML:
 
 ```toml
 [passwords]
@@ -144,7 +140,7 @@ api_keys = "key1,key2,key3"
 ## Verify Installation
 
 ```bash
-.venv\Scripts\python -c "import streamlit; print(f'streamlit {streamlit.__version__}')"
+python -c "import streamlit; print(f'streamlit {streamlit.__version__}')"
 ```
 
 ---
