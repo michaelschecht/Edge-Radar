@@ -19,383 +19,344 @@
 
 ---
 
-## 📊 Supported Markets
+<br>
 
-| 🏀 Sports Betting | 🏆 Championships | 🔮 Prediction Markets |
-| --- | --- | --- |
-| NFL, NBA, and MLB | NFL Super Bowl | Cryptocurrency |
-| NCAAB & NCAAF | NBA Finals | US Stock Market |
-| UFC and Boxing | NHL Stanley Cup | Politics |
-| NHL and Soccer | MLB World Series | Weather |
-| Golf & NASCAR | PGA Tour | TV and Pop Culture |
+## Supported Markets
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+#### Sports Betting
+NFL | NBA | MLB | NHL | NCAAB | NCAAF | UFC | Boxing | Soccer | MLS | F1 | NASCAR | PGA | IPL | Esports
+<br><sub>27 sport filters via The Odds API</sub>
+
+</td>
+<td width="33%" valign="top">
+
+#### Championship Futures
+Super Bowl | NBA Finals | Stanley Cup | World Series | PGA Tour
+<br><sub>Season-long markets cross-referenced against sportsbook futures</sub>
+
+</td>
+<td width="33%" valign="top">
+
+#### Prediction Markets
+Crypto | S&P 500 | Weather | Politics | Pop Culture
+<br><sub>CoinGecko, Yahoo Finance, NWS, Polymarket cross-ref</sub>
+
+</td>
+</tr>
+</table>
 
 ---
 
-## ⚡ Edge Detection
+## Edge Detection Pipeline
 
-|  | Feature | Description |
-| --- | --- | --- |
-| 📐 | **Normal CDF Model** | Spread/total probabilities via bell curve with sport-specific stdev |
-| ⚖️ | **Sharp Book Weighting** | Pinnacle 3x, DraftKings 0.7x — sharp lines pull consensus |
-| 📈 | **Team Stats** | ESPN/NHL/MLB win% validates or challenges book fair value |
-| 💰 | **Sharp Money** | ESPN open-vs-close odds detect reverse line movement |
-| 🌧️ | **Weather** | NWS forecasts for 61 NFL/MLB venues adjust total expectations |
-| ⚾ | **Pitcher Matchups** | MLB Stats API: ERA, FIP, WHIP, K/9, rest — adjusts total stdev |
-| 🔄 | **Rest Days** | ESPN B2B detection for NBA/NHL — fatigue adjusts stdev + confidence |
-| ⚠️ | **Book Disagreement** | >4pt spread range across books flags injury news |
-| 📊 | **CLV Tracking** | Closing line value validates model accuracy over time |
+```mermaid
+graph LR
+    A["12 Sportsbooks<br><sub>The Odds API</sub>"] --> D["Normal CDF<br>Fair Value"]
+    B["Team Stats<br><sub>ESPN / NHL / MLB</sub>"] --> D
+    C["Signals<br><sub>Weather, Pitchers, Rest, Sharp $</sub>"] --> D
+    D -->|"compare"| E["Kalshi Price"]
+    E -->|"Edge >= 3%"| F["Composite Score<br><sub>0-10 scale</sub>"]
+    F --> G["8 Risk Gates"]
+    G --> H["Kelly Sizing"]
+    H --> I["Limit Order + Log"]
+
+    style D fill:#8B5CF6,color:#fff,stroke:none
+    style G fill:#e74c3c,color:#fff,stroke:none
+    style I fill:#2ea44f,color:#fff,stroke:none
+```
+
+<table>
+<tr>
+<td width="50%">
+
+| Signal | Source |
+|:-------|:-------|
+| **Normal CDF Model** | Sport-specific stdev bell curve probabilities |
+| **Sharp Book Weighting** | Pinnacle 3x, Circa 3x, DraftKings 0.7x |
+| **Team Stats** | ESPN/NHL/MLB win% validates fair value |
+| **Sharp Money** | Open-vs-close odds detect reverse line movement |
+
+</td>
+<td width="50%">
+
+| Signal | Source |
+|:-------|:-------|
+| **Weather** | NWS forecasts for 61 NFL/MLB outdoor venues |
+| **Pitcher Matchups** | ERA, FIP, WHIP, K/9, rest days from MLB Stats API |
+| **Rest Days** | NBA/NHL back-to-back fatigue detection |
+| **Book Disagreement** | >4pt spread range flags injury news |
+
+</td>
+</tr>
+</table>
 
 > [!IMPORTANT]
 > Every scan defaults to **preview mode**. No money is risked until you pass `--execute`.
 
 ---
 
-## 🛡️ Risk & Position Sizing
+## Risk & Position Sizing
 
-### Batch-Aware Kelly Sizing
+<table>
+<tr>
+<td width="55%" valign="top">
 
-Bet size scales with edge strength, divided by the number of simultaneous bets so total batch exposure stays controlled. Higher-edge opportunities get more capital; marginal edges stay at the minimum unit.
+#### 8 Risk Gates
+
+Every order must clear gates 1-6. Gates 7-8 cap sizing instead of rejecting.
+
+| # | Gate | Action |
+|:-:|:-----|:-------|
+| 1 | Daily loss limit | Reject at -$250 |
+| 2 | Position count | Reject at 50 open |
+| 3 | Edge threshold | Reject below 3% |
+| 4 | Composite score | Reject below 6.0/10 |
+| 5 | Duplicate check | Reject same market |
+| 6 | Per-event cap | Reject at 2/game |
+| 7 | Bet size cap | Cap at $100 |
+| 8 | Bet ratio cap | Cap at 3x batch median |
+
+<sub>All limits configurable via <code>.env</code> &mdash; see <a href="docs/ARCHITECTURE.md">Architecture</a></sub>
+
+</td>
+<td width="45%" valign="top">
+
+#### Batch-Aware Kelly Sizing
+
+Bet size scales with edge, divided by batch count to control total exposure.
 
 ```
-bet_size = max(unit_size, (KELLY_FRACTION / batch_size) × edge × bankroll)
+bet = max(unit, (kelly_frac / batch) * edge * bankroll)
 ```
 
-When placing 5 bets at once with `KELLY_FRACTION=0.50`, each bet gets `0.50/5 = 0.10` of the Kelly fraction — keeping total exposure roughly equal to what a single full-fraction bet would be.
+| Edge | 1 bet | 5 bets | 10 bets |
+|:-----|------:|-------:|--------:|
+| 3% | $0.75 | $0.15 | $0.08 |
+| 10% | $2.50 | $0.50 | $0.25 |
+| 15% | $3.75 | $0.75 | $0.38 |
+| 25% | $6.25 | $1.25 | $0.63 |
 
-| Edge | Bankroll $50 | 1 bet (0.50) | 5 bets (0.50/5) | 10 bets (0.50/10) |
-| --- | --- | --- | --- | --- |
-| 3% | $0.75 | 2 contracts | 1 contract | 1 contract |
-| 10% | $2.50 | 6 contracts | 2 contracts | 1 contract |
-| 15% | $3.75 | 9 contracts | 2 contracts | 1 contract |
-| 25% | $6.25 | 16 contracts | 4 contracts | 2 contracts |
+<sub>Example: $50 bankroll, <code>KELLY_FRACTION=0.50</code>. Capped by max bet ($100) and balance.</sub>
 
-The result is capped by max bet size ($100) and available balance. `KELLY_FRACTION` is configurable in `.env` (default: 0.25).
-
-### 8 Risk Gates
-
-Every order must pass gates 1-6. Gates 7-8 are sizing caps that downsize the order rather than rejecting it.
-
-|  | Gate | Behavior |
-| --- | --- | --- |
-| 1 | **Daily loss limit** | Reject — no new bets after -$250 today |
-| 2 | **Position count** | Reject — max 50 concurrent open positions |
-| 3 | **Edge threshold** | Reject — minimum 3% edge required |
-| 4 | **Composite score** | Reject — must score 6.0+ across edge, confidence, liquidity |
-| 5 | **Duplicate check** | Reject — can't double up on the same market |
-| 6 | **Per-event cap** | Reject — max 2 positions on the same game |
-| 7 | **Bet size cap** | Cap — downsize to $100 |
-| 8 | **Bet ratio cap** | Cap — no single bet exceeds 3x the batch median cost |
-
-All limits are configurable via `.env`. See [Architecture](docs/ARCHITECTURE.md) for details on how scoring, confidence, and sizing interact.
+</td>
+</tr>
+</table>
 
 ---
 
-## 🚀 Quick Start
-
-> **New here?** See the full **[Setup Guide](docs/setup/SETUP_GUIDE.md)** for step-by-step instructions on API keys, private key generation, environment configuration, and your first scan.
+## Quick Start
 
 ```bash
 # 1. Install and configure
-pip install -r requirements.txt
-cp .env.example .env  # See setup guide for API key instructions
+pip install -r requirements.txt && cp .env.example .env
 
-# 2. Verify everything works
+# 2. Verify environment (API keys, dependencies)
 python scripts/doctor.py
 
-# 3. Scan for opportunities (preview only)
+# 3. Preview opportunities (no money risked)
 python scripts/scan.py sports --filter nba
 
-# 4. Execute after reviewing
+# 4. Execute with risk controls
 python scripts/scan.py sports --filter nba --execute --unit-size 1 --max-bets 5
 
-# 5. Settle and check P&L
+# 5. Settle bets and view P&L
 python scripts/kalshi/kalshi_settler.py report --detail --save
 ```
 
 > [!TIP]
 > All scanners share the same flags: `--execute`, `--unit-size`, `--max-bets`, `--pick`, `--ticker`, `--save`, `--date`, `--exclude-open`. Use `--date tomorrow --exclude-open` to avoid double-betting.
 
-<details>
-<summary><b>More Examples</b></summary>
+> **First time?** See the full **[Setup Guide](docs/setup/SETUP_GUIDE.md)** for API keys, RSA private key generation, and environment configuration.
 
-**Sports Betting**
+<details>
+<summary><b>Sports Betting</b></summary>
 
 ```bash
-# Scan any sport directly
 python scripts/scan.py sports --filter nhl
-python scripts/scan.py sports --filter mlb
-python scripts/scan.py sports --filter ncaamb
-
-# Execute with custom sizing
 python scripts/scan.py sports --filter mlb --execute --unit-size 1 --max-bets 10
-
-# Tomorrow's games only, skip games you already bet on
 python scripts/scan.py sports --filter mlb --date tomorrow --exclude-open
-
-# Save scan results to watchlist
 python scripts/scan.py sports --filter nba --save
 ```
+</details>
 
-**Championship Futures**
+<details>
+<summary><b>Championship Futures</b></summary>
 
 ```bash
-# Scan futures markets
 python scripts/scan.py futures --filter nba-futures
-python scripts/scan.py futures --filter nhl-futures
-
-# Execute futures picks
 python scripts/scan.py futures --filter mlb-futures --execute --unit-size 2 --max-bets 5
-
-# Save futures scan to watchlist
 python scripts/scan.py futures --filter nba-futures --save
 ```
+</details>
 
-**Prediction Markets**
+<details>
+<summary><b>Prediction Markets</b></summary>
 
 ```bash
-# Scan by category
 python scripts/scan.py prediction --filter crypto
 python scripts/scan.py prediction --filter weather
-python scripts/scan.py prediction --filter spx
-
-# Execute with sizing
 python scripts/scan.py prediction --filter crypto --execute --unit-size 1 --max-bets 5
-
-# Cross-reference against Polymarket
 python scripts/scan.py prediction --filter crypto --cross-ref
 ```
+</details>
 
-**Polymarket Cross-Reference**
+<details>
+<summary><b>Polymarket Cross-Reference</b></summary>
 
 ```bash
-# Scan for cross-market edges
-python scripts/scan.py polymarket
 python scripts/scan.py polymarket --filter crypto
-
-# Execute Polymarket-validated picks
 python scripts/scan.py polymarket --execute --unit-size 1 --max-bets 5
-
-# Save results and find matches
-python scripts/scan.py polymarket --save
 python scripts/polymarket/polymarket_edge.py match KXBTC-28MAR26-T88000
 ```
+</details>
 
-**Portfolio Management**
+<details>
+<summary><b>Portfolio & Settlement</b></summary>
 
 ```bash
-# Check portfolio status & open positions
-python scripts/kalshi/kalshi_executor.py status
-
-# Save status as markdown report
 python scripts/kalshi/kalshi_executor.py status --save
-
-# Risk dashboard (full or filtered)
-python scripts/kalshi/risk_check.py
-python scripts/kalshi/risk_check.py --report positions
-python scripts/kalshi/risk_check.py --save
-
-# Settle completed bets and update P&L
+python scripts/kalshi/risk_check.py --report positions --save
 python scripts/kalshi/kalshi_settler.py settle
-
-# Full performance report (saves markdown to reports/Accounts/Kalshi/)
 python scripts/kalshi/kalshi_settler.py report --detail --save
 ```
+</details>
 
-**Backtesting**
+<details>
+<summary><b>Backtesting</b></summary>
 
 ```bash
-# Full backtest analysis
 python scripts/backtest/backtester.py
-
-# Strategy simulation (compares edge thresholds, confidence levels, categories)
 python scripts/backtest/backtester.py --simulate --save
+python scripts/backtest/backtester.py --sport mlb --confidence high --min-edge 0.10
+```
+</details>
 
-# Filter by sport, category, confidence, or edge threshold
-python scripts/backtest/backtester.py --sport mlb
-python scripts/backtest/backtester.py --confidence medium --min-edge 0.10
+---
+
+## Claude Code Integration
+
+Edge-Radar includes a built-in `/edge-radar` slash command for [Claude Code](https://claude.ai/claude-code):
+
+```
+/edge-radar status                        # Balance, positions, P&L
+/edge-radar scan nba                      # Preview NBA opportunities
+/edge-radar bet mlb --unit-size 1         # Scan + execute on confirm
+/edge-radar settle                        # Settle + P&L report
+/edge-radar risk                          # Risk dashboard
+/edge-radar crypto --cross-ref            # Prediction markets + Polymarket
 ```
 
-**Web Dashboard**
+Routes natural language to the correct scanner, enforces all risk gates, always previews before executing. All CLI flags work inline.
 
-```bash
-# Launch Streamlit dashboard (scan, portfolio, settle)
-streamlit run webapp/app.py
+> [!NOTE]
+> Requires [Claude Code](https://claude.ai/claude-code) CLI, Desktop, or IDE extension. Skill defined in `.claude/skills/edge-radar/SKILL.md`.
+>
+> **Gemini CLI / OpenAI Codex** — add the skill content to your `GEMINI.md` or `AGENTS.md` for equivalent functionality.
+
+---
+
+## Automated Daily Execution
+
+Pre-built scripts scan all sports, rank by composite score, and execute with Kelly sizing. See the **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)**.
+
+```powershell
+# Install all scheduled tasks at once
+python scripts/schedulers/automation/install_windows_task.py install all
 ```
+
+| Task | Schedule | Description |
+|:-----|:---------|:------------|
+| `scan` | 8:00 AM ET | Preview scan — saves report, no bets |
+| `execute` | 8:00 AM ET | Scan + execute — places live orders |
+| `settle` | 11:00 PM ET | Settle bets, update P&L |
+| `next-day` | 9:00 PM ET | Scan + execute tomorrow's games |
+
+<sub>Reports save to <code>reports/Sports/schedulers/</code> with full execution details.</sub>
+
+---
+
+## Architecture
+
+```
+Edge-Radar/
+├── scripts/
+│   ├── scan.py                  # Unified entry point
+│   ├── kalshi/                  # Scan → Size → Execute → Settle
+│   ├── polymarket/              # Cross-market edge detection
+│   ├── shared/                  # Team stats, weather, tickers, logging
+│   └── schedulers/              # Automation & scheduled jobs
+├── app/domain/                  # Typed domain objects
+├── webapp/                      # Streamlit dashboard
+├── tests/                       # 150 pytest tests
+├── docs/                        # 11 guides
+├── data/                        # Trade history & watchlists (gitignored)
+└── reports/                     # Scan & P&L reports (gitignored)
+```
+
+<details>
+<summary><b>Backtesting Framework</b></summary>
+
+Analyze settled trades for win rate, ROI, profit factor, Sharpe ratio, equity curves, max drawdown, and calibration data — broken down by sport, category, confidence level, and edge bucket.
+
+| Metric | Description |
+|:-------|:------------|
+| **Win Rate** | Settled trades that won |
+| **ROI** | Net P&L / total wagered |
+| **Profit Factor** | Total wins / total losses |
+| **Sharpe Ratio** | Risk-adjusted daily P&L return |
+| **Max Drawdown** | Largest peak-to-trough decline |
+| **Calibration** | Predicted vs. actual win rate by bucket |
+
+The `--simulate` flag runs what-if scenarios across edge thresholds, confidence tiers, and categories. Use `--save` to export reports.
 
 </details>
 
 ---
 
-## 🤖 Claude Code Skill
-
-Edge-Radar includes a built-in `/edge-radar` slash command for [Claude Code](https://claude.ai/claude-code) that provides a natural language interface to the entire system. Type `/edge-radar` followed by what you want to do:
-
-```
-/edge-radar status                          # Balance, open positions, P&L
-/edge-radar scan nba                        # Preview NBA opportunities
-/edge-radar bet mlb --unit-size 1           # Scan MLB + execute on confirm
-/edge-radar settle                          # Settle bets + P&L report
-/edge-radar risk                            # Full risk dashboard
-/edge-radar detail KXNBAGAME-26APR01-...    # Deep dive on a single market
-/edge-radar crypto --cross-ref              # Prediction markets + Polymarket xref
-```
-
-The skill routes natural language to the correct scanner, enforces all risk gates, and always previews before executing. All flags (`--date`, `--exclude-open`, `--pick`, `--save`, etc.) work inline. Or just describe what you want in plain English — Claude handles the routing.
-
-> [!NOTE]
-> Requires [Claude Code](https://claude.ai/claude-code) CLI, Desktop, or IDE extension. The skill is defined in `.claude/skills/edge-radar/SKILL.md`.
->
-> **Using Gemini CLI or OpenAI Codex?** The `/edge-radar` slash command is Claude Code-specific, but the commands and workflows are the same. Add the skill content from `.claude/skills/edge-radar/SKILL.md` to your `GEMINI.md` or `AGENTS.md` file to get equivalent functionality in those tools.
-
----
-
-## 🔄 Automated Daily Execution
-
-Pre-built scripts scan NFL, NBA, NHL, and MLB in a single command, rank the top 10 opportunities across all sports by composite score, and execute with Kelly sizing. See the **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** for the full setup walkthrough.
-
-```bash
-# Preview today's best picks (no bets placed)
-scripts\schedulers\same_day_executions\same_day_scan.bat
-
-# Scan + execute (places live orders via Kalshi API)
-scripts\schedulers\same_day_executions\same_day_execute.bat
-```
-
-### Quick Setup with Task Scheduler
-
-```powershell
-# Install morning execution (8 AM) + nightly settlement (11 PM)
-python scripts/schedulers/automation/install_windows_task.py install execute
-python scripts/schedulers/automation/install_windows_task.py install settle
-
-# Check task status
-python scripts/schedulers/automation/install_windows_task.py status
-
-# Or install all four tasks at once (scan, execute, settle, next-day)
-python scripts/schedulers/automation/install_windows_task.py install all
-```
-
-| Task | Schedule | Description |
-| --- | --- | --- |
-| `scan` | 8:00 AM | Preview scan — saves report, no bets |
-| `execute` | 8:00 AM | Scan + execute — places live orders |
-| `settle` | 11:00 PM | Settle bets, update P&L |
-| `next-day` | 9:00 PM | Scan + execute tomorrow's games |
-
-Reports save to `reports/Sports/schedulers/` with full execution details (Sport, Bet, Type, Pick, Qty, Price, Cost, Edge).
-
----
-
-## 🏗️ How It Works
-
-`scan.py` is the single entry point. It routes to the right scanner based on your command — sports, futures, prediction, or polymarket.
-
-**Sports betting** pulls consensus odds from 12 sportsbooks via The Odds API, then layers on team stats (ESPN, NHL, MLB), starting pitcher data, rest/back-to-back detection, sharp money signals from line movement, and NWS weather forecasts for outdoor venues. All of these feed into the edge detector, which builds a fair-value probability using a normal CDF model with sharp-book weighting (Pinnacle 3x, Circa 3x) and compares it against the Kalshi contract price. Any gap is edge.
-
-**Prediction markets** work the same way but with different data sources — CoinGecko for crypto volatility, Yahoo Finance for S&P 500/VIX, NWS for weather brackets. The `--cross-ref` flag adds Polymarket prices as a second opinion.
-
-**Futures** (championship markets) cross-reference sportsbook futures odds against Kalshi contract prices for season-long bets.
-
-Every opportunity that clears the minimum edge threshold (3%) gets scored on a 0–10 composite scale, then run through 8 risk gates — daily loss limit, position count, duplicate check, per-event cap, bet sizing caps, and more. Survivors are sized using batch-aware Kelly criterion and placed as limit orders on Kalshi. Every decision is logged with fill-accurate accounting for closing line value tracking.
-
-```
-Sportsbooks / Market APIs → Fair Value Probability
-                                    ↕ compare
-                            Kalshi Contract Price
-                                    ↓
-                        Edge ≥ 3%? → Composite Score
-                                    ↓
-                            8 Risk Gates → Kelly Sizing → Limit Order → Log + CLV
-```
-
-**Project Structure**
-
-```
-Edge-Radar/
-├── scripts/
-│   ├── scan.py              # Unified entry point → sports/futures/prediction/polymarket
-│   ├── kalshi/              # Scan ── Size ── Execute ── Settle
-│   ├── prediction/          # Crypto, weather, S&P, politics edge
-│   ├── polymarket/          # Polymarket cross-reference edge detection
-│   ├── shared/              # Config, team stats, weather, ticker display
-│   └── schedulers/          # Automation & scheduled scan jobs
-│       ├── morning_scans/   # Per-sport .bat scan jobs (MLB, NBA, NFL, NHL)
-│       └── automation/      # Python scripts (daily scan, Windows Task Scheduler)
-├── app/domain/              # Typed domain objects (Opportunity, RiskDecision, ExecutionPreview)
-├── webapp/                  # Streamlit web dashboard (scan, portfolio, settle)
-├── tests/                   # 150 pytest tests (risk gates, fill accounting, edge math, backtester)
-├── docs/                    # 8 guides (see Documentation below)
-├── data/                    # Trade history, settlements, watchlists
-├── reports/                 # Markdown scan reports + P&L reports
-└── .claude/                 # Agents, skills, memory
-```
-
----
-
-## 📉 Backtesting
-
-Analyze settled trades to evaluate strategy performance, signal quality, and risk-adjusted returns. The backtester reads from your settlement log and computes win rates, ROI, profit factor, Sharpe ratio, equity curves, max drawdown, and calibration data — broken down by sport, bet category, confidence level, and edge bucket.
-
-```bash
-# Full analysis report across all settled trades
-python scripts/backtest/backtester.py
-
-# Filter by sport, confidence, or edge threshold
-python scripts/backtest/backtester.py --sport mlb
-python scripts/backtest/backtester.py --confidence high --min-edge 0.10
-
-# Strategy simulation — compares edge thresholds, confidence tiers, and categories
-python scripts/backtest/backtester.py --simulate --save
-```
-
-| Metric | Description |
-| --- | --- |
-| **Win Rate** | Percentage of settled trades that won |
-| **ROI** | Net P&L divided by total wagered |
-| **Profit Factor** | Total wins / total losses — above 1.0 is profitable |
-| **Sharpe Ratio** | Risk-adjusted return based on daily P&L volatility |
-| **Max Drawdown** | Largest peak-to-trough decline in cumulative P&L |
-| **Equity Curve** | Cumulative P&L over time, trade by trade |
-| **Calibration** | Predicted win probability vs. actual win rate by bucket |
-
-The `--simulate` flag runs what-if scenarios: what if you only took high-edge bets? Only spreads? Only high-confidence picks? Results are compared side-by-side so you can tune your filters. Use `--save` to export the report as markdown to `reports/`.
-
----
-
-## 📖 Documentation
+## Documentation
 
 | Guide | Description |
-| --- | --- |
-| **[Setup Guide](docs/setup/SETUP_GUIDE.md)** | API keys, private keys, environment config, first scan |
-| **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** | Windows Task Scheduler setup for automated daily betting |
+|:------|:------------|
+| **[Setup Guide](docs/setup/SETUP_GUIDE.md)** | API keys, environment config, first scan |
+| **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** | Windows Task Scheduler for daily betting |
 | **[Scripts Reference](docs/SCRIPTS_REFERENCE.md)** | Every script, flag, and example |
 | **[Sports Guide](docs/kalshi-sports-betting/SPORTS_GUIDE.md)** | 27 filters, edge detection, daily workflow |
 | **[Futures Guide](docs/kalshi-futures-betting/FUTURES_GUIDE.md)** | NFL, NBA, NHL, MLB, golf championships |
 | **[Prediction Markets](docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** | Crypto, weather, S&P 500, politics |
 | **[Architecture](docs/ARCHITECTURE.md)** | Pipeline, risk gates, data flow |
 | **[MLB Filtering](docs/kalshi-sports-betting/MLB_FILTERING_GUIDE.md)** | 10 filter categories for MLB picks |
-| **[Web Dashboard](docs/web-app/SETUP.md)** | Streamlit dashboard setup, usage, and architecture |
-| **[Roadmap](docs/enhancements/ROADMAP.md)** | All enhancements — edge model, project quality, pending |
+| **[Web Dashboard](docs/web-app/SETUP.md)** | Streamlit dashboard setup & usage |
+| **[Roadmap](docs/enhancements/ROADMAP.md)** | All enhancements — completed & pending |
 | **[Changelog](docs/CHANGELOG.md)** | Full project history |
 
 ---
 
-## 🔌 Data Sources
+## Data Sources
 
 All external data is **free**. Only Kalshi requires a funded account.
 
-| API | What It Provides |
-| --- | --- |
-| **[Kalshi](https://kalshi.com)** | Market data, order execution (API key + RSA signing) |
-| **[The Odds API](https://the-odds-api.com)** | Sportsbook odds from 12 US books (500 free req/mo) |
-| **[ESPN](http://site.api.espn.com)** | NBA, NFL, NCAAB, NCAAF standings + open/close odds |
+| API | Purpose |
+|:----|:--------|
+| **[Kalshi](https://kalshi.com)** | Market data + order execution (API key + RSA signing) |
+| **[The Odds API](https://the-odds-api.com)** | 12 US sportsbook odds (500 free req/mo) |
+| **[ESPN](http://site.api.espn.com)** | NBA, NFL, NCAAB, NCAAF standings + line movement |
 | **[NHL Stats API](https://api-web.nhle.com)** | Standings, goal differential, last 10 record |
-| **[MLB Stats API](https://statsapi.mlb.com)** | Standings, run differential, winning percentage |
+| **[MLB Stats API](https://statsapi.mlb.com)** | Standings, run differential, pitcher stats |
 | **[NWS](https://weather.gov)** | Hourly forecasts for 61 NFL/MLB outdoor venues |
-| **[CoinGecko](https://coingecko.com)** | Crypto prices and 24-hour volatility |
-| **[Yahoo Finance](https://finance.yahoo.com)** | S&P 500 price and VIX implied volatility |
-| **[Polymarket](https://polymarket.com)** | Cross-market price reference via Gamma API (free, no key) |
+| **[CoinGecko](https://coingecko.com)** | Crypto prices + 24h volatility |
+| **[Yahoo Finance](https://finance.yahoo.com)** | S&P 500 + VIX implied volatility |
+| **[Polymarket](https://polymarket.com)** | Cross-market price reference via Gamma API (free) |
 
 ---
 
-[![Back to top](https://img.shields.io/badge/%E2%86%91-Back%20to%20Top-6B7280?style=flat-square)](#top)
+<p align="center">
+  <a href="docs/setup/SETUP_GUIDE.md">Setup</a>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<a href="docs/ARCHITECTURE.md">Architecture</a>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<a href="docs/SCRIPTS_REFERENCE.md">Scripts</a>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<a href="docs/CHANGELOG.md">Changelog</a>
+</p>
+
+<p align="center">
+  <sub>Built with Python, scipy, and too many API calls &mdash; <a href="#edge-radar">Back to top</a></sub>
+</p>
