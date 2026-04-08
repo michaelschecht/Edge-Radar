@@ -1,27 +1,26 @@
 # Web Dashboard Usage
 
-**Starting, stopping, and navigating the Edge-Radar dashboard.**
+**Navigating the Edge-Radar dashboard — local or cloud.**
 
 ---
 
-## Starting the Dashboard
+## Access
+
+| Environment | URL |
+|-------------|-----|
+| **Cloud** | [edge-radar.streamlit.app](https://edge-radar.streamlit.app) (password-gated) |
+| **Local** | `http://localhost:8501` |
+
+### Starting Locally
 
 ```bash
 cd D:\AI_Agents\Specialized_Agents\Edge_Radar
 streamlit run webapp/app.py
 ```
 
-The dashboard opens at `http://localhost:8501`. For network access:
+### Stopping Locally
 
-```bash
-streamlit run webapp/app.py --server.address 0.0.0.0
-```
-
-## Stopping the Dashboard
-
-Press `Ctrl+C` in the terminal running Streamlit.
-
-To kill a background instance:
+Press `Ctrl+C` in the terminal, or:
 
 ```bash
 taskkill /F /IM streamlit.exe
@@ -102,11 +101,12 @@ The report includes:
 
 ## Tips
 
-- The dashboard reads the same `.env` and data files as the CLI — they are fully interchangeable
-- `DRY_RUN=true` in `.env` prevents real orders from both the CLI and the dashboard
+- The dashboard and CLI are fully interchangeable — same scripts, same risk gates, same data
+- `DRY_RUN=true` prevents real orders from both the CLI and the dashboard
 - Scan results persist in the browser session until you scan again or refresh the page
-- The raw console output is available in expandable sections if you want to see the full pipeline log
+- Click **Show scan log** after a scan to see the full pipeline output (odds fetch, edge calculations, etc.)
+- On Cloud, credentials come from Streamlit secrets; locally, from `.env`
 
 ---
 
-**See also:** [Setup Guide](SETUP.md) — installation and authentication.
+**See also:** [Setup Guide](SETUP.md) — installation, authentication, and Cloud deployment.
