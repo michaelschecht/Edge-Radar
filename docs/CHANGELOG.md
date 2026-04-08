@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-04-08 -- Streamlit Community Cloud Deployment
+
+### Web Dashboard Live at edge-radar.streamlit.app
+- **Deployed** the Streamlit dashboard to Streamlit Community Cloud (free tier) with password-gated access.
+- **Inline PEM support:** `KalshiClient` now accepts private key content as a string (not just a file path), enabling Cloud deployment where no filesystem is available. Priority: inline content > env var > `st.secrets` > file path. Local dev workflow unchanged.
+- **Secrets bridge:** `webapp/services.py` injects Streamlit Cloud secrets into `os.environ` before script imports, so all existing `os.getenv()` calls (odds_api, edge_detector, etc.) work on Cloud without modification. Supports both nested (`[kalshi] / api_key`) and flat (`KALSHI_API_KEY`) TOML layouts.
+- **Dependency pins loosened:** Changed all `==` pins to `>=` in `requirements.txt` — Streamlit Cloud runs Python 3.14 which can't build `scipy==1.11.4` from source (no Fortran compiler).
+- **Repo public-readiness:** Removed tracked `reports/` and `.claude/memory/` from git (were committed before gitignore rules). Added `.claude/memory/` to `.gitignore`.
+- **sys.path fix:** Added `webapp/` directory to `sys.path` in `app.py` so bare imports work when Streamlit Cloud runs from the repo root.
+- Files changed: `kalshi_client.py`, `webapp/services.py`, `webapp/app.py`, `requirements.txt`, `.gitignore`
+
+---
+
 ## 2026-04-06 -- Dynamic Stdev Adjustment (S5 Enhancement)
 
 ### S5. Dynamic Stdev Adjustment for Weather

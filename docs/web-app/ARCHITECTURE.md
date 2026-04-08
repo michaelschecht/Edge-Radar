@@ -4,6 +4,15 @@
 
 ---
 
+## Deployment
+
+| Environment | URL | Credentials |
+|-------------|-----|-------------|
+| **Cloud** | [edge-radar.streamlit.app](https://edge-radar.streamlit.app) | Streamlit Cloud secrets |
+| **Local** | `http://localhost:8501` | `.env` + optional `secrets.toml` |
+
+Both environments run the same code. See [Setup Guide](SETUP.md) for Cloud configuration.
+
 ## Design Principle
 
 The dashboard is a **thin UI layer** over existing functions. All business logic (scanning, risk gates, Kelly sizing, settlement) lives in `scripts/` and is unchanged. The webapp imports and calls the same Python functions the CLI does.
@@ -19,10 +28,11 @@ Browser  →  Streamlit (webapp/)  →  services.py  →  scripts/kalshi/*.py
 
 `webapp/services.py` is the bridge between Streamlit and the core scripts. It:
 
-1. **Adds script directories to `sys.path`** — mirrors what the `.pth` file does for the venv
-2. **Wraps core functions** — `run_scan()`, `run_execute()`, `run_settle()`, `run_report()`
-3. **Captures console output** — redirects `sys.stdout` to a `StringIO` buffer during function calls, since the core scripts print via `rich` console
-4. **Returns structured data** — opportunities as lists, portfolio as dicts, reports as markdown strings
+1. **Injects Streamlit secrets into `os.environ`** — so all `os.getenv()` calls in scripts work on Cloud without modification
+2. **Adds script directories to `sys.path`** — mirrors what the `.pth` file does for the venv
+3. **Wraps core functions** — `run_scan()`, `run_execute()`, `run_settle()`, `run_report()`
+4. **Captures console output** — redirects `sys.stdout` to a `StringIO` buffer during function calls, since the core scripts print via `rich` console
+5. **Returns structured data** — opportunities as lists, portfolio as dicts, reports as markdown strings
 
 ## Key Function Mapping
 
@@ -55,6 +65,6 @@ Browser  →  Streamlit (webapp/)  →  services.py  →  scripts/kalshi/*.py
 ## What the Dashboard Does NOT Do
 
 - Does not bypass any risk gates
-- Does not store credentials (reads `.env` like the CLI)
+- Does not store credentials locally (reads `.env` or Streamlit Cloud secrets)
 - Does not modify core script behavior
-- Does not replace the CLI (designed for occasional remote use)
+- Does not replace the CLI (both interfaces are fully interchangeable)

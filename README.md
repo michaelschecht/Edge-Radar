@@ -10,6 +10,7 @@
 [![Risk Gates](https://img.shields.io/badge/Risk-9%20Gates%20%2B%20Kelly-e74c3c?style=flat-square)](#%EF%B8%8F-risk--position-sizing)
 [![Docs](https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square)](#-documentation)
 [![APIs](https://img.shields.io/badge/APIs-9%20Free%20%2B%20Kalshi-F97316?style=flat-square)](#-data-sources)
+[![Dashboard](https://img.shields.io/badge/Dashboard-Live-00d4aa?style=flat-square)](https://edge-radar.streamlit.app)
 
 <p align="center">
   <img src=".claude/images/logos/logo.png" alt="Edge-Radar Banner" width="600">
@@ -290,7 +291,7 @@ Edge-Radar/
 │   ├── shared/                  # Team stats, weather, tickers, logging
 │   └── schedulers/              # Automation & scheduled jobs
 ├── app/domain/                  # Typed domain objects
-├── webapp/                      # Streamlit dashboard
+├── webapp/                      # Streamlit dashboard (live at edge-radar.streamlit.app)
 ├── tests/                       # 150 pytest tests
 ├── docs/                        # 11 guides
 ├── data/                        # Trade history & watchlists (gitignored)
@@ -329,7 +330,7 @@ The `--simulate` flag runs what-if scenarios across edge thresholds, confidence 
 | **[Prediction Markets](docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** | Crypto, weather, S&P 500, politics |
 | **[Architecture](docs/ARCHITECTURE.md)** | Pipeline, risk gates, data flow |
 | **[MLB Filtering](docs/kalshi-sports-betting/MLB_FILTERING_GUIDE.md)** | 10 filter categories for MLB picks |
-| **[Web Dashboard](docs/web-app/SETUP.md)** | Streamlit dashboard setup & usage |
+| **[Web Dashboard](docs/web-app/SETUP.md)** | Streamlit dashboard — local & [cloud deployment](https://edge-radar.streamlit.app) |
 | **[Roadmap](docs/enhancements/ROADMAP.md)** | All enhancements — completed & pending |
 | **[Changelog](docs/CHANGELOG.md)** | Full project history |
 
