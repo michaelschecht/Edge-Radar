@@ -1,9 +1,9 @@
 # Edge-Radar — Python Dependencies
 
 # === Core ===
-python-dotenv==1.0.0
-requests==2.31.0
-cryptography==44.0.0              # RSA-PSS signing for Kalshi API auth
+python-dotenv>=1.0.0
+requests>=2.31.0
+cryptography>=44.0.0              # RSA-PSS signing for Kalshi API auth
 # aiohttp==3.9.1                  # planned — async HTTP
 # pydantic==2.5.0                 # planned — data validation
 # python-dateutil==2.8.2          # planned — date parsing
@@ -17,7 +17,7 @@ cryptography==44.0.0              # RSA-PSS signing for Kalshi API auth
 # kalshi-python==1.0.0          # planned — Kalshi (install from their repo)
 
 # === Data & Analysis ===
-scipy==1.11.4                     # Normal CDF for edge probability
+scipy>=1.11.4                     # Normal CDF for edge probability
 # pandas==2.1.4                   # planned — dataframes for backtesting
 # numpy==1.26.2                   # planned — numerical computing
 # scikit-learn==1.3.2             # planned — ML models
@@ -40,7 +40,7 @@ scipy==1.11.4                     # Normal CDF for edge probability
 # apscheduler==3.10.4             # planned — cron-style job scheduler
 
 # === Notifications ===
-agentmail==0.4.5                  # Daily edge report email delivery
+agentmail>=0.4.5                  # Daily edge report email delivery
 # slack-sdk==3.26.1               # planned — Slack alerts
 
 # === Web Scraping (for data sources without APIs) ===
@@ -55,17 +55,17 @@ agentmail==0.4.5                  # Daily edge report email delivery
 streamlit>=1.33.0                  # Streamlit web UI (uses @st.dialog, st.fragment)
 
 # === Utilities ===
-rich==13.7.0                      # Terminal tables & formatted output
+rich>=13.7.0                      # Terminal tables & formatted output
 # loguru==0.7.2                   # planned — structured logging
 # tqdm==4.66.1                    # planned — progress bars for backtests
 
 # === Testing ===
-pytest==7.4.3
-pytest-asyncio==0.23.8
-pytest-mock==3.12.0
+pytest>=7.4.3
+pytest-asyncio>=0.23.8
+pytest-mock>=3.12.0
 
 # === Dev Tools ===
-black==23.12.0
-flake8==6.1.0
-mypy==1.7.1
-pre-commit==3.6.0
+black>=23.12.0
+flake8>=6.1.0
+mypy>=1.7.1
+pre-commit>=3.6.0
