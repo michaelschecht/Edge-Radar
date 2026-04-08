@@ -1,0 +1,83 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "background": "#0b1220",
+    "primaryColor": "#111827",
+    "primaryTextColor": "#e5eefb",
+    "primaryBorderColor": "#334155",
+    "lineColor": "#6b7a90",
+    "secondaryColor": "#0f172a",
+    "tertiaryColor": "#111827",
+    "clusterBkg": "#0f172a",
+    "clusterBorder": "#334155",
+    "fontFamily": "Segoe UI, Inter, Arial, sans-serif"
+  },
+  "themeCSS": "#my-svg{background-color:#0b1220;} svg{background-color:#0b1220;}",
+  "flowchart": {
+    "htmlLabels": true,
+    "nodeSpacing": 34,
+    "rankSpacing": 54,
+    "curve": "basis"
+  }
+}}%%
+flowchart TB
+
+    scan["scan.py<br/>Unified CLI entry point"]
+
+    subgraph INPUTS["Input Lanes"]
+        direction LR
+        sports_sources["Sports sources<br/>The Odds API, ESPN, NHL, MLB, NWS"]
+        sports_scripts["Sports ingestion<br/>fetch_odds.py, team_stats.py,<br/>pitcher_stats.py, sports_weather.py,<br/>line_movement.py"]
+        market_sources["Prediction sources<br/>CoinGecko, Yahoo Finance"]
+        market_scripts["Prediction ingestion<br/>fetch_market_data.py"]
+    end
+
+    subgraph EXCHANGE["Exchange Feeds"]
+        direction LR
+        kalshi_feed["Kalshi API<br/>RSA auth, live market prices"]
+        poly_feed["Polymarket Gamma API<br/>Optional cross-market reference"]
+        kalshi_client["kalshi_client.py<br/>Authenticated client"]
+        poly_edge["polymarket_edge.py<br/>Cross-reference adapter"]
+    end
+
+    edge_detector["edge_detector.py<br/>Normal CDF, book weighting, team form,<br/>pitching and weather adjustments<br/>Composite score: 0-10"]
+    risk_check["risk_check.py<br/>8 portfolio and sizing gates"]
+    blocked(["Rejected<br/>opportunity"])
+    executor["kalshi_executor.py<br/>Kelly sizing and order placement"]
+    settler["kalshi_settler.py<br/>Settlement, CLV tracking, P&L"]
+
+    sports_sources --> sports_scripts
+    market_sources --> market_scripts
+    kalshi_feed --> kalshi_client
+    poly_feed --> poly_edge
+
+    scan -->|--filter mlb nba nhl nfl| sports_scripts
+    scan -->|--filter crypto weather sp500| market_scripts
+
+    sports_scripts --> edge_detector
+    market_scripts --> edge_detector
+    kalshi_client -->|market prices| edge_detector
+    poly_edge -. optional .-> edge_detector
+
+    edge_detector -->|scored opportunities| risk_check
+    risk_check -->|all gates pass| executor
+    risk_check -->|gate fails| blocked
+    executor -->|submit order| kalshi_client
+    executor --> settler
+    settler -->|read results| kalshi_client
+
+    classDef entry fill:#2563eb,stroke:#60a5fa,stroke-width:2px,color:#eff6ff
+    classDef lane fill:#172033,stroke:#42506a,stroke-width:1.5px,color:#dbe7ff
+    classDef exchange fill:#0f2f2b,stroke:#34d399,stroke-width:1.5px,color:#d1fae5
+    classDef core fill:#2a1f45,stroke:#a78bfa,stroke-width:2px,color:#f3e8ff
+    classDef risk fill:#3a1627,stroke:#fb7185,stroke-width:2px,color:#ffe4e6
+    classDef success fill:#142c1d,stroke:#4ade80,stroke-width:2px,color:#dcfce7
+    classDef blocked fill:#3a1111,stroke:#f87171,stroke-width:2px,color:#fee2e2
+
+    class scan entry
+    class sports_sources,sports_scripts,market_sources,market_scripts lane
+    class kalshi_feed,poly_feed,kalshi_client,poly_edge exchange
+    class edge_detector core
+    class risk_check risk
+    class executor,settler success
+    class blocked blocked

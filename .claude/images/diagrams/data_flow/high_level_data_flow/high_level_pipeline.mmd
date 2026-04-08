@@ -1,0 +1,75 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "background": "#0b1220",
+    "primaryColor": "#111827",
+    "primaryTextColor": "#e5eefb",
+    "primaryBorderColor": "#334155",
+    "lineColor": "#6b7a90",
+    "secondaryColor": "#0f172a",
+    "tertiaryColor": "#111827",
+    "clusterBkg": "#0f172a",
+    "clusterBorder": "#334155",
+    "fontFamily": "Segoe UI, Inter, Arial, sans-serif"
+  },
+  "themeCSS": "#my-svg{background-color:#0b1220;} svg{background-color:#0b1220;}",
+  "flowchart": {
+    "htmlLabels": true,
+    "nodeSpacing": 34,
+    "rankSpacing": 56,
+    "curve": "basis"
+  }
+}}%%
+flowchart TB
+
+    subgraph DATA["Data Sources"]
+        direction LR
+        BOOKS["Sportsbooks<br/>12 books with weighted sharp pricing"]
+        APIS["Public APIs<br/>ESPN, NHL, MLB, NWS, CoinGecko,<br/>Yahoo, Polymarket and related feeds"]
+    end
+
+    subgraph ENGINE["Edge Detection Engine"]
+        direction LR
+        E1["Fair value<br/>Weighted de-vig"]
+        E2["Market model<br/>Normal CDF for spread and total"]
+        E3["Team form<br/>Stats and confidence"]
+        E4["Market pressure<br/>Sharp money and line movement"]
+        E5["Context adjustments<br/>Pitching, rest, weather"]
+    end
+
+    Q{"Edge >= 3%?"}
+
+    subgraph RISK["Risk Gates"]
+        direction LR
+        G1["Portfolio controls<br/>Daily loss, open positions"]
+        G2["Signal controls<br/>Edge threshold, composite score"]
+        G3["Exposure controls<br/>Duplicate, per-event, bet sizing"]
+    end
+
+    subgraph EXEC["Execution"]
+        direction LR
+        K["Kelly sizing<br/>Unit floor and batch awareness"]
+        ORDER["Limit order<br/>Submit to Kalshi"]
+        LOG["Trade logging<br/>Track CLV and outcomes"]
+    end
+
+    SKIP["Skip trade"]
+
+    DATA --> ENGINE --> Q
+    Q -- YES --> RISK --> EXEC
+    Q -- NO --> SKIP
+    K --> ORDER --> LOG
+
+    classDef data fill:#172033,stroke:#42506a,stroke-width:1.5px,color:#dbe7ff
+    classDef engine fill:#2a1f45,stroke:#a78bfa,stroke-width:2px,color:#f3e8ff
+    classDef risk fill:#3a1627,stroke:#fb7185,stroke-width:2px,color:#ffe4e6
+    classDef exec fill:#0f2f2b,stroke:#34d399,stroke-width:2px,color:#d1fae5
+    classDef decision fill:#1e293b,stroke:#94a3b8,stroke-width:2px,color:#e2e8f0
+    classDef skip fill:#3a1111,stroke:#f87171,stroke-width:2px,color:#fee2e2
+
+    class BOOKS,APIS data
+    class E1,E2,E3,E4,E5 engine
+    class G1,G2,G3 risk
+    class K,ORDER,LOG exec
+    class Q decision
+    class SKIP skip

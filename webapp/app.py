@@ -4,6 +4,15 @@ Edge-Radar Web Dashboard — Streamlit entry point.
 Launch:  streamlit run webapp/app.py
 """
 
+import sys
+from pathlib import Path
+
+# Ensure webapp/ is on sys.path so bare imports (theme, favorites, views) work
+# regardless of CWD (needed for Streamlit Community Cloud which runs from repo root)
+_webapp_dir = str(Path(__file__).resolve().parent)
+if _webapp_dir not in sys.path:
+    sys.path.insert(0, _webapp_dir)
+
 import streamlit as st
 
 st.set_page_config(
