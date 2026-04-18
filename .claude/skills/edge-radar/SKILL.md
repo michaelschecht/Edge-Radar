@@ -466,12 +466,13 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 - **Max bet size:** $100 per position (gate 7 — sizing cap, not reject)
 - **Bet ratio cap:** 3.0x batch median cost (gate 8 — sizing cap, not reject)
 - **Max per event:** 2 positions on the same game (reject gate)
+- **Series dedup (C5, 2026-04-18):** Reject a new bet if the same matchup (sport + team pair, date-agnostic) was bet within the last `SERIES_DEDUP_HOURS=48`. Catches consecutive-night series bleeds like the LA Angels @ NY Yankees Apr 13/14/15 pattern. 0 disables.
 - **Daily loss limit:** $250 (reject gate)
 - **Max open positions:** 50 (reject gate)
 - **Minimum edge (C3, 2026-04-18):** 3% global; **8% NBA**, **10% NCAAB** (per-sport overrides via `MIN_EDGE_THRESHOLD_<SPORT>` env). Rejection message shows the sport-specific floor in use.
 - **Minimum composite score:** 6.0 (reject gate, confidence is factored into composite)
 
-Gates 1-6 reject orders outright. Gates 7-8 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
+Gates 1-7 reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
 
 ---
 
@@ -656,5 +657,5 @@ streamlit run webapp/app.py
 1. **Always check status first** before any scan or bet — if daily loss limit is breached, STOP.
 2. **Never execute without confirmation** unless `--execute`/`--go` was explicitly passed.
 3. **Preview is the default** — every scan shows a table first, orders only placed with `--execute`.
-4. **Eight risk gates enforced** — daily loss, position count, edge, score, duplicate ticker, per-event cap, max bet size, bet ratio cap. All checked before every order.
+4. **Nine risk gates enforced** — daily loss, position count, edge (per-sport), score, duplicate ticker, per-event cap, series dedup, max bet size, bet ratio cap. All checked before every order.
 5. **API keys are in `.env`** — never print, log, or expose them.

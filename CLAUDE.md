@@ -118,7 +118,7 @@ MARKET_RESEARCHER → DATA_ANALYST → RISK_MANAGER → TRADE_EXECUTOR
 - Use `python-dotenv` for every script
 - `.env` in `.gitignore` — verify before every commit
 
-### 8 Execution Gates
+### 9 Execution Gates
 
 Before ANY trade executes:
 
@@ -126,12 +126,13 @@ Before ANY trade executes:
 |:-:|:-----|:-----|
 | 1 | Daily loss limit not breached | Reject |
 | 2 | Open position count under max | Reject |
-| 3 | Edge >= minimum threshold | Reject |
+| 3 | Edge >= minimum threshold (per-sport or global) | Reject |
 | 4 | Composite score >= minimum | Reject |
 | 5 | Not already holding this market | Reject |
 | 6 | Per-event cap not exceeded | Reject |
-| 7 | Bet size <= MAX_BET_SIZE | Cap |
-| 8 | Single bet <= 3x batch median cost | Cap |
+| 7 | Matchup not bet in last `SERIES_DEDUP_HOURS` (series dedup) | Reject |
+| 8 | Bet size <= MAX_BET_SIZE | Cap |
+| 9 | Single bet <= 3x batch median cost | Cap |
 
 ### Dry Run Mode
 
@@ -159,6 +160,7 @@ MIN_EDGE_THRESHOLD_NCAAB=0.10   # Per-sport override (optional)
 MIN_COMPOSITE_SCORE=6.0         # Minimum score (0-10)
 KELLY_EDGE_CAP=0.15             # Soft-cap edge for Kelly sizing
 KELLY_EDGE_DECAY=0.5            # Decay factor on edge above the cap
+SERIES_DEDUP_HOURS=48           # Reject same-matchup bets within this window (0 disables)
 ```
 
 ---

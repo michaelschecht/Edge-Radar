@@ -1,5 +1,7 @@
 """Tests for edge detection math — normal CDF models and de-vigging."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from scipy.stats import norm
 
@@ -145,3 +147,94 @@ class TestTotalMath:
         strike = 240.0
         prob_over = 1 - norm.cdf(strike, loc=expected_total, scale=stdev)
         assert prob_over < 0.10
+
+
+# ── fetch_odds_api key-rotation ──────────────────────────────────────────────
+
+class TestFetchOddsApiKeyRotation:
+    """Regression for the silent-0-events bug where range(3) bailed before
+    trying the last rotated key. A single-sport scan must rotate through every
+    configured key before returning empty."""
+
+    def _mock_response(self, status_code: int, json_data=None) -> MagicMock:
+        resp = MagicMock()
+        resp.status_code = status_code
+        resp.json.return_value = json_data if json_data is not None else []
+        resp.headers = {"x-requests-remaining": "100"}
+        resp.raise_for_status = MagicMock()
+        if status_code >= 400 and status_code not in (401, 429):
+            resp.raise_for_status.side_effect = Exception(f"HTTP {status_code}")
+        return resp
+
+    def _setup_keys(self, keys: list[str]) -> None:
+        """Install a known key list into odds_api module state."""
+        import odds_api
+        odds_api._keys = list(keys)
+        odds_api._current_index = 0
+        odds_api._remaining = {}
+
+    def test_tries_all_keys_before_giving_up(self):
+        import edge_detector
+        edge_detector._odds_cache.clear()
+        self._setup_keys(["k1", "k2", "k3", "k4"])
+
+        # All 4 keys return 401
+        always_401 = self._mock_response(401)
+        with patch("edge_detector.requests.get", return_value=always_401) as mock_get:
+            result = edge_detector.fetch_odds_api("baseball_mlb", markets="h2h")
+
+        assert result == []
+        # Each key should have been tried exactly once
+        assert mock_get.call_count == 4
+        used_keys = [call.kwargs["params"]["apiKey"] for call in mock_get.call_args_list]
+        assert set(used_keys) == {"k1", "k2", "k3", "k4"}
+
+    def test_succeeds_after_rotating_past_exhausted_keys(self):
+        """Reproduces the user-reported bug: first 3 keys exhausted, 4th works."""
+        import edge_detector
+        edge_detector._odds_cache.clear()
+        self._setup_keys(["k1", "k2", "k3", "k4"])
+
+        responses = {
+            "k1": self._mock_response(401),
+            "k2": self._mock_response(401),
+            "k3": self._mock_response(401),
+            "k4": self._mock_response(200, [{"home_team": "Yankees", "away_team": "Red Sox"}]),
+        }
+
+        def side_effect(url, params=None, **kwargs):
+            return responses[params["apiKey"]]
+
+        with patch("edge_detector.requests.get", side_effect=side_effect):
+            result = edge_detector.fetch_odds_api("baseball_mlb", markets="h2h")
+
+        assert len(result) == 1
+        assert result[0]["home_team"] == "Yankees"
+
+    def test_first_key_success_no_rotation(self):
+        """Happy path: first key works, no unnecessary rotation."""
+        import edge_detector
+        edge_detector._odds_cache.clear()
+        self._setup_keys(["k1", "k2"])
+
+        ok = self._mock_response(200, [{"home_team": "Dodgers"}])
+        with patch("edge_detector.requests.get", return_value=ok) as mock_get:
+            result = edge_detector.fetch_odds_api("baseball_mlb", markets="h2h")
+
+        assert len(result) == 1
+        assert mock_get.call_count == 1
+        assert mock_get.call_args.kwargs["params"]["apiKey"] == "k1"
+
+    def test_single_key_401_returns_empty(self):
+        """One configured key that 401s — log and return [] without retrying."""
+        import edge_detector
+        edge_detector._odds_cache.clear()
+        self._setup_keys(["only_key"])
+
+        with patch("edge_detector.requests.get",
+                   return_value=self._mock_response(401)) as mock_get:
+            result = edge_detector.fetch_odds_api("baseball_mlb", markets="h2h")
+
+        assert result == []
+        # Tried exactly once — no infinite loop on single-key rotation
+        assert mock_get.call_count == 1

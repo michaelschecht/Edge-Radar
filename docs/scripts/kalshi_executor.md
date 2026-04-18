@@ -47,9 +47,9 @@ When any scanner is called with `--execute`, it imports `execute_pipeline()` fro
 7. **Execution** (if `--execute` is passed) -- places limit orders via Kalshi API
 8. **Trade logging** -- records each trade to `data/history/`
 
-### Risk Gates (8 gates)
+### Risk Gates (9 gates)
 
-The pipeline rejects opportunities that fail any of these checks:
+The pipeline rejects opportunities that fail any of gates 1-7. Gates 8-9 downsize and approve.
 
 | # | Gate | Rule |
 |---|------|------|
@@ -59,8 +59,9 @@ The pipeline rejects opportunities that fail any of these checks:
 | 4 | Composite score | Must meet `MIN_COMPOSITE_SCORE` (6.0) — confidence is factored into composite |
 | 5 | Duplicate ticker | Can't already hold a position in this market |
 | 6 | Per-event cap | Max `MAX_PER_EVENT` (2) positions on the same game |
-| 7 | Max bet size | Cost can't exceed `MAX_BET_SIZE` ($100) |
-| 8 | Bet ratio cap | Single bet can't exceed `MAX_BET_RATIO` (3.0) times the batch median cost |
+| 7 | Series dedup | Same matchup (sport + team pair, date-agnostic) can't have been bet within `SERIES_DEDUP_HOURS` (48h). Added 2026-04-18 after calibration showed consecutive-night series bleeds. |
+| 8 | Max bet size | Cost can't exceed `MAX_BET_SIZE` ($100) — sizing cap |
+| 9 | Bet ratio cap | Single bet can't exceed `MAX_BET_RATIO` (3.0) times the batch median cost — sizing cap |
 
 ### Sizing
 

@@ -7,8 +7,14 @@ import os
 import pytest
 from unittest.mock import patch
 
+from datetime import datetime, timedelta, timezone
+
 from opportunity import Opportunity
-from kalshi_executor import unit_size_contracts, size_order, SizedOrder, trusted_edge, min_edge_for
+from kalshi_executor import (
+    unit_size_contracts, size_order, SizedOrder,
+    trusted_edge, min_edge_for,
+    matchup_key, recent_matchups_from_log,
+)
 
 
 # ── unit_size_contracts ──────────────────────────────────────────────────────
@@ -296,3 +302,130 @@ class TestPerSportMinEdge:
         finally:
             kalshi_executor._PER_SPORT_MIN_EDGE.clear()
             kalshi_executor._PER_SPORT_MIN_EDGE.update(orig)
+
+
+# ── C5: Series dedup ──────────────────────────────────────────────────────────
+
+class TestMatchupKey:
+    """matchup_key() extracts a date-stripped sport+teams signature."""
+
+    def test_same_matchup_different_dates_same_key(self):
+        # Real observed bleed pattern: Angels @ Yankees bet Apr 13, 14, 15
+        assert matchup_key("KXMLBGAME-26APR13LAAANYY-NYY") == ("mlb", "LAAANYY")
+        assert matchup_key("KXMLBGAME-26APR14LAAANYY-NYY") == ("mlb", "LAAANYY")
+        assert matchup_key("KXMLBGAME-26APR15LAAANYY-NYY") == ("mlb", "LAAANYY")
+
+    def test_handles_time_suffix(self):
+        # Some tickers embed a 4-digit HHMM after the date
+        assert matchup_key("KXMLBGAME-26APR011940MINKC-MIN") == ("mlb", "MINKC")
+
+    def test_different_sports_different_keys(self):
+        assert matchup_key("KXNBAGAME-26APR02SASLAC-SAS") == ("nba", "SASLAC")
+        assert matchup_key("KXNHLGAME-26APR11VGKCOL-VGK") == ("nhl", "VGKCOL")
+
+    def test_returns_none_for_non_game_markets(self):
+        # Futures, prediction markets, weather — no sport prefix match
+        assert matchup_key("KXBTC-28MAR26-T88000") is None
+        assert matchup_key("KXHIGHNY-26APR15-T72") is None
+
+    def test_returns_none_for_malformed(self):
+        assert matchup_key("") is None
+        assert matchup_key("KXMLBGAME") is None
+        assert matchup_key("KXMLBGAME-NODATE-XYZ") is None
+
+
+class TestRecentMatchupsFromLog:
+    """recent_matchups_from_log() builds a set of matchups bet in the window."""
+
+    def _entry(self, ticker: str, hours_ago: float) -> dict:
+        ts = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+        return {"ticker": ticker, "timestamp": ts.isoformat()}
+
+    def test_includes_recent_bets(self):
+        log = [
+            self._entry("KXMLBGAME-26APR14LAAANYY-NYY", hours_ago=1),
+            self._entry("KXNBAGAME-26APR14BOSMIL-BOS", hours_ago=10),
+        ]
+        result = recent_matchups_from_log(log, hours=48)
+        assert ("mlb", "LAAANYY") in result
+        assert ("nba", "BOSMIL") in result
+
+    def test_excludes_old_bets(self):
+        log = [
+            self._entry("KXMLBGAME-26APR14LAAANYY-NYY", hours_ago=100),
+        ]
+        assert recent_matchups_from_log(log, hours=48) == set()
+
+    def test_zero_hours_disables(self):
+        log = [self._entry("KXMLBGAME-26APR14LAAANYY-NYY", hours_ago=0.5)]
+        assert recent_matchups_from_log(log, hours=0) == set()
+
+    def test_skips_entries_without_timestamp(self):
+        log = [{"ticker": "KXMLBGAME-26APR14LAAANYY-NYY"}]  # no timestamp
+        assert recent_matchups_from_log(log, hours=48) == set()
+
+    def test_skips_non_game_tickers(self):
+        log = [self._entry("KXBTC-28MAR26-T88000", hours_ago=1)]
+        assert recent_matchups_from_log(log, hours=48) == set()
+
+
+class TestSeriesDedupGate:
+    """Gate 7: reject opportunities whose matchup was bet in the window."""
+
+    def _opp(self, ticker: str) -> Opportunity:
+        return Opportunity(
+            ticker=ticker, title="Test", category="game", side="yes",
+            market_price=0.50, fair_value=0.60, edge=0.10,
+            edge_source="test", confidence="high",
+            liquidity_score=8.0, composite_score=8.0, details={},
+        )
+
+    def test_rejects_when_matchup_in_recent_set(self):
+        opp = self._opp("KXMLBGAME-26APR15LAAANYY-NYY")
+        recent = {("mlb", "LAAANYY")}
+        result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0,
+                            recent_matchups=recent)
+        assert result.risk_approval.startswith("REJECTED")
+        assert "series_dedup" in result.risk_approval
+        assert "LAAANYY" in result.risk_approval
+
+    def test_approves_when_matchup_not_in_set(self):
+        opp = self._opp("KXMLBGAME-26APR15LAAANYY-NYY")
+        recent = {("mlb", "SOMEOTHERPAIR")}
+        result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0,
+                            recent_matchups=recent)
+        assert result.risk_approval == "APPROVED"
+
+    def test_approves_when_recent_set_empty(self):
+        opp = self._opp("KXMLBGAME-26APR15LAAANYY-NYY")
+        result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0,
+                            recent_matchups=set())
+        assert result.risk_approval == "APPROVED"
+
+    def test_approves_when_recent_set_is_none(self):
+        # Backward compat: old callers that don't pass recent_matchups
+        opp = self._opp("KXMLBGAME-26APR15LAAANYY-NYY")
+        result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+        assert result.risk_approval == "APPROVED"
+
+    def test_disabled_when_hours_zero(self):
+        # SERIES_DEDUP_HOURS=0 should bypass the gate even with entries in the set
+        import kalshi_executor
+        orig = kalshi_executor.SERIES_DEDUP_HOURS
+        try:
+            kalshi_executor.SERIES_DEDUP_HOURS = 0
+            opp = self._opp("KXMLBGAME-26APR15LAAANYY-NYY")
+            recent = {("mlb", "LAAANYY")}
+            result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0,
+                                recent_matchups=recent)
+            assert result.risk_approval == "APPROVED"
+        finally:
+            kalshi_executor.SERIES_DEDUP_HOURS = orig
+
+    def test_non_game_ticker_bypasses_gate(self):
+        # Futures/prediction markets have no matchup key — should not be blocked
+        opp = self._opp("KXBTC-28MAR26-T88000")
+        recent = {("mlb", "LAAANYY")}
+        result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0,
+                            recent_matchups=recent)
+        assert result.risk_approval == "APPROVED"
