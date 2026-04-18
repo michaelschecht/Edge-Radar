@@ -73,7 +73,7 @@ python scripts/kalshi/edge_detector.py detail KXNBAGAME-26MAR25LALBOS-LAL
 ## Edge Detection Methodology
 
 1. **Fetch Kalshi markets** -- pulls all open markets for the filtered sport(s)
-2. **Fetch sportsbook odds** -- The Odds API with key rotation (up to 4 keys)
+2. **Fetch sportsbook odds** -- The Odds API with key rotation across all configured `ODDS_API_KEYS`. Each key is tried at most once per request; 401/429 responses trigger rotation to the next key, and all keys exhausted produces a loud warning (rather than a silent empty result).
 3. **Match markets to odds events** -- team name fuzzy matching
 4. **Calculate fair value** -- de-vig each book, then take the weighted median:
    - Sharp books (Pinnacle, LowVig) weighted 3x

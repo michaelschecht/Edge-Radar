@@ -348,11 +348,16 @@ Your `KALSHI_PRIVATE_KEY_PATH` in `.env` doesn't point to a valid file. Check:
 
 Sports scans require at least one Odds API key. Get one free at [the-odds-api.com](https://the-odds-api.com).
 
+### `All N Odds API keys returned 401/429 for <sport>`
+
+Every configured key is either invalid or has hit its monthly quota (free tier = 500 req/month per key, resets on the key's billing anniversary). Check `x-requests-remaining` usage in the scan log, add more keys to `ODDS_API_KEYS`, or wait for the monthly reset. The scanner tries every configured key once before giving up — a fresh scan from a new session with one working key will succeed.
+
 ### `No opportunities found`
 
 - Check `--date` — if no games today, try `--date tomorrow`
 - Check `--filter` — some sports are seasonal (NFL is fall/winter, MLB is spring/summer)
-- The model requires 3%+ edge to surface an opportunity. Low-edge days happen.
+- Minimum edge is 3% global, 8% for NBA, 10% for NCAAB (per-sport floors set 2026-04-18 from calibration). Low-edge days happen.
+- Gate 7 rejects same-matchup bets within 48h (`SERIES_DEDUP_HOURS`). If you intentionally want to re-bet a matchup, set `SERIES_DEDUP_HOURS=0` in `.env` or wait the window out.
 
 ---
 

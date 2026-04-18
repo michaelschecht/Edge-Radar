@@ -2,6 +2,37 @@
 
 ---
 
+## 2026-04-18 -- Calibration-Driven Risk Tuning & Odds API Rotation Fix
+
+### First Post-Baseline Calibration Run (66 Edge-Radar trades since 2026-04-03)
+- **Findings:** Brier score 0.2561 (worse than coin-flip 0.2500); claimed edges >=25% realize -35% ROI while 10-15% claimed edges realize +127%; NBA -15% ROI, NCAAB -62% ROI at the global 3% floor; NHL +100% ROI; same-matchup bets on consecutive days produced compounding losses (LA Angels @ NY Yankees Apr 13/14/15, NY Mets @ LA Dodgers Apr 13/15, Colorado @ Houston Apr 14/15).
+- **Report:** `reports/Calibration/2026-04-18_calibration_report.md`.
+
+### C1. Kelly Edge Soft-Cap
+- **Problem:** Kelly sizing uses `edge` linearly. A claimed 25% edge sized 2.5x larger than a 10% edge -- and the >=25% bucket is the worst-performing (-35% ROI, 30% WR on 10 trades). The system was sizing biggest on the least-calibrated signal.
+- **Fix:** New `trusted_edge()` helper in `kalshi_executor.py` softly caps the edge used inside the Kelly calculation above `KELLY_EDGE_CAP` (default 0.15), with the excess multiplied by `KELLY_EDGE_DECAY` (default 0.5). Example: a claimed 25% edge sizes like 20%, a 35% edge like 25%. Raw edge still flows through gates, reports, rationale, and the trade journal -- only Kelly sizing sees the trusted value.
+- Env: `KELLY_EDGE_CAP`, `KELLY_EDGE_DECAY`.
+
+### C3. Per-Sport `MIN_EDGE_THRESHOLD`
+- **Problem:** NBA lost -15% ROI (13 post-baseline trades) and NCAAB lost -62% ROI (8 trades in 14-day window) at the 3% global floor, while NHL was +100% on the same floor.
+- **Fix:** New `min_edge_for(opp)` helper with `_PER_SPORT_MIN_EDGE` dict populated at import from `MIN_EDGE_THRESHOLD_<SPORT>` env vars (supported: MLB, NBA, NHL, NFL, NCAAB, NCAAF, MLS, SOCCER). Defaults set: `NBA=0.08`, `NCAAB=0.10`. Gate 3 rejection message shows the per-sport floor in effect.
+
+### C5. Series-Level Correlation Dedup (New Gate 7)
+- **Problem:** `dedup_correlated_brackets()` deduped within a single day but couldn't see across days. Same-matchup bets on consecutive nights compounded losses (LA Angels @ NY Yankees 3 nights, net negative; NY Mets @ LA Dodgers 2 nights, both losing; COL @ HOU 2 nights, both losing).
+- **Fix:** New Gate 7 rejects a new bet if the same matchup (sport + team pair, date-agnostic) was already bet within `SERIES_DEDUP_HOURS` (default 48). `matchup_key(ticker)` strips the leading YY-MMM-DD date and optional HHMM game-time prefix to produce a series-invariant key. `recent_matchups_from_log()` walks the local trade log; dry-run runs don't write to the log, so no extra filtering needed.
+- **Gate numbering:** Total gates now 9 (1-7 reject, 8-9 sizing cap). Previously 8.
+- Env: `SERIES_DEDUP_HOURS` (0 disables).
+
+### Bug Fix: Odds API Key Rotation Bailed Early
+- **Problem:** `scan.py sports --filter mlb` returned 0 MLB events while the all-sports `.bat` scan pulled 28 -- same API keys, same date. With 10 configured keys and the first 3-4 currently exhausted on their monthly quota, the fixed `range(3)` retry loop in `fetch_odds_api()` rotated on each 401 but exited before trying the newly-rotated key. The all-sports scan masked the issue because earlier sports (golf, soccer) rotated past the dead keys first, so by the time MLB was queried the active key was fresh. Single-sport filter runs never got that warmup.
+- **Fix:** Replaced the fixed-count loop with a set-based "tried every key at most once" while-loop. Explicit log message when all keys return 401/429 instead of silent empty result. Happy path unchanged (first working key succeeds, no unnecessary rotation). 4 regression tests cover all-keys-tried, rotates-past-exhausted, first-key-success, and single-key-401.
+- Files: `scripts/kalshi/edge_detector.py:fetch_odds_api`.
+
+### Tests
+- 20 new tests total (161 -> 181 passing): 6 for `trusted_edge`, 5 for per-sport edge floors, 16 for series dedup (`matchup_key`, `recent_matchups_from_log`, gate behavior), 4 for Odds API rotation.
+
+---
+
 ## 2026-04-08 -- Full Sports Coverage & Multi-Filter Support
 
 ### Expanded Odds API Sport Mapping (4 -> 18 sports)
