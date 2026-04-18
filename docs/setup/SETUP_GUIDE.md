@@ -216,8 +216,12 @@ MAX_DAILY_LOSS=250              # Stop all betting at -$250/day
 MAX_OPEN_POSITIONS=10           # Max 10 concurrent positions
 MAX_PER_EVENT=2                 # Max 2 positions per game
 MAX_BET_RATIO=3.0               # Max single bet as multiple of batch median
-MIN_EDGE_THRESHOLD=0.03         # Require 3% minimum edge
+MIN_EDGE_THRESHOLD=0.03         # Global minimum edge (fallback)
+MIN_EDGE_THRESHOLD_NBA=0.08     # Per-sport override (2026-04-18 calibration)
+MIN_EDGE_THRESHOLD_NCAAB=0.10   # Per-sport override
 MIN_COMPOSITE_SCORE=6.0         # Minimum opportunity score (0-10)
+KELLY_EDGE_CAP=0.15             # Soft-cap edge for Kelly sizing
+KELLY_EDGE_DECAY=0.5            # Decay factor above the cap
 ```
 
 > **Key paths are relative to the project root.** The client resolves `keys/live/kalshi_private.key` from the Edge-Radar directory automatically.

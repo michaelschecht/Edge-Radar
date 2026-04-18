@@ -44,6 +44,12 @@ try:
         "UNIT_SIZE", "KELLY_FRACTION", "MAX_BET_SIZE",
         "MAX_DAILY_LOSS", "MAX_OPEN_POSITIONS", "MAX_PER_EVENT",
         "MAX_BET_RATIO", "MIN_EDGE_THRESHOLD", "MIN_COMPOSITE_SCORE",
+        # Calibration-driven tuning (2026-04-18)
+        "KELLY_EDGE_CAP", "KELLY_EDGE_DECAY",
+        "MIN_EDGE_THRESHOLD_MLB", "MIN_EDGE_THRESHOLD_NBA",
+        "MIN_EDGE_THRESHOLD_NHL", "MIN_EDGE_THRESHOLD_NFL",
+        "MIN_EDGE_THRESHOLD_NCAAB", "MIN_EDGE_THRESHOLD_NCAAF",
+        "MIN_EDGE_THRESHOLD_MLS", "MIN_EDGE_THRESHOLD_SOCCER",
     ]
     for env_var, getter in _secrets_map.items():
         if env_var not in os.environ:

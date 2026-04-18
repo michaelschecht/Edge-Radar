@@ -41,6 +41,7 @@ from rich import print as rprint
 
 from kalshi_client import KalshiClient, KalshiAPIError, make_prod_client
 from edge_detector import scan_all_markets
+from ticker_display import _detect_sport
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -61,6 +62,56 @@ KELLY_FRACTION = float(os.getenv("KELLY_FRACTION", "0.25"))
 MAX_PER_EVENT = int(os.getenv("MAX_PER_EVENT", "2"))
 MAX_BET_RATIO = float(os.getenv("MAX_BET_RATIO", "3.0"))
 MIN_COMPOSITE_SCORE = float(os.getenv("MIN_COMPOSITE_SCORE", "6.0"))
+KELLY_EDGE_CAP = float(os.getenv("KELLY_EDGE_CAP", "0.15"))
+KELLY_EDGE_DECAY = float(os.getenv("KELLY_EDGE_DECAY", "0.5"))
+
+# Per-sport edge-threshold overrides. Any sport not listed falls back to
+# MIN_EDGE_THRESHOLD. Read at import; tests patch _PER_SPORT_MIN_EDGE directly.
+_SUPPORTED_SPORTS = ("mlb", "nba", "nhl", "nfl", "ncaab", "ncaaf", "mls", "soccer")
+_PER_SPORT_MIN_EDGE: dict[str, float] = {}
+for _sport in _SUPPORTED_SPORTS:
+    _val = os.getenv(f"MIN_EDGE_THRESHOLD_{_sport.upper()}")
+    if _val:
+        try:
+            _PER_SPORT_MIN_EDGE[_sport] = float(_val)
+        except ValueError:
+            pass
+
+
+def min_edge_for(opp: "Opportunity") -> float:
+    """Return the edge threshold for an opportunity's sport, or the global default.
+
+    Per-sport overrides are read from env as `MIN_EDGE_THRESHOLD_<SPORT>` at
+    import (e.g., MIN_EDGE_THRESHOLD_NBA=0.08). Calibration (2026-04-18)
+    showed NBA and NCAAB losing money at the global 3% floor — raising their
+    per-sport floor blocks marginal-edge bets where the model is worst-
+    calibrated, without touching sports where it works (e.g., NHL +100% ROI).
+    """
+    sport = _detect_sport(opp.ticker)
+    if sport and sport in _PER_SPORT_MIN_EDGE:
+        return _PER_SPORT_MIN_EDGE[sport]
+    return MIN_EDGE_THRESHOLD
+
+
+def trusted_edge(edge: float, cap: float | None = None, decay: float | None = None) -> float:
+    """Soft-cap the edge used for Kelly sizing.
+
+    Post-baseline calibration (2026-04-18) showed claimed edges >=25% realize
+    -35% ROI while 10-15% claimed edges realize +127%. Large edges are
+    systematically overstated, yet Kelly sizes linearly off raw edge — so fakes
+    get the biggest bets. This softly compresses the portion above `cap`:
+
+        trusted_edge(edge <= cap) == edge
+        trusted_edge(edge >  cap) == cap + (edge - cap) * decay
+
+    Raw edge still flows through gates, reports, and rationale unchanged. Only
+    the Kelly sizing calculation sees the trusted value.
+    """
+    c = KELLY_EDGE_CAP if cap is None else cap
+    d = KELLY_EDGE_DECAY if decay is None else decay
+    if edge <= c:
+        return edge
+    return c + (edge - c) * d
 
 
 def _event_key(ticker: str) -> str:
@@ -151,6 +202,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         9. Max bet size (sports vs prediction cap)
     """
     rejection = None
+    edge_floor = min_edge_for(opp)
 
     # ── Risk Gate 1: Daily loss limit
     if daily_pnl <= -MAX_DAILY_LOSS:
@@ -160,9 +212,9 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     elif open_positions >= MAX_OPEN_POSITIONS:
         rejection = f"max_positions_reached ({open_positions}/{MAX_OPEN_POSITIONS})"
 
-    # ── Risk Gate 3: Minimum edge
-    elif opp.edge < MIN_EDGE_THRESHOLD:
-        rejection = f"edge_below_threshold ({opp.edge:.1%} < {MIN_EDGE_THRESHOLD:.1%})"
+    # ── Risk Gate 3: Minimum edge (per-sport override, global fallback)
+    elif opp.edge < edge_floor:
+        rejection = f"edge_below_threshold ({opp.edge:.1%} < {edge_floor:.1%})"
 
     # ── Risk Gate 4: Minimum composite score
     elif opp.composite_score < MIN_COMPOSITE_SCORE:
@@ -199,7 +251,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     # This ensures total batch exposure stays proportional to what single-bet
     # Kelly would allocate, preventing over-commitment on simultaneous bets.
     effective_kelly = KELLY_FRACTION / max(1, batch_size)
-    kelly_bet = effective_kelly * opp.edge * bankroll
+    kelly_bet = effective_kelly * trusted_edge(opp.edge) * bankroll
     kelly_contracts = max(1, int(kelly_bet / opp.market_price)) if kelly_bet > 0 else flat_contracts
 
     # Use the larger of flat and Kelly (Kelly scales up for high-edge bets)

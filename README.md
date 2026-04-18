@@ -131,34 +131,35 @@ Every order must clear gates 1-6. Gates 7-8 cap sizing instead of rejecting.
 |:-:|:-----|:-------|
 | 1 | Daily loss limit | Reject at -$250 |
 | 2 | Position count | Reject at 50 open |
-| 3 | Edge threshold | Reject below 3% |
+| 3 | Edge threshold | Reject below floor (3% global; 8% NBA; 10% NCAAB) |
 | 4 | Composite score | Reject below 6.0/10 |
 | 5 | Duplicate check | Reject same market |
 | 6 | Per-event cap | Reject at 2/game |
 | 7 | Bet size cap | Cap at $100 |
 | 8 | Bet ratio cap | Cap at 3x batch median |
 
-<sub>All limits configurable via <code>.env</code> &mdash; see <a href="docs/ARCHITECTURE.md">Architecture</a></sub>
+<sub>All limits configurable via <code>.env</code>. Per-sport thresholds via <code>MIN_EDGE_THRESHOLD_&lt;SPORT&gt;</code> (added 2026-04-18 from first post-baseline calibration). See <a href="docs/ARCHITECTURE.md">Architecture</a></sub>
 
 </td>
 <td width="45%" valign="top">
 
 #### Batch-Aware Kelly Sizing
 
-Bet size scales with edge, divided by batch count to control total exposure.
+Bet size scales with edge, divided by batch count to control total exposure. Edge is soft-capped above 15% before sizing (`trusted_edge()`) to damp Kelly on likely-overstated signals — raw edge remains in gates and reports.
 
 ```
-bet = max(unit, (kelly_frac / batch) * edge * bankroll)
+bet = max(unit, (kelly_frac / batch) * trusted_edge(edge) * bankroll)
 ```
 
-| Edge | 1 bet | 5 bets | 10 bets |
-|:-----|------:|-------:|--------:|
-| 3% | $0.75 | $0.15 | $0.08 |
-| 10% | $2.50 | $0.50 | $0.25 |
-| 15% | $3.75 | $0.75 | $0.38 |
-| 25% | $6.25 | $1.25 | $0.63 |
+| Edge | Trusted | 1 bet | 5 bets | 10 bets |
+|:-----|:--------|------:|-------:|--------:|
+| 3% | 3% | $0.75 | $0.15 | $0.08 |
+| 10% | 10% | $2.50 | $0.50 | $0.25 |
+| 15% | 15% | $3.75 | $0.75 | $0.38 |
+| 25% | 20% | $5.00 | $1.00 | $0.50 |
+| 35% | 25% | $6.25 | $1.25 | $0.63 |
 
-<sub>Example: $50 bankroll, <code>KELLY_FRACTION=0.50</code>. Capped by max bet ($100) and balance.</sub>
+<sub>Example: $50 bankroll, <code>KELLY_FRACTION=0.50</code>. Capped by max bet ($100) and balance. Soft-cap: <code>KELLY_EDGE_CAP=0.15</code>, <code>KELLY_EDGE_DECAY=0.5</code>.</sub>
 
 </td>
 </tr>

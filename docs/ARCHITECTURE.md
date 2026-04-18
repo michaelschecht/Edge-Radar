@@ -236,7 +236,7 @@ Every order must pass gates 1-6 before execution. Gates 7-8 are sizing caps that
 | :--- | :--- | :--- | :--- |
 | 1 | **Daily loss limit** | Sum of realized losses today | **Reject** if losses ≥ `MAX_DAILY_LOSS` |
 | 2 | **Position count** | Number of open positions | **Reject** if count ≥ `MAX_OPEN_POSITIONS` |
-| 3 | **Edge threshold** | Calculated edge for this opportunity | **Reject** if edge < `MIN_EDGE_THRESHOLD` |
+| 3 | **Edge threshold** | Calculated edge for this opportunity | **Reject** if edge < per-sport floor (or `MIN_EDGE_THRESHOLD` global fallback) |
 | 4 | **Composite score** | Weighted score (edge + confidence + liquidity + time) | **Reject** if score < `MIN_COMPOSITE_SCORE` |
 | 5 | **Duplicate ticker** | Already holding this exact market | **Reject** if ticker in open positions |
 | 6 | **Per-event cap** | Too many positions on the same game | **Reject** if event count ≥ `MAX_PER_EVENT` |
@@ -259,9 +259,12 @@ Every order must pass gates 1-6 before execution. Gates 7-8 are sizing caps that
 | `MAX_DAILY_LOSS` | $250 | Hard stop — no new positions after this daily loss |
 | `MAX_OPEN_POSITIONS` | 10 | Maximum concurrent open positions |
 | `MAX_PER_EVENT` | 3 | Maximum positions on the same game/event |
-| `MIN_EDGE_THRESHOLD` | 3% | Minimum edge required to consider a bet |
+| `MIN_EDGE_THRESHOLD` | 3% | Global minimum edge required to consider a bet |
+| `MIN_EDGE_THRESHOLD_<SPORT>` | (optional) | Per-sport override of the global floor (e.g., `MIN_EDGE_THRESHOLD_NBA=0.08`). Supported: MLB, NBA, NHL, NFL, NCAAB, NCAAF, MLS, SOCCER |
 | `MIN_COMPOSITE_SCORE` | 6.0 | Minimum composite opportunity score |
 | `MAX_BET_RATIO` | 3.0 | Max ratio of any single bet cost to median batch cost |
+| `KELLY_EDGE_CAP` | 0.15 | Soft-cap on edge used for Kelly sizing (raw edge unchanged elsewhere) |
+| `KELLY_EDGE_DECAY` | 0.5 | Decay factor for edge above the cap |
 
 ---
 
@@ -270,8 +273,10 @@ Every order must pass gates 1-6 before execution. Gates 7-8 are sizing caps that
 Bets are sized using **batch-aware Kelly with a flat unit floor**. Kelly only scales up for high-edge opportunities — it never sizes below the minimum unit.
 
 ```
-bet = max(unit_size, (KELLY_FRACTION / batch_size) × edge × bankroll)
+bet = max(unit_size, (KELLY_FRACTION / batch_size) × trusted_edge × bankroll)
 ```
+
+`trusted_edge` is the raw edge passed through a soft-cap: edges at or below `KELLY_EDGE_CAP` (default 15%) are used as-is; the portion above is multiplied by `KELLY_EDGE_DECAY` (default 0.5). So a claimed 25% edge sizes like 20%, a 35% edge like 25%. This damps Kelly sizing on extreme-edge bets that post-baseline calibration showed are the worst-calibrated — without eliminating them. Raw edge remains visible in reports, rationales, and the `MIN_EDGE_THRESHOLD` gate.
 
 When placing N bets simultaneously, each bet's Kelly fraction is divided by N. Total batch exposure stays proportional to what a single full-fraction bet would allocate.
 

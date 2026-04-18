@@ -55,7 +55,7 @@ The pipeline rejects opportunities that fail any of these checks:
 |---|------|------|
 | 1 | Daily loss limit | Today's losses must be under `MAX_DAILY_LOSS` ($250) |
 | 2 | Max open positions | Must be under `MAX_OPEN_POSITIONS` (50) |
-| 3 | Edge threshold | Must meet `MIN_EDGE_THRESHOLD` (3%) |
+| 3 | Edge threshold | Must meet per-sport floor or `MIN_EDGE_THRESHOLD` global (3% default; NBA 8%, NCAAB 10% as of 2026-04-18). Rejection message shows the floor in use. |
 | 4 | Composite score | Must meet `MIN_COMPOSITE_SCORE` (6.0) — confidence is factored into composite |
 | 5 | Duplicate ticker | Can't already hold a position in this market |
 | 6 | Per-event cap | Max `MAX_PER_EVENT` (2) positions on the same game |
@@ -64,7 +64,9 @@ The pipeline rejects opportunities that fail any of these checks:
 
 ### Sizing
 
-Uses **Kelly with flat unit floor**: `bet = max(unit_size, kelly_fraction * edge * bankroll) / market_price` contracts. Kelly scales up high-edge bets; low-edge bets stay at the flat unit minimum. The result is capped by gates 7-8 above.
+Uses **Kelly with flat unit floor**: `bet = max(unit_size, kelly_fraction * trusted_edge(edge) * bankroll) / market_price` contracts. Kelly scales up high-edge bets; low-edge bets stay at the flat unit minimum. The result is capped by gates 7-8 above.
+
+`trusted_edge()` soft-caps the edge used in the Kelly calculation at `KELLY_EDGE_CAP` (default 0.15). Excess is multiplied by `KELLY_EDGE_DECAY` (default 0.5) — so a 25% claimed edge sizes like 20%, a 35% like 25%. Raw edge is unchanged in gate 3, composite score, reports, and the trade journal. Introduced 2026-04-18 after calibration showed claimed edges ≥25% realize -35% ROI.
 
 ---
 

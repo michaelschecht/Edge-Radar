@@ -8,7 +8,7 @@ import pytest
 from unittest.mock import patch
 
 from opportunity import Opportunity
-from kalshi_executor import unit_size_contracts, size_order, SizedOrder
+from kalshi_executor import unit_size_contracts, size_order, SizedOrder, trusted_edge, min_edge_for
 
 
 # ── unit_size_contracts ──────────────────────────────────────────────────────
@@ -148,3 +148,151 @@ class TestSizeOrderRiskGates:
             assert result.cost_dollars <= 5.0 + 0.11
         finally:
             kalshi_executor.MAX_BET_SIZE = orig_max
+
+
+# ── trusted_edge soft-cap ────────────────────────────────────────────────────
+
+class TestTrustedEdge:
+    """Soft-cap on edge used for Kelly sizing."""
+
+    def test_below_cap_is_identity(self):
+        assert trusted_edge(0.05, cap=0.15, decay=0.5) == 0.05
+        assert trusted_edge(0.10, cap=0.15, decay=0.5) == 0.10
+
+    def test_at_cap_is_identity(self):
+        assert trusted_edge(0.15, cap=0.15, decay=0.5) == 0.15
+
+    def test_above_cap_decays(self):
+        # 25% edge → 15 + (25-15)*0.5 = 20%
+        assert trusted_edge(0.25, cap=0.15, decay=0.5) == pytest.approx(0.20)
+        # 35% edge → 15 + (35-15)*0.5 = 25%
+        assert trusted_edge(0.35, cap=0.15, decay=0.5) == pytest.approx(0.25)
+
+    def test_monotonic_above_cap(self):
+        # Higher raw edge still gives higher trusted edge, just compressed
+        assert trusted_edge(0.30, cap=0.15, decay=0.5) > trusted_edge(0.20, cap=0.15, decay=0.5)
+
+    def test_decay_of_zero_hard_caps(self):
+        # decay=0 means trusted_edge = cap for anything above it
+        assert trusted_edge(0.50, cap=0.15, decay=0.0) == 0.15
+
+    def test_reduces_kelly_contracts_vs_raw_edge(self):
+        # An opp with 30% edge should size SMALLER than raw edge would.
+        # Pin KELLY_FRACTION and MAX_BET_SIZE so math is independent of local .env.
+        import kalshi_executor
+        orig_kelly = kalshi_executor.KELLY_FRACTION
+        orig_max = kalshi_executor.MAX_BET_SIZE
+        try:
+            kalshi_executor.KELLY_FRACTION = 0.25
+            kalshi_executor.MAX_BET_SIZE = 1000.0  # high enough not to cap
+            opp = Opportunity(
+                ticker="KXMLBGAME-26MAR301840CWSMIA-MIA",
+                title="Test",
+                category="game",
+                side="yes",
+                market_price=0.10,
+                fair_value=0.40,
+                edge=0.30,
+                edge_source="test",
+                confidence="high",
+                liquidity_score=8.0,
+                composite_score=9.0,
+                details={},
+            )
+            result = size_order(opp, bankroll=400.0, open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            # cap=0.15, decay=0.5 → trusted_edge(0.30) = 0.225
+            # Kelly bet = 0.25 * 0.225 * 400 = $22.50 → 225 contracts at $0.10
+            # Raw Kelly would be 0.25 * 0.30 * 400 = $30 → 300 contracts
+            assert result.risk_approval == "APPROVED"
+            assert result.contracts < 300     # below what raw edge would give
+            assert result.contracts >= 200    # but still scales well above flat unit (10)
+        finally:
+            kalshi_executor.KELLY_FRACTION = orig_kelly
+            kalshi_executor.MAX_BET_SIZE = orig_max
+
+
+# ── Per-sport MIN_EDGE_THRESHOLD override ─────────────────────────────────────
+
+class TestPerSportMinEdge:
+    """Sport-specific edge thresholds via _PER_SPORT_MIN_EDGE."""
+
+    def _opp(self, ticker: str, edge: float = 0.05) -> Opportunity:
+        return Opportunity(
+            ticker=ticker,
+            title="Test",
+            category="game",
+            side="yes",
+            market_price=0.50,
+            fair_value=0.50 + edge,
+            edge=edge,
+            edge_source="test",
+            confidence="high",
+            liquidity_score=8.0,
+            composite_score=8.0,
+            details={},
+        )
+
+    def test_min_edge_for_falls_back_to_global(self):
+        import kalshi_executor
+        orig = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
+        try:
+            kalshi_executor._PER_SPORT_MIN_EDGE.clear()
+            opp = self._opp("KXMLBGAME-26APR171900NYYKAC-NYY")
+            assert min_edge_for(opp) == kalshi_executor.MIN_EDGE_THRESHOLD
+        finally:
+            kalshi_executor._PER_SPORT_MIN_EDGE.clear()
+            kalshi_executor._PER_SPORT_MIN_EDGE.update(orig)
+
+    def test_min_edge_for_uses_sport_override(self):
+        import kalshi_executor
+        orig = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
+        try:
+            kalshi_executor._PER_SPORT_MIN_EDGE["nba"] = 0.08
+            nba_opp = self._opp("KXNBAGAME-26APR02SASLAC-SAS")
+            mlb_opp = self._opp("KXMLBGAME-26APR171900NYYKAC-NYY")
+            assert min_edge_for(nba_opp) == 0.08
+            assert min_edge_for(mlb_opp) == kalshi_executor.MIN_EDGE_THRESHOLD
+        finally:
+            kalshi_executor._PER_SPORT_MIN_EDGE.clear()
+            kalshi_executor._PER_SPORT_MIN_EDGE.update(orig)
+
+    def test_gate_rejects_nba_below_sport_floor(self):
+        import kalshi_executor
+        orig = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
+        try:
+            kalshi_executor._PER_SPORT_MIN_EDGE["nba"] = 0.08
+            # NBA bet at 5% edge: above global 3% but below NBA 8% → rejected
+            nba_opp = self._opp("KXNBAGAME-26APR02SASLAC-SAS", edge=0.05)
+            result = size_order(nba_opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+            assert result.risk_approval.startswith("REJECTED")
+            assert "edge" in result.risk_approval.lower()
+            assert "8.0%" in result.risk_approval  # shows the sport-specific floor
+        finally:
+            kalshi_executor._PER_SPORT_MIN_EDGE.clear()
+            kalshi_executor._PER_SPORT_MIN_EDGE.update(orig)
+
+    def test_gate_approves_other_sports_below_nba_floor(self):
+        import kalshi_executor
+        orig = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
+        try:
+            kalshi_executor._PER_SPORT_MIN_EDGE["nba"] = 0.08
+            # MLB bet at 5% edge: above global 3% → approved (no MLB override)
+            mlb_opp = self._opp("KXMLBGAME-26APR171900NYYKAC-NYY", edge=0.05)
+            result = size_order(mlb_opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+            assert result.risk_approval == "APPROVED"
+        finally:
+            kalshi_executor._PER_SPORT_MIN_EDGE.clear()
+            kalshi_executor._PER_SPORT_MIN_EDGE.update(orig)
+
+    def test_gate_approves_nba_above_sport_floor(self):
+        import kalshi_executor
+        orig = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
+        try:
+            kalshi_executor._PER_SPORT_MIN_EDGE["nba"] = 0.08
+            # NBA bet at 10% edge: above NBA 8% → approved
+            nba_opp = self._opp("KXNBAGAME-26APR02SASLAC-SAS", edge=0.10)
+            result = size_order(nba_opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+            assert result.risk_approval == "APPROVED"
+        finally:
+            kalshi_executor._PER_SPORT_MIN_EDGE.clear()
+            kalshi_executor._PER_SPORT_MIN_EDGE.update(orig)
