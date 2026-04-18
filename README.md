@@ -16,7 +16,7 @@
   <img src=".claude/images/logos/logo.png" alt="Edge-Radar Banner" width="600">
 </p>
 
-> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 9 free APIs (including Polymarket, MLB pitcher stats, and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with Kelly criterion, enforces 8 risk gates, and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
+> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 9 free APIs (including Polymarket, MLB pitcher stats, and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with Kelly criterion (soft-capped above 15% edge per calibration), enforces 9 risk gates including per-sport edge floors and 48h series dedup, and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
 
 ---
 
@@ -78,7 +78,7 @@ graph LR
     C["Signals<br><sub>Weather, Pitchers, Rest, Sharp $</sub>"] --> D
     D -->|"compare"| E["Kalshi Price"]
     E -->|"Edge >= 3%"| F["Composite Score<br><sub>0-10 scale</sub>"]
-    F --> G["8 Risk Gates"]
+    F --> G["9 Risk Gates"]
     G --> H["Kelly Sizing"]
     H --> I["Limit Order + Log"]
 
@@ -123,9 +123,9 @@ graph LR
 <tr>
 <td width="55%" valign="top">
 
-#### 8 Risk Gates
+#### 9 Risk Gates
 
-Every order must clear gates 1-6. Gates 7-8 cap sizing instead of rejecting.
+Every order must clear gates 1-7. Gates 8-9 cap sizing instead of rejecting.
 
 | # | Gate | Action |
 |:-:|:-----|:-------|
@@ -135,10 +135,11 @@ Every order must clear gates 1-6. Gates 7-8 cap sizing instead of rejecting.
 | 4 | Composite score | Reject below 6.0/10 |
 | 5 | Duplicate check | Reject same market |
 | 6 | Per-event cap | Reject at 2/game |
-| 7 | Bet size cap | Cap at $100 |
-| 8 | Bet ratio cap | Cap at 3x batch median |
+| 7 | Series dedup | Reject same matchup bet within 48h |
+| 8 | Bet size cap | Cap at $100 |
+| 9 | Bet ratio cap | Cap at 3x batch median |
 
-<sub>All limits configurable via <code>.env</code>. Per-sport thresholds via <code>MIN_EDGE_THRESHOLD_&lt;SPORT&gt;</code> (added 2026-04-18 from first post-baseline calibration). See <a href="docs/ARCHITECTURE.md">Architecture</a></sub>
+<sub>All limits configurable via <code>.env</code>. Per-sport thresholds (<code>MIN_EDGE_THRESHOLD_&lt;SPORT&gt;</code>) and series dedup (<code>SERIES_DEDUP_HOURS</code>) added 2026-04-18 after first post-baseline calibration surfaced consecutive-night correlation bleeds. See <a href="docs/ARCHITECTURE.md">Architecture</a></sub>
 
 </td>
 <td width="45%" valign="top">

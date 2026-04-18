@@ -222,6 +222,7 @@ MIN_EDGE_THRESHOLD_NCAAB=0.10   # Per-sport override
 MIN_COMPOSITE_SCORE=6.0         # Minimum opportunity score (0-10)
 KELLY_EDGE_CAP=0.15             # Soft-cap edge for Kelly sizing
 KELLY_EDGE_DECAY=0.5            # Decay factor above the cap
+SERIES_DEDUP_HOURS=48           # Reject same-matchup bets within this window (0 disables)
 ```
 
 > **Key paths are relative to the project root.** The client resolves `keys/live/kalshi_private.key` from the Edge-Radar directory automatically.

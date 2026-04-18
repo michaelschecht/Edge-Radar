@@ -26,7 +26,7 @@ The system processes every opportunity through seven sequential stages. Each sta
 | **2. Categorize** | Classify by type | Determines which edge model applies |
 | **3. Compare** | Fair value vs. Kalshi ask price | Score on 4 dimensions: edge, confidence, liquidity, time |
 | **4. Cap** | Limit to top 3 per game/event | Prevents concentration in a single contest |
-| **5. Risk-Check** | 8 risk gates + Kelly sizing | Reject or cap — see [Risk Management](#%EF%B8%8F-risk-management) |
+| **5. Risk-Check** | 9 risk gates + Kelly sizing | Reject or cap — see [Risk Management](#%EF%B8%8F-risk-management) |
 | **6. Execute** | Place limit orders on Kalshi | Full trade journal entry with rationale |
 | **7. Monitor** | Track positions, settle, calibrate | Realized P&L + closing line value tracking |
 
@@ -230,7 +230,7 @@ The minimum score to pass risk checks is **6.0** (configurable via `MIN_COMPOSIT
 
 ### Risk Gate Pipeline
 
-Every order must pass gates 1-6 before execution. Gates 7-8 are sizing caps that downsize the order rather than rejecting it.
+Every order must pass gates 1-7 before execution. Gates 8-9 are sizing caps that downsize the order rather than rejecting it.
 
 | | Gate | Check | Behavior |
 | :--- | :--- | :--- | :--- |
@@ -240,14 +240,15 @@ Every order must pass gates 1-6 before execution. Gates 7-8 are sizing caps that
 | 4 | **Composite score** | Weighted score (edge + confidence + liquidity + time) | **Reject** if score < `MIN_COMPOSITE_SCORE` |
 | 5 | **Duplicate ticker** | Already holding this exact market | **Reject** if ticker in open positions |
 | 6 | **Per-event cap** | Too many positions on the same game | **Reject** if event count ≥ `MAX_PER_EVENT` |
-| 7 | **Max bet size** | Bet exceeds max size | **Cap** — downsize to `MAX_BET_SIZE` |
-| 8 | **Bet ratio cap** | Single bet cost vs. median batch cost | **Cap** — downsize so cost ≤ `MAX_BET_RATIO` × median batch cost |
+| 7 | **Series dedup** | Same matchup bet on a recent date (sport + team pair) | **Reject** if matchup key appears in trade log within `SERIES_DEDUP_HOURS` |
+| 8 | **Max bet size** | Bet exceeds max size | **Cap** — downsize to `MAX_BET_SIZE` |
+| 9 | **Bet ratio cap** | Single bet cost vs. median batch cost | **Cap** — downsize so cost ≤ `MAX_BET_RATIO` × median batch cost |
 
 > [!NOTE]
 > The trade log records approval subtypes for post-trade review:
 > - `APPROVED` — passed all gates, no caps hit
-> - `APPROVED_CAPPED_MAX_BET` — downsized by gate 7
-> - `APPROVED_CAPPED_BET_RATIO` — downsized by gate 8
+> - `APPROVED_CAPPED_MAX_BET` — downsized by gate 8
+> - `APPROVED_CAPPED_BET_RATIO` — downsized by gate 9
 
 ### Risk Parameters
 
@@ -265,6 +266,7 @@ Every order must pass gates 1-6 before execution. Gates 7-8 are sizing caps that
 | `MAX_BET_RATIO` | 3.0 | Max ratio of any single bet cost to median batch cost |
 | `KELLY_EDGE_CAP` | 0.15 | Soft-cap on edge used for Kelly sizing (raw edge unchanged elsewhere) |
 | `KELLY_EDGE_DECAY` | 0.5 | Decay factor for edge above the cap |
+| `SERIES_DEDUP_HOURS` | 48 | Reject bet if same matchup was bet within this window (0 disables) |
 
 ---
 

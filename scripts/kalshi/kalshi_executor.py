@@ -25,7 +25,8 @@ import json
 import uuid
 import logging
 import argparse
-from datetime import datetime, timezone
+import re
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dataclasses import dataclass, asdict
 
@@ -64,6 +65,7 @@ MAX_BET_RATIO = float(os.getenv("MAX_BET_RATIO", "3.0"))
 MIN_COMPOSITE_SCORE = float(os.getenv("MIN_COMPOSITE_SCORE", "6.0"))
 KELLY_EDGE_CAP = float(os.getenv("KELLY_EDGE_CAP", "0.15"))
 KELLY_EDGE_DECAY = float(os.getenv("KELLY_EDGE_DECAY", "0.5"))
+SERIES_DEDUP_HOURS = int(os.getenv("SERIES_DEDUP_HOURS", "48"))
 
 # Per-sport edge-threshold overrides. Any sport not listed falls back to
 # MIN_EDGE_THRESHOLD. Read at import; tests patch _PER_SPORT_MIN_EDGE directly.
@@ -123,6 +125,83 @@ def _event_key(ticker: str) -> str:
     return parts[0] if len(parts) > 1 else ticker
 
 
+# Matches the leading YY-MMM-DD date and optional 4-digit HHMM game time that
+# Kalshi embeds in the event-descriptor portion of a ticker (e.g. "26APR14" or
+# "26APR011940"). Stripping it leaves just the team abbreviations, so the same
+# matchup on consecutive days produces the same key.
+_DATE_PREFIX_RE = re.compile(r"^\d{2}[A-Z]{3}\d{2}\d{0,4}")
+
+
+def matchup_key(ticker: str) -> tuple[str, str] | None:
+    """Extract a series-invariant matchup identifier from a Kalshi ticker.
+
+    Same matchup on different dates yields the same key — lets C5 detect when
+    we're about to bet the same series back-to-back. Returns ``None`` for
+    tickers that don't match the expected sport-game pattern (futures,
+    prediction markets, malformed tickers).
+
+    Examples:
+        KXMLBGAME-26APR14LAAANYY-NYY  -> ('mlb', 'LAAANYY')
+        KXMLBGAME-26APR15LAAANYY-NYY  -> ('mlb', 'LAAANYY')
+        KXMLBGAME-26APR011940MINKC-MIN -> ('mlb', 'MINKC')
+    """
+    sport = _detect_sport(ticker)
+    if not sport:
+        return None
+    parts = ticker.split("-")
+    if len(parts) < 2:
+        return None
+    middle = parts[1]
+    m = _DATE_PREFIX_RE.match(middle)
+    if not m:
+        return None
+    teams = middle[m.end():]
+    if not teams:
+        return None
+    return (sport, teams)
+
+
+def recent_matchups_from_log(
+    trade_log: list[dict],
+    hours: int | None = None,
+    now: datetime | None = None,
+) -> set[tuple[str, str]]:
+    """Matchup keys that had a bet placed in the last ``hours`` window.
+
+    Used by Gate 7 (series dedup) to reject a new bet on a matchup we already
+    bet on a recent day. Observed bleed pattern (2026-04-18): the same MLB
+    matchup was bet on 2-3 consecutive days with compounding losses
+    (LA Angels @ NY Yankees ML NO Apr 13, 14, 15; NY Mets @ LA Dodgers Apr 13,
+    15). `dedup_correlated_brackets` handles within-day correlation but can't
+    see across days.
+
+    Any entry in the trade log counts as a placed order — dry-run runs don't
+    write to the log, so no extra filtering is needed.
+    """
+    if hours is None:
+        hours = SERIES_DEDUP_HOURS
+    if hours <= 0:
+        return set()
+    cutoff = (now or datetime.now(timezone.utc)) - timedelta(hours=hours)
+    keys: set[tuple[str, str]] = set()
+    for trade in trade_log:
+        ts = trade.get("timestamp")
+        if not ts:
+            continue
+        try:
+            placed_at = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if placed_at.tzinfo is None:
+            placed_at = placed_at.replace(tzinfo=timezone.utc)
+        if placed_at < cutoff:
+            continue
+        key = matchup_key(trade.get("ticker", ""))
+        if key:
+            keys.add(key)
+    return keys
+
+
 def dedup_correlated_brackets(opportunities: list[Opportunity]) -> list[Opportunity]:
     """Remove correlated bracket bets from the same game, keeping the best one.
 
@@ -180,7 +259,8 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
                open_tickers: set[str] | None = None,
                event_counts: dict[str, int] | None = None,
                max_per_event: int = MAX_PER_EVENT,
-               batch_size: int = 1) -> SizedOrder:
+               batch_size: int = 1,
+               recent_matchups: set[tuple[str, str]] | None = None) -> SizedOrder:
     """
     Apply all risk checks and size the order.
 
@@ -191,15 +271,15 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     produces fewer contracts than the flat unit.
 
     Risk gates enforced:
-        1. Daily loss limit
-        2. Max open positions
-        3. Minimum edge threshold
-        4. Minimum composite score
-        5. Confidence floor
-        6. Duplicate ticker (already holding this market)
-        7. Per-event cap (max positions on the same game)
-        8. Max concentration (single position % of bankroll)
-        9. Max bet size (sports vs prediction cap)
+        1. Daily loss limit                             (reject)
+        2. Max open positions                           (reject)
+        3. Minimum edge threshold (global + per-sport)  (reject)
+        4. Minimum composite score                      (reject)
+        5. Duplicate ticker (already holding this market) (reject)
+        6. Per-event cap (max positions on same game)   (reject)
+        7. Series dedup (same matchup within last Nh)   (reject)
+        8. Max bet size                                 (sizing cap)
+        9. Bet ratio cap                                (sizing cap)
     """
     rejection = None
     edge_floor = min_edge_for(opp)
@@ -229,6 +309,12 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         evt = _event_key(opp.ticker)
         if event_counts.get(evt, 0) >= max_per_event:
             rejection = f"per_event_cap ({event_counts[evt]}/{max_per_event} on {evt[:30]})"
+
+    # ── Risk Gate 7: Series dedup (C5) -- same matchup bet in last SERIES_DEDUP_HOURS
+    if rejection is None and recent_matchups and SERIES_DEDUP_HOURS > 0:
+        mkey = matchup_key(opp.ticker)
+        if mkey and mkey in recent_matchups:
+            rejection = f"series_dedup (matchup {mkey[1]} bet within {SERIES_DEDUP_HOURS}h)"
 
     if rejection:
         return SizedOrder(
@@ -505,9 +591,12 @@ def execute_pipeline(
 
     trade_log = load_trade_log()
     daily_pnl = get_today_pnl(trade_log)
+    recent_matchups = recent_matchups_from_log(trade_log)
     rprint(f"  Today P&L:  ${daily_pnl:,.2f} (limit: -${MAX_DAILY_LOSS:,.2f})")
     rprint(f"  Unit size:  ${unit_size:.2f}")
     rprint(f"  Per-game:   {MAX_PER_EVENT} max")
+    if SERIES_DEDUP_HOURS > 0:
+        rprint(f"  Series dedup: blocking matchups bet within last {SERIES_DEDUP_HOURS}h ({len(recent_matchups)} active)")
 
     if daily_pnl <= -MAX_DAILY_LOSS:
         rprint("[red bold]DAILY LOSS LIMIT HIT -- no new bets allowed today[/red bold]")
@@ -529,6 +618,7 @@ def execute_pipeline(
             opp, bankroll, open_count + len([s for s in sized_orders if s.risk_approval.startswith("APPROVED")]),
             daily_pnl, unit_size, open_tickers, event_counts, MAX_PER_EVENT,
             batch_size=batch_sz,
+            recent_matchups=recent_matchups,
         )
         sized_orders.append(sized)
         # Track newly approved positions for subsequent gate checks
@@ -536,6 +626,9 @@ def execute_pipeline(
             open_tickers.add(opp.ticker)
             evt = _event_key(opp.ticker)
             event_counts[evt] = event_counts.get(evt, 0) + 1
+            mkey = matchup_key(opp.ticker)
+            if mkey:
+                recent_matchups.add(mkey)
 
     approved = [s for s in sized_orders if s.risk_approval.startswith("APPROVED")]
     rejected = [s for s in sized_orders if not s.risk_approval.startswith("APPROVED")]
