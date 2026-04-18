@@ -38,7 +38,7 @@ Parse the user's intent from the arguments. The skill supports natural language 
 |------|---------|-------------|
 | `--unit-size N` or `$N` (dollar amount) | `$1.00` | Dollar amount per bet |
 | `--max-bets N` | `5` | Maximum bets to place |
-| `--min-edge N` | `0.03` | Minimum edge threshold (3%) |
+| `--min-edge N` | `0.03` global; `0.08` NBA; `0.10` NCAAB | Minimum edge. Per-sport overrides via `MIN_EDGE_THRESHOLD_<SPORT>` env (set 2026-04-18 from calibration). |
 | `--execute`, `--go`, `--send-it` | off | Skip preview, execute immediately |
 | `--dry-run`, `--preview` | on (default) | Preview only, no orders |
 | `--save` | off | Save results as markdown report to `reports/` |
@@ -458,7 +458,8 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 
 ## Risk Limits (Current)
 
-- **Sizing:** Batch-aware Kelly — `(KELLY_FRACTION / batch_size) * edge * bankroll`, with flat unit size as floor. When placing N bets simultaneously, each gets `fraction/N` to prevent over-committing.
+- **Sizing:** Batch-aware Kelly — `(KELLY_FRACTION / batch_size) * trusted_edge(edge) * bankroll`, with flat unit size as floor. When placing N bets simultaneously, each gets `fraction/N` to prevent over-committing.
+- **Kelly edge soft-cap (C1, 2026-04-18):** `trusted_edge()` damps the edge used in Kelly sizing above `KELLY_EDGE_CAP=0.15`. Excess is multiplied by `KELLY_EDGE_DECAY=0.5` (e.g., 25% claimed edge sizes like 20%). Raw edge unchanged in gates, reports, and rationale. Calibration showed claimed edges ≥25% realize -35% ROI — this downsizes likely-fake signals.
 - **Budget cap:** `--budget X` caps the total batch cost. Accepts `10%` (of bankroll) or `15` (flat dollars). When the batch exceeds the budget, contracts are proportionally scaled down while preserving Kelly edge-weighting (higher-edge bets keep more size). Each bet keeps at least 1 contract.
 - **Kelly fraction:** Configurable via `KELLY_FRACTION` in `.env` (default: 0.25)
 - **Unit size:** $0.50 default (minimum per bet, overridable with `--unit-size`)
@@ -467,7 +468,7 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 - **Max per event:** 2 positions on the same game (reject gate)
 - **Daily loss limit:** $250 (reject gate)
 - **Max open positions:** 50 (reject gate)
-- **Minimum edge:** 3% (reject gate)
+- **Minimum edge (C3, 2026-04-18):** 3% global; **8% NBA**, **10% NCAAB** (per-sport overrides via `MIN_EDGE_THRESHOLD_<SPORT>` env). Rejection message shows the sport-specific floor in use.
 - **Minimum composite score:** 6.0 (reject gate, confidence is factored into composite)
 
 Gates 1-6 reject orders outright. Gates 7-8 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).

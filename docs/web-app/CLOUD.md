@@ -102,8 +102,12 @@ DRY_RUN = "true"
 MAX_OPEN_POSITIONS = "50"            # Concurrent open positions (default: 10)
 # MAX_PER_EVENT = "2"                # Max positions per game/event (2)
 # MAX_BET_RATIO = "3.0"             # Max bet as multiple of batch median (3.0)
-# MIN_EDGE_THRESHOLD = "0.03"       # Minimum edge required (0.03)
+# MIN_EDGE_THRESHOLD = "0.03"       # Global minimum edge (fallback)
+# MIN_EDGE_THRESHOLD_NBA = "0.08"   # Per-sport override (2026-04-18 calibration)
+# MIN_EDGE_THRESHOLD_NCAAB = "0.10" # Per-sport override
 # MIN_COMPOSITE_SCORE = "6.0"       # Minimum score 0-10 (6.0)
+# KELLY_EDGE_CAP = "0.15"           # Soft-cap edge for Kelly sizing (2026-04-18)
+# KELLY_EDGE_DECAY = "0.5"          # Decay factor above the cap
 ```
 
 ### How Secrets Work
@@ -143,7 +147,10 @@ Mapped via `st.secrets["KALSHI_API_KEY"]` -> `os.environ["KALSHI_API_KEY"]`
 | `MAX_PER_EVENT` | `MAX_PER_EVENT` | `"2"` | `kalshi_executor.py`, `services.py` |
 | `MAX_BET_RATIO` | `MAX_BET_RATIO` | `"3.0"` | `kalshi_executor.py` |
 | `MIN_EDGE_THRESHOLD` | `MIN_EDGE_THRESHOLD` | `"0.03"` | `edge_detector.py`, `services.py` |
+| `MIN_EDGE_THRESHOLD_<SPORT>` | `MIN_EDGE_THRESHOLD_<SPORT>` | (optional) | `kalshi_executor.py`. Supported: MLB, NBA, NHL, NFL, NCAAB, NCAAF, MLS, SOCCER |
 | `MIN_COMPOSITE_SCORE` | `MIN_COMPOSITE_SCORE` | `"6.0"` | `kalshi_executor.py`, `services.py` |
+| `KELLY_EDGE_CAP` | `KELLY_EDGE_CAP` | `"0.15"` | `kalshi_executor.py` |
+| `KELLY_EDGE_DECAY` | `KELLY_EDGE_DECAY` | `"0.5"` | `kalshi_executor.py` |
 
 **All values must be strings in TOML** (e.g., `MAX_OPEN_POSITIONS = "50"` not `50`). The scripts parse them to the correct types internally.
 

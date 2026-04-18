@@ -117,7 +117,10 @@ def render():
     col5, col6, col7, col8 = st.columns(4)
 
     with col5:
-        min_edge = st.slider("Min Edge %", 1, 20, defaults["min_edge"]) / 100
+        min_edge = st.slider(
+            "Min Edge %", 1, 20, defaults["min_edge"],
+            help="Scan-level minimum edge. The executor additionally enforces per-sport floors at gate 3 (NBA 8%, NCAAB 10%) — edges below the sport floor will be rejected on execute even if they pass this scan filter.",
+        ) / 100
     with col6:
         top_n = st.number_input("Top N", min_value=1, max_value=50, value=defaults["top_n"])
     with col7:

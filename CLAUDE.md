@@ -153,8 +153,12 @@ MAX_DAILY_LOSS=250              # Daily hard stop (USD)
 MAX_OPEN_POSITIONS=10           # Concurrent open positions
 MAX_PER_EVENT=3                 # Max positions per game/event
 MAX_BET_RATIO=3.0               # Max bet as multiple of batch median
-MIN_EDGE_THRESHOLD=0.03         # Minimum 3% edge
+MIN_EDGE_THRESHOLD=0.03         # Minimum 3% edge (global)
+MIN_EDGE_THRESHOLD_NBA=0.08     # Per-sport override (optional)
+MIN_EDGE_THRESHOLD_NCAAB=0.10   # Per-sport override (optional)
 MIN_COMPOSITE_SCORE=6.0         # Minimum score (0-10)
+KELLY_EDGE_CAP=0.15             # Soft-cap edge for Kelly sizing
+KELLY_EDGE_DECAY=0.5            # Decay factor on edge above the cap
 ```
 
 ---
