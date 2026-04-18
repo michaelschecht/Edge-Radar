@@ -179,17 +179,31 @@ _odds_cache: dict[str, list] = {}
 
 
 def fetch_odds_api(sport_key: str, markets: str = "h2h") -> list:
-    """Fetch odds from The Odds API with caching and key rotation."""
-    api_key = get_current_key()
-    if not api_key:
+    """Fetch odds from The Odds API with caching and key rotation.
+
+    Rotates through every configured key at most once on 401/429 before
+    giving up, so a single-sport scan (no prior rotation warmup from other
+    sports) still lands on a working key. Previously `range(3)` capped
+    attempts at 3 and exited before trying the last rotated key — the full
+    all-sports scan masked the issue because earlier sports burned through
+    exhausted keys first.
+    """
+    if not get_current_key():
         return []
 
     cache_key = f"{sport_key}:{markets}"
     if cache_key in _odds_cache:
         return _odds_cache[cache_key]
 
-    # Try current key, rotate on failure
-    for attempt in range(3):
+    tried: set[str] = set()
+    while True:
+        api_key = get_current_key()
+        if not api_key or api_key in tried:
+            if tried:
+                log.warning("All %d Odds API keys returned 401/429 for %s",
+                            len(tried), sport_key)
+            return []
+        tried.add(api_key)
         try:
             resp = requests.get(
                 f"{ODDS_API_BASE}/sports/{sport_key}/odds",
@@ -202,33 +216,25 @@ def fetch_odds_api(sport_key: str, markets: str = "h2h") -> list:
                 },
                 timeout=15,
             )
-            if resp.status_code == 401 or resp.status_code == 429:
-                # Key exhausted or invalid -- try rotating
-                new_key = rotate_key("http_" + str(resp.status_code))
-                if new_key:
-                    api_key = new_key
-                    continue
-                else:
-                    log.warning("All Odds API keys exhausted")
-                    return []
+            if resp.status_code in (401, 429):
+                rotate_key("http_" + str(resp.status_code))
+                continue
 
             resp.raise_for_status()
+            events = resp.json()
             remaining = resp.headers.get("x-requests-remaining", "?")
-            log.info("Odds API: %s events, %s requests remaining", len(resp.json()), remaining)
+            log.info("Odds API: %s events, %s requests remaining", len(events), remaining)
 
-            # Track remaining for this key
             try:
                 report_remaining(api_key, int(remaining))
             except (ValueError, TypeError):
                 pass
 
-            _odds_cache[cache_key] = resp.json()
-            return resp.json()
+            _odds_cache[cache_key] = events
+            return events
         except Exception as e:
             log.warning("Odds API error for %s: %s", sport_key, e)
             return []
-
-    return []
 
 
 def implied_prob(decimal_odds: float) -> float:
