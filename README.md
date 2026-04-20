@@ -11,9 +11,14 @@
 [![Docs](https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square)](#-documentation)
 [![APIs](https://img.shields.io/badge/APIs-9%20Free%20%2B%20Kalshi-F97316?style=flat-square)](#-data-sources)
 [![Dashboard](https://img.shields.io/badge/Dashboard-Streamlit-00d4aa?style=flat-square)](docs/web-app/LOCAL.md)
+[![Data Flow](https://img.shields.io/badge/Data%20Flow-Interactive-00d4aa?style=flat-square)](https://michaelschecht.github.io/Edge-Radar/)
 
 <p align="center">
   <img src=".claude/images/logos/logo.png" alt="Edge-Radar Banner" width="600">
+</p>
+
+<p align="center">
+  <a href="https://michaelschecht.github.io/Edge-Radar/"><b>▶ View the interactive data-flow diagram</b></a>
 </p>
 
 > Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 9 free APIs (including Polymarket, MLB pitcher stats, and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with Kelly criterion (soft-capped above 15% edge per calibration), enforces 9 risk gates including per-sport edge floors and 48h series dedup, and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
@@ -70,6 +75,8 @@
 ---
 
 ## Edge Detection Pipeline
+
+> 🔗 **[View the interactive version →](https://michaelschecht.github.io/Edge-Radar/)**
 
 ```mermaid
 graph LR
