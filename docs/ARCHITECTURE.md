@@ -8,6 +8,8 @@
 [![Scoring](https://img.shields.io/badge/Scoring-4%20Dimensions-F97316?style=flat-square)](#-how-scoring-works)
 [![Kelly Sizing](https://img.shields.io/badge/Sizing-Batch%20Kelly-2ea44f?style=flat-square)](#-position-sizing)
 
+> 🔗 **[View the interactive data-flow diagram →](https://michaelschecht.github.io/Edge-Radar/)**
+
 ---
 
 ## 🔭 System Overview
