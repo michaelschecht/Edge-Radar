@@ -302,21 +302,25 @@ To deactivate later, run `deactivate`.
 
 ## Claude Code Integration
 
-Edge-Radar includes a built-in `/edge-radar` slash command for [Claude Code](https://claude.ai/claude-code):
+Edge-Radar ships with two slash commands for [Claude Code](https://claude.ai/claude-code):
+
+| Skill | Definition | Description |
+|:------|:-----------|:------------|
+| [`/edge-radar`](.claude/skills/edge-radar/SKILL.md) | `.claude/skills/edge-radar/SKILL.md` | Unified command center — scan, bet, status, settle, risk, detail, backtest across Kalshi sports, futures, prediction markets, and Polymarket. |
+| [`/edge-radar-analysis`](.claude/skills/edge-radar-analysis/SKILL.md) | `.claude/skills/edge-radar-analysis/SKILL.md` | Post-hoc performance report — trade ledger + slices by sport, category, side, edge bucket, confidence, price, calibration, longshots, streaks, daily P&L. |
 
 ```
 /edge-radar status                        # Balance, positions, P&L
 /edge-radar scan nba                      # Preview NBA opportunities
 /edge-radar bet mlb --unit-size 1         # Scan + execute on confirm
 /edge-radar settle                        # Settle + P&L report
-/edge-radar risk                          # Risk dashboard
-/edge-radar crypto --cross-ref            # Prediction markets + Polymarket
+/edge-radar-analysis 30 --save            # 30-day performance report to reports/Performance/
 ```
 
 Routes natural language to the correct scanner, enforces all risk gates, always previews before executing. All CLI flags work inline.
 
 > [!NOTE]
-> Requires [Claude Code](https://claude.ai/claude-code) CLI, Desktop, or IDE extension. Skill defined in `.claude/skills/edge-radar/SKILL.md`.
+> Requires [Claude Code](https://claude.ai/claude-code) CLI, Desktop, or IDE extension.
 >
 > **Gemini CLI / OpenAI Codex** — add the skill content to your `GEMINI.md` or `AGENTS.md` for equivalent functionality.
 
