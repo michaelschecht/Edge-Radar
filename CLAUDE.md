@@ -5,22 +5,6 @@
 
 ---
 
-## Active Branch for the AX Team
-
-**All Edge-Radar aX agents (Hunter, Gatekeeper, Auditor, Scriptor) work on branch `mike_ax_team`.**
-
-Before doing any work in this repo:
-
-```bash
-git fetch origin
-git checkout mike_ax_team
-git pull
-```
-
-Do NOT commit to `master` directly. Merges back to `master` happen via PR after Michael reviews. If you find yourself on `master` or `mike_win-desktop`, switch back to `mike_ax_team` before making changes.
-
----
-
 ## Memory
 
 On startup, load the persistent memory index at `.claude/memory/MEMORY.md`.
