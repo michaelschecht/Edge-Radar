@@ -4,7 +4,7 @@
 
 [![Pipeline](https://img.shields.io/badge/Pipeline-7%20Stages-0078D4?style=flat-square)](#-pipeline-overview)
 [![Edge Models](https://img.shields.io/badge/Edge%20Models-5%20Types-8B5CF6?style=flat-square)](#-edge-detection-models)
-[![Risk Gates](https://img.shields.io/badge/Risk-8%20Gates-e74c3c?style=flat-square)](#%EF%B8%8F-risk-management)
+[![Risk Gates](https://img.shields.io/badge/Risk-11%20Gates-e74c3c?style=flat-square)](#%EF%B8%8F-risk-management)
 [![Scoring](https://img.shields.io/badge/Scoring-4%20Dimensions-F97316?style=flat-square)](#-how-scoring-works)
 [![Kelly Sizing](https://img.shields.io/badge/Sizing-Batch%20Kelly-2ea44f?style=flat-square)](#-position-sizing)
 
@@ -28,7 +28,7 @@ The system processes every opportunity through seven sequential stages. Each sta
 | **2. Categorize** | Classify by type | Determines which edge model applies |
 | **3. Compare** | Fair value vs. Kalshi ask price | Score on 4 dimensions: edge, confidence, liquidity, time |
 | **4. Cap** | Limit to top 3 per game/event | Prevents concentration in a single contest |
-| **5. Risk-Check** | 9 risk gates + Kelly sizing | Reject or cap — see [Risk Management](#%EF%B8%8F-risk-management) |
+| **5. Risk-Check** | 11 risk gates + Kelly sizing | Reject or cap — see [Risk Management](#%EF%B8%8F-risk-management) |
 | **6. Execute** | Place limit orders on Kalshi | Full trade journal entry with rationale |
 | **7. Monitor** | Track positions, settle, calibrate | Realized P&L + closing line value tracking |
 
@@ -232,7 +232,7 @@ The minimum score to pass risk checks is **6.0** (configurable via `MIN_COMPOSIT
 
 ### Risk Gate Pipeline
 
-Every order must pass gates 1-7 before execution. Gates 8-9 are sizing caps that downsize the order rather than rejecting it.
+Every order must pass gates 1-7 (including 4.5 and 4.6) before execution. Gates 8-9 are sizing caps that downsize the order rather than rejecting it.
 
 | | Gate | Check | Behavior |
 | :--- | :--- | :--- | :--- |
@@ -240,11 +240,15 @@ Every order must pass gates 1-7 before execution. Gates 8-9 are sizing caps that
 | 2 | **Position count** | Number of open positions | **Reject** if count ≥ `MAX_OPEN_POSITIONS` |
 | 3 | **Edge threshold** | Calculated edge for this opportunity | **Reject** if edge < per-sport floor (or `MIN_EDGE_THRESHOLD` global fallback) |
 | 4 | **Composite score** | Weighted score (edge + confidence + liquidity + time) | **Reject** if score < `MIN_COMPOSITE_SCORE` |
+| 4.5 | **Min confidence (R3)** | Opportunity confidence label (low/medium/high) | **Reject** if confidence below `MIN_CONFIDENCE` |
+| 4.6 | **NO-side favorite guard (R1)** | NO bet on a heavy favorite (price < `NO_SIDE_FAVORITE_THRESHOLD`) | **Reject** unless edge ≥ `NO_SIDE_MIN_EDGE` AND confidence=high |
 | 5 | **Duplicate ticker** | Already holding this exact market | **Reject** if ticker in open positions |
 | 6 | **Per-event cap** | Too many positions on the same game | **Reject** if event count ≥ `MAX_PER_EVENT` |
 | 7 | **Series dedup** | Same matchup bet on a recent date (sport + team pair) | **Reject** if matchup key appears in trade log within `SERIES_DEDUP_HOURS` |
 | 8 | **Max bet size** | Bet exceeds max size | **Cap** — downsize to `MAX_BET_SIZE` |
 | 9 | **Bet ratio cap** | Single bet cost vs. median batch cost | **Cap** — downsize so cost ≤ `MAX_BET_RATIO` × median batch cost |
+
+In addition, NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` (default $0.35) are sized at `NO_SIDE_KELLY_MULTIPLIER` of normal Kelly (default half-Kelly). This is a sizing dampener, not a reject gate — it runs inside the Kelly calculation for NO bets that cleared gate 4.6.
 
 > [!NOTE]
 > The trade log records approval subtypes for post-trade review:
@@ -265,6 +269,11 @@ Every order must pass gates 1-7 before execution. Gates 8-9 are sizing caps that
 | `MIN_EDGE_THRESHOLD` | 3% | Global minimum edge required to consider a bet |
 | `MIN_EDGE_THRESHOLD_<SPORT>` | (optional) | Per-sport override of the global floor (e.g., `MIN_EDGE_THRESHOLD_NBA=0.08`). Supported: MLB, NBA, NHL, NFL, NCAAB, NCAAF, MLS, SOCCER |
 | `MIN_COMPOSITE_SCORE` | 6.0 | Minimum composite opportunity score |
+| `MIN_CONFIDENCE` | medium | Reject below this confidence label (low/medium/high) — Gate 4.5 |
+| `NO_SIDE_FAVORITE_THRESHOLD` | 0.25 | Gate 4.6: NO bets below this price need elevated edge + confidence |
+| `NO_SIDE_MIN_EDGE` | 0.25 | Gate 4.6: minimum edge for a NO bet below the threshold (plus confidence=high) |
+| `NO_SIDE_KELLY_PRICE_FLOOR` | 0.35 | Below this NO-side price, Kelly sizing is dampened |
+| `NO_SIDE_KELLY_MULTIPLIER` | 0.5 | Kelly multiplier applied to NO bets priced below the floor (half-Kelly) |
 | `MAX_BET_RATIO` | 3.0 | Max ratio of any single bet cost to median batch cost |
 | `KELLY_EDGE_CAP` | 0.15 | Soft-cap on edge used for Kelly sizing (raw edge unchanged elsewhere) |
 | `KELLY_EDGE_DECAY` | 0.5 | Decay factor for edge above the cap |

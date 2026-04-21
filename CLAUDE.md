@@ -118,7 +118,7 @@ MARKET_RESEARCHER → DATA_ANALYST → RISK_MANAGER → TRADE_EXECUTOR
 - Use `python-dotenv` for every script
 - `.env` in `.gitignore` — verify before every commit
 
-### 9 Execution Gates
+### 11 Execution Gates
 
 Before ANY trade executes:
 
@@ -128,11 +128,15 @@ Before ANY trade executes:
 | 2 | Open position count under max | Reject |
 | 3 | Edge >= minimum threshold (per-sport or global) | Reject |
 | 4 | Composite score >= minimum | Reject |
+| 4.5 | Confidence >= `MIN_CONFIDENCE` (low/medium/high) | Reject |
+| 4.6 | NO bets below `NO_SIDE_FAVORITE_THRESHOLD` need edge >= `NO_SIDE_MIN_EDGE` AND confidence=high | Reject |
 | 5 | Not already holding this market | Reject |
 | 6 | Per-event cap not exceeded | Reject |
 | 7 | Matchup not bet in last `SERIES_DEDUP_HOURS` (series dedup) | Reject |
 | 8 | Bet size <= MAX_BET_SIZE | Cap |
 | 9 | Single bet <= 3x batch median cost | Cap |
+
+NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` are additionally sized at `NO_SIDE_KELLY_MULTIPLIER` of normal Kelly (half-Kelly by default).
 
 ### Dry Run Mode
 
@@ -158,6 +162,11 @@ MIN_EDGE_THRESHOLD=0.03         # Minimum 3% edge (global)
 MIN_EDGE_THRESHOLD_NBA=0.08     # Per-sport override (optional)
 MIN_EDGE_THRESHOLD_NCAAB=0.10   # Per-sport override (optional)
 MIN_COMPOSITE_SCORE=6.0         # Minimum score (0-10)
+MIN_CONFIDENCE=medium           # Reject below this confidence (low|medium|high) — R3
+NO_SIDE_FAVORITE_THRESHOLD=0.25 # R1: NO bets below this price need elevated bar
+NO_SIDE_MIN_EDGE=0.25           # R1: required edge when NO price < threshold (also needs confidence=high)
+NO_SIDE_KELLY_PRICE_FLOOR=0.35  # R1: below this NO-side price, apply Kelly multiplier
+NO_SIDE_KELLY_MULTIPLIER=0.5    # R1: half-Kelly on NO bets below the price floor
 KELLY_EDGE_CAP=0.15             # Soft-cap edge for Kelly sizing
 KELLY_EDGE_DECAY=0.5            # Decay factor on edge above the cap
 SERIES_DEDUP_HOURS=48           # Reject same-matchup bets within this window (0 disables)

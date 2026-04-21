@@ -2,6 +2,31 @@
 
 ---
 
+## 2026-04-21 -- 14-Day Review Response (R1 + R3)
+
+### 14-Day Review (76 settled trades since 2026-04-07)
+- **Sample:** 76 settled, 37W-39L (48.7%), +31% ROI, Brier 0.2646. Aggregate was carried by NHL (+87% ROI) and a single 7¢ MLS outlier.
+- **F1 — NO-side systematically loses on high edge:** YES +93% ROI (n=48); NO -20% ROI (n=28); NO at ≥20% edge: 31% WR, -33% ROI (n=16). All 13 high-edge losers in the window were NO-side.
+- **F6 — Low confidence:** 0W-3L / -105% ROI, consistent with the 2026-04-18 window.
+
+### R3. `MIN_CONFIDENCE` Reject Gate (new Gate 4.5)
+- **Fix:** Reject any opportunity whose confidence label ranks below `MIN_CONFIDENCE` (default `medium`). Low-confidence bets were 0W-3L / -105% ROI across two review windows — rejecting outright instead of warning.
+- Env: `MIN_CONFIDENCE` (values: `low` | `medium` | `high`).
+
+### R1. NO-Side Favorite Guard + Half-Kelly Dampener (new Gate 4.6)
+- **Problem:** Every high-edge loser in the 14-day window was a NO bet on a heavy favorite. The model over-estimates edge on the "long-price, short-distance" NO side.
+- **Fix — reject gate:** Reject NO bets whose market price < `NO_SIDE_FAVORITE_THRESHOLD` (default 0.25) unless edge ≥ `NO_SIDE_MIN_EDGE` (default 0.25) AND confidence = `high`. The carve-out lets genuinely sharp NO plays through but forces the bar much higher than the default 3% floor.
+- **Fix — sizing dampener:** NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` (default 0.35) are sized at `NO_SIDE_KELLY_MULTIPLIER` (default 0.5 = half-Kelly) of normal Kelly. Complements the reject gate — bets that clear it but are still on moderate favorites get downsized rather than sized at full confidence.
+- Env: `NO_SIDE_FAVORITE_THRESHOLD`, `NO_SIDE_MIN_EDGE`, `NO_SIDE_KELLY_PRICE_FLOOR`, `NO_SIDE_KELLY_MULTIPLIER`.
+
+### Gate Numbering
+- **Total gates:** 11 (was 9). Reject gates 1-7 (including 4.5 and 4.6); sizing caps 8-9.
+
+### Tests
+- 14 new tests (181 -> 195 passing): 6 for `MIN_CONFIDENCE` gate, 4 for NO-side reject gate, 3 for NO-side Kelly multiplier, plus the new multiplier-vs-full-Kelly comparison test.
+
+---
+
 ## 2026-04-18 -- Calibration-Driven Risk Tuning & Odds API Rotation Fix
 
 ### First Post-Baseline Calibration Run (66 Edge-Radar trades since 2026-04-03)

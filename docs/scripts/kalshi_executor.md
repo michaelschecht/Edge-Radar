@@ -47,9 +47,9 @@ When any scanner is called with `--execute`, it imports `execute_pipeline()` fro
 7. **Execution** (if `--execute` is passed) -- places limit orders via Kalshi API
 8. **Trade logging** -- records each trade to `data/history/`
 
-### Risk Gates (9 gates)
+### Risk Gates (11 gates)
 
-The pipeline rejects opportunities that fail any of gates 1-7. Gates 8-9 downsize and approve.
+The pipeline rejects opportunities that fail any of gates 1-7 (including 4.5 and 4.6). Gates 8-9 downsize and approve.
 
 | # | Gate | Rule |
 |---|------|------|
@@ -57,6 +57,8 @@ The pipeline rejects opportunities that fail any of gates 1-7. Gates 8-9 downsiz
 | 2 | Max open positions | Must be under `MAX_OPEN_POSITIONS` (50) |
 | 3 | Edge threshold | Must meet per-sport floor or `MIN_EDGE_THRESHOLD` global (3% default; NBA 8%, NCAAB 10% as of 2026-04-18). Rejection message shows the floor in use. |
 | 4 | Composite score | Must meet `MIN_COMPOSITE_SCORE` (6.0) — confidence is factored into composite |
+| 4.5 | Min confidence (R3) | Confidence label must be ≥ `MIN_CONFIDENCE` (default `medium`). Added 2026-04-21 after low-confidence bets showed 0W-3L / -105% ROI across two review windows. |
+| 4.6 | NO-side favorite guard (R1) | NO bets whose market price < `NO_SIDE_FAVORITE_THRESHOLD` (0.25) need edge ≥ `NO_SIDE_MIN_EDGE` (0.25) AND confidence=high. Added 2026-04-21 after all 13 high-edge losers in the 14-day window were NO-side bets on heavy favorites. |
 | 5 | Duplicate ticker | Can't already hold a position in this market |
 | 6 | Per-event cap | Max `MAX_PER_EVENT` (2) positions on the same game |
 | 7 | Series dedup | Same matchup (sport + team pair, date-agnostic) can't have been bet within `SERIES_DEDUP_HOURS` (48h). Added 2026-04-18 after calibration showed consecutive-night series bleeds. |
@@ -68,6 +70,8 @@ The pipeline rejects opportunities that fail any of gates 1-7. Gates 8-9 downsiz
 Uses **Kelly with flat unit floor**: `bet = max(unit_size, kelly_fraction * trusted_edge(edge) * bankroll) / market_price` contracts. Kelly scales up high-edge bets; low-edge bets stay at the flat unit minimum. The result is capped by gates 7-8 above.
 
 `trusted_edge()` soft-caps the edge used in the Kelly calculation at `KELLY_EDGE_CAP` (default 0.15). Excess is multiplied by `KELLY_EDGE_DECAY` (default 0.5) — so a 25% claimed edge sizes like 20%, a 35% like 25%. Raw edge is unchanged in gate 3, composite score, reports, and the trade journal. Introduced 2026-04-18 after calibration showed claimed edges ≥25% realize -35% ROI.
+
+**NO-side Kelly dampener (R1, 2026-04-21).** NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` (default $0.35) are sized at `NO_SIDE_KELLY_MULTIPLIER` (default 0.5 = half-Kelly) of normal Kelly. Complements gate 4.6 — bets that clear the reject gate but are still on relatively heavy favorites get downsized rather than taken at full confidence.
 
 ---
 
