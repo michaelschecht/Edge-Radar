@@ -264,6 +264,40 @@ python scripts/backtest/backtester.py --sport mlb --confidence high --min-edge 0
 
 ---
 
+## Virtual Environment Setup
+
+Recommended: install dependencies into an isolated `.venv` so `pip install` writes into `.venv\Lib\site-packages` instead of your global Python.
+
+```bash
+# 1. Create the venv (one-time)
+python -m venv .venv
+
+# 2. Activate it
+#    Git Bash / WSL:
+source .venv/Scripts/activate
+#    PowerShell:
+.venv\Scripts\Activate.ps1
+#    CMD:
+.venv\Scripts\activate.bat
+
+# 3. Upgrade pip (recommended) and install
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Your prompt should now show `(.venv)` as a prefix — that means it's active.
+
+**Sanity check after install:**
+
+```bash
+which python   # should point inside .venv/Scripts/
+pip list       # should show the newly installed packages
+```
+
+To deactivate later, run `deactivate`.
+
+---
+
 ## Claude Code Integration
 
 Edge-Radar includes a built-in `/edge-radar` slash command for [Claude Code](https://claude.ai/claude-code):
