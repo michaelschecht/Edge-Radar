@@ -67,6 +67,12 @@ KELLY_EDGE_CAP = float(os.getenv("KELLY_EDGE_CAP", "0.15"))
 KELLY_EDGE_DECAY = float(os.getenv("KELLY_EDGE_DECAY", "0.5"))
 SERIES_DEDUP_HOURS = int(os.getenv("SERIES_DEDUP_HOURS", "48"))
 
+# R4 (2026-04-21): auto-cancel resting orders older than this with zero fills.
+# 14-day review showed 16% of new-log orders (4/25) resting 25-66h with zero
+# fills. 0 disables. Triggered at the top of execute_pipeline() when
+# execute=True AND DRY_RUN=false.
+RESTING_ORDER_MAX_HOURS = int(os.getenv("RESTING_ORDER_MAX_HOURS", "24"))
+
 # R3 (2026-04-21): reject opportunities below this confidence level. Two review
 # windows showed low-confidence at 0W-3L / -105% ROI. Values: low|medium|high.
 MIN_CONFIDENCE = os.getenv("MIN_CONFIDENCE", "medium").strip().lower()
@@ -224,6 +230,71 @@ def recent_matchups_from_log(
         if key:
             keys.add(key)
     return keys
+
+
+def cancel_stale_resting_orders(
+    client: "KalshiClient",
+    max_hours: int | None = None,
+    now: datetime | None = None,
+) -> list[dict]:
+    """Cancel resting orders older than ``max_hours`` with zero fills (R4).
+
+    Returns a list of cancellation records (``order_id``, ``ticker``,
+    ``age_hours``). Safe to call with ``max_hours <= 0`` (no-op). The caller
+    is responsible for checking ``DRY_RUN`` — the janitor always talks to the
+    real API when invoked.
+
+    Motivated by the 2026-04-21 14-day review: 16% of new orders rested 25-66h
+    with zero fills. Stale orders tie up balance and clutter the order book
+    without contributing to P&L. Partial fills (``fill_count > 0``) are left
+    alone — they're real exposure that the settler will reconcile.
+    """
+    if max_hours is None:
+        max_hours = RESTING_ORDER_MAX_HOURS
+    if max_hours <= 0:
+        return []
+    now = now or datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=max_hours)
+    cancelled: list[dict] = []
+    try:
+        resp = client.get_orders(status="resting", limit=100)
+    except KalshiAPIError as e:
+        log.warning("Janitor: failed to list resting orders: %s", e)
+        return []
+    orders = resp.get("orders", []) if isinstance(resp, dict) else []
+    for o in orders:
+        fill_count = int(float(o.get("fill_count_fp", "0") or "0"))
+        if fill_count != 0:
+            continue
+        ts = o.get("created_time")
+        if not ts:
+            continue
+        try:
+            placed = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            continue
+        if placed.tzinfo is None:
+            placed = placed.replace(tzinfo=timezone.utc)
+        if placed > cutoff:
+            continue
+        order_id = o.get("order_id")
+        if not order_id:
+            continue
+        age_hours = (now - placed).total_seconds() / 3600
+        try:
+            client.cancel_order(order_id)
+            cancelled.append({
+                "order_id": order_id,
+                "ticker": o.get("ticker", "?"),
+                "age_hours": round(age_hours, 1),
+            })
+            log.info(
+                "Janitor: cancelled stale order %s (ticker=%s age=%.1fh)",
+                order_id, o.get("ticker"), age_hours,
+            )
+        except KalshiAPIError as e:
+            log.warning("Janitor: failed to cancel %s: %s", order_id, e)
+    return cancelled
 
 
 def dedup_correlated_brackets(opportunities: list[Opportunity]) -> list[Opportunity]:
@@ -629,6 +700,18 @@ def execute_pipeline(
                   risk checks, abort execution to avoid over-concentrating
                   the budget into too few positions.
     """
+    # ── Resting-order janitor (R4): cancel stale zero-fill orders before new ones
+    dry_run_for_janitor = os.getenv("DRY_RUN", "true").lower() == "true"
+    if execute and not dry_run_for_janitor and RESTING_ORDER_MAX_HOURS > 0:
+        cancelled = cancel_stale_resting_orders(client)
+        if cancelled:
+            rprint(
+                f"\n[bold yellow]Janitor: cancelled {len(cancelled)} stale resting "
+                f"order(s) (>{RESTING_ORDER_MAX_HOURS}h, zero fills)[/bold yellow]"
+            )
+            for c in cancelled:
+                rprint(f"  [dim]- {c['ticker']} (age {c['age_hours']}h)[/dim]")
+
     # ── Gather portfolio state
     bal = client.get_balance_dollars()
     bankroll = bal["balance"]

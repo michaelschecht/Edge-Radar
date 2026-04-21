@@ -2,7 +2,7 @@
 
 ---
 
-## 2026-04-21 -- 14-Day Review Response (R1 + R3)
+## 2026-04-21 -- 14-Day Review Response (R1, R3, R4)
 
 ### 14-Day Review (76 settled trades since 2026-04-07)
 - **Sample:** 76 settled, 37W-39L (48.7%), +31% ROI, Brier 0.2646. Aggregate was carried by NHL (+87% ROI) and a single 7¢ MLS outlier.
@@ -22,8 +22,14 @@
 ### Gate Numbering
 - **Total gates:** 11 (was 9). Reject gates 1-7 (including 4.5 and 4.6); sizing caps 8-9.
 
+### R4. Resting-Order Janitor
+- **Problem:** The 14-day review showed 16% of new orders (4/25) resting 25-66h with zero fills. Edge-Radar is fire-and-forget after placing a limit order — nothing polled Kalshi for stale orders. Stranded resting orders tied up balance and cluttered the order book without contributing to P&L.
+- **Fix:** New `cancel_stale_resting_orders()` helper in `kalshi_executor.py`. Lists resting orders via `client.get_orders(status="resting")`, filters to those older than `RESTING_ORDER_MAX_HOURS` (default 24) with `fill_count_fp == 0`, and calls `client.cancel_order()` on each. Partial/full fills are left for the settler to handle.
+- **Trigger:** Runs at the top of `execute_pipeline()` only when `execute=True` AND `DRY_RUN=false`. Preview scans never touch the order book; dry-run execute calls skip the janitor entirely. With the user's existing 5AM daily `--execute` scan, the natural cadence covers the 24h threshold without needing a separate scheduler.
+- Env: `RESTING_ORDER_MAX_HOURS` (0 disables).
+
 ### Tests
-- 14 new tests (181 -> 195 passing): 6 for `MIN_CONFIDENCE` gate, 4 for NO-side reject gate, 3 for NO-side Kelly multiplier, plus the new multiplier-vs-full-Kelly comparison test.
+- 26 new tests (181 -> 207 passing): 6 for `MIN_CONFIDENCE` gate, 4 for NO-side reject gate, 3 for NO-side Kelly multiplier, plus 12 for the resting-order janitor (stale/young/partial/zero-hours/API-error/malformed-timestamp/default-env coverage) and the multiplier-vs-full-Kelly comparison test.
 
 ---
 

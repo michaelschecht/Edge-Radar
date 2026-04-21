@@ -463,16 +463,19 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 - **Budget cap:** `--budget X` caps the total batch cost. Accepts `10%` (of bankroll) or `15` (flat dollars). When the batch exceeds the budget, contracts are proportionally scaled down while preserving Kelly edge-weighting (higher-edge bets keep more size). Each bet keeps at least 1 contract.
 - **Kelly fraction:** Configurable via `KELLY_FRACTION` in `.env` (default: 0.25)
 - **Unit size:** $0.50 default (minimum per bet, overridable with `--unit-size`)
-- **Max bet size:** $100 per position (gate 7 — sizing cap, not reject)
-- **Bet ratio cap:** 3.0x batch median cost (gate 8 — sizing cap, not reject)
+- **Max bet size:** $100 per position (gate 8 — sizing cap, not reject)
+- **Bet ratio cap:** 3.0x batch median cost (gate 9 — sizing cap, not reject)
 - **Max per event:** 2 positions on the same game (reject gate)
 - **Series dedup (C5, 2026-04-18):** Reject a new bet if the same matchup (sport + team pair, date-agnostic) was bet within the last `SERIES_DEDUP_HOURS=48`. Catches consecutive-night series bleeds like the LA Angels @ NY Yankees Apr 13/14/15 pattern. 0 disables.
 - **Daily loss limit:** $250 (reject gate)
 - **Max open positions:** 50 (reject gate)
 - **Minimum edge (C3, 2026-04-18):** 3% global; **8% NBA**, **10% NCAAB** (per-sport overrides via `MIN_EDGE_THRESHOLD_<SPORT>` env). Rejection message shows the sport-specific floor in use.
 - **Minimum composite score:** 6.0 (reject gate, confidence is factored into composite)
+- **Minimum confidence (R3, 2026-04-21):** Gate 4.5 rejects opportunities below `MIN_CONFIDENCE` (default `medium`). Values: low | medium | high. Low-confidence bets realized 0W-3L / -105% ROI across two review windows.
+- **NO-side favorite guard (R1, 2026-04-21):** Gate 4.6 rejects NO bets priced below `NO_SIDE_FAVORITE_THRESHOLD=0.25` unless edge ≥ `NO_SIDE_MIN_EDGE=0.25` AND confidence=high. Plus a sizing dampener: NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR=0.35` are sized at `NO_SIDE_KELLY_MULTIPLIER=0.5` of Kelly (half-Kelly). All 13 high-edge losers in the 14-day window were NO-side.
+- **Resting-order janitor (R4, 2026-04-21):** At the top of any `--execute` run (non-dry-run), resting orders older than `RESTING_ORDER_MAX_HOURS=24` with zero fills are auto-cancelled. Partial/full fills untouched — settler handles them. Piggybacks on the 5AM daily execute task; no new scheduler.
 
-Gates 1-7 reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
+Gates 1-7 (including 4.5 and 4.6) reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
 
 ---
 
@@ -657,5 +660,5 @@ streamlit run webapp/app.py
 1. **Always check status first** before any scan or bet — if daily loss limit is breached, STOP.
 2. **Never execute without confirmation** unless `--execute`/`--go` was explicitly passed.
 3. **Preview is the default** — every scan shows a table first, orders only placed with `--execute`.
-4. **Nine risk gates enforced** — daily loss, position count, edge (per-sport), score, duplicate ticker, per-event cap, series dedup, max bet size, bet ratio cap. All checked before every order.
+4. **Eleven risk gates enforced** — daily loss, position count, edge (per-sport), score, min confidence (4.5), NO-side favorite guard (4.6), duplicate ticker, per-event cap, series dedup, max bet size, bet ratio cap. All checked before every order. Plus the resting-order janitor at the top of every live execute run.
 5. **API keys are in `.env`** — never print, log, or expose them.
