@@ -373,12 +373,17 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
 # Sport-specific score margin standard deviations (empirical).
 # These represent the typical spread of final margin outcomes around the
 # expected margin.  Used by the normal-CDF spread model.
+#
+# R2 (2026-04-21): NBA +15%, NCAAB +10%, MLB +15% to widen probability
+# distributions.  Direct response to Brier 0.2646 and the 60-70% favorite
+# band overconfidence in the 14-day review.  NHL left untouched (+87% ROI,
+# well-calibrated).
 SPORT_MARGIN_STDEV = {
-    "basketball_nba": 12.0,
-    "basketball_ncaab": 11.0,
+    "basketball_nba": 13.8,       # R2: 12.0 * 1.15
+    "basketball_ncaab": 12.1,     # R2: 11.0 * 1.10
     "americanfootball_nfl": 13.5,
     "americanfootball_ncaaf": 15.0,
-    "baseball_mlb": 3.5,
+    "baseball_mlb": 4.025,        # R2: 3.5 * 1.15
     "icehockey_nhl": 2.5,
     "soccer": 1.8,
     "mma": 5.0,
@@ -494,11 +499,11 @@ def consensus_spread_prob(events: list, team_name: str, strike: float,
 # Sport-specific total score standard deviations (empirical).
 # Represents how much the combined score varies around the expected total.
 SPORT_TOTAL_STDEV = {
-    "basketball_nba": 18.0,
-    "basketball_ncaab": 16.0,
+    "basketball_nba": 20.7,       # R2: 18.0 * 1.15
+    "basketball_ncaab": 17.6,     # R2: 16.0 * 1.10
     "americanfootball_nfl": 13.0,
     "americanfootball_ncaaf": 14.0,
-    "baseball_mlb": 3.0,
+    "baseball_mlb": 3.45,         # R2: 3.0 * 1.15
     "icehockey_nhl": 2.2,
     "soccer": 1.5,
 }

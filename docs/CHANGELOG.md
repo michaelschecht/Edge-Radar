@@ -2,7 +2,7 @@
 
 ---
 
-## 2026-04-21 -- 14-Day Review Response (R1, R3, R4)
+## 2026-04-21 -- 14-Day Review Response (R1, R2, R3, R4)
 
 ### 14-Day Review (76 settled trades since 2026-04-07)
 - **Sample:** 76 settled, 37W-39L (48.7%), +31% ROI, Brier 0.2646. Aggregate was carried by NHL (+87% ROI) and a single 7¢ MLS outlier.
@@ -28,8 +28,17 @@
 - **Trigger:** Runs at the top of `execute_pipeline()` only when `execute=True` AND `DRY_RUN=false`. Preview scans never touch the order book; dry-run execute calls skip the janitor entirely. With the user's existing 5AM daily `--execute` scan, the natural cadence covers the 24h threshold without needing a separate scheduler.
 - Env: `RESTING_ORDER_MAX_HOURS` (0 disables).
 
+### R2. Per-Sport Stdev Bump (supersedes C2)
+- **Problem:** Brier 0.2646 (still worse than coin-flip 0.2500) and a 60-70% favorite-band overconfidence gap of +18% (largest bucket, n=40). C1's Kelly soft-cap dampens sizing on fake-high edges but does not touch the underlying probability estimates. The sport-level 14-day numbers (NBA -26%, MLB -10%) persist. Meanwhile NHL is at +87% ROI and well-calibrated.
+- **Fix:** Widen the normal-CDF probability distributions for the three underperforming sports.
+  - `SPORT_MARGIN_STDEV`: NBA 12.0 -> 13.8 (+15%), NCAAB 11.0 -> 12.1 (+10%), MLB 3.5 -> 4.025 (+15%).
+  - `SPORT_TOTAL_STDEV`: NBA 18.0 -> 20.7 (+15%), NCAAB 16.0 -> 17.6 (+10%), MLB 3.0 -> 3.45 (+15%).
+  - NHL, NFL, NCAAF, soccer, MMA unchanged.
+- **Mechanism:** Wider stdev pulls probability mass toward 50%, directly reducing the favorite-band overconfidence and compressing the implausibly large edges in the >=25% bucket (which realized -24% ROI in the review).
+- **Attribution plan:** R12 re-runs `model_calibration.py` at 100 post-baseline trades (currently at 66). The window between R2's ship date and that checkpoint is the cleanest place to measure whether the probability-width fix improved Brier.
+
 ### Tests
-- 26 new tests (181 -> 207 passing): 6 for `MIN_CONFIDENCE` gate, 4 for NO-side reject gate, 3 for NO-side Kelly multiplier, plus 12 for the resting-order janitor (stale/young/partial/zero-hours/API-error/malformed-timestamp/default-env coverage) and the multiplier-vs-full-Kelly comparison test.
+- 32 new tests (181 -> 213 passing): 6 for `MIN_CONFIDENCE` gate, 4 for NO-side reject gate, 3 for NO-side Kelly multiplier, 12 for the resting-order janitor (stale/young/partial/zero-hours/API-error/malformed-timestamp/default-env coverage), 1 multiplier-vs-full-Kelly comparison, and 6 for the R2 per-sport stdev values (margin + total + NHL-untouched + other-sports-untouched + ticker-prefix lookup).
 
 ---
 
