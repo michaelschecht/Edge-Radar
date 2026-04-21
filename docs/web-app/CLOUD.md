@@ -109,6 +109,14 @@ MAX_OPEN_POSITIONS = "50"            # Concurrent open positions (default: 10)
 # KELLY_EDGE_CAP = "0.15"           # Soft-cap edge for Kelly sizing (2026-04-18)
 # KELLY_EDGE_DECAY = "0.5"          # Decay factor above the cap
 # SERIES_DEDUP_HOURS = "48"         # Reject same-matchup bets within this window (2026-04-18)
+
+# 14-day review response (2026-04-21): R1 + R3 + R4
+# MIN_CONFIDENCE = "medium"             # Reject opportunities below this confidence (R3)
+# NO_SIDE_FAVORITE_THRESHOLD = "0.25"   # NO bets below this price face elevated gate (R1)
+# NO_SIDE_MIN_EDGE = "0.25"             # Required edge when NO price < threshold (plus confidence=high)
+# NO_SIDE_KELLY_PRICE_FLOOR = "0.35"    # Below this NO-side price, apply Kelly multiplier
+# NO_SIDE_KELLY_MULTIPLIER = "0.5"      # Half-Kelly on NO bets below the price floor
+# RESTING_ORDER_MAX_HOURS = "24"        # Cancel zero-fill resting orders older than this (R4)
 ```
 
 ### How Secrets Work
@@ -153,6 +161,12 @@ Mapped via `st.secrets["KALSHI_API_KEY"]` -> `os.environ["KALSHI_API_KEY"]`
 | `KELLY_EDGE_CAP` | `KELLY_EDGE_CAP` | `"0.15"` | `kalshi_executor.py` |
 | `KELLY_EDGE_DECAY` | `KELLY_EDGE_DECAY` | `"0.5"` | `kalshi_executor.py` |
 | `SERIES_DEDUP_HOURS` | `SERIES_DEDUP_HOURS` | `"48"` | `kalshi_executor.py` |
+| `MIN_CONFIDENCE` | `MIN_CONFIDENCE` | `"medium"` | `kalshi_executor.py` (R3, Gate 4.5) |
+| `NO_SIDE_FAVORITE_THRESHOLD` | `NO_SIDE_FAVORITE_THRESHOLD` | `"0.25"` | `kalshi_executor.py` (R1, Gate 4.6) |
+| `NO_SIDE_MIN_EDGE` | `NO_SIDE_MIN_EDGE` | `"0.25"` | `kalshi_executor.py` (R1, Gate 4.6) |
+| `NO_SIDE_KELLY_PRICE_FLOOR` | `NO_SIDE_KELLY_PRICE_FLOOR` | `"0.35"` | `kalshi_executor.py` (R1 sizing dampener) |
+| `NO_SIDE_KELLY_MULTIPLIER` | `NO_SIDE_KELLY_MULTIPLIER` | `"0.5"` | `kalshi_executor.py` (R1 sizing dampener) |
+| `RESTING_ORDER_MAX_HOURS` | `RESTING_ORDER_MAX_HOURS` | `"24"` | `kalshi_executor.py` (R4 janitor) |
 
 **All values must be strings in TOML** (e.g., `MAX_OPEN_POSITIONS = "50"` not `50`). The scripts parse them to the correct types internally.
 

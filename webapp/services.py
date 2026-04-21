@@ -50,6 +50,11 @@ try:
         "MIN_EDGE_THRESHOLD_NHL", "MIN_EDGE_THRESHOLD_NFL",
         "MIN_EDGE_THRESHOLD_NCAAB", "MIN_EDGE_THRESHOLD_NCAAF",
         "MIN_EDGE_THRESHOLD_MLS", "MIN_EDGE_THRESHOLD_SOCCER",
+        # 14-day review response (2026-04-21): R1 + R3 + R4
+        "MIN_CONFIDENCE",
+        "NO_SIDE_FAVORITE_THRESHOLD", "NO_SIDE_MIN_EDGE",
+        "NO_SIDE_KELLY_PRICE_FLOOR", "NO_SIDE_KELLY_MULTIPLIER",
+        "RESTING_ORDER_MAX_HOURS",
     ]
     for env_var, getter in _secrets_map.items():
         if env_var not in os.environ:

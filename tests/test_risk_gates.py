@@ -14,7 +14,9 @@ from kalshi_executor import (
     unit_size_contracts, size_order, SizedOrder,
     trusted_edge, min_edge_for,
     matchup_key, recent_matchups_from_log,
+    cancel_stale_resting_orders,
 )
+from kalshi_client import KalshiAPIError
 
 
 # ── unit_size_contracts ──────────────────────────────────────────────────────
@@ -653,3 +655,166 @@ class TestSeriesDedupGate:
         result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0,
                             recent_matchups=recent)
         assert result.risk_approval == "APPROVED"
+
+
+# ── R4: Resting-order janitor ────────────────────────────────────────────────
+
+class FakeKalshiClient:
+    """Minimal stub exposing the two methods the janitor uses."""
+
+    def __init__(self, orders: list[dict], cancel_error_on: set[str] | None = None,
+                 list_raises: Exception | None = None):
+        self._orders = orders
+        self._cancel_error_on = cancel_error_on or set()
+        self._list_raises = list_raises
+        self.cancelled_ids: list[str] = []
+
+    def get_orders(self, status=None, limit=100, cursor=None, ticker=None):
+        if self._list_raises is not None:
+            raise self._list_raises
+        return {"orders": self._orders}
+
+    def cancel_order(self, order_id: str):
+        if order_id in self._cancel_error_on:
+            raise KalshiAPIError(500, "cancel failed")
+        self.cancelled_ids.append(order_id)
+        return {"order_id": order_id, "status": "canceled"}
+
+
+def _order(order_id: str, hours_ago: float, fill_count: int = 0,
+           ticker: str = "KXMLB-TEST", created: str | None = None,
+           now: "datetime | None" = None) -> dict:
+    now = now or datetime.now(timezone.utc)
+    ts = now - timedelta(hours=hours_ago)
+    return {
+        "order_id": order_id,
+        "ticker": ticker,
+        "status": "resting",
+        "fill_count_fp": str(fill_count),
+        "remaining_count_fp": "10",
+        "created_time": created if created is not None else ts.isoformat(),
+    }
+
+
+class TestRestingOrderJanitor:
+    """R4: cancel_stale_resting_orders() cleans up old zero-fill orders."""
+
+    def test_cancels_stale_zero_fill_orders(self):
+        now = datetime.now(timezone.utc)
+        client = FakeKalshiClient([
+            _order("old-1", hours_ago=30, now=now),
+            _order("old-2", hours_ago=40, now=now),
+        ])
+        result = cancel_stale_resting_orders(client, max_hours=24, now=now)
+        assert len(result) == 2
+        assert set(client.cancelled_ids) == {"old-1", "old-2"}
+        assert all(r["age_hours"] >= 24 for r in result)
+
+    def test_skips_young_orders(self):
+        now = datetime.now(timezone.utc)
+        client = FakeKalshiClient([
+            _order("young-1", hours_ago=5, now=now),
+            _order("young-2", hours_ago=23.5, now=now),
+        ])
+        result = cancel_stale_resting_orders(client, max_hours=24, now=now)
+        assert result == []
+        assert client.cancelled_ids == []
+
+    def test_skips_partial_or_filled_orders(self):
+        # Old but has fills — still an active position, let the settler handle it
+        now = datetime.now(timezone.utc)
+        client = FakeKalshiClient([
+            _order("partial", hours_ago=48, fill_count=5, now=now),
+            _order("filled", hours_ago=100, fill_count=10, now=now),
+        ])
+        result = cancel_stale_resting_orders(client, max_hours=24, now=now)
+        assert result == []
+        assert client.cancelled_ids == []
+
+    def test_mixed_batch_cancels_only_stale_zero_fill(self):
+        now = datetime.now(timezone.utc)
+        client = FakeKalshiClient([
+            _order("old-empty", hours_ago=30, fill_count=0, now=now),
+            _order("old-partial", hours_ago=30, fill_count=3, now=now),
+            _order("young-empty", hours_ago=5, fill_count=0, now=now),
+        ])
+        result = cancel_stale_resting_orders(client, max_hours=24, now=now)
+        assert len(result) == 1
+        assert result[0]["order_id"] == "old-empty"
+        assert client.cancelled_ids == ["old-empty"]
+
+    def test_zero_hours_disables_janitor(self):
+        now = datetime.now(timezone.utc)
+        client = FakeKalshiClient([
+            _order("old-1", hours_ago=999, now=now),
+        ])
+        result = cancel_stale_resting_orders(client, max_hours=0, now=now)
+        assert result == []
+        assert client.cancelled_ids == []
+
+    def test_negative_hours_disables_janitor(self):
+        now = datetime.now(timezone.utc)
+        client = FakeKalshiClient([_order("old-1", hours_ago=999, now=now)])
+        assert cancel_stale_resting_orders(client, max_hours=-1, now=now) == []
+
+    def test_list_api_error_returns_empty_no_crash(self):
+        client = FakeKalshiClient([], list_raises=KalshiAPIError(500, "API down"))
+        result = cancel_stale_resting_orders(client, max_hours=24)
+        assert result == []
+
+    def test_cancel_api_error_skips_that_order_continues_batch(self):
+        now = datetime.now(timezone.utc)
+        client = FakeKalshiClient(
+            [
+                _order("good", hours_ago=30, now=now),
+                _order("bad", hours_ago=30, now=now),
+            ],
+            cancel_error_on={"bad"},
+        )
+        result = cancel_stale_resting_orders(client, max_hours=24, now=now)
+        # "good" cancelled; "bad" logged but not in the result list
+        assert [r["order_id"] for r in result] == ["good"]
+        assert client.cancelled_ids == ["good"]
+
+    def test_missing_timestamp_skipped(self):
+        now = datetime.now(timezone.utc)
+        orders = [_order("old-1", hours_ago=30, now=now)]
+        orders[0]["created_time"] = None  # malformed
+        client = FakeKalshiClient(orders)
+        result = cancel_stale_resting_orders(client, max_hours=24, now=now)
+        assert result == []
+
+    def test_malformed_timestamp_skipped(self):
+        now = datetime.now(timezone.utc)
+        orders = [_order("bad-ts", hours_ago=30, now=now)]
+        orders[0]["created_time"] = "not-a-date"
+        client = FakeKalshiClient(orders)
+        result = cancel_stale_resting_orders(client, max_hours=24, now=now)
+        assert result == []
+
+    def test_naive_timestamp_treated_as_utc(self):
+        now = datetime.now(timezone.utc)
+        stale_naive = (now - timedelta(hours=30)).replace(tzinfo=None).isoformat()
+        orders = [_order("naive", hours_ago=30, now=now)]
+        orders[0]["created_time"] = stale_naive
+        client = FakeKalshiClient(orders)
+        result = cancel_stale_resting_orders(client, max_hours=24, now=now)
+        assert len(result) == 1
+        assert client.cancelled_ids == ["naive"]
+
+    def test_default_max_hours_from_env(self):
+        # When max_hours is None, use the module-level RESTING_ORDER_MAX_HOURS
+        import kalshi_executor
+        orig = kalshi_executor.RESTING_ORDER_MAX_HOURS
+        try:
+            kalshi_executor.RESTING_ORDER_MAX_HOURS = 24
+            now = datetime.now(timezone.utc)
+            client = FakeKalshiClient([
+                _order("old", hours_ago=30, now=now),
+                _order("young", hours_ago=5, now=now),
+            ])
+            result = cancel_stale_resting_orders(client, max_hours=None, now=now)
+            assert len(result) == 1
+            assert client.cancelled_ids == ["old"]
+        finally:
+            kalshi_executor.RESTING_ORDER_MAX_HOURS = orig
