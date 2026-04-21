@@ -253,10 +253,15 @@ def render():
         else:
             st.success(f"Found {len(opps)} opportunities")
 
-        if console_out.strip():
-            clean = _strip_ansi(console_out)
-            if st.button("Show scan log", key="toggle_scan_log"):
-                st.code(clean)
+    # ── Scan log (reads from session state so it survives reruns) ────────
+    console_saved = st.session_state.get("scan_console", "")
+    opps_saved = st.session_state.get("scan_results", [])
+    if console_saved.strip():
+        clean = _strip_ansi(console_saved)
+        # Auto-expand when the scan returned nothing — that's when you need it most
+        auto_expand = bool(st.session_state.get("scan_results") is not None and not opps_saved)
+        with st.expander("Scan log", expanded=auto_expand):
+            st.code(clean)
 
     # ── Results table ───────────────────────────────────────────────────
     opps = st.session_state.get("scan_results", [])
