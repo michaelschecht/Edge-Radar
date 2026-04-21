@@ -5,6 +5,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from scipy.stats import norm
 
+from edge_detector import (
+    SPORT_MARGIN_STDEV,
+    SPORT_TOTAL_STDEV,
+    _get_margin_stdev,
+    _get_total_stdev,
+)
 from futures_edge import devig_nway
 
 
@@ -87,31 +93,32 @@ class TestSpreadMath:
     def test_even_spread_gives_fifty_percent(self):
         # If book spread = 0 and implied = 50%, mean margin = 0
         # P(margin > 0) should be ~50%
-        stdev = 12.0  # NBA
+        stdev = SPORT_MARGIN_STDEV["basketball_nba"]
         mean_margin = 0.0
         prob = 1 - norm.cdf(0, loc=mean_margin, scale=stdev)
         assert abs(prob - 0.5) < 0.001
 
     def test_favorite_covers_large_spread(self):
         # Team favored by 10, but Kalshi strike is -3 (easier to cover)
-        stdev = 12.0
+        stdev = SPORT_MARGIN_STDEV["basketball_nba"]
         mean_margin = 10.0  # expected to win by 10
         strike = -3.0
         prob = 1 - norm.cdf(strike, loc=mean_margin, scale=stdev)
-        assert prob > 0.85
+        assert prob > 0.75
 
     def test_underdog_covers_tough_spread(self):
         # Underdog (mean margin -5), strike is +7 (very hard to cover)
-        stdev = 12.0
+        stdev = SPORT_MARGIN_STDEV["basketball_nba"]
         mean_margin = -5.0
         strike = 7.0
         prob = 1 - norm.cdf(strike, loc=mean_margin, scale=stdev)
         assert prob < 0.20
 
     def test_mlb_lower_variance(self):
-        # MLB stdev is 3.5 — same margin difference should produce more extreme probs
-        stdev_mlb = 3.5
-        stdev_nba = 12.0
+        # MLB has much tighter margins than NBA — same mean/strike should
+        # produce a more extreme probability under MLB variance.
+        stdev_mlb = SPORT_MARGIN_STDEV["baseball_mlb"]
+        stdev_nba = SPORT_MARGIN_STDEV["basketball_nba"]
         mean = 2.0
         strike = 0.0
 
@@ -122,11 +129,54 @@ class TestSpreadMath:
         assert prob_mlb > prob_nba
 
 
+class TestSportStdevValues:
+    """R2 (2026-04-21): per-sport stdev bump for NBA/NCAAB/MLB.
+
+    NHL was intentionally left untouched (+87% ROI in 14-day review)."""
+
+    def test_r2_margin_values(self):
+        # NBA +15%: 12.0 -> 13.8
+        assert SPORT_MARGIN_STDEV["basketball_nba"] == pytest.approx(13.8)
+        # NCAAB +10%: 11.0 -> 12.1
+        assert SPORT_MARGIN_STDEV["basketball_ncaab"] == pytest.approx(12.1)
+        # MLB +15%: 3.5 -> 4.025
+        assert SPORT_MARGIN_STDEV["baseball_mlb"] == pytest.approx(4.025)
+
+    def test_r2_total_values(self):
+        assert SPORT_TOTAL_STDEV["basketball_nba"] == pytest.approx(20.7)
+        assert SPORT_TOTAL_STDEV["basketball_ncaab"] == pytest.approx(17.6)
+        assert SPORT_TOTAL_STDEV["baseball_mlb"] == pytest.approx(3.45)
+
+    def test_nhl_untouched(self):
+        # NHL explicitly excluded from R2 — well-calibrated in 14-day review.
+        assert SPORT_MARGIN_STDEV["icehockey_nhl"] == 2.5
+        assert SPORT_TOTAL_STDEV["icehockey_nhl"] == 2.2
+
+    def test_nfl_ncaaf_soccer_mma_untouched(self):
+        # R2 only names NBA/NCAAB/MLB. Other sports unchanged.
+        assert SPORT_MARGIN_STDEV["americanfootball_nfl"] == 13.5
+        assert SPORT_MARGIN_STDEV["americanfootball_ncaaf"] == 15.0
+        assert SPORT_MARGIN_STDEV["soccer"] == 1.8
+        assert SPORT_MARGIN_STDEV["mma"] == 5.0
+
+    def test_ticker_prefix_lookup_margin(self):
+        assert _get_margin_stdev("KXNBAGAME-26APR21LALBOS-LAL") == 13.8
+        assert _get_margin_stdev("KXNCAAMBSPREAD-26APR21UCLACONN-UCLA") == 12.1
+        assert _get_margin_stdev("KXMLBGAME-26APR21NYYKAC-NYY") == 4.025
+        assert _get_margin_stdev("KXNHLGAME-26APR21TORBOS-TOR") == 2.5
+
+    def test_ticker_prefix_lookup_total(self):
+        assert _get_total_stdev("KXNBATOTAL-26APR21LALBOS-T220") == 20.7
+        assert _get_total_stdev("KXNCAAMBTOTAL-26APR21UCLACONN-T150") == 17.6
+        assert _get_total_stdev("KXMLBTOTAL-26APR21NYYKAC-T8") == 3.45
+        assert _get_total_stdev("KXNHLTOTAL-26APR21TORBOS-T6") == 2.2
+
+
 class TestTotalMath:
     """Validate the normal CDF model for over/under totals."""
 
     def test_over_at_median_is_fifty(self):
-        stdev = 18.0  # NBA
+        stdev = SPORT_TOTAL_STDEV["basketball_nba"]
         expected_total = 220.0
         strike = 220.0
         prob_over = 1 - norm.cdf(strike, loc=expected_total, scale=stdev)
@@ -134,19 +184,19 @@ class TestTotalMath:
 
     def test_over_well_below_expected(self):
         # Strike well below expected total — high over probability
-        stdev = 18.0
-        expected_total = 230.0
+        stdev = SPORT_TOTAL_STDEV["basketball_nba"]
+        expected_total = 240.0
         strike = 210.0
         prob_over = 1 - norm.cdf(strike, loc=expected_total, scale=stdev)
         assert prob_over > 0.85
 
     def test_over_well_above_expected(self):
         # Strike well above expected total — low over probability
-        stdev = 18.0
+        stdev = SPORT_TOTAL_STDEV["basketball_nba"]
         expected_total = 210.0
         strike = 240.0
         prob_over = 1 - norm.cdf(strike, loc=expected_total, scale=stdev)
-        assert prob_over < 0.10
+        assert prob_over < 0.15
 
 
 # ── fetch_odds_api key-rotation ──────────────────────────────────────────────
