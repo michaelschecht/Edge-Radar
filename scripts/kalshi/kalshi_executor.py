@@ -67,6 +67,30 @@ KELLY_EDGE_CAP = float(os.getenv("KELLY_EDGE_CAP", "0.15"))
 KELLY_EDGE_DECAY = float(os.getenv("KELLY_EDGE_DECAY", "0.5"))
 SERIES_DEDUP_HOURS = int(os.getenv("SERIES_DEDUP_HOURS", "48"))
 
+# R3 (2026-04-21): reject opportunities below this confidence level. Two review
+# windows showed low-confidence at 0W-3L / -105% ROI. Values: low|medium|high.
+MIN_CONFIDENCE = os.getenv("MIN_CONFIDENCE", "medium").strip().lower()
+
+# R1 (2026-04-21): side-aware penalty for NO bets on heavy favorites. 14-day
+# review: all 13 high-edge losers were NO-side; NO at >=20% edge realized 31%
+# WR / -33% ROI. Reject NO bets whose market price is below
+# NO_SIDE_FAVORITE_THRESHOLD unless edge >= NO_SIDE_MIN_EDGE AND confidence is
+# "high". Separately, apply NO_SIDE_KELLY_MULTIPLIER to Kelly sizing for any NO
+# bet priced below NO_SIDE_KELLY_PRICE_FLOOR.
+NO_SIDE_FAVORITE_THRESHOLD = float(os.getenv("NO_SIDE_FAVORITE_THRESHOLD", "0.25"))
+NO_SIDE_MIN_EDGE = float(os.getenv("NO_SIDE_MIN_EDGE", "0.25"))
+NO_SIDE_KELLY_PRICE_FLOOR = float(os.getenv("NO_SIDE_KELLY_PRICE_FLOOR", "0.35"))
+NO_SIDE_KELLY_MULTIPLIER = float(os.getenv("NO_SIDE_KELLY_MULTIPLIER", "0.5"))
+
+_CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
+
+
+def _confidence_rank(level: str | None) -> int:
+    """Map confidence string to an ordinal; unknown values rank as medium."""
+    if not level:
+        return _CONFIDENCE_RANK["medium"]
+    return _CONFIDENCE_RANK.get(level.strip().lower(), _CONFIDENCE_RANK["medium"])
+
 # Per-sport edge-threshold overrides. Any sport not listed falls back to
 # MIN_EDGE_THRESHOLD. Read at import; tests patch _PER_SPORT_MIN_EDGE directly.
 _SUPPORTED_SPORTS = ("mlb", "nba", "nhl", "nfl", "ncaab", "ncaaf", "mls", "soccer")
@@ -271,15 +295,21 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     produces fewer contracts than the flat unit.
 
     Risk gates enforced:
-        1. Daily loss limit                             (reject)
-        2. Max open positions                           (reject)
-        3. Minimum edge threshold (global + per-sport)  (reject)
-        4. Minimum composite score                      (reject)
-        5. Duplicate ticker (already holding this market) (reject)
-        6. Per-event cap (max positions on same game)   (reject)
-        7. Series dedup (same matchup within last Nh)   (reject)
-        8. Max bet size                                 (sizing cap)
-        9. Bet ratio cap                                (sizing cap)
+        1.   Daily loss limit                             (reject)
+        2.   Max open positions                           (reject)
+        3.   Minimum edge threshold (global + per-sport)  (reject)
+        4.   Minimum composite score                      (reject)
+        4.5  Minimum confidence level (R3)                (reject)
+        4.6  NO-side favorite guard (R1)                  (reject)
+        5.   Duplicate ticker (already holding this market) (reject)
+        6.   Per-event cap (max positions on same game)   (reject)
+        7.   Series dedup (same matchup within last Nh)   (reject)
+        8.   Max bet size                                 (sizing cap)
+        9.   Bet ratio cap                                (sizing cap)
+
+    NO-side Kelly multiplier (R1): NO bets priced below
+    NO_SIDE_KELLY_PRICE_FLOOR are sized at NO_SIDE_KELLY_MULTIPLIER of normal
+    Kelly (half-Kelly by default).
     """
     rejection = None
     edge_floor = min_edge_for(opp)
@@ -299,6 +329,28 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     # ── Risk Gate 4: Minimum composite score
     elif opp.composite_score < MIN_COMPOSITE_SCORE:
         rejection = f"score_below_minimum ({opp.composite_score:.1f} < {MIN_COMPOSITE_SCORE:.1f})"
+
+    # ── Risk Gate 4.5: Minimum confidence level (R3)
+    elif _confidence_rank(opp.confidence) < _confidence_rank(MIN_CONFIDENCE):
+        rejection = (
+            f"confidence_below_minimum ({opp.confidence or 'unknown'} < {MIN_CONFIDENCE})"
+        )
+
+    # ── Risk Gate 4.6: NO-side favorite guard (R1)
+    #   Reject NO bets on heavy favorites unless both edge and confidence clear
+    #   the higher bar. Observed 2026-04-21: all 13 high-edge losers in the
+    #   14-day window were NO-side; NO at >=20% edge realized -33% ROI.
+    elif (
+        opp.side and opp.side.strip().lower() == "no"
+        and opp.market_price < NO_SIDE_FAVORITE_THRESHOLD
+        and (opp.edge < NO_SIDE_MIN_EDGE
+             or _confidence_rank(opp.confidence) < _confidence_rank("high"))
+    ):
+        rejection = (
+            f"no_side_favorite (price ${opp.market_price:.2f} < "
+            f"${NO_SIDE_FAVORITE_THRESHOLD:.2f}; needs edge >= "
+            f"{NO_SIDE_MIN_EDGE:.0%} and confidence=high)"
+        )
 
     # ── Risk Gate 5: Duplicate ticker
     elif open_tickers and opp.ticker in open_tickers:
@@ -337,6 +389,13 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     # This ensures total batch exposure stays proportional to what single-bet
     # Kelly would allocate, preventing over-commitment on simultaneous bets.
     effective_kelly = KELLY_FRACTION / max(1, batch_size)
+
+    # R1: dampen Kelly on NO bets priced below the floor. These are bets against
+    # market-priced favorites, where the model has historically overstated edge.
+    is_no_side = bool(opp.side and opp.side.strip().lower() == "no")
+    if is_no_side and opp.market_price < NO_SIDE_KELLY_PRICE_FLOOR:
+        effective_kelly *= NO_SIDE_KELLY_MULTIPLIER
+
     kelly_bet = effective_kelly * trusted_edge(opp.edge) * bankroll
     kelly_contracts = max(1, int(kelly_bet / opp.market_price)) if kelly_bet > 0 else flat_contracts
 

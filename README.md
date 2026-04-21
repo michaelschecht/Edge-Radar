@@ -7,7 +7,7 @@
 [![Normal CDF](https://img.shields.io/badge/Edge%20Model-Normal%20CDF-8B5CF6?style=flat-square)](docs/ARCHITECTURE.md)
 [![Markets](https://img.shields.io/badge/Markets-27%20Sports-0078D4?style=flat-square)](#-supported-markets)
 [![Edge Detection](https://img.shields.io/badge/Edge-9%20Signals-8B5CF6?style=flat-square)](#-edge-detection)
-[![Risk Gates](https://img.shields.io/badge/Risk-9%20Gates%20%2B%20Kelly-e74c3c?style=flat-square)](#%EF%B8%8F-risk--position-sizing)
+[![Risk Gates](https://img.shields.io/badge/Risk-11%20Gates%20%2B%20Kelly-e74c3c?style=flat-square)](#%EF%B8%8F-risk--position-sizing)
 [![Docs](https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square)](#-documentation)
 [![APIs](https://img.shields.io/badge/APIs-9%20Free%20%2B%20Kalshi-F97316?style=flat-square)](#-data-sources)
 [![Dashboard](https://img.shields.io/badge/Dashboard-Streamlit-00d4aa?style=flat-square)](docs/web-app/LOCAL.md)
@@ -21,7 +21,7 @@
   <a href="https://michaelschecht.github.io/Edge-Radar/"><b>▶ View the interactive data-flow diagram</b></a>
 </p>
 
-> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 9 free APIs (including Polymarket, MLB pitcher stats, and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with Kelly criterion (soft-capped above 15% edge per calibration), enforces 9 risk gates including per-sport edge floors and 48h series dedup, and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
+> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 9 free APIs (including Polymarket, MLB pitcher stats, and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with Kelly criterion (soft-capped above 15% edge per calibration), enforces 11 risk gates including per-sport edge floors, NO-side favorite guard, and 48h series dedup, and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
 
 ---
 
@@ -85,7 +85,7 @@ graph LR
     C["Signals<br><sub>Weather, Pitchers, Rest, Sharp $</sub>"] --> D
     D -->|"compare"| E["Kalshi Price"]
     E -->|"Edge >= 3%"| F["Composite Score<br><sub>0-10 scale</sub>"]
-    F --> G["9 Risk Gates"]
+    F --> G["11 Risk Gates"]
     G --> H["Kelly Sizing"]
     H --> I["Limit Order + Log"]
 
@@ -130,7 +130,7 @@ graph LR
 <tr>
 <td width="55%" valign="top">
 
-#### 9 Risk Gates
+#### 11 Risk Gates
 
 Every order must clear gates 1-7. Gates 8-9 cap sizing instead of rejecting.
 
@@ -140,13 +140,15 @@ Every order must clear gates 1-7. Gates 8-9 cap sizing instead of rejecting.
 | 2 | Position count | Reject at 50 open |
 | 3 | Edge threshold | Reject below floor (3% global; 8% NBA; 10% NCAAB) |
 | 4 | Composite score | Reject below 6.0/10 |
+| 4.5 | Min confidence | Reject below `MIN_CONFIDENCE` (default medium) |
+| 4.6 | NO-side favorite | Reject NO bets <25¢ unless edge ≥25% AND confidence=high |
 | 5 | Duplicate check | Reject same market |
 | 6 | Per-event cap | Reject at 2/game |
 | 7 | Series dedup | Reject same matchup bet within 48h |
 | 8 | Bet size cap | Cap at $100 |
 | 9 | Bet ratio cap | Cap at 3x batch median |
 
-<sub>All limits configurable via <code>.env</code>. Per-sport thresholds (<code>MIN_EDGE_THRESHOLD_&lt;SPORT&gt;</code>) and series dedup (<code>SERIES_DEDUP_HOURS</code>) added 2026-04-18 after first post-baseline calibration surfaced consecutive-night correlation bleeds. See <a href="docs/ARCHITECTURE.md">Architecture</a></sub>
+<sub>All limits configurable via <code>.env</code>. Gate 4.5 (<code>MIN_CONFIDENCE</code>) and Gate 4.6 (<code>NO_SIDE_*</code>) added 2026-04-21 after the 14-day review showed low-confidence bets at -105% ROI and all 13 high-edge losers being NO-side on heavy favorites. NO bets below <code>NO_SIDE_KELLY_PRICE_FLOOR</code> (default 35¢) are additionally sized at half-Kelly. See <a href="docs/ARCHITECTURE.md">Architecture</a></sub>
 
 </td>
 <td width="45%" valign="top">

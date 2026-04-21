@@ -156,6 +156,230 @@ class TestSizeOrderRiskGates:
             kalshi_executor.MAX_BET_SIZE = orig_max
 
 
+# ── R3: Minimum confidence gate ──────────────────────────────────────────────
+
+class TestMinConfidenceGate:
+    """Gate 4.5: reject opportunities whose confidence falls below MIN_CONFIDENCE."""
+
+    def _opp(self, confidence: str) -> Opportunity:
+        return Opportunity(
+            ticker="KXMLBGAME-26APR21NYYKAC-NYY",
+            title="Test", category="game", side="yes",
+            market_price=0.50, fair_value=0.60, edge=0.10,
+            edge_source="test", confidence=confidence,
+            liquidity_score=8.0, composite_score=8.0, details={},
+        )
+
+    def test_rejects_low_when_min_is_medium(self):
+        import kalshi_executor
+        orig = kalshi_executor.MIN_CONFIDENCE
+        try:
+            kalshi_executor.MIN_CONFIDENCE = "medium"
+            result = size_order(self._opp("low"), bankroll=100.0,
+                                open_positions=0, daily_pnl=0.0)
+            assert result.risk_approval.startswith("REJECTED")
+            assert "confidence" in result.risk_approval.lower()
+        finally:
+            kalshi_executor.MIN_CONFIDENCE = orig
+
+    def test_approves_medium_when_min_is_medium(self):
+        import kalshi_executor
+        orig = kalshi_executor.MIN_CONFIDENCE
+        try:
+            kalshi_executor.MIN_CONFIDENCE = "medium"
+            result = size_order(self._opp("medium"), bankroll=100.0,
+                                open_positions=0, daily_pnl=0.0)
+            assert result.risk_approval == "APPROVED"
+        finally:
+            kalshi_executor.MIN_CONFIDENCE = orig
+
+    def test_approves_high_when_min_is_medium(self):
+        import kalshi_executor
+        orig = kalshi_executor.MIN_CONFIDENCE
+        try:
+            kalshi_executor.MIN_CONFIDENCE = "medium"
+            result = size_order(self._opp("high"), bankroll=100.0,
+                                open_positions=0, daily_pnl=0.0)
+            assert result.risk_approval == "APPROVED"
+        finally:
+            kalshi_executor.MIN_CONFIDENCE = orig
+
+    def test_rejects_low_and_medium_when_min_is_high(self):
+        import kalshi_executor
+        orig = kalshi_executor.MIN_CONFIDENCE
+        try:
+            kalshi_executor.MIN_CONFIDENCE = "high"
+            for conf in ("low", "medium"):
+                result = size_order(self._opp(conf), bankroll=100.0,
+                                    open_positions=0, daily_pnl=0.0)
+                assert result.risk_approval.startswith("REJECTED"), conf
+                assert "confidence" in result.risk_approval.lower()
+        finally:
+            kalshi_executor.MIN_CONFIDENCE = orig
+
+    def test_allows_low_when_min_is_low(self):
+        import kalshi_executor
+        orig = kalshi_executor.MIN_CONFIDENCE
+        try:
+            kalshi_executor.MIN_CONFIDENCE = "low"
+            result = size_order(self._opp("low"), bankroll=100.0,
+                                open_positions=0, daily_pnl=0.0)
+            assert result.risk_approval == "APPROVED"
+        finally:
+            kalshi_executor.MIN_CONFIDENCE = orig
+
+    def test_unknown_confidence_treated_as_medium(self):
+        import kalshi_executor
+        orig = kalshi_executor.MIN_CONFIDENCE
+        try:
+            kalshi_executor.MIN_CONFIDENCE = "medium"
+            result = size_order(self._opp("garbage"), bankroll=100.0,
+                                open_positions=0, daily_pnl=0.0)
+            # Unknown ranks as medium, so medium-floor should approve
+            assert result.risk_approval == "APPROVED"
+        finally:
+            kalshi_executor.MIN_CONFIDENCE = orig
+
+
+# ── R1: NO-side favorite guard + half-Kelly ──────────────────────────────────
+
+class TestNoSideFavoriteGate:
+    """Gate 4.6: reject NO bets on heavy favorites unless edge + confidence clear."""
+
+    def _opp(self, side="no", price=0.20, edge=0.30, confidence="high") -> Opportunity:
+        return Opportunity(
+            ticker="KXMLBGAME-26APR21NYYKAC-NYY",
+            title="Test", category="game", side=side,
+            market_price=price, fair_value=price + edge, edge=edge,
+            edge_source="test", confidence=confidence,
+            liquidity_score=8.0, composite_score=8.0, details={},
+        )
+
+    def test_no_below_threshold_insufficient_edge_rejected(self):
+        # NO at 20¢ (below 25¢ threshold), only 10% edge → rejected
+        opp = self._opp(side="no", price=0.20, edge=0.10, confidence="high")
+        result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+        assert result.risk_approval.startswith("REJECTED")
+        assert "no_side_favorite" in result.risk_approval
+
+    def test_no_below_threshold_low_confidence_rejected(self):
+        # NO at 20¢ with 30% edge but medium confidence → still rejected
+        # (MIN_CONFIDENCE default=medium would pass gate 4.5, but 4.6 needs high)
+        import kalshi_executor
+        orig = kalshi_executor.MIN_CONFIDENCE
+        try:
+            kalshi_executor.MIN_CONFIDENCE = "low"  # disable 4.5 to isolate 4.6
+            opp = self._opp(side="no", price=0.20, edge=0.30, confidence="medium")
+            result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+            assert result.risk_approval.startswith("REJECTED")
+            assert "no_side_favorite" in result.risk_approval
+        finally:
+            kalshi_executor.MIN_CONFIDENCE = orig
+
+    def test_no_below_threshold_high_edge_high_conf_approved(self):
+        # NO at 20¢ with 30% edge and high confidence → passes the carve-out
+        opp = self._opp(side="no", price=0.20, edge=0.30, confidence="high")
+        result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+        assert result.risk_approval.startswith("APPROVED")
+
+    def test_no_above_threshold_not_affected(self):
+        # NO at 30¢ (above 25¢) is not a "heavy favorite" — gate doesn't apply
+        opp = self._opp(side="no", price=0.30, edge=0.05, confidence="medium")
+        result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+        assert result.risk_approval.startswith("APPROVED")
+
+    def test_yes_side_not_affected(self):
+        # YES at 20¢ (longshot) with low edge — gate 4.6 is NO-only
+        opp = self._opp(side="yes", price=0.20, edge=0.05, confidence="medium")
+        result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+        assert result.risk_approval.startswith("APPROVED")
+
+
+class TestNoSideKellyMultiplier:
+    """R1 sizing: NO bets priced below floor get half-Kelly (or configured multiplier)."""
+
+    def _opp(self, side: str, price: float, edge: float = 0.10,
+             confidence: str = "high") -> Opportunity:
+        return Opportunity(
+            ticker="KXMLBGAME-26APR21NYYKAC-NYY",
+            title="Test", category="game", side=side,
+            market_price=price, fair_value=price + edge, edge=edge,
+            edge_source="test", confidence=confidence,
+            liquidity_score=8.0, composite_score=8.0, details={},
+        )
+
+    def test_no_bet_below_floor_is_halved(self):
+        # Same price/edge for YES and NO; NO should size to ~half of YES
+        import kalshi_executor
+        orig_kelly = kalshi_executor.KELLY_FRACTION
+        orig_max = kalshi_executor.MAX_BET_SIZE
+        try:
+            kalshi_executor.KELLY_FRACTION = 0.50
+            kalshi_executor.MAX_BET_SIZE = 10000.0
+            # Price 0.30 (below 0.35 floor) with enough edge to scale past flat unit.
+            yes_opp = self._opp(side="yes", price=0.30, edge=0.10, confidence="high")
+            no_opp = self._opp(side="no", price=0.30, edge=0.10, confidence="high")
+            # Need an edge-friendly config where NO gate 4.6 doesn't reject —
+            # price 0.30 >= threshold 0.25, so gate 4.6 leaves it alone.
+            y = size_order(yes_opp, bankroll=10000.0, open_positions=0,
+                           daily_pnl=0.0, unit_size=1.00)
+            n = size_order(no_opp, bankroll=10000.0, open_positions=0,
+                           daily_pnl=0.0, unit_size=1.00)
+            assert y.risk_approval.startswith("APPROVED")
+            assert n.risk_approval.startswith("APPROVED")
+            # NO contracts should be roughly half of YES contracts (both well
+            # above the flat-unit floor so the multiplier actually bites).
+            assert n.contracts < y.contracts
+            assert n.contracts == pytest.approx(y.contracts // 2, abs=2)
+        finally:
+            kalshi_executor.KELLY_FRACTION = orig_kelly
+            kalshi_executor.MAX_BET_SIZE = orig_max
+
+    def test_no_bet_above_floor_not_halved(self):
+        # NO at 40¢ is above the 35¢ floor — same sizing as YES
+        import kalshi_executor
+        orig_kelly = kalshi_executor.KELLY_FRACTION
+        orig_max = kalshi_executor.MAX_BET_SIZE
+        try:
+            kalshi_executor.KELLY_FRACTION = 0.50
+            kalshi_executor.MAX_BET_SIZE = 10000.0
+            yes_opp = self._opp(side="yes", price=0.40, edge=0.10, confidence="high")
+            no_opp = self._opp(side="no", price=0.40, edge=0.10, confidence="high")
+            y = size_order(yes_opp, bankroll=10000.0, open_positions=0,
+                           daily_pnl=0.0, unit_size=1.00)
+            n = size_order(no_opp, bankroll=10000.0, open_positions=0,
+                           daily_pnl=0.0, unit_size=1.00)
+            assert y.contracts == n.contracts
+        finally:
+            kalshi_executor.KELLY_FRACTION = orig_kelly
+            kalshi_executor.MAX_BET_SIZE = orig_max
+
+    def test_yes_bet_below_floor_not_halved(self):
+        # YES at 20¢ should use full Kelly — multiplier is NO-only
+        import kalshi_executor
+        orig_kelly = kalshi_executor.KELLY_FRACTION
+        orig_max = kalshi_executor.MAX_BET_SIZE
+        try:
+            kalshi_executor.KELLY_FRACTION = 0.50
+            kalshi_executor.MAX_BET_SIZE = 10000.0
+            yes_low = self._opp(side="yes", price=0.20, edge=0.10, confidence="high")
+            yes_high = self._opp(side="yes", price=0.40, edge=0.10, confidence="high")
+            low = size_order(yes_low, bankroll=10000.0, open_positions=0,
+                             daily_pnl=0.0, unit_size=1.00)
+            # Cheaper price → more contracts. Just verify multiplier didn't apply:
+            # with multiplier, low-price YES would collapse; without it, it's
+            # comfortably above a half-Kelly baseline.
+            # We can't compare to YES at 40c directly (different price) but we
+            # can confirm sizing scales with (1/price), not (0.5/price):
+            high = size_order(yes_high, bankroll=10000.0, open_positions=0,
+                              daily_pnl=0.0, unit_size=1.00)
+            # Expected full-Kelly ratio ≈ 0.40/0.20 = 2×. Half-Kelly would be 1×.
+            assert low.contracts >= high.contracts * 1.5
+        finally:
+            kalshi_executor.KELLY_FRACTION = orig_kelly
+            kalshi_executor.MAX_BET_SIZE = orig_max
+
+
 # ── trusted_edge soft-cap ────────────────────────────────────────────────────
 
 class TestTrustedEdge:
