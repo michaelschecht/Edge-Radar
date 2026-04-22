@@ -1,16 +1,6 @@
-# Edge-Radar Cloud Dashboard
+# Edge-Radar on Streamlit Community Cloud
 
-**Live at:** https://edge-radar.streamlit.app/
-
-Hosted on Streamlit Community Cloud (free tier). Password-gated. Same functionality as the local dashboard — same scripts, same risk gates, same Kalshi API.
-
----
-
-## Access
-
-1. Go to https://edge-radar.streamlit.app/
-2. Enter your password
-3. Use the dashboard (Scan, Portfolio, Settle, Backtest)
+Deploy your own Edge-Radar dashboard to Streamlit Community Cloud (free tier). Same functionality as the local dashboard — same scripts, same risk gates, same Kalshi API.
 
 ---
 
@@ -18,7 +8,7 @@ Hosted on Streamlit Community Cloud (free tier). Password-gated. Same functional
 
 | Aspect | Local | Cloud |
 |--------|-------|-------|
-| **URL** | `http://localhost:8501` | https://edge-radar.streamlit.app/ |
+| **URL** | `http://localhost:8501` | `https://<your-subdomain>.streamlit.app/` |
 | **Credentials** | `.env` file | Streamlit Cloud Secrets (TOML) |
 | **Private Key** | File on disk (`keys/live/kalshi_private.key`) | Inline PEM in secrets |
 | **Trade logs** | Persistent on disk (`data/history/`) | Ephemeral — resets on reboot |
@@ -30,13 +20,16 @@ Hosted on Streamlit Community Cloud (free tier). Password-gated. Same functional
 
 ---
 
-## Deployment
+## Deploy Your Instance
 
-### Initial Setup
+### 1. Fork the Repo
 
-1. Fork or clone the repo to your own GitHub account
-2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub
-3. Click **New app** and configure:
+Fork `Edge-Radar` to your own GitHub account (or clone and push to a new repo you own).
+
+### 2. Create the Streamlit App
+
+1. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub
+2. Click **New app** and configure:
 
 | Setting | Value |
 |---------|-------|
@@ -44,11 +37,11 @@ Hosted on Streamlit Community Cloud (free tier). Password-gated. Same functional
 | **Branch** | `master` (or your default branch) |
 | **Main file** | `webapp/app.py` |
 
-4. Choose a custom subdomain (e.g., `edge-radar.streamlit.app`)
-5. Add secrets in **Settings > Secrets** (see below)
-6. Deploy
+3. Choose a custom subdomain (e.g., `my-edge-radar.streamlit.app`)
+4. Add secrets in **Settings > Secrets** (see below) — the app will fail to start without them
+5. Deploy
 
-### Updating
+### 3. Updating
 
 Push to your branch on GitHub. Streamlit Cloud auto-deploys on push.
 
@@ -58,7 +51,7 @@ Push to your branch on GitHub. Streamlit Cloud auto-deploys on push.
 
 In your app's **Settings > Secrets**, paste TOML configuration.
 
-**Template location:** `keys/streamlit/streamlit_secrets_template.toml`
+**Template location in the repo:** `docs/my-documents/enhancements/streamlit_secrets_template.toml`
 
 ### Full Secrets Template
 
@@ -99,7 +92,7 @@ DRY_RUN = "true"
 # KELLY_FRACTION = "0.25"            # Kelly multiplier (0.25)
 # MAX_BET_SIZE = "100"               # Hard cap per bet in USD (100)
 # MAX_DAILY_LOSS = "250"             # Daily hard stop in USD (250)
-MAX_OPEN_POSITIONS = "50"            # Concurrent open positions (default: 10)
+# MAX_OPEN_POSITIONS = "10"          # Concurrent open positions (10)
 # MAX_PER_EVENT = "2"                # Max positions per game/event (2)
 # MAX_BET_RATIO = "3.0"             # Max bet as multiple of batch median (3.0)
 # MIN_EDGE_THRESHOLD = "0.03"       # Global minimum edge (fallback)
@@ -220,7 +213,7 @@ Since Cloud wipes `data/` on reboot:
 **"Incorrect password"**
 - Check `[passwords] / user` in your Streamlit secrets
 
-**Orders rejected with `max_positions_reached (16/10)`**
+**Orders rejected with `max_positions_reached (N/10)`**
 - `MAX_OPEN_POSITIONS` is not in your Cloud secrets, so it defaults to `10`
 - Add `MAX_OPEN_POSITIONS = "50"` (or your desired limit) as a flat top-level key in Settings > Secrets
 
