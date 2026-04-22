@@ -195,6 +195,10 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 | **[Local Dashboard](docs/web-app/LOCAL.md)** | Run the Streamlit dashboard on your own machine at `http://localhost:8501` |
 | **[Cloud Dashboard](docs/web-app/CLOUD.md)** | Deploy your own instance to Streamlit Community Cloud (free tier) |
 
+### Command Recipes
+
+Expand any section for copy-paste CLI examples by workflow.
+
 <details>
 <summary><b>Sports Betting</b></summary>
 
@@ -308,19 +312,45 @@ python scripts/schedulers/automation/install_windows_task.py install all
 
 ```
 Edge-Radar/
+├── .claude/                           # Claude Code config (skills, commands, settings)
+│   ├── commands/                      # Slash-command definitions
+│   ├── html/                          # Rendered interactive data-flow diagram
+│   ├── images/                        # Logos and README assets
+│   └── skills/                        # /edge-radar, /edge-radar-analysis
+├── .devcontainer/                     # VS Code dev container spec
+├── .github/
+│   └── workflows/                     # CI/CD + Streamlit Cloud deploy
+├── app/
+│   └── domain/                        # Typed domain objects (Opportunity, RiskDecision, Execution*)
+├── docs/                              # All public documentation
+│   ├── kalshi-futures-betting/        # Championship futures guide
+│   ├── kalshi-prediction-betting/     # Crypto, weather, S&P guides
+│   ├── kalshi-sports-betting/         # 27 sport filters, MLB filtering, sports guide
+│   ├── mcp-config/                    # MCP server reference
+│   ├── scripts/                       # Per-script detailed docs
+│   ├── setup/                         # SETUP_GUIDE.md, AUTOMATION_GUIDE.md
+│   └── web-app/                       # LOCAL.md, CLOUD.md
+├── prompts/                           # LLM prompts for analysis agents
+│   ├── futures/
+│   ├── polymarket/
+│   ├── portfolio/
+│   ├── predictions/
+│   └── sports-betting/
 ├── scripts/
-│   ├── scan.py                  # Unified entry point
-│   ├── kalshi/                  # Scan → Size → Execute → Settle
-│   ├── polymarket/              # Cross-market edge detection
-│   ├── shared/                  # Team stats, weather, tickers, logging
-│   └── schedulers/              # Automation & scheduled jobs
-├── app/domain/                  # Typed domain objects
-├── webapp/                      # Streamlit dashboard (deploy your own instance)
-├── tests/                       # 150 pytest tests
-├── docs/                        # 11 guides
-├── data/                        # Trade history & watchlists (gitignored)
-└── reports/                     # Scan & P&L reports (gitignored)
+│   ├── backtest/                      # Equity curve, calibration, strategy simulation
+│   ├── kalshi/                        # Scan → Size → Execute → Settle pipeline
+│   ├── polymarket/                    # Cross-market edge detection
+│   ├── prediction/                    # Crypto, weather, S&P 500 scanners
+│   ├── shared/                        # Team stats, weather, tickers, logging, odds API
+│   ├── scan.py                        # Unified entry point (routes to each scanner)
+│   ├── doctor.py                      # Environment & credentials validator
+│   └── bootstrap.py                   # Import-path setup for the venv .pth file
+├── tests/                             # 150+ pytest tests (domain, edge detection, fills, risk)
+└── webapp/                            # Streamlit dashboard
+    └── views/                         # scan_page, portfolio_page, settle_page, backtest_page
 ```
+
+<sub>Gitignored at the root (auto-created where needed): <code>data/</code> (trade history), <code>logs/</code>, <code>reports/</code> (scan + P&L reports), <code>keys/</code> (RSA private keys), <code>.venv/</code>, <code>repos/</code>.</sub>
 
 <details>
 <summary><b>Backtesting Framework</b></summary>
