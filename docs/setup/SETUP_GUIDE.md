@@ -363,6 +363,7 @@ Every configured key is either invalid or has hit its monthly quota (free tier =
 
 ## Next Steps
 
+- **[End-User Setup Guide](./END_USER_SETUP_GUIDE.md)** — Detailed operator runbook: credential mapping, `.env` wiring, rollout plan, automation, monitoring
 - **[Scripts Reference](../SCRIPTS_REFERENCE.md)** — Full CLI reference for every script and flag
 - **[Sports Guide](../kalshi-sports-betting/SPORTS_GUIDE.md)** — 27 sport filters, edge detection methodology, daily workflow
 - **[Architecture](../ARCHITECTURE.md)** — How scoring, confidence, and risk gates work together

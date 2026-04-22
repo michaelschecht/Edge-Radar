@@ -180,26 +180,39 @@ bet = max(unit, (kelly_frac / batch) * trusted_edge(edge) * bankroll)
 ## Quick Start
 
 ```bash
-# 1. Install and configure
-pip install -r requirements.txt && cp .env.example .env
+# 0. Clone repo and enter project
+git clone https://github.com/michaelschecht/Edge-Radar.git
+cd Edge-Radar
 
-# 2. Verify environment (API keys, dependencies)
+# 1. Create + activate virtual environment
+python -m venv .venv
+# macOS/Linux (bash/zsh):
+source .venv/bin/activate
+# Windows PowerShell:
+# .venv\Scripts\Activate.ps1
+
+# 2. Install dependencies and create env file
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+cp .env.example .env
+
+# 3. Verify environment (API keys, dependencies)
 python scripts/doctor.py
 
-# 3. Preview opportunities (no money risked)
+# 4. Preview opportunities (no money risked)
 python scripts/scan.py sports --filter nba
 
-# 4. Execute with risk controls
+# 5. Execute with risk controls
 python scripts/scan.py sports --filter nba --execute --unit-size 1 --max-bets 5
 
-# 5. Settle bets and view P&L
+# 6. Settle bets and view P&L
 python scripts/kalshi/kalshi_settler.py report --detail --save
 ```
 
 > [!TIP]
 > All scanners share the same flags: `--execute`, `--unit-size`, `--max-bets`, `--pick`, `--ticker`, `--save`, `--date`, `--exclude-open`. Use `--date tomorrow --exclude-open` to avoid double-betting.
 
-> **First time?** See the full **[Setup Guide](docs/setup/SETUP_GUIDE.md)** for API keys, RSA private key generation, and environment configuration.
+> **First time?** See the full **[Setup Guide](docs/setup/SETUP_GUIDE.md)** for API keys, RSA private key generation, and full virtual environment instructions. For a complete operator runbook (credentials, `.env`, automation, and monitoring), use the **[End-User Setup Guide](docs/setup/END_USER_SETUP_GUIDE.md)**.
 
 <details>
 <summary><b>Sports Betting</b></summary>
@@ -263,42 +276,6 @@ python scripts/backtest/backtester.py --simulate --save
 python scripts/backtest/backtester.py --sport mlb --confidence high --min-edge 0.10
 ```
 </details>
-
----
-
-## Virtual Environment Setup
-
-Recommended: install dependencies into an isolated `.venv` so `pip install` writes into `.venv\Lib\site-packages` instead of your global Python.
-
-```bash
-# 1. Create the venv (one-time)
-python -m venv .venv
-
-# 2. Activate it
-#    Git Bash / WSL:
-source .venv/Scripts/activate
-#    PowerShell:
-.venv\Scripts\Activate.ps1
-#    CMD:
-.venv\Scripts\activate.bat
-
-# 3. Upgrade pip (recommended) and install
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-Your prompt should now show `(.venv)` as a prefix — that means it's active.
-
-**Sanity check after install:**
-
-```bash
-which python   # should point inside .venv/Scripts/
-pip list       # should show the newly installed packages
-```
-
-To deactivate later, run `deactivate`.
-
----
 
 ## Claude Code Integration
 
@@ -389,6 +366,7 @@ The `--simulate` flag runs what-if scenarios across edge thresholds, confidence 
 | Guide | Description |
 |:------|:------------|
 | **[Setup Guide](docs/setup/SETUP_GUIDE.md)** | API keys, environment config, first scan |
+| **[End-User Setup Guide](docs/setup/END_USER_SETUP_GUIDE.md)** | Complete operator playbook: credentials, `.env`, rollout, automation, and monitoring |
 | **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** | Windows Task Scheduler for daily betting |
 | **[Scripts Reference](docs/SCRIPTS_REFERENCE.md)** | Every script, flag, and example |
 | **[Sports Guide](docs/kalshi-sports-betting/SPORTS_GUIDE.md)** | 27 filters, edge detection, daily workflow |
