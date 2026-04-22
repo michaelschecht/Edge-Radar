@@ -2,6 +2,29 @@
 
 ---
 
+## 2026-04-22 -- Repo-Analysis Response + Lottery-Ticket Floor (Q1-Q5, R7)
+
+### Repo Analysis Response (2026-04-22 independent review)
+- **Q1. Web app `market_type` wired through service layer.** UI exposed sports/futures/prediction/polymarket but `webapp/services.py run_scan()` had no `market_type` param — everything routed into `scan_all_markets` (sports-only). `run_scan()` now dispatches to `scan_all_markets` (sports), `scan_futures_markets` (futures), or `scan_prediction_markets` (prediction) based on UI selection; `cross_ref` passed through for Polymarket reference pricing on prediction scans. Invalid types raise `ValueError` at the boundary. Standalone Polymarket removed from `MARKET_TYPES`, `CATEGORIES_BY_TYPE`, `FILTERS_BY_TYPE`, sidebar `QUICK_SCANS` — UI-only, never reached service layer. CLI `scan.py polymarket` still works. Files: `webapp/services.py`, `webapp/views/scan_page.py`, `webapp/app.py`, `docs/web-app/LOCAL.md`.
+- **Q2. Test env-contamination fix.** `test_approved_clean_when_no_caps_hit` read `MAX_BET_SIZE` and `KELLY_FRACTION` from `kalshi_executor` at import time, so a developer `.env` with `MAX_BET_SIZE=15` and `KELLY_FRACTION=1.0` would trip the max-bet cap and return `APPROVED_CAPPED_MAX_BET` instead of `APPROVED`. Fix: monkey-patch both module constants to documented defaults for the test's scope, matching the existing pattern in `test_approved_capped_max_bet`. Files: `tests/test_risk_gates.py`.
+- **Q3. Doc drift: count-free "risk gates" references.** `docs/SCRIPTS_REFERENCE.md`, `docs/setup/AUTOMATION_GUIDE.md`, `docs/web-app/LOCAL.md` said "8 risk gates" post-R1/R3. Updated to count-free phrasing ("all risk gates") linking to `CLAUDE.md` §"Execution Gates"; CLAUDE.md heading renamed from "11 Execution Gates" to "Execution Gates". Prevents doc churn on every gate addition.
+- **Q4. Pages deploy branch fix.** `.github/workflows/deploy.yml` triggered on `main`; repo default is `master`. Flipped so pushes to master actually redeploy `.claude/html/` (the Edge-Radar data-flow visualization).
+- **Q5. Declared `pandas` in `requirements.txt`.** All four `webapp/views/*.py` import pandas; it was working only via Streamlit's transitive dep. Promoted to `pandas>=2.1.4` as a first-class runtime dep.
+
+### R7. Minimum Market-Price Floor (new Gate 3.5)
+- **Problem:** F10 from the 2026-04-21 14-day review showed sub-10¢ bets at 1W-3L with the model claiming "+50% edge" on 8-10¢ longshots. One win masked a systemic lottery-ticket overfit pattern.
+- **Fix:** New reject gate in `size_order()` — any bet whose market price is below `MIN_MARKET_PRICE` (default **$0.10**) is rejected. Strict less-than: $0.09 rejected, $0.10 approved. No exception for edge/confidence (unlike Gate 4.6's carve-out). Set to 0 to disable and keep all longshots.
+- **Defaults:** `MIN_MARKET_PRICE=0.10` chosen in discussion ("I kind of like the long shots. But I definitely agree We shouldn't go too low. I like .10") — blocks the lottery-ticket cluster while keeping moderate longshots (≥10¢) eligible.
+- Env: `MIN_MARKET_PRICE` (plumbed through `.env.example`, `CLAUDE.md`, `webapp/services.py` flat-keys for Streamlit Cloud secrets).
+
+### Gate Numbering
+- **Total gates:** 12 (was 11). Reject gates 1-7 (including 3.5, 4.5, 4.6); sizing caps 8-9.
+
+### Tests
+- 5 new tests for Gate 3.5 (reject below floor, reject just below floor, approve at floor inclusive, approve above floor, disabled when `MIN_MARKET_PRICE=0`). 213 → 218 passing. Two pre-existing tests (`test_contracts_capped_by_bankroll`, `test_price_clamped_to_valid_range`) that intentionally use sub-10¢ prices patched to disable `MIN_MARKET_PRICE` for their scope so they exercise their actual intent.
+
+---
+
 ## 2026-04-21 -- 14-Day Review Response (R1, R2, R3, R4)
 
 ### 14-Day Review (76 settled trades since 2026-04-07)

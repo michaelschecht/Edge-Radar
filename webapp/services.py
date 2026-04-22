@@ -46,6 +46,7 @@ try:
         "MAX_BET_RATIO", "MIN_EDGE_THRESHOLD", "MIN_COMPOSITE_SCORE",
         # Calibration-driven tuning (2026-04-18)
         "KELLY_EDGE_CAP", "KELLY_EDGE_DECAY", "SERIES_DEDUP_HOURS",
+        "MIN_MARKET_PRICE",
         "MIN_EDGE_THRESHOLD_MLB", "MIN_EDGE_THRESHOLD_NBA",
         "MIN_EDGE_THRESHOLD_NHL", "MIN_EDGE_THRESHOLD_NFL",
         "MIN_EDGE_THRESHOLD_NCAAB", "MIN_EDGE_THRESHOLD_NCAAF",
@@ -73,6 +74,8 @@ except Exception:
 
 from kalshi_client import KalshiClient
 from edge_detector import scan_all_markets, FILTER_SHORTCUTS
+from futures_edge import scan_futures_markets
+from prediction_scanner import scan_prediction_markets
 from kalshi_executor import execute_pipeline, UNIT_SIZE
 from kalshi_settler import settle_trades, generate_report
 from risk_check import (
@@ -140,38 +143,73 @@ CATEGORY_OPTIONS = ["all", "game", "spread", "total", "player_prop", "esports", 
 
 DATE_OPTIONS = ["all dates", "today", "tomorrow"]
 
+SUPPORTED_MARKET_TYPES = ("sports", "futures", "prediction")
+
 
 # ── Scan ────────────────────────────────────────────────────────────────────
 
 def run_scan(
     client: KalshiClient,
+    market_type: str = "sports",
     ticker_filter: str | None = None,
     category_filter: str | None = None,
     date_filter: str | None = None,
     min_edge: float = MIN_EDGE_THRESHOLD,
     top_n: int = 20,
     exclude_open: bool = False,
+    cross_ref: bool = False,
 ) -> tuple[list, str]:
     """
-    Run a sports scan and return (opportunities, console_output).
+    Run a scan for the given market type and return (opportunities, console_output).
+
+    market_type dispatches to the matching scanner:
+      - "sports"     → edge_detector.scan_all_markets (respects date_filter, category_filter)
+      - "futures"    → futures_edge.scan_futures_markets (date_filter and category_filter ignored)
+      - "prediction" → prediction_scanner.scan_prediction_markets (date_filter ignored; cross_ref honored)
+
+    Polymarket cross-ref is available via market_type="prediction" + cross_ref=True.
+    Raw Polymarket as a standalone market type is not yet wired through the service layer.
     """
-    # Resolve date early so scan_all_markets can pre-filter before Odds API calls
+    if market_type not in SUPPORTED_MARKET_TYPES:
+        raise ValueError(
+            f"Unsupported market_type: {market_type!r}. "
+            f"Must be one of {SUPPORTED_MARKET_TYPES}."
+        )
+
     resolved_date = None
     if date_filter and date_filter != "all dates":
         resolved_date = resolve_date_arg(date_filter)
 
     with capture_console() as buf:
-        opportunities = scan_all_markets(
-            client,
-            min_edge=min_edge,
-            category_filter=category_filter,
-            ticker_filter=ticker_filter,
-            top_n=top_n,
-            date_filter=resolved_date,
-        )
+        if market_type == "sports":
+            opportunities = scan_all_markets(
+                client,
+                min_edge=min_edge,
+                category_filter=category_filter,
+                ticker_filter=ticker_filter,
+                top_n=top_n,
+                date_filter=resolved_date,
+            )
+            if opportunities and resolved_date:
+                opportunities = filter_by_date(opportunities, resolved_date)
 
-        if opportunities and resolved_date:
-            opportunities = filter_by_date(opportunities, resolved_date)
+        elif market_type == "futures":
+            opportunities = scan_futures_markets(
+                client,
+                min_edge=min_edge,
+                ticker_filter=ticker_filter,
+                top_n=top_n,
+            )
+
+        else:  # prediction
+            opportunities = scan_prediction_markets(
+                client,
+                min_edge=min_edge,
+                category_filter=category_filter,
+                ticker_filter=ticker_filter,
+                top_n=top_n,
+                cross_ref=cross_ref,
+            )
 
         if opportunities and exclude_open:
             positions = client.get_positions(limit=200, count_filter="position")

@@ -85,10 +85,10 @@ The primary workflow page. Configure filters, scan for opportunities, preview si
 
 | Control | CLI Flag | Description |
 |---------|----------|-------------|
-| Market Type | `sports` / `futures` / `prediction` / `polymarket` | Which scanner to run |
+| Market Type | `sports` / `futures` / `prediction` | Which scanner to run |
 | Filter | `--filter` | Sport or asset — options change per market type. Supports comma-separated (e.g., `mlb,nhl`) |
-| Category | `--category` | Market category (game, spread, total, etc.) — disabled for futures/polymarket |
-| Date | `--date` | today, tomorrow, or all dates |
+| Category | `--category` | Market category (game, spread, total, etc.) — disabled for futures |
+| Date | `--date` | today, tomorrow, or all dates — sports only (futures/prediction ignore) |
 
 **Execution Parameters** (second row):
 
@@ -112,7 +112,7 @@ The primary workflow page. Configure filters, scan for opportunities, preview si
 5. Click **EXECUTE** — opens confirmation dialog showing mode (DRY RUN / LIVE), order summary, and real-money warning if live. Click **Confirm** to place orders
 6. Click **CLEAR** to wipe all results and start fresh
 
-**Quick Scan:** Sidebar buttons (Sports, Futures, Prediction, Polymarket) jump to the scan page with that market type pre-selected.
+**Quick Scan:** Sidebar buttons (Sports, Futures, Prediction) jump to the scan page with that market type pre-selected. Standalone Polymarket scanning is CLI-only today (`python scripts/scan.py polymarket --filter crypto`); the dashboard exposes Polymarket via the **Cross-Ref** toggle on prediction scans.
 
 **Favorites:** Toggle **MANAGE FAVORITES** to save the current filter config with a name. Saved favorites appear in the sidebar as clickable buttons. Stored at `data/webapp/favorites.json`.
 
@@ -181,7 +181,7 @@ Strategy analysis over your settled trade history.
 - `DRY_RUN=true` in `.env` prevents real orders from both CLI and dashboard
 - Scan results persist in the browser session until you scan again or refresh the page
 - Click **Show scan log** after a scan to see the full pipeline output (odds fetch, edge calculations, risk checks)
-- All 8 risk gates are enforced identically to the CLI
+- All risk gates are enforced identically to the CLI (see `CLAUDE.md` §"Execution Gates")
 - Favorites persist across sessions (stored on disk, not in browser)
 - The date pre-filter optimization applies here too — when you select "today" or "tomorrow", only sports with games on that date trigger Odds API calls
 

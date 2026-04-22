@@ -410,7 +410,7 @@ All execution scripts use:
 - `--max-bets 10` — total across all sports
 - `--exclude-open` — skip markets with existing positions
 - `--save` — execution report (Sport, Bet, Type, Pick, Qty, Price, Cost, Edge)
-- All 8 risk gates enforced
+- All risk gates enforced (see `CLAUDE.md` §"Execution Gates")
 
 ---
 
