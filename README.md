@@ -94,30 +94,16 @@ graph LR
     style I fill:#2ea44f,color:#fff,stroke:none
 ```
 
-<table>
-<tr>
-<td width="50%">
-
 | Signal | Source |
 |:-------|:-------|
 | **Normal CDF Model** | Sport-specific stdev bell curve probabilities |
 | **Sharp Book Weighting** | Pinnacle 3x, Circa 3x, DraftKings 0.7x |
 | **Team Stats** | ESPN/NHL/MLB win% validates fair value |
 | **Sharp Money** | Open-vs-close odds detect reverse line movement |
-
-</td>
-<td width="50%">
-
-| Signal | Source |
-|:-------|:-------|
 | **Weather** | NWS forecasts for 61 NFL/MLB outdoor venues |
 | **Pitcher Matchups** | ERA, FIP, WHIP, K/9, rest days from MLB Stats API |
 | **Rest Days** | NBA/NHL back-to-back fatigue detection |
 | **Book Disagreement** | >4pt spread range flags injury news |
-
-</td>
-</tr>
-</table>
 
 > [!IMPORTANT]
 > Every scan defaults to **preview mode**. No money is risked until you pass `--execute`.
@@ -126,11 +112,7 @@ graph LR
 
 ## Risk & Position Sizing
 
-<table>
-<tr>
-<td width="55%" valign="top">
-
-#### 11 Risk Gates
+### 11 Risk Gates
 
 Every order must clear gates 1-7. Gates 8-9 cap sizing instead of rejecting.
 
@@ -150,10 +132,7 @@ Every order must clear gates 1-7. Gates 8-9 cap sizing instead of rejecting.
 
 <sub>All limits configurable via <code>.env</code>. Gate 4.5 (<code>MIN_CONFIDENCE</code>) and Gate 4.6 (<code>NO_SIDE_*</code>) added 2026-04-21 after the 14-day review showed low-confidence bets at -105% ROI and all 13 high-edge losers being NO-side on heavy favorites. NO bets below <code>NO_SIDE_KELLY_PRICE_FLOOR</code> (default 35¢) are additionally sized at half-Kelly. See <a href="docs/ARCHITECTURE.md">Architecture</a></sub>
 
-</td>
-<td width="45%" valign="top">
-
-#### Batch-Aware Kelly Sizing
+### Batch-Aware Kelly Sizing
 
 Bet size scales with edge, divided by batch count to control total exposure. Edge is soft-capped above 15% before sizing (`trusted_edge()`) to damp Kelly on likely-overstated signals — raw edge remains in gates and reports.
 
@@ -170,10 +149,6 @@ bet = max(unit, (kelly_frac / batch) * trusted_edge(edge) * bankroll)
 | 35% | 25% | $6.25 | $1.25 | $0.63 |
 
 <sub>Example: $50 bankroll, <code>KELLY_FRACTION=0.50</code>. Capped by max bet ($100) and balance. Soft-cap: <code>KELLY_EDGE_CAP=0.15</code>, <code>KELLY_EDGE_DECAY=0.5</code>.</sub>
-
-</td>
-</tr>
-</table>
 
 ---
 
@@ -212,7 +187,17 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 > [!TIP]
 > All scanners share the same flags: `--execute`, `--unit-size`, `--max-bets`, `--pick`, `--ticker`, `--save`, `--date`, `--exclude-open`. Use `--date tomorrow --exclude-open` to avoid double-betting.
 
-> **First time?** See the full **[Setup Guide](docs/setup/SETUP_GUIDE.md)** for API keys, RSA private key generation, and full virtual environment instructions. For a complete operator runbook (credentials, `.env`, automation, and monitoring), use the **[End-User Setup Guide](docs/setup/END_USER_SETUP_GUIDE.md)**.
+### Next Steps
+
+| Guide | What it covers |
+|:------|:---------------|
+| **[Setup Guide](docs/setup/SETUP_GUIDE.md)** | First-time install, API keys + RSA private key generation, `.env` wiring, safe rollout plan (dry-run → low-stakes → normal), automation, ongoing monitoring, troubleshooting |
+| **[Local Dashboard](docs/web-app/LOCAL.md)** | Run the Streamlit dashboard on your own machine at `http://localhost:8501` |
+| **[Cloud Dashboard](docs/web-app/CLOUD.md)** | Deploy your own instance to Streamlit Community Cloud (free tier) |
+
+### Command Recipes
+
+Expand any section for copy-paste CLI examples by workflow.
 
 <details>
 <summary><b>Sports Betting</b></summary>
@@ -327,19 +312,45 @@ python scripts/schedulers/automation/install_windows_task.py install all
 
 ```
 Edge-Radar/
+├── .claude/                           # Claude Code config (skills, commands, settings)
+│   ├── commands/                      # Slash-command definitions
+│   ├── html/                          # Rendered interactive data-flow diagram
+│   ├── images/                        # Logos and README assets
+│   └── skills/                        # /edge-radar, /edge-radar-analysis
+├── .devcontainer/                     # VS Code dev container spec
+├── .github/
+│   └── workflows/                     # CI/CD + Streamlit Cloud deploy
+├── app/
+│   └── domain/                        # Typed domain objects (Opportunity, RiskDecision, Execution*)
+├── docs/                              # All public documentation
+│   ├── kalshi-futures-betting/        # Championship futures guide
+│   ├── kalshi-prediction-betting/     # Crypto, weather, S&P guides
+│   ├── kalshi-sports-betting/         # 27 sport filters, MLB filtering, sports guide
+│   ├── mcp-config/                    # MCP server reference
+│   ├── scripts/                       # Per-script detailed docs
+│   ├── setup/                         # SETUP_GUIDE.md, AUTOMATION_GUIDE.md
+│   └── web-app/                       # LOCAL.md, CLOUD.md
+├── prompts/                           # LLM prompts for analysis agents
+│   ├── futures/
+│   ├── polymarket/
+│   ├── portfolio/
+│   ├── predictions/
+│   └── sports-betting/
 ├── scripts/
-│   ├── scan.py                  # Unified entry point
-│   ├── kalshi/                  # Scan → Size → Execute → Settle
-│   ├── polymarket/              # Cross-market edge detection
-│   ├── shared/                  # Team stats, weather, tickers, logging
-│   └── schedulers/              # Automation & scheduled jobs
-├── app/domain/                  # Typed domain objects
-├── webapp/                      # Streamlit dashboard (deploy your own instance)
-├── tests/                       # 150 pytest tests
-├── docs/                        # 11 guides
-├── data/                        # Trade history & watchlists (gitignored)
-└── reports/                     # Scan & P&L reports (gitignored)
+│   ├── backtest/                      # Equity curve, calibration, strategy simulation
+│   ├── kalshi/                        # Scan → Size → Execute → Settle pipeline
+│   ├── polymarket/                    # Cross-market edge detection
+│   ├── prediction/                    # Crypto, weather, S&P 500 scanners
+│   ├── shared/                        # Team stats, weather, tickers, logging, odds API
+│   ├── scan.py                        # Unified entry point (routes to each scanner)
+│   ├── doctor.py                      # Environment & credentials validator
+│   └── bootstrap.py                   # Import-path setup for the venv .pth file
+├── tests/                             # 150+ pytest tests (domain, edge detection, fills, risk)
+└── webapp/                            # Streamlit dashboard
+    └── views/                         # scan_page, portfolio_page, settle_page, backtest_page
 ```
+
+<sub>Gitignored at the root (auto-created where needed): <code>data/</code> (trade history), <code>logs/</code>, <code>reports/</code> (scan + P&L reports), <code>keys/</code> (RSA private keys), <code>.venv/</code>, <code>repos/</code>.</sub>
 
 <details>
 <summary><b>Backtesting Framework</b></summary>
@@ -365,8 +376,7 @@ The `--simulate` flag runs what-if scenarios across edge thresholds, confidence 
 
 | Guide | Description |
 |:------|:------------|
-| **[Setup Guide](docs/setup/SETUP_GUIDE.md)** | API keys, environment config, first scan |
-| **[End-User Setup Guide](docs/setup/END_USER_SETUP_GUIDE.md)** | Complete operator playbook: credentials, `.env`, rollout, automation, and monitoring |
+| **[Setup Guide](docs/setup/SETUP_GUIDE.md)** | Install, API keys, `.env`, safe rollout, automation, and monitoring — the single end-to-end operator guide |
 | **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** | Windows Task Scheduler for daily betting |
 | **[Scripts Reference](docs/SCRIPTS_REFERENCE.md)** | Every script, flag, and example |
 | **[Sports Guide](docs/kalshi-sports-betting/SPORTS_GUIDE.md)** | 27 filters, edge detection, daily workflow |
@@ -374,7 +384,8 @@ The `--simulate` flag runs what-if scenarios across edge thresholds, confidence 
 | **[Prediction Markets](docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** | Crypto, weather, S&P 500, politics |
 | **[Architecture](docs/ARCHITECTURE.md)** | Pipeline, risk gates, data flow |
 | **[MLB Filtering](docs/kalshi-sports-betting/MLB_FILTERING_GUIDE.md)** | 10 filter categories for MLB picks |
-| **[Web Dashboard](docs/web-app/LOCAL.md)** | Streamlit dashboard — local & cloud deployment guide |
+| **[Local Dashboard](docs/web-app/LOCAL.md)** | Run the Streamlit dashboard on your machine |
+| **[Cloud Dashboard](docs/web-app/CLOUD.md)** | Deploy your own instance to Streamlit Community Cloud |
 | **[Roadmap](docs/enhancements/ROADMAP.md)** | All enhancements — completed & pending |
 | **[Changelog](docs/CHANGELOG.md)** | Full project history |
 
