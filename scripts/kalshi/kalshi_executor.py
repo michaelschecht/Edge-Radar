@@ -67,6 +67,11 @@ KELLY_EDGE_CAP = float(os.getenv("KELLY_EDGE_CAP", "0.15"))
 KELLY_EDGE_DECAY = float(os.getenv("KELLY_EDGE_DECAY", "0.5"))
 SERIES_DEDUP_HOURS = int(os.getenv("SERIES_DEDUP_HOURS", "48"))
 
+# R7 (2026-04-22): reject lottery-ticket bets below this market price. F10 from
+# the 2026-04-21 14-day review: sub-10¢ bets went 1W-3L with the model claiming
+# "+50% edge" on 8-10¢ longshots. 0 disables the gate (keep longshots).
+MIN_MARKET_PRICE = float(os.getenv("MIN_MARKET_PRICE", "0.10"))
+
 # R4 (2026-04-21): auto-cancel resting orders older than this with zero fills.
 # 14-day review showed 16% of new-log orders (4/25) resting 25-66h with zero
 # fills. 0 disables. Triggered at the top of execute_pipeline() when
@@ -369,6 +374,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         1.   Daily loss limit                             (reject)
         2.   Max open positions                           (reject)
         3.   Minimum edge threshold (global + per-sport)  (reject)
+        3.5  Minimum market-price floor (R7)              (reject)
         4.   Minimum composite score                      (reject)
         4.5  Minimum confidence level (R3)                (reject)
         4.6  NO-side favorite guard (R1)                  (reject)
@@ -396,6 +402,15 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     # ── Risk Gate 3: Minimum edge (per-sport override, global fallback)
     elif opp.edge < edge_floor:
         rejection = f"edge_below_threshold ({opp.edge:.1%} < {edge_floor:.1%})"
+
+    # ── Risk Gate 3.5: Minimum market-price floor (R7)
+    #   Lottery-ticket filter. F10 from the 14-day review: sub-10¢ bets went
+    #   1W-3L with claimed "+50% edge" — hard reject, no edge/confidence
+    #   exception. MIN_MARKET_PRICE=0 disables.
+    elif MIN_MARKET_PRICE > 0 and opp.market_price < MIN_MARKET_PRICE:
+        rejection = (
+            f"price_below_floor (${opp.market_price:.2f} < ${MIN_MARKET_PRICE:.2f})"
+        )
 
     # ── Risk Gate 4: Minimum composite score
     elif opp.composite_score < MIN_COMPOSITE_SCORE:

@@ -16,7 +16,7 @@ from services import (
 from favorites import save_favorite, delete_favorite, load_favorites
 from theme import page_header, section_label, CYAN, AMBER, RED, GREEN, DIM
 
-MARKET_TYPES = ["sports", "futures", "prediction", "polymarket"]
+MARKET_TYPES = ["sports", "futures", "prediction"]
 DEFAULT_UNIT_SIZE = 0.50
 
 # Category options per market type
@@ -24,7 +24,6 @@ CATEGORIES_BY_TYPE = {
     "sports": ["all", "game", "spread", "total", "player_prop", "esports", "other"],
     "futures": [],
     "prediction": ["all", "crypto", "weather", "spx", "mentions", "companies", "politics"],
-    "polymarket": ["all", "crypto", "weather", "spx", "politics", "companies"],
 }
 
 # Filter options per market type
@@ -32,7 +31,6 @@ FILTERS_BY_TYPE = {
     "sports": ["(none)"] + SPORT_FILTERS,
     "futures": ["(none)", "nba-futures", "nhl-futures", "mlb-futures", "nfl-futures", "pga-futures"],
     "prediction": ["(none)", "crypto", "weather", "spx", "mentions", "companies", "politics"],
-    "polymarket": ["(none)", "crypto", "weather", "spx", "politics", "companies"],
 }
 
 
@@ -119,7 +117,7 @@ def render():
     with col5:
         min_edge = st.slider(
             "Min Edge %", 1, 20, defaults["min_edge"],
-            help="Scan-level minimum edge. The executor additionally enforces per-sport floors at gate 3 (NBA 8%, NCAAB 10%) and a 48h series-dedup at gate 7 — bets may be rejected on execute even if they pass this scan filter.",
+            help="Scan-level minimum edge. The executor additionally enforces per-sport floors at gate 3 (NBA 8%, NCAAB 10%), a $0.10 market-price floor at gate 3.5 (lottery-ticket filter), and a 48h series-dedup at gate 7 — bets may be rejected on execute even if they pass this scan filter.",
         ) / 100
     with col6:
         top_n = st.number_input("Top N", min_value=1, max_value=50, value=defaults["top_n"])
@@ -224,12 +222,14 @@ def render():
                 client = get_client()
                 opps, console_out = run_scan(
                     client=client,
+                    market_type=market_type,
                     ticker_filter=sport_filter if sport_filter != "(none)" else None,
                     category_filter=category if category and category != "all" else None,
                     date_filter=date if date != "all dates" else None,
                     min_edge=min_edge,
                     top_n=top_n,
                     exclude_open=exclude_open,
+                    cross_ref=cross_ref,
                 )
                 st.session_state.scan_results = opps
                 st.session_state.scan_console = console_out

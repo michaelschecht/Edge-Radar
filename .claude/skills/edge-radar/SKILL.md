@@ -470,12 +470,13 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 - **Daily loss limit:** $250 (reject gate)
 - **Max open positions:** 50 (reject gate)
 - **Minimum edge (C3, 2026-04-18):** 3% global; **8% NBA**, **10% NCAAB** (per-sport overrides via `MIN_EDGE_THRESHOLD_<SPORT>` env). Rejection message shows the sport-specific floor in use.
+- **Minimum market price (R7, 2026-04-22):** Gate 3.5 rejects bets priced below `MIN_MARKET_PRICE` (default **$0.10**). Hard floor with no edge/confidence exception — F10 from the 14-day review showed sub-10¢ bets at 1W-3L with the model claiming "+50% edge" on 8-10¢ longshots. `MIN_MARKET_PRICE=0` disables.
 - **Minimum composite score:** 6.0 (reject gate, confidence is factored into composite)
 - **Minimum confidence (R3, 2026-04-21):** Gate 4.5 rejects opportunities below `MIN_CONFIDENCE` (default `medium`). Values: low | medium | high. Low-confidence bets realized 0W-3L / -105% ROI across two review windows.
 - **NO-side favorite guard (R1, 2026-04-21):** Gate 4.6 rejects NO bets priced below `NO_SIDE_FAVORITE_THRESHOLD=0.25` unless edge ≥ `NO_SIDE_MIN_EDGE=0.25` AND confidence=high. Plus a sizing dampener: NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR=0.35` are sized at `NO_SIDE_KELLY_MULTIPLIER=0.5` of Kelly (half-Kelly). All 13 high-edge losers in the 14-day window were NO-side.
 - **Resting-order janitor (R4, 2026-04-21):** At the top of any `--execute` run (non-dry-run), resting orders older than `RESTING_ORDER_MAX_HOURS=24` with zero fills are auto-cancelled. Partial/full fills untouched — settler handles them. Piggybacks on the 5AM daily execute task; no new scheduler.
 
-Gates 1-7 (including 4.5 and 4.6) reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
+Gates 1-7 (including 3.5, 4.5, 4.6) reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
 
 ---
 
@@ -660,5 +661,5 @@ streamlit run webapp/app.py
 1. **Always check status first** before any scan or bet — if daily loss limit is breached, STOP.
 2. **Never execute without confirmation** unless `--execute`/`--go` was explicitly passed.
 3. **Preview is the default** — every scan shows a table first, orders only placed with `--execute`.
-4. **Eleven risk gates enforced** — daily loss, position count, edge (per-sport), score, min confidence (4.5), NO-side favorite guard (4.6), duplicate ticker, per-event cap, series dedup, max bet size, bet ratio cap. All checked before every order. Plus the resting-order janitor at the top of every live execute run.
+4. **Twelve risk gates enforced** — daily loss, position count, edge (per-sport), market price floor (3.5, R7 — $0.10), score, min confidence (4.5), NO-side favorite guard (4.6), duplicate ticker, per-event cap, series dedup, max bet size, bet ratio cap. All checked before every order. Plus the resting-order janitor at the top of every live execute run.
 5. **API keys are in `.env`** — never print, log, or expose them.

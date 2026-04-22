@@ -14,7 +14,7 @@ Edge-Radar includes pre-built `.bat` scripts that scan all sports, rank opportun
  11:00 PM ET ──> kalshi_settler.py    ──> Settle completed bets + update P&L
 ```
 
-All 8 risk gates are enforced on every automated run. If the daily loss limit is hit, no new bets are placed.
+All risk gates are enforced on every automated run (see `CLAUDE.md` §"Execution Gates"). If the daily loss limit is hit, no new bets are placed.
 
 ---
 

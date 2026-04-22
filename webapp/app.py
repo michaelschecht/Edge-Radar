@@ -71,7 +71,6 @@ QUICK_SCANS = {
     "Sports": "sports",
     "Futures": "futures",
     "Prediction": "prediction",
-    "Polymarket": "polymarket",
 }
 
 

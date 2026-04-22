@@ -126,23 +126,48 @@ class TestSizeOrderRiskGates:
         assert "score" in result.risk_approval.lower()
 
     def test_contracts_capped_by_bankroll(self):
-        # Very cheap price with tiny bankroll
-        opp = self._make_opp(price=0.02, edge=0.10, score=8.0)
-        result = size_order(opp, bankroll=0.05, open_positions=0, daily_pnl=0.0, unit_size=1.00)
-        # Should not size more than bankroll allows
-        assert result.cost_dollars <= 0.05 + 0.01  # small float tolerance
+        # Very cheap price with tiny bankroll. Disable the R7 price floor so we're
+        # exercising the bankroll cap rather than the lottery-ticket gate.
+        import kalshi_executor
+        orig_floor = kalshi_executor.MIN_MARKET_PRICE
+        try:
+            kalshi_executor.MIN_MARKET_PRICE = 0.0
+            opp = self._make_opp(price=0.02, edge=0.10, score=8.0)
+            result = size_order(opp, bankroll=0.05, open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            # Should not size more than bankroll allows
+            assert result.cost_dollars <= 0.05 + 0.01  # small float tolerance
+        finally:
+            kalshi_executor.MIN_MARKET_PRICE = orig_floor
 
     def test_price_clamped_to_valid_range(self):
-        # Price at extreme low
-        opp = self._make_opp(price=0.005, edge=0.10, score=8.0)
-        result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
-        assert result.price_cents >= 1
+        # Price at extreme low. Disable the R7 price floor so we're exercising
+        # the price-clamp logic rather than the lottery-ticket gate.
+        import kalshi_executor
+        orig_floor = kalshi_executor.MIN_MARKET_PRICE
+        try:
+            kalshi_executor.MIN_MARKET_PRICE = 0.0
+            opp = self._make_opp(price=0.005, edge=0.10, score=8.0)
+            result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+            assert result.price_cents >= 1
+        finally:
+            kalshi_executor.MIN_MARKET_PRICE = orig_floor
 
     def test_approved_clean_when_no_caps_hit(self):
-        # Small bet, big bankroll — no caps triggered
-        opp = self._make_opp(price=0.50, edge=0.05, score=8.0)
-        result = size_order(opp, bankroll=500.0, open_positions=0, daily_pnl=0.0, unit_size=1.00)
-        assert result.risk_approval == "APPROVED"
+        # Small bet, big bankroll — pin MAX_BET_SIZE and KELLY_FRACTION to documented
+        # defaults so the test is independent of the developer's local .env
+        # (which may set e.g. MAX_BET_SIZE=15 or KELLY_FRACTION=1.0 and trigger the cap).
+        import kalshi_executor
+        orig_max = kalshi_executor.MAX_BET_SIZE
+        orig_kelly = kalshi_executor.KELLY_FRACTION
+        try:
+            kalshi_executor.MAX_BET_SIZE = 100.0
+            kalshi_executor.KELLY_FRACTION = 0.25
+            opp = self._make_opp(price=0.50, edge=0.05, score=8.0)
+            result = size_order(opp, bankroll=500.0, open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            assert result.risk_approval == "APPROVED"
+        finally:
+            kalshi_executor.MAX_BET_SIZE = orig_max
+            kalshi_executor.KELLY_FRACTION = orig_kelly
 
     def test_approved_capped_max_bet(self):
         # Big Kelly bet hits the max bet cap
@@ -156,6 +181,101 @@ class TestSizeOrderRiskGates:
             assert result.cost_dollars <= 5.0 + 0.11
         finally:
             kalshi_executor.MAX_BET_SIZE = orig_max
+
+
+# ── R7: Minimum market-price floor (Gate 3.5) ────────────────────────────────
+
+class TestMinMarketPriceGate:
+    """Gate 3.5: reject opportunities whose market price is below MIN_MARKET_PRICE.
+
+    F10 from the 2026-04-21 14-day review: sub-10¢ bets went 1W-3L while the
+    model claimed '+50% edge' on 8-10¢ longshots. Hard reject, no exception for
+    edge or confidence (unlike Gate 4.6 which has an exception clause).
+    """
+
+    def _opp(self, price: float) -> Opportunity:
+        return Opportunity(
+            ticker="KXMLBGAME-26MAR301840CWSMIA-MIA",
+            title="Test Game",
+            category="game",
+            side="yes",
+            market_price=price,
+            fair_value=price + 0.15,  # healthy edge so edge gate passes
+            edge=0.15,
+            edge_source="test",
+            confidence="high",
+            liquidity_score=8.0,
+            composite_score=8.5,
+            details={},
+        )
+
+    def test_rejected_below_floor(self):
+        import kalshi_executor
+        orig_floor = kalshi_executor.MIN_MARKET_PRICE
+        try:
+            kalshi_executor.MIN_MARKET_PRICE = 0.10
+            result = size_order(self._opp(price=0.05), bankroll=500.0,
+                                open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            assert result.risk_approval.startswith("REJECTED")
+            assert "price_below_floor" in result.risk_approval
+            assert result.contracts == 0
+        finally:
+            kalshi_executor.MIN_MARKET_PRICE = orig_floor
+
+    def test_rejected_just_below_floor(self):
+        # 9¢ is rejected; 10¢ is not (strict less-than, floor inclusive).
+        import kalshi_executor
+        orig_floor = kalshi_executor.MIN_MARKET_PRICE
+        try:
+            kalshi_executor.MIN_MARKET_PRICE = 0.10
+            result = size_order(self._opp(price=0.09), bankroll=500.0,
+                                open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            assert "price_below_floor" in result.risk_approval
+        finally:
+            kalshi_executor.MIN_MARKET_PRICE = orig_floor
+
+    def test_approved_at_floor(self):
+        # Exactly at floor should pass (user preference: "I like .10").
+        import kalshi_executor
+        orig_floor = kalshi_executor.MIN_MARKET_PRICE
+        try:
+            kalshi_executor.MIN_MARKET_PRICE = 0.10
+            result = size_order(self._opp(price=0.10), bankroll=500.0,
+                                open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            assert result.risk_approval == "APPROVED" or result.risk_approval.startswith("APPROVED_CAPPED")
+        finally:
+            kalshi_executor.MIN_MARKET_PRICE = orig_floor
+
+    def test_approved_above_floor(self):
+        import kalshi_executor
+        orig_floor = kalshi_executor.MIN_MARKET_PRICE
+        orig_max = kalshi_executor.MAX_BET_SIZE
+        orig_kelly = kalshi_executor.KELLY_FRACTION
+        try:
+            kalshi_executor.MIN_MARKET_PRICE = 0.10
+            kalshi_executor.MAX_BET_SIZE = 100.0
+            kalshi_executor.KELLY_FRACTION = 0.25
+            result = size_order(self._opp(price=0.50), bankroll=500.0,
+                                open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            assert result.risk_approval == "APPROVED"
+        finally:
+            kalshi_executor.MIN_MARKET_PRICE = orig_floor
+            kalshi_executor.MAX_BET_SIZE = orig_max
+            kalshi_executor.KELLY_FRACTION = orig_kelly
+
+    def test_disabled_when_zero(self):
+        # MIN_MARKET_PRICE=0 disables the gate entirely (preserve longshots).
+        import kalshi_executor
+        orig_floor = kalshi_executor.MIN_MARKET_PRICE
+        try:
+            kalshi_executor.MIN_MARKET_PRICE = 0.0
+            result = size_order(self._opp(price=0.03), bankroll=500.0,
+                                open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            # Gate 3.5 inactive — any rejection must come from another gate,
+            # not from price_below_floor.
+            assert "price_below_floor" not in result.risk_approval
+        finally:
+            kalshi_executor.MIN_MARKET_PRICE = orig_floor
 
 
 # ── R3: Minimum confidence gate ──────────────────────────────────────────────

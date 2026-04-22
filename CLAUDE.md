@@ -118,7 +118,7 @@ MARKET_RESEARCHER → DATA_ANALYST → RISK_MANAGER → TRADE_EXECUTOR
 - Use `python-dotenv` for every script
 - `.env` in `.gitignore` — verify before every commit
 
-### 11 Execution Gates
+### Execution Gates
 
 Before ANY trade executes:
 
@@ -127,6 +127,7 @@ Before ANY trade executes:
 | 1 | Daily loss limit not breached | Reject |
 | 2 | Open position count under max | Reject |
 | 3 | Edge >= minimum threshold (per-sport or global) | Reject |
+| 3.5 | Market price >= `MIN_MARKET_PRICE` (lottery-ticket floor, R7) | Reject |
 | 4 | Composite score >= minimum | Reject |
 | 4.5 | Confidence >= `MIN_CONFIDENCE` (low/medium/high) | Reject |
 | 4.6 | NO bets below `NO_SIDE_FAVORITE_THRESHOLD` need edge >= `NO_SIDE_MIN_EDGE` AND confidence=high | Reject |
@@ -159,6 +160,7 @@ MAX_OPEN_POSITIONS=10           # Concurrent open positions
 MAX_PER_EVENT=3                 # Max positions per game/event
 MAX_BET_RATIO=3.0               # Max bet as multiple of batch median
 MIN_EDGE_THRESHOLD=0.03         # Minimum 3% edge (global)
+MIN_MARKET_PRICE=0.10           # R7: reject bets priced below this (lottery-ticket floor); 0 disables
 MIN_EDGE_THRESHOLD_NBA=0.08     # Per-sport override (optional)
 MIN_EDGE_THRESHOLD_NCAAB=0.10   # Per-sport override (optional)
 MIN_COMPOSITE_SCORE=6.0         # Minimum score (0-10)
