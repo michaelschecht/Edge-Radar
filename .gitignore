@@ -61,7 +61,10 @@ notebooks/analysis/*.html
 # === Project-specific ===
 .claude/images/screenshots/
 .claude/memory/
-docs/my-documents/
+.claude/agents/
+
+
+# === My Scripts ===
 scripts/custom/
 scripts/schedulers/
 
