@@ -45,7 +45,7 @@ from logging_setup import setup_logging
 load_dotenv()
 log = setup_logging("futures_edge")
 
-from odds_api import get_current_key, rotate_key, report_remaining
+from odds_api import get_current_key, rotate_key, report_remaining, mark_exhausted
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
 # ── Kalshi-to-Odds-API Mapping ───────────────────────────────────────────────
@@ -98,15 +98,28 @@ _outrights_cache: dict[str, list] = {}
 
 
 def fetch_outrights(sport_key: str) -> list:
-    """Fetch outright/futures odds from The Odds API with key rotation. Cached per sport."""
+    """Fetch outright/futures odds from The Odds API with key rotation.
+
+    Cycles through every configured key (not just the first 3 like the old
+    `range(3)` version) so we can skip past several exhausted keys to find a
+    working one. On 401 the key is marked exhausted in the persistent quota
+    cache so future processes don't retry it. Cached per sport.
+    """
     if sport_key in _outrights_cache:
         return _outrights_cache[sport_key]
 
-    api_key = get_current_key()
-    if not api_key:
+    if not get_current_key():
         return []
 
-    for attempt in range(3):
+    tried: set[str] = set()
+    while True:
+        api_key = get_current_key()
+        if not api_key or api_key in tried:
+            if tried:
+                log.warning("All %d Odds API keys returned 401/429 for outrights %s",
+                            len(tried), sport_key)
+            return []
+        tried.add(api_key)
         try:
             resp = requests.get(
                 f"{ODDS_API_BASE}/sports/{sport_key}/odds",
@@ -119,12 +132,12 @@ def fetch_outrights(sport_key: str) -> list:
                 timeout=15,
             )
             if resp.status_code in (401, 429):
-                new_key = rotate_key("http_" + str(resp.status_code))
-                if new_key:
-                    api_key = new_key
-                    continue
-                else:
-                    return []
+                # Mark exhausted so the next process skips this key at
+                # get_current_key() time instead of burning a retry on it.
+                if resp.status_code == 401:
+                    mark_exhausted(api_key)
+                rotate_key("http_" + str(resp.status_code))
+                continue
 
             resp.raise_for_status()
             remaining = resp.headers.get("x-requests-remaining", "?")
@@ -142,8 +155,6 @@ def fetch_outrights(sport_key: str) -> list:
         except Exception as e:
             log.warning("Odds API outright error for %s: %s", sport_key, e)
             return []
-
-    return []
 
 
 # ── N-Way De-Vigging ─────────────────────────────────────────────────────────

@@ -52,7 +52,7 @@ load_dotenv()
 log = setup_logging("edge_detector")
 console = Console()
 
-from odds_api import get_current_key, rotate_key, report_remaining
+from odds_api import get_current_key, rotate_key, report_remaining, mark_exhausted
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
 MIN_EDGE = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
@@ -217,6 +217,8 @@ def fetch_odds_api(sport_key: str, markets: str = "h2h") -> list:
                 timeout=15,
             )
             if resp.status_code in (401, 429):
+                if resp.status_code == 401:
+                    mark_exhausted(api_key)
                 rotate_key("http_" + str(resp.status_code))
                 continue
 

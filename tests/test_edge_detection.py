@@ -299,6 +299,14 @@ class TestFetchOddsApiKeyRotation:
             resp.raise_for_status.side_effect = Exception(f"HTTP {status_code}")
         return resp
 
+    @pytest.fixture(autouse=True)
+    def _isolate_quota_cache(self, tmp_path, monkeypatch):
+        """Redirect the odds_api on-disk quota cache to a tmpdir so
+        mark_exhausted() during these tests doesn't clobber real keys.
+        """
+        import odds_api
+        monkeypatch.setattr(odds_api, "_QUOTA_CACHE_PATH", tmp_path / "quota.json")
+
     def _setup_keys(self, keys: list[str]) -> None:
         """Install a known key list into odds_api module state."""
         import odds_api
