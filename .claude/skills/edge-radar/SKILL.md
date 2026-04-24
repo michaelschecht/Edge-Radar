@@ -38,7 +38,7 @@ Parse the user's intent from the arguments. The skill supports natural language 
 |------|---------|-------------|
 | `--unit-size N` or `$N` (dollar amount) | `$1.00` | Dollar amount per bet |
 | `--max-bets N` | `5` | Maximum bets to place |
-| `--min-edge N` | `0.03` global; `0.08` NBA; `0.10` NCAAB | Minimum edge. Per-sport overrides via `MIN_EDGE_THRESHOLD_<SPORT>` env (set 2026-04-18 from calibration). |
+| `--min-edge N` | `0.03` global; `0.12` NBA; `0.10` NCAAB | Minimum edge. Per-sport overrides via `MIN_EDGE_THRESHOLD_<SPORT>` env. NBA raised 0.08 → 0.12 in R14 (2026-04-24) after 30-day review showed NBA Brier 0.3306 — worst of all sports. NCAAB kept at 0.10 from 2026-04-18 calibration. |
 | `--execute`, `--go`, `--send-it` | off | Skip preview, execute immediately |
 | `--dry-run`, `--preview` | on (default) | Preview only, no orders |
 | `--save` | off | Save results as markdown report to `reports/` |
@@ -469,12 +469,13 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 - **Series dedup (C5, 2026-04-18):** Reject a new bet if the same matchup (sport + team pair, date-agnostic) was bet within the last `SERIES_DEDUP_HOURS=48`. Catches consecutive-night series bleeds like the LA Angels @ NY Yankees Apr 13/14/15 pattern. 0 disables.
 - **Daily loss limit:** $250 (reject gate)
 - **Max open positions:** 50 (reject gate)
-- **Minimum edge (C3, 2026-04-18):** 3% global; **8% NBA**, **10% NCAAB** (per-sport overrides via `MIN_EDGE_THRESHOLD_<SPORT>` env). Rejection message shows the sport-specific floor in use.
+- **Minimum edge (C3, 2026-04-18; R14, 2026-04-24):** 3% global; **12% NBA**, **10% NCAAB** (per-sport overrides via `MIN_EDGE_THRESHOLD_<SPORT>` env). NBA bumped 0.08 → 0.12 in R14 after 30-day calibration showed NBA Brier 0.3306 — worst of all sports. Rejection message shows the sport-specific floor in use.
 - **Minimum market price (R7, 2026-04-22):** Gate 3.5 rejects bets priced below `MIN_MARKET_PRICE` (default **$0.10**). Hard floor with no edge/confidence exception — F10 from the 14-day review showed sub-10¢ bets at 1W-3L with the model claiming "+50% edge" on 8-10¢ longshots. `MIN_MARKET_PRICE=0` disables.
 - **Minimum composite score:** 6.0 (reject gate, confidence is factored into composite)
 - **Minimum confidence (R3, 2026-04-21):** Gate 4.5 rejects opportunities below `MIN_CONFIDENCE` (default `medium`). Values: low | medium | high. Low-confidence bets realized 0W-3L / -105% ROI across two review windows.
 - **NO-side favorite guard (R1, 2026-04-21):** Gate 4.6 rejects NO bets priced below `NO_SIDE_FAVORITE_THRESHOLD=0.25` unless edge ≥ `NO_SIDE_MIN_EDGE=0.25` AND confidence=high. Plus a sizing dampener: NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR=0.35` are sized at `NO_SIDE_KELLY_MULTIPLIER=0.5` of Kelly (half-Kelly). All 13 high-edge losers in the 14-day window were NO-side.
 - **Resting-order janitor (R4, 2026-04-21):** At the top of any `--execute` run (non-dry-run), resting orders older than `RESTING_ORDER_MAX_HOURS=24` with zero fills are auto-cancelled. Partial/full fills untouched — settler handles them. Piggybacks on the 5AM daily execute task; no new scheduler.
+- **Confidence bumps one-way (R13, 2026-04-24):** `_adjust_confidence_with_stats()` in `edge_detector.py` now drops a tier on `contradicts` but no-ops on `supports`. Applies uniformly to team stats, rest/B2B, and sharp-money signals. 30-day calibration showed High-confidence WR (47%) below Medium (53%) and NBA High at 1-6 / -71% ROI — upward bumps correlated with inflated claimed edge, not better outcomes. Base "high" tier still reachable via the ≥8 sharp-books + tight-consensus rule. No env var.
 
 Gates 1-7 (including 3.5, 4.5, 4.6) reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
 
@@ -550,6 +551,7 @@ python scripts/schedulers/automation/install_windows_task.py run execute
 | `execute` | 8:00 AM | Scan + execute — places live orders |
 | `settle` | 11:00 PM | Settle bets, update P&L |
 | `next-day` | 9:00 PM | Scan + execute tomorrow's games |
+| `calibration` | 2:00 AM, 1st of month | 30-day calibration report (R16) — Brier, calibration curve, prescriptive recommendations |
 
 ### Bat Scripts (Manual)
 

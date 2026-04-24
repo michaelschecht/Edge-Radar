@@ -120,7 +120,7 @@ Every order must clear gates 1-7 (including 3.5, 4.5, 4.6). Gates 8-9 cap sizing
 |:-:|:-----|:-------|
 | 1 | Daily loss limit | Reject at -$250 |
 | 2 | Position count | Reject at 50 open |
-| 3 | Edge threshold | Reject below floor (3% global; 8% NBA; 10% NCAAB) |
+| 3 | Edge threshold | Reject below floor (3% global; 12% NBA; 10% NCAAB) |
 | 3.5 | Market price floor | Reject bets priced below `MIN_MARKET_PRICE` (default $0.10 — lottery-ticket filter) |
 | 4 | Composite score | Reject below 6.0/10 |
 | 4.5 | Min confidence | Reject below `MIN_CONFIDENCE` (default medium) |
@@ -131,7 +131,7 @@ Every order must clear gates 1-7 (including 3.5, 4.5, 4.6). Gates 8-9 cap sizing
 | 8 | Bet size cap | Cap at $100 |
 | 9 | Bet ratio cap | Cap at 3x batch median |
 
-<sub>All limits configurable via <code>.env</code>. Gate 3.5 (<code>MIN_MARKET_PRICE</code>, R7) added 2026-04-22 — F10 from the 14-day review showed sub-10¢ bets at 1W-3L with the model claiming "+50% edge" on 8-10¢ longshots. Gate 4.5 (<code>MIN_CONFIDENCE</code>) and Gate 4.6 (<code>NO_SIDE_*</code>) added 2026-04-21 after low-confidence bets at -105% ROI and all 13 high-edge losers being NO-side on heavy favorites. NO bets below <code>NO_SIDE_KELLY_PRICE_FLOOR</code> (default 35¢) are additionally sized at half-Kelly. See <a href="docs/ARCHITECTURE.md">Architecture</a></sub>
+<sub>All limits configurable via <code>.env</code>. Gate 3.5 (<code>MIN_MARKET_PRICE</code>, R7) added 2026-04-22 — F10 from the 14-day review showed sub-10¢ bets at 1W-3L with the model claiming "+50% edge" on 8-10¢ longshots. Gate 4.5 (<code>MIN_CONFIDENCE</code>) and Gate 4.6 (<code>NO_SIDE_*</code>) added 2026-04-21 after low-confidence bets at -105% ROI and all 13 high-edge losers being NO-side on heavy favorites. NO bets below <code>NO_SIDE_KELLY_PRICE_FLOOR</code> (default 35¢) are additionally sized at half-Kelly. NBA floor bumped 0.08 → 0.12 in R14 (2026-04-24) after the 30-day calibration showed NBA Brier 0.3306 (worst of all sports). Confidence bumps now one-way (R13, 2026-04-24) — team stats, rest/B2B, and sharp-money signals can drop a tier but no longer bump up; upward bumps correlated with inflated claimed edge rather than better outcomes. See <a href="docs/ARCHITECTURE.md">Architecture</a></sub>
 
 ### Batch-Aware Kelly Sizing
 
@@ -304,6 +304,7 @@ python scripts/schedulers/automation/install_windows_task.py install all
 | `execute` | 8:00 AM ET | Scan + execute — places live orders |
 | `settle` | 11:00 PM ET | Settle bets, update P&L |
 | `next-day` | 9:00 PM ET | Scan + execute tomorrow's games |
+| `calibration` | 2:00 AM, 1st of month | 30-day calibration report — Brier, calibration curve, prescriptive recommendations |
 
 <sub>Reports save to <code>reports/Sports/schedulers/</code> with full execution details.</sub>
 
