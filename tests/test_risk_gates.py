@@ -15,6 +15,7 @@ from kalshi_executor import (
     trusted_edge, min_edge_for,
     matchup_key, recent_matchups_from_log,
     cancel_stale_resting_orders,
+    dedup_correlated_brackets,
 )
 from kalshi_client import KalshiAPIError
 
@@ -938,3 +939,86 @@ class TestRestingOrderJanitor:
             assert client.cancelled_ids == ["old"]
         finally:
             kalshi_executor.RESTING_ORDER_MAX_HOURS = orig
+
+
+# ── dedup_correlated_brackets ────────────────────────────────────────────────
+
+def _dedup_opp(ticker: str, category: str, score: float) -> Opportunity:
+    """Minimal Opportunity fixture for dedup tests — only the fields that matter."""
+    return Opportunity(
+        ticker=ticker,
+        title=ticker,
+        category=category,
+        side="yes",
+        market_price=0.50,
+        fair_value=0.60,
+        edge=0.10,
+        edge_source="test",
+        confidence="medium",
+        liquidity_score=5.0,
+        composite_score=score,
+        details={},
+    )
+
+
+class TestDedupCorrelatedBrackets:
+    """Regression tests for dedup_correlated_brackets.
+
+    Alt-line brackets on the same game SHOULD collapse (correlated).
+    Futures outcomes (each team in a championship) should NOT collapse —
+    fixed 2026-04-24 after a futures scan of 20 opps was deduping to 2.
+    """
+
+    def test_alt_lines_same_game_same_category_collapse_to_best(self):
+        # Three Over lines on the same NBA game — all correlated
+        opps = [
+            _dedup_opp("KXNBATOTAL-26APR24SASPOR-207", "total", score=6.0),
+            _dedup_opp("KXNBATOTAL-26APR24SASPOR-208", "total", score=8.5),  # best
+            _dedup_opp("KXNBATOTAL-26APR24SASPOR-210", "total", score=7.2),
+        ]
+        result = dedup_correlated_brackets(opps)
+        assert len(result) == 1
+        assert result[0].ticker == "KXNBATOTAL-26APR24SASPOR-208"
+
+    def test_different_categories_same_game_both_kept(self):
+        # ML and Total on the same game are different categories, both kept
+        opps = [
+            _dedup_opp("KXNBAGAME-26APR24SASPOR-SAS", "game", score=7.0),
+            _dedup_opp("KXNBATOTAL-26APR24SASPOR-208", "total", score=8.0),
+        ]
+        result = dedup_correlated_brackets(opps)
+        assert len(result) == 2
+
+    def test_futures_outcomes_all_pass_through(self):
+        # 3 different teams in NBA Finals — each is a distinct bet, must NOT collapse
+        opps = [
+            _dedup_opp("KXNBA-26-LAL", "futures", score=6.5),
+            _dedup_opp("KXNBA-26-BOS", "futures", score=7.2),
+            _dedup_opp("KXNBA-26-OKC", "futures", score=8.0),
+        ]
+        result = dedup_correlated_brackets(opps)
+        assert len(result) == 3
+        tickers = {o.ticker for o in result}
+        assert tickers == {"KXNBA-26-LAL", "KXNBA-26-BOS", "KXNBA-26-OKC"}
+
+    def test_futures_and_games_dont_interfere(self):
+        opps = [
+            _dedup_opp("KXNBAGAME-26APR24SASPOR-SAS", "game", score=7.0),
+            _dedup_opp("KXNBA-26-LAL", "futures", score=6.5),
+            _dedup_opp("KXNBA-26-BOS", "futures", score=7.2),
+            _dedup_opp("KXNBATOTAL-26APR24SASPOR-207", "total", score=6.0),
+            _dedup_opp("KXNBATOTAL-26APR24SASPOR-208", "total", score=8.5),  # best total
+        ]
+        result = dedup_correlated_brackets(opps)
+        # 1 game + 2 futures + 1 total (best of the two) = 4
+        assert len(result) == 4
+
+    def test_preserves_input_order_by_composite(self):
+        # Input sorted by score descending; output should preserve that order
+        opps = [
+            _dedup_opp("KXNBA-26-OKC", "futures", score=9.0),
+            _dedup_opp("KXNBA-26-BOS", "futures", score=7.0),
+            _dedup_opp("KXNBA-26-LAL", "futures", score=5.0),
+        ]
+        result = dedup_correlated_brackets(opps)
+        assert [o.ticker for o in result] == ["KXNBA-26-OKC", "KXNBA-26-BOS", "KXNBA-26-LAL"]
