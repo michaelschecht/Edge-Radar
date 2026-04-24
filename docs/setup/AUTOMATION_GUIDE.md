@@ -53,19 +53,22 @@ python scripts/schedulers/automation/install_windows_task.py install settle    #
 | `execute` | 8:00 AM daily | Scan + execute — places live orders |
 | `settle` | 11:00 PM daily | Settle completed bets, update trade log P&L |
 | `next-day` | 9:00 PM daily | Scan + execute tomorrow's games (early lines) |
+| `calibration` | 2:00 AM, 1st of month | 30-day calibration report (Brier, calibration curve, recommendations) |
 
 ### Recommended Setup
 
-For most users, install **execute** + **settle**:
+For most users, install **execute** + **settle** + **calibration**:
 
 ```powershell
 python scripts/schedulers/automation/install_windows_task.py install execute
 python scripts/schedulers/automation/install_windows_task.py install settle
+python scripts/schedulers/automation/install_windows_task.py install calibration
 ```
 
 This gives you:
-- **8 AM**: Scan all sports, execute top picks with Kelly sizing
-- **11 PM**: Settle completed bets, update P&L records
+- **8 AM daily**: Scan all sports, execute top picks with Kelly sizing
+- **11 PM daily**: Settle completed bets, update P&L records
+- **2 AM, 1st of month**: Save a 30-day calibration report to `reports/Calibration/`
 
 ### Managing Tasks
 

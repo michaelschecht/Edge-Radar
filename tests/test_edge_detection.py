@@ -8,6 +8,7 @@ from scipy.stats import norm
 from edge_detector import (
     SPORT_MARGIN_STDEV,
     SPORT_TOTAL_STDEV,
+    _adjust_confidence_with_stats,
     _get_margin_stdev,
     _get_total_stdev,
 )
@@ -79,6 +80,36 @@ class TestDevigNway:
         result = devig_nway(outcomes)
         # Only B has valid odds
         assert "B" in result
+
+
+# ── R13: confidence bumps are one-way (down only) ───────────────────────────
+
+class TestConfidenceBumpsOneWay:
+    """R13 (2026-04-24): `_adjust_confidence_with_stats` should drop a level
+    on `contradicts`, but treat `supports` as a no-op. 30-day calibration
+    showed High-confidence WR (47%) below Medium (53%); upward bumps were
+    correlated with inflated claimed edge, not better outcomes.
+    """
+
+    def test_supports_is_no_op_at_each_tier(self):
+        signal = {"stats_found": True, "signal": "supports"}
+        assert _adjust_confidence_with_stats("low", signal) == "low"
+        assert _adjust_confidence_with_stats("medium", signal) == "medium"
+        assert _adjust_confidence_with_stats("high", signal) == "high"
+
+    def test_contradicts_drops_one_level(self):
+        signal = {"stats_found": True, "signal": "contradicts"}
+        assert _adjust_confidence_with_stats("high", signal) == "medium"
+        assert _adjust_confidence_with_stats("medium", signal) == "low"
+        assert _adjust_confidence_with_stats("low", signal) == "low"  # clamp
+
+    def test_neutral_is_no_op(self):
+        signal = {"stats_found": True, "signal": "neutral"}
+        assert _adjust_confidence_with_stats("medium", signal) == "medium"
+
+    def test_stats_not_found_is_no_op(self):
+        assert _adjust_confidence_with_stats("medium", {"stats_found": False}) == "medium"
+        assert _adjust_confidence_with_stats("high", {}) == "high"
 
 
 # ── Normal CDF spread model (math validation) ───────────────────────────────

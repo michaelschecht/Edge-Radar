@@ -786,20 +786,25 @@ def _stats_confidence_signal(team_name: str, ticker: str, side: str) -> dict:
 
 
 def _adjust_confidence_with_stats(confidence: str, stats_signal: dict) -> str:
-    """Adjust confidence level based on team stats signal."""
+    """Adjust confidence level based on an auxiliary signal.
+
+    R13 (2026-04-24): One-way bumps — *contradicts* drops a level, *supports*
+    is a no-op. 30-day calibration showed High-confidence WR (47%) below
+    Medium (53%) and NBA High at -71% ROI. The upward-bump path was
+    correlated with inflated claimed edge, not better outcomes. Downward
+    bumps remain (still a legitimate filter: opposing team stats, B2B
+    disadvantage, sharp money against). Called from three sites — team
+    stats, rest/B2B, sharp money — all share this behavior.
+    """
     if not stats_signal.get("stats_found"):
         return confidence
 
-    signal = stats_signal.get("signal", "neutral")
+    if stats_signal.get("signal") != "contradicts":
+        return confidence
+
     levels = ["low", "medium", "high"]
     idx = levels.index(confidence)
-
-    if signal == "supports":
-        idx = min(idx + 1, 2)  # bump up one level
-    elif signal == "contradicts":
-        idx = max(idx - 1, 0)  # drop one level
-
-    return levels[idx]
+    return levels[max(idx - 1, 0)]
 
 
 def _sharp_money_signal(team_name: str, side: str, ticker: str,

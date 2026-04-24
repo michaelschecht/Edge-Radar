@@ -119,10 +119,14 @@ def min_edge_for(opp: "Opportunity") -> float:
     """Return the edge threshold for an opportunity's sport, or the global default.
 
     Per-sport overrides are read from env as `MIN_EDGE_THRESHOLD_<SPORT>` at
-    import (e.g., MIN_EDGE_THRESHOLD_NBA=0.08). Calibration (2026-04-18)
+    import (e.g., MIN_EDGE_THRESHOLD_NBA=0.12). Calibration (2026-04-18)
     showed NBA and NCAAB losing money at the global 3% floor — raising their
     per-sport floor blocks marginal-edge bets where the model is worst-
-    calibrated, without touching sports where it works (e.g., NHL +100% ROI).
+    calibrated, without touching sports where it works (e.g., NHL calibrated
+    Brier 0.2376, ROI +72% at 30-day). NBA bumped 0.08 → 0.12 in R14
+    (2026-04-24) after 30-day review surfaced NBA Brier 0.3306 as the worst-
+    calibrated sport; most of the NBA bleed is High-confidence picks, which
+    R13 addresses separately.
     """
     sport = _detect_sport(opp.ticker)
     if sport and sport in _PER_SPORT_MIN_EDGE:

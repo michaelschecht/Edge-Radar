@@ -67,7 +67,12 @@ docs/my-documents/
 
 # === My Scripts ===
 scripts/custom/
-scripts/schedulers/
+# Ignore schedulers by default (many .bat files hardcode local paths),
+# but track the portable automation/ folder (paths derived from __file__, no secrets).
+scripts/schedulers/*
+!scripts/schedulers/automation/
+!scripts/schedulers/automation/**
+scripts/schedulers/automation/__pycache__/
 
 # === Repos ===
 /repos/
