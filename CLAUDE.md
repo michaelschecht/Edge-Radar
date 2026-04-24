@@ -244,7 +244,8 @@ make test        make hooks
 3. Read `data/history/today_trades.json` — today's P&L
 4. Check daily loss limit — if breached, **NO** new positions
 5. Confirm `DRY_RUN` setting in `.env`
-6. Pull latest market data before analysis
+6. Run `python scripts/shared/check_odds_keys.py` — see cached Odds API quota. Add `--live` to probe each key (costs N requests) and refresh the cache.
+7. Pull latest market data before analysis
 
 ---
 
