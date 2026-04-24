@@ -115,6 +115,28 @@ for _sport in _SUPPORTED_SPORTS:
             pass
 
 
+def parse_budget_arg(raw: str | None) -> float | None:
+    """Parse a CLI `--budget` value into the form `execute_pipeline` expects.
+
+    Accepts three forms:
+        "10%"   -> 0.10   (10% of bankroll — fraction)
+        "15"    -> 0.15   (bare integer 1-100 interpreted as percentage)
+        "0.15"  -> 0.15   (explicit fraction; <=1)
+        "150"   -> 150.0  (>100 interpreted as flat dollar amount)
+
+    Shared by the sports, futures, prediction, and polymarket scanners
+    so the `--budget` contract is identical across all four.
+    """
+    if raw is None:
+        return None
+    num = float(str(raw).strip().rstrip("%"))
+    if num <= 1:
+        return num  # already a fraction (e.g., 0.15)
+    if num <= 100:
+        return num / 100  # percentage (15 -> 0.15)
+    return num  # flat dollar amount (150 -> $150)
+
+
 def min_edge_for(opp: "Opportunity") -> float:
     """Return the edge threshold for an opportunity's sport, or the global default.
 
@@ -316,10 +338,21 @@ def dedup_correlated_brackets(opportunities: list[Opportunity]) -> list[Opportun
     Groups opportunities by (event_key, category) and keeps only the highest
     composite_score from each group. Different categories on the same game
     (e.g., ML + totals) are kept since they're less correlated.
+
+    Futures (`category == "futures"`) pass through unchanged: each team
+    outcome in a championship is a separate independent bet (KXNBA-26-LAL,
+    KXNBA-26-BOS, ...), not an alt-line bracket. Stripping the last hyphen
+    segment to get an "event key" would collapse all 16+ teams to one entry
+    and kill most of the scan. Concentration is already bounded by Gate 6
+    (`MAX_PER_EVENT`). Fixed 2026-04-24 after a futures scan of 20 opps
+    was deduping to 2.
     """
     best: dict[tuple[str, str], Opportunity] = {}
     for opp in opportunities:
-        key = (_event_key(opp.ticker), opp.category)
+        if opp.category == "futures":
+            key = (opp.ticker, "futures")
+        else:
+            key = (_event_key(opp.ticker), opp.category)
         existing = best.get(key)
         if existing is None or opp.composite_score > existing.composite_score:
             best[key] = opp

@@ -45,7 +45,7 @@ from logging_setup import setup_logging
 load_dotenv()
 log = setup_logging("futures_edge")
 
-from odds_api import get_current_key, rotate_key, report_remaining
+from odds_api import get_current_key, rotate_key, report_remaining, mark_exhausted
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
 # ── Kalshi-to-Odds-API Mapping ───────────────────────────────────────────────
@@ -58,30 +58,35 @@ FUTURES_MAP = {
     "KXSB":            ("americanfootball_nfl_super_bowl_winner", "outrights", "NFL Super Bowl Champion"),
     # NBA
     "KXNBA":           ("basketball_nba_championship_winner", "outrights", "NBA Finals Champion"),
-    "KXNBAEAST":       ("basketball_nba_championship_winner", "outrights", "NBA Eastern Conference Champion"),
-    "KXNBAWEST":       ("basketball_nba_championship_winner", "outrights", "NBA Western Conference Champion"),
     # NHL
     "KXNHL":           ("icehockey_nhl_championship_winner", "outrights", "NHL Stanley Cup Champion"),
-    "KXNHLEAST":       ("icehockey_nhl_championship_winner", "outrights", "NHL Eastern Conference Champion"),
-    "KXNHLWEST":       ("icehockey_nhl_championship_winner", "outrights", "NHL Western Conference Champion"),
     # MLB
     "KXMLB":           ("baseball_mlb_world_series_winner", "outrights", "MLB World Series Champion"),
-    "KXMLBPLAYOFFS":   ("baseball_mlb_world_series_winner", "outrights", "MLB Playoff Qualifier"),
     # NCAAB
     "KXNCAAMBMOP":     ("basketball_ncaab_championship_winner", "outrights", "NCAAB Most Outstanding Player"),
     # Golf
     "KXPGATOUR":       ("golf_pga_championship_winner", "outrights", "PGA Tour Winner"),
-    # Note: European soccer outrights (EPL, La Liga, etc.) and UCL
-    # are NOT available on The Odds API free tier.
+
+    # ── Intentionally NOT mapped (2026-04-24) ────────────────────────────────
+    # These markets exist on Kalshi but don't have a sensible free-tier Odds
+    # API counterpart, so scanning them with championship-winner odds produces
+    # garbage edges (e.g. KXMLBPLAYOFFS-26-LAD priced at $0.04 NO vs "fair" of
+    # $0.72 because LAD's odds to MAKE PLAYOFFS are ~95% but their odds to WIN
+    # THE WORLD SERIES are ~28%). R19 tracks adding proper data sources:
+    #   - KXMLBPLAYOFFS  : "will X make the MLB playoffs?" (different market)
+    #   - KXNBAEAST/WEST : NBA conference winners (need conf_winner outrights)
+    #   - KXNHLEAST/WEST : NHL conference winners (need conf_winner outrights)
+    # Note: European soccer outrights (EPL, La Liga, etc.) and UCL are also
+    # not on The Odds API free tier.
 }
 
 # Filter shortcuts for CLI
 FUTURES_FILTER_SHORTCUTS = {
     "futures":       list(FUTURES_MAP.keys()),
     "nfl-futures":   ["KXSB"],
-    "nba-futures":   ["KXNBA", "KXNBAEAST", "KXNBAWEST"],
-    "nhl-futures":   ["KXNHL", "KXNHLEAST", "KXNHLWEST"],
-    "mlb-futures":   ["KXMLB", "KXMLBPLAYOFFS"],
+    "nba-futures":   ["KXNBA"],
+    "nhl-futures":   ["KXNHL"],
+    "mlb-futures":   ["KXMLB"],
     "ncaab-futures": ["KXNCAAMBMOP"],
     "golf-futures":  ["KXPGATOUR"],
 }
@@ -93,15 +98,28 @@ _outrights_cache: dict[str, list] = {}
 
 
 def fetch_outrights(sport_key: str) -> list:
-    """Fetch outright/futures odds from The Odds API with key rotation. Cached per sport."""
+    """Fetch outright/futures odds from The Odds API with key rotation.
+
+    Cycles through every configured key (not just the first 3 like the old
+    `range(3)` version) so we can skip past several exhausted keys to find a
+    working one. On 401 the key is marked exhausted in the persistent quota
+    cache so future processes don't retry it. Cached per sport.
+    """
     if sport_key in _outrights_cache:
         return _outrights_cache[sport_key]
 
-    api_key = get_current_key()
-    if not api_key:
+    if not get_current_key():
         return []
 
-    for attempt in range(3):
+    tried: set[str] = set()
+    while True:
+        api_key = get_current_key()
+        if not api_key or api_key in tried:
+            if tried:
+                log.warning("All %d Odds API keys returned 401/429 for outrights %s",
+                            len(tried), sport_key)
+            return []
+        tried.add(api_key)
         try:
             resp = requests.get(
                 f"{ODDS_API_BASE}/sports/{sport_key}/odds",
@@ -114,12 +132,12 @@ def fetch_outrights(sport_key: str) -> list:
                 timeout=15,
             )
             if resp.status_code in (401, 429):
-                new_key = rotate_key("http_" + str(resp.status_code))
-                if new_key:
-                    api_key = new_key
-                    continue
-                else:
-                    return []
+                # Mark exhausted so the next process skips this key at
+                # get_current_key() time instead of burning a retry on it.
+                if resp.status_code == 401:
+                    mark_exhausted(api_key)
+                rotate_key("http_" + str(resp.status_code))
+                continue
 
             resp.raise_for_status()
             remaining = resp.headers.get("x-requests-remaining", "?")
@@ -137,8 +155,6 @@ def fetch_outrights(sport_key: str) -> list:
         except Exception as e:
             log.warning("Odds API outright error for %s: %s", sport_key, e)
             return []
-
-    return []
 
 
 # ── N-Way De-Vigging ─────────────────────────────────────────────────────────
@@ -415,16 +431,23 @@ def scan_futures_markets(
     if not all_markets:
         return []
 
-    # Determine which Odds API sport keys we need
+    # Determine which Odds API sport keys we need.
+    # Match on the series ticker (everything before the first '-') so that
+    # e.g. KXMLBPLAYOFFS-26-LAD doesn't collide with the KXMLB prefix and
+    # get priced against World Series winner odds. Unmapped series are
+    # silently skipped — see the FUTURES_MAP "intentionally NOT mapped"
+    # block for the rationale.
     sports_needed: dict[str, list] = {}  # odds_sport_key -> [market, ...]
     market_labels: dict[str, str] = {}   # ticker -> human label
     for m in all_markets:
         ticker = m["ticker"]
-        for prefix, (sport_key, _, label) in FUTURES_MAP.items():
-            if ticker.startswith(prefix):
-                sports_needed.setdefault(sport_key, []).append(m)
-                market_labels[ticker] = label
-                break
+        series = ticker.split("-", 1)[0]
+        entry = FUTURES_MAP.get(series)
+        if entry is None:
+            continue
+        sport_key, _, label = entry
+        sports_needed.setdefault(sport_key, []).append(m)
+        market_labels[ticker] = label
 
     # Fetch outright odds and build fair values
     opportunities: list[Opportunity] = []
@@ -490,8 +513,13 @@ if __name__ == "__main__":
                         help="Save results to watchlist")
     scan_p.add_argument("--date", type=str, default=None,
                         help="Only show markets on this date (today, tomorrow, YYYY-MM-DD, mar31)")
+    scan_p.add_argument("--budget", type=str, default=None,
+                        help="Max total cost for the batch. Percentage of bankroll (e.g. '10%%') "
+                             "or dollar amount (e.g. '15'). Bets scaled down proportionally.")
     scan_p.add_argument("--exclude-open", action="store_true",
                         help="Exclude markets where you already have an open position")
+    scan_p.add_argument("--report-dir", type=str, default=None,
+                        help="Override report output directory for --save")
 
     args = parser.parse_args()
 
@@ -517,8 +545,8 @@ if __name__ == "__main__":
         rprint("[yellow]No futures opportunities found above edge threshold.[/yellow]")
     else:
         # If execution flags are set, route through the executor pipeline
-        if args.execute or args.unit_size is not None:
-            from kalshi_executor import execute_pipeline, UNIT_SIZE
+        if args.execute or args.unit_size is not None or args.budget is not None:
+            from kalshi_executor import execute_pipeline, UNIT_SIZE, parse_budget_arg
             execute_pipeline(
                 client=client,
                 opportunities=opps,
@@ -527,6 +555,7 @@ if __name__ == "__main__":
                 unit_size=args.unit_size or UNIT_SIZE,
                 pick_rows=args.pick,
                 pick_tickers=args.ticker,
+                budget=parse_budget_arg(args.budget),
                 min_bets=args.min_bets,
             )
         else:
@@ -572,6 +601,7 @@ if __name__ == "__main__":
             rprint(f"[dim]Saved {len(opps)} opportunities to {save_path}[/dim]")
             from report_writer import save_scan_report
             rpt = save_scan_report(opps, report_type="futures",
-                                   filter_label=args.ticker_filter or "", min_edge=args.min_edge)
+                                   filter_label=args.ticker_filter or "", min_edge=args.min_edge,
+                                   output_dir=args.report_dir)
             if rpt:
                 rprint(f"[dim]Report saved to {rpt}[/dim]")
