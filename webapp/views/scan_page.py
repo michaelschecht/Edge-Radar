@@ -155,10 +155,16 @@ def render():
     btn_col1, btn_col2 = st.columns([4, 1])
 
     with btn_col2:
-        if st.button("CLEAR", use_container_width=True):
+        if st.button("CLEAR", use_container_width=True,
+                     help="Clear displayed results AND drop the scan-result cache "
+                          "so the next scan fetches fresh data from the Odds API."):
             for key in ["scan_results", "scan_console", "scan_market_type", "exec_params",
                         "preview_orders", "preview_console", "execute_orders", "execute_console"]:
                 st.session_state.pop(key, None)
+            # Also wipe the 60s scan cache so the user can force a refresh
+            # (R24a). Otherwise an immediately-following scan would return
+            # the same cached rows even though the user asked for a clear.
+            run_scan.clear()
             st.rerun()
 
     with btn_col1:
@@ -221,7 +227,7 @@ def render():
             try:
                 client = get_client()
                 opps, console_out = run_scan(
-                    client=client,
+                    _client=client,
                     market_type=market_type,
                     ticker_filter=sport_filter if sport_filter != "(none)" else None,
                     category_filter=category if category and category != "all" else None,
