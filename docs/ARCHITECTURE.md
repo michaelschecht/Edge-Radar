@@ -268,7 +268,7 @@ In addition, NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` (default $0.35) ar
 | `MAX_OPEN_POSITIONS` | 10 | Maximum concurrent open positions |
 | `MAX_PER_EVENT` | 3 | Maximum positions on the same game/event |
 | `MIN_EDGE_THRESHOLD` | 3% | Global minimum edge required to consider a bet |
-| `MIN_EDGE_THRESHOLD_<SPORT>` | (optional) | Per-sport override of the global floor (e.g., `MIN_EDGE_THRESHOLD_NBA=0.08`). Supported: MLB, NBA, NHL, NFL, NCAAB, NCAAF, MLS, SOCCER |
+| `MIN_EDGE_THRESHOLD_<SPORT>` | (optional) | Per-sport override of the global floor (e.g., `MIN_EDGE_THRESHOLD_NBA=0.12`). Supported: MLB, NBA, NHL, NFL, NCAAB, NCAAF, MLS, SOCCER |
 | `MIN_MARKET_PRICE` | $0.10 | Gate 3.5 (R7): reject bets priced below this. Hard floor with no edge/confidence exception. Set to 0 to disable and keep all longshots. |
 | `MIN_COMPOSITE_SCORE` | 6.0 | Minimum composite opportunity score |
 | `MIN_CONFIDENCE` | medium | Reject below this confidence label (low/medium/high) — Gate 4.5 |

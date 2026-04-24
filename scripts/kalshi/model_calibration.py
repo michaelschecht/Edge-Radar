@@ -7,6 +7,12 @@ actionable recommendations for improving the edge detection model.
 Compares predicted probabilities (fair values) against realized win rates
 across multiple dimensions to surface systematic biases.
 
+Data source: reads `data/history/kalshi_settlements.json` (populated nightly
+by `kalshi_settler.py`), the same source `betting_analysis.py` uses.
+Previously read `trade_log`, which only captures bets submitted after the
+log was introduced — most historical bets were missing. Switched
+2026-04-24 per roadmap item R15.
+
 Usage:
     python scripts/kalshi/model_calibration.py              # Full calibration report
     python scripts/kalshi/model_calibration.py --save       # Save as markdown
@@ -14,14 +20,14 @@ Usage:
 """
 
 import argparse
+import json
 import math
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import paths  # noqa: F401
-from trade_log import load_trade_log
-from ticker_display import sport_from_ticker
+from ticker_display import bet_type_from_ticker, sport_from_ticker
 from logging_setup import setup_logging
 
 from dotenv import load_dotenv
@@ -52,6 +58,48 @@ _SPORT_DISPLAY_TO_KEY = {
     "MLB": "baseball_mlb", "NHL": "icehockey_nhl",
     "Soccer": "soccer", "MLS": "soccer", "UFC": "mma",
 }
+
+
+# ── Data Loader ──────────────────────────────────────────────────────────────
+
+SETTLEMENTS_PATH = paths.PROJECT_ROOT / "data" / "history" / "kalshi_settlements.json"
+
+# Map bet_type_from_ticker display form → internal lowercase category used by
+# downstream cross-tab and recommendation logic. "ML" lands on "game" so the
+# existing cat_labels map ({"game": "ML", ...}) still resolves.
+_BET_TYPE_TO_CATEGORY = {
+    "ML": "game",
+    "Spread": "spread",
+    "Total": "total",
+    "Prop": "player_prop",
+}
+
+
+def _load_settled_trades() -> list[dict]:
+    """Load settled bets from `kalshi_settlements.json` and normalize field
+    names to the shape the rest of this module expects.
+
+    Normalizations:
+        cost            → cost_dollars
+        won             → settlement_won
+        settled_at      → closed_at
+        (derived)       → category (from ticker via bet_type_from_ticker)
+    """
+    if not SETTLEMENTS_PATH.exists():
+        return []
+    raw = json.loads(SETTLEMENTS_PATH.read_text(encoding="utf-8"))
+    trades: list[dict] = []
+    for s in raw:
+        ticker = s.get("ticker", "")
+        bet_type = bet_type_from_ticker(ticker) or ""
+        trades.append({
+            **s,
+            "cost_dollars": s.get("cost", 0.0),
+            "settlement_won": bool(s.get("won")),
+            "closed_at": s.get("settled_at"),
+            "category": _BET_TYPE_TO_CATEGORY.get(bet_type, bet_type.lower() or "other"),
+        })
+    return trades
 
 
 # ── Analysis Helpers ─────────────────────────────────────────────────────────
@@ -323,14 +371,26 @@ def _stdev_recommendation(category: str, avg_edge: float, win_rate: float) -> st
 
 # ── Report Generation ────────────────────────────────────────────────────────
 
+def _parse_iso(ts: str | None) -> datetime | None:
+    """Parse an ISO timestamp, tolerating trailing 'Z'."""
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 def generate_calibration_report(days: int | None = None, save: bool = False):
     """Run the full calibration analysis and print recommendations."""
-    trade_log = load_trade_log()
-    settled = [t for t in trade_log if t.get("closed_at") is not None]
+    settled = [t for t in _load_settled_trades() if t.get("closed_at")]
 
     if days is not None:
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-        settled = [t for t in settled if (t.get("closed_at") or "") >= cutoff]
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        settled = [
+            t for t in settled
+            if (_parse_iso(t.get("closed_at")) or datetime.min.replace(tzinfo=timezone.utc)) >= cutoff
+        ]
 
     if len(settled) < 10:
         rprint(f"[yellow]Only {len(settled)} settled trades — need at least 10 for calibration.[/yellow]")
