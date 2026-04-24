@@ -1046,7 +1046,7 @@
         <td><code>3</code></td>
         <td><span class="pill pill-reject">reject</span></td>
         <td>Edge threshold</td>
-        <td>Edge &lt; global <code>MIN_EDGE_THRESHOLD</code> or per-sport override (NBA 8%, NCAAB 10%)</td>
+        <td>Edge &lt; global <code>MIN_EDGE_THRESHOLD</code> or per-sport override (NBA 12%, NCAAB 10%)</td>
       </tr>
       <tr>
         <td><code>3.5</code></td>
@@ -1209,6 +1209,33 @@
   </header>
 
   <div class="timeline">
+
+    <div class="t-entry">
+      <div class="t-date">2026-04-24 — 30-Day Calibration Cycle</div>
+      <div class="t-title">R12, R13, R14, R15, R16 — calibration unblocked + NBA floor + one-way confidence bumps</div>
+      <div class="t-items">
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R15</span><code>model_calibration.py</code> points at settlement source</div>
+          <div class="t-item-body">Script was reading <code>trade_log</code> (16 entries, 3 closed) instead of <code>kalshi_settlements.json</code> (173 entries). CLI errored with "need at least 10" despite 160 settled bets existing. Fixed by reading settlements and normalizing field names. Unblocks R12.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R12</span>First 160-trade calibration report</div>
+          <div class="t-item-body">Brier 0.2657 (worse than coin-flip). Per-sport Brier surfaces NBA 0.3306 as worst of all sports (NHL 0.2376, MLB 0.2519, NCAAB 0.2885). High-confidence WR 47% below Medium 53% portfolio-wide. 25%+ edge bucket softened from -24% (14d) to +16% (30d) — suggestive R2 is working.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R14</span>NBA floor bumped 0.08 → 0.12</div>
+          <div class="t-item-body">Raised <code>MIN_EDGE_THRESHOLD_NBA</code>. Also restored both NBA and NCAAB overrides in the live <code>.env</code> — documented in <code>.env.example</code> but missing from the actual env file, so both had been silently falling back to the 3% global floor. Scope intentionally minimal: most NBA bleed was High-confidence picks (fixed in R13) or sub-10¢ lottery tickets (already caught by R7).</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R13</span>Confidence bumps are one-way (down only)</div>
+          <div class="t-item-body"><code>_adjust_confidence_with_stats()</code> now drops a tier on <code>contradicts</code> but no-ops on <code>supports</code>. Applies to all three call sites (team stats, rest/B2B, sharp money). Upward bumps correlated with inflated claimed edge but worse realized outcomes. Base "high" tier still reachable via ≥8 sharp-books + tight-consensus rule. +4 regression tests (218 → 222 passing).</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R16</span>Monthly calibration cron</div>
+          <div class="t-item-body">New <code>calibration</code> profile runs <code>model_calibration.py --days 30 --save</code> on day 1 of each month at 02:00 (after nightly settler). Installer extended to support <code>MONTHLY</code> schedules. Narrowed <code>scripts/schedulers/</code> gitignore so the portable <code>automation/</code> folder is now tracked.</div>
+        </div>
+      </div>
+    </div>
 
     <div class="t-entry">
       <div class="t-date">2026-04-22 — R7, Q1-Q5</div>
@@ -1388,7 +1415,7 @@ window.DF_GRAPH = {
       files: ['edge_detector.py', 'opportunity.py'] },
     { id: 's5',   type: 'gate',       badge: '5', title: '12 Risk Gates', meta: 'Reject / cap',     x: 1000, y: 500,
       kicker: 'STAGE 5 · RISK',
-      body: '<strong>Every order clears reject gates 1–7 or is rejected; gates 8–9 cap sizing.</strong> Daily loss · open cap · edge floor (3% global, 8% NBA, 10% NCAAB) · <strong>$0.10 lottery-ticket floor</strong> · composite ≥ 6.0 · min confidence · <strong>NO-favorite guard</strong> · dup · per-event cap · <strong>48h series dedup</strong> · $100 bet cap · 3× batch-median cap.',
+      body: '<strong>Every order clears reject gates 1–7 or is rejected; gates 8–9 cap sizing.</strong> Daily loss · open cap · edge floor (3% global, 12% NBA, 10% NCAAB) · <strong>$0.10 lottery-ticket floor</strong> · composite ≥ 6.0 · min confidence · <strong>NO-favorite guard</strong> · dup · per-event cap · <strong>48h series dedup</strong> · $100 bet cap · 3× batch-median cap.',
       files: ['risk_check.py', 'kalshi_executor.py'] },
     { id: 's6',   type: 'stage-node', badge: '6', title: 'Kelly Sizing',   meta: 'Batch-aware',      x: 1000, y: 680,
       kicker: 'STAGE 6',

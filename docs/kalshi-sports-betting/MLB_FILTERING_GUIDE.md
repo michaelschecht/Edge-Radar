@@ -36,7 +36,7 @@ These use the existing edge detection engine (`edge_detector.py`).
 ### Minimum Edge Threshold
 Only surface picks where the Kalshi-implied probability diverges from the consensus line by a meaningful margin.
 
-- **Default:** 3% (`MIN_EDGE_THRESHOLD=0.03`). MLB uses the global floor. Per-sport overrides exist via `MIN_EDGE_THRESHOLD_<SPORT>` — NBA was raised to 8% and NCAAB to 10% after 2026-04-18 calibration; MLB's floor remains 3%.
+- **Default:** 3% (`MIN_EDGE_THRESHOLD=0.03`). MLB uses the global floor. Per-sport overrides exist via `MIN_EDGE_THRESHOLD_<SPORT>` — NCAAB set to 10% after 2026-04-18 calibration; NBA bumped to 12% in R14 on 2026-04-24 (NBA Brier 0.3306 was the worst-calibrated sport in the 30-day review). MLB's floor remains 3%.
 - **Conservative MLB play:** 5%+ edge — baseball variance is lower than basketball/football, so smaller edges are more meaningful but also noisier
 - **Aggressive:** 3–5% edge with supporting filters below
 

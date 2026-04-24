@@ -459,7 +459,7 @@ Every configured key is either invalid or has hit its monthly quota (free tier =
 
 - Check `--date` — if no games today, try `--date tomorrow`
 - Check `--filter` — some sports are seasonal
-- Minimum edge is 3% global, 8% for NBA, 10% for NCAAB (per-sport floors set 2026-04-18 from calibration). Low-edge days happen.
+- Minimum edge is 3% global, 12% for NBA, 10% for NCAAB (per-sport floors set 2026-04-18 from calibration; NBA raised 0.08 → 0.12 in R14 on 2026-04-24 after NBA Brier 0.3306 — worst-calibrated sport). Low-edge days happen.
 - Gate 7 rejects same-matchup bets within 48h (`SERIES_DEDUP_HOURS`). Set `SERIES_DEDUP_HOURS=0` to disable or wait the window out.
 
 ---

@@ -55,7 +55,7 @@ The pipeline rejects opportunities that fail any of gates 1-7 (including 4.5 and
 |---|------|------|
 | 1 | Daily loss limit | Today's losses must be under `MAX_DAILY_LOSS` ($250) |
 | 2 | Max open positions | Must be under `MAX_OPEN_POSITIONS` (50) |
-| 3 | Edge threshold | Must meet per-sport floor or `MIN_EDGE_THRESHOLD` global (3% default; NBA 8%, NCAAB 10% as of 2026-04-18). Rejection message shows the floor in use. |
+| 3 | Edge threshold | Must meet per-sport floor or `MIN_EDGE_THRESHOLD` global (3% default; NBA 12% [R14, 2026-04-24], NCAAB 10% [2026-04-18]). Rejection message shows the floor in use. |
 | 4 | Composite score | Must meet `MIN_COMPOSITE_SCORE` (6.0) — confidence is factored into composite |
 | 4.5 | Min confidence (R3) | Confidence label must be ≥ `MIN_CONFIDENCE` (default `medium`). Added 2026-04-21 after low-confidence bets showed 0W-3L / -105% ROI across two review windows. |
 | 4.6 | NO-side favorite guard (R1) | NO bets whose market price < `NO_SIDE_FAVORITE_THRESHOLD` (0.25) need edge ≥ `NO_SIDE_MIN_EDGE` (0.25) AND confidence=high. Added 2026-04-21 after all 13 high-edge losers in the 14-day window were NO-side bets on heavy favorites. |

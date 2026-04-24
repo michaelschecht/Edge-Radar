@@ -2,6 +2,48 @@
 
 ---
 
+## 2026-04-24 -- 30-Day Calibration Cycle (R12, R13, R14, R15, R16)
+
+### 30-Day Review (160 settled trades since 2026-03-25)
+- **Sample:** 160 settled, 80W-80L (50%), +37.4% ROI ($43.48 P&L), Brier 0.2657. Aggregate remains healthy but concentrated: NHL +72% and NCAAB +71% carry most of the P&L; a single 7¢ MLS fill (04-20 +$14.80) is a third of the absolute P&L on its own.
+- **F14 — High-confidence WR < Medium:** High 47% WR (n=57) vs Medium 53% WR (n=100). High ROI only wins via larger per-bet sizing. NBA instance is the loudest: High = 1-6 / -71% ROI.
+- **F15 — NBA negative across three review windows:** 30d -14.8% (n=17), 14d -26%, post-baseline -15%. R2 stdev bump (04-21) too recent to attribute.
+- **F17 — Calibration overconfidence persists 50-100%:** -14 to -22pp gap on every non-longshot probability bucket.
+- **F21 — `model_calibration.py` blind to real sample:** Script read `trade_log` (16 entries, 3 closed) instead of `kalshi_settlements.json` (173 entries). R12 was impossible to run until fixed.
+- **F22 — Live `.env` missing per-sport edge overrides:** For the entire post-baseline window, NBA and NCAAB were running at the 3% global floor, not the documented 8% / 10%. Silent drift — `.env.example` had them but the live env did not.
+
+### R15. `model_calibration.py` points at settlement source
+- **Fix:** New `_load_settled_trades()` normalizer reads `data/history/kalshi_settlements.json` (same source `betting_analysis.py` uses). Maps `cost` → `cost_dollars`, `won` → `settlement_won`, `settled_at` → `closed_at`; derives `category` from ticker via `bet_type_from_ticker()`. Replaces string-based ISO cutoff comparison with `datetime` parsing that tolerates trailing `Z`. All downstream helpers (`_brier_score`, `_calibration_buckets`, `_edge_bucket_stats`, `_dimension_stats`, cross-tab, recommendations) unchanged.
+- Files: `scripts/kalshi/model_calibration.py`.
+
+### R12. First full-sample calibration report
+- **First run:** `reports/Calibration/2026-04-24_calibration_report.md`. 10 prioritized recommendations (2 HIGH, 8 MEDIUM). Brier 0.2657 (worse than coin-flip).
+- **Per-sport Brier surfaces NBA as the worst-calibrated sport:** NBA 0.3306, NCAAB 0.2885, MLB 0.2519, NHL 0.2376 (NHL better than coin-flip — model is calibrated there), MLS 0.2364 (small sample).
+- **Cross-tab insight:** medium × Total is the bread-and-butter combo (+46% ROI on n=71); high × Total is -52% on n=4 (tiny); high × ML is roughly flat at +10%.
+- **Edge-bucket inversion softening:** 25%+ bucket 14d -24% ROI → 30d +16% ROI. Suggestive evidence R2 is working; needs another window + post-R13/R14 settlements to confirm.
+
+### R14. `MIN_EDGE_THRESHOLD_NBA` bumped 0.08 → 0.12 (+ live-env override restore)
+- **Fix:** NBA per-sport floor raised to 12%. Also added both `MIN_EDGE_THRESHOLD_NBA=0.12` and `MIN_EDGE_THRESHOLD_NCAAB=0.10` to the live `.env` — they were documented in `.env.example` and `CLAUDE.md` but missing from the actual env file, so both were silently falling back to the 3% global floor.
+- **Scope intentionally minimal:** 17-bet NBA sample showed the bleed was concentrated in High-confidence picks (1-6, -71% ROI) and 2/3 of the NBA ML losers were sub-10¢ lottery tickets already caught by R7. Playoff-specific stdev and "NBA Totals-only" filters explicitly rejected — not enough sample. Confidence-tier fix lives in R13.
+- Env: `MIN_EDGE_THRESHOLD_NBA=0.12`. Files: `.env`, `.env.example`, `CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/setup/SETUP_GUIDE.md`, `docs/web-app/CLOUD.md`, `docs/scripts/kalshi_executor.md`, `docs/kalshi-sports-betting/MLB_FILTERING_GUIDE.md`, `.claude/html/index.html`, `scripts/kalshi/kalshi_executor.py` (docstring).
+
+### R13. Confidence bumps are now one-way (down only)
+- **Problem:** `_adjust_confidence_with_stats()` applied ±1 tier bumps from three call sites (team stats, rest/B2B, sharp money). 30-day data showed upward bumps correlated with inflated claimed edge but worse realized outcomes — High-confidence WR 47% < Medium 53% portfolio-wide, NBA High at 1-6 / -71% ROI.
+- **Fix:** `contradicts` still drops a tier; `supports` is now a no-op. All three call sites share the function, so the change applies uniformly. Base "high" tier remains reachable via the book-count rule (≥8 sharp books + tight consensus <5%) — only the bolt-on bumps are neutralized. Kelly sizing unaffected (sizing doesn't use confidence directly); composite score naturally compresses; Gate 4.6's confidence=high requirement naturally tightens — correct direction.
+- No env var. +4 regression tests (`TestConfidenceBumpsOneWay`) → 222 passing.
+- Files: `scripts/kalshi/edge_detector.py`, `tests/test_edge_detection.py`.
+
+### R16. Monthly calibration cron
+- **Fix:** New `calibration` profile in `install_windows_task.py` runs `model_calibration.py --days 30 --save` on day 1 of each month at 02:00 (after nightly settler). Required extending the installer to support `MONTHLY` schedules with `/D` day specifier; daily profiles unchanged.
+- **Also:** Narrowed `scripts/schedulers/` gitignore so the portable `automation/` folder is now tracked (three `.py` files — all paths derive from `__file__`, secrets via `.env`, no machine-specific state). Sibling scheduler folders with hardcoded-path `.bat` files stay gitignored.
+- Install: `python scripts/schedulers/automation/install_windows_task.py install calibration`.
+- Files: `scripts/schedulers/automation/install_windows_task.py`, `scripts/schedulers/automation/daily_sports_scan.py`, `scripts/schedulers/automation/telegram_bot.py`, `docs/setup/AUTOMATION_GUIDE.md`, `.gitignore`.
+
+### Gate Numbering
+- **Total gates:** 12 (unchanged since R7).
+
+---
+
 ## 2026-04-22 -- Repo-Analysis Response + Lottery-Ticket Floor (Q1-Q5, R7)
 
 ### Repo Analysis Response (2026-04-22 independent review)

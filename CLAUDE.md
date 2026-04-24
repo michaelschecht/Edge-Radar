@@ -139,6 +139,8 @@ Before ANY trade executes:
 
 NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` are additionally sized at `NO_SIDE_KELLY_MULTIPLIER` of normal Kelly (half-Kelly by default).
 
+**R13 (2026-04-24): confidence bumps are one-way.** The team-stats, rest/B2B, and sharp-money signals can *drop* a confidence tier on `contradicts`, but `supports` is now a no-op (previously bumped up a tier). The 30-day calibration showed High-confidence WR 47% below Medium 53%, with NBA High = 1-6 / -71% ROI — upward bumps correlated with inflated claimed edge, not better outcomes. Base "high" tier is still reachable via the ≥8 sharp-books + tight-consensus rule; only the bolt-on bumps are neutralized. Implemented in `_adjust_confidence_with_stats()` in `scripts/kalshi/edge_detector.py`; no env var.
+
 ### Dry Run Mode
 
 - Default: `DRY_RUN=true`
