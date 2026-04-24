@@ -28,7 +28,7 @@ The system processes every opportunity through seven sequential stages. Each sta
 | **2. Categorize** | Classify by type | Determines which edge model applies |
 | **3. Compare** | Fair value vs. Kalshi ask price | Score on 4 dimensions: edge, confidence, liquidity, time |
 | **4. Cap** | Limit to top 3 per game/event | Prevents concentration in a single contest |
-| **5. Risk-Check** | 12 risk gates + Kelly sizing | Reject or cap — see [Risk Management](#%EF%B8%8F-risk-management) |
+| **5. Risk-Check** | 13 risk gates + Kelly sizing | Reject or cap — see [Risk Management](#%EF%B8%8F-risk-management) |
 | **6. Execute** | Place limit orders on Kalshi | Full trade journal entry with rationale |
 | **7. Monitor** | Track positions, settle, calibrate | Realized P&L + closing line value tracking |
 
@@ -243,6 +243,7 @@ Every order must pass gates 1-7 (including 4.5 and 4.6) before execution. Gates 
 | 4 | **Composite score** | Weighted score (edge + confidence + liquidity + time) | **Reject** if score < `MIN_COMPOSITE_SCORE` |
 | 4.5 | **Min confidence (R3)** | Opportunity confidence label (low/medium/high) | **Reject** if confidence below `MIN_CONFIDENCE` |
 | 4.6 | **NO-side favorite guard (R1)** | NO bet on a heavy favorite (price < `NO_SIDE_FAVORITE_THRESHOLD`) | **Reject** unless edge ≥ `NO_SIDE_MIN_EDGE` AND confidence=high |
+| 4.7 | **Prediction-market safety (R25)** | Opportunity category in `{crypto, weather, spx, mentions, companies, politics}` | **Reject** unless `ALLOW_PREDICTION_BETS=true` |
 | 5 | **Duplicate ticker** | Already holding this exact market | **Reject** if ticker in open positions |
 | 6 | **Per-event cap** | Too many positions on the same game | **Reject** if event count ≥ `MAX_PER_EVENT` |
 | 7 | **Series dedup** | Same matchup bet on a recent date (sport + team pair) | **Reject** if matchup key appears in trade log within `SERIES_DEDUP_HOURS` |
@@ -280,6 +281,7 @@ In addition, NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` (default $0.35) ar
 | `KELLY_EDGE_CAP` | 0.15 | Soft-cap on edge used for Kelly sizing (raw edge unchanged elsewhere) |
 | `KELLY_EDGE_DECAY` | 0.5 | Decay factor for edge above the cap |
 | `SERIES_DEDUP_HOURS` | 48 | Reject bet if same matchup was bet within this window (0 disables) |
+| `ALLOW_PREDICTION_BETS` | false | Gate 4.7 (R25): when false, reject all crypto/weather/spx/mentions/companies/politics bets. Default off until the prediction-market models are rebuilt (see R25b/R25c). |
 
 ---
 

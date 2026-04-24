@@ -758,7 +758,7 @@
   <p class="lede">
     Edge-Radar scans thousands of open Kalshi markets, cross-references prices against
     sportsbook consensus, crypto spot, weather forecasts, and Polymarket —
-    then surfaces mispriced contracts through 12 risk gates and Kelly sizing before
+    then surfaces mispriced contracts through 13 risk gates and Kelly sizing before
     placing limit orders. Every decision is logged for post-hoc calibration.
   </p>
   <div class="hero-stats">
@@ -1073,6 +1073,12 @@
         <td>NO bets with price &lt; <code>NO_SIDE_FAVORITE_THRESHOLD</code> (0.25) need edge &gt;= <code>NO_SIDE_MIN_EDGE</code> (0.25) AND confidence=high</td>
       </tr>
       <tr>
+        <td><code>4.7</code></td>
+        <td><span class="pill pill-reject">reject</span> <span class="pill pill-new">R25</span></td>
+        <td>Prediction-market safety</td>
+        <td>Opportunity category in {crypto, weather, spx, mentions, companies, politics} → reject unless <code>ALLOW_PREDICTION_BETS=true</code></td>
+      </tr>
+      <tr>
         <td><code>5</code></td>
         <td><span class="pill pill-reject">reject</span></td>
         <td>Duplicate ticker</td>
@@ -1211,8 +1217,8 @@
   <div class="timeline">
 
     <div class="t-entry">
-      <div class="t-date">2026-04-24 — 30-Day Calibration Cycle</div>
-      <div class="t-title">R12, R13, R14, R15, R16 — calibration unblocked + NBA floor + one-way confidence bumps</div>
+      <div class="t-date">2026-04-24 — 30-Day Calibration Cycle + Futures Bug Hunt + Prediction Audit</div>
+      <div class="t-title">R12–R18, R20, R21–R23, R24a, R25 — calibration unblocked, NBA floor, one-way confidence, scanner parity, 3 futures fixes, Odds API key rotation, webapp cache, scan-table Gate column, prediction safety gate</div>
       <div class="t-items">
         <div class="t-item">
           <div class="t-item-title"><span class="tag">R15</span><code>model_calibration.py</code> points at settlement source</div>
@@ -1233,6 +1239,38 @@
         <div class="t-item">
           <div class="t-item-title"><span class="tag">R16</span>Monthly calibration cron</div>
           <div class="t-item-body">New <code>calibration</code> profile runs <code>model_calibration.py --days 30 --save</code> on day 1 of each month at 02:00 (after nightly settler). Installer extended to support <code>MONTHLY</code> schedules. Narrowed <code>scripts/schedulers/</code> gitignore so the portable <code>automation/</code> folder is now tracked.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R17</span>Scanner flag parity (<code>--budget</code>, <code>--report-dir</code>)</div>
+          <div class="t-item-body">Futures / prediction / polymarket didn't accept <code>--budget</code> or <code>--report-dir</code>. Extracted shared <code>parse_budget_arg()</code> helper; added both flags across all four scanners; wired each to <code>execute_pipeline(budget=…)</code> and <code>save_scan_report(output_dir=…)</code>.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R21</span>Dedup passes futures through unchanged</div>
+          <div class="t-item-body">A futures scan of 20 opportunities was being collapsed to 2 before risk gates ran. <code>dedup_correlated_brackets</code> was treating every team outcome in a championship as an alt-line bracket. Fix: when <code>category=="futures"</code>, use the full ticker as the dedup key. Concentration still bounded by Gate 6 (<code>MAX_PER_EVENT=2</code>).</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R22</span><code>FUTURES_MAP</code> prefix-collision + semantic fix</div>
+          <div class="t-item-body">Futures scan was surfacing "+30-75% edge" on almost every MLB team. Two bugs: (1) <code>KXMLBPLAYOFFS-26-LAD</code> matched the <code>KXMLB</code> prefix first via <code>startswith</code>; (2) playoff-qualifier and conference-winner markets pointed to championship-winner odds — fundamentally the wrong question. Fixed by switching to exact-series match and removing the 5 semantically-broken entries (KXMLBPLAYOFFS, KXNBAEAST/WEST, KXNHLEAST/WEST). Same scan now surfaces 2 real +4% edges instead of 45 bogus +30-75% "edges".</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R23</span>Odds API key rotation + persistent quota cache</div>
+          <div class="t-item-body">Live probe showed 5 of 10 configured keys exhausted; <code>fetch_outrights</code> retry loop exited after 3 attempts and never reached the healthy key at index 5. Fixed: switched to <code>tried: set[str]</code> loop, added <code>mark_exhausted()</code> on 401, persistent quota cache at <code>data/cache/odds_api_quota.json</code>. Fresh processes now skip exhausted keys instantly.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R24a</span>Webapp scan cache (<code>@st.cache_data(ttl=60)</code>)</div>
+          <div class="t-item-body">Zero <code>@st.cache</code> decorators existed anywhere in <code>webapp/</code>. Every click of SCAN MARKETS fired a fresh Odds API fetch. 60s TTL on <code>run_scan()</code>; CLEAR button wipes the cache on demand.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R18</span>Scan tables show a <strong>Gate</strong> column</div>
+          <div class="t-item-body">Scan output was silently hiding which rows the executor would reject. New <code>preflight_gate_status()</code> helper checks the 5 static per-opportunity gates; returns <code>ok</code> / <code>edge</code> / <code>price</code> / <code>score</code> / <code>conf</code> / <code>no-fav</code> / <code>pred-off</code>. Wired into all four scanner tables.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R20</span>Prediction-market audit</div>
+          <div class="t-item-body">First full eval of the 6 prediction modules since they shipped. Findings: zero prediction bets in 173 settlements; all 6 modules cache live data with no TTL; 4 of 6 have no unit tests; live scans produce garbage fair values (crypto +80% on 4¢ tails, weather $1.00 on 1°F windows); a Miami weather bet was one <code>--unit-size</code> away from executing live. Recommendation: park until rebuilt.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R25</span>New Gate 4.7 — prediction-market safety</div>
+          <div class="t-item-body">Rejects <code>crypto</code> / <code>weather</code> / <code>spx</code> / <code>mentions</code> / <code>companies</code> / <code>politics</code> categories unless <code>ALLOW_PREDICTION_BETS=true</code>. Default off until R25b (TTL caches) + R25c (rebuild one model with tests) are shipped. R18's Gate column surfaces the rejection as <code>pred-off</code> at scan time.</div>
         </div>
       </div>
     </div>
@@ -1413,9 +1451,9 @@ window.DF_GRAPH = {
       kicker: 'STAGE 4',
       body: '<strong>Score & cap.</strong> Composite 0–10 score combines edge %, model confidence, market liquidity and time-to-close. Top 3 picks per event to prevent concentration in one contest.',
       files: ['edge_detector.py', 'opportunity.py'] },
-    { id: 's5',   type: 'gate',       badge: '5', title: '12 Risk Gates', meta: 'Reject / cap',     x: 1000, y: 500,
+    { id: 's5',   type: 'gate',       badge: '5', title: '13 Risk Gates', meta: 'Reject / cap',     x: 1000, y: 500,
       kicker: 'STAGE 5 · RISK',
-      body: '<strong>Every order clears reject gates 1–7 or is rejected; gates 8–9 cap sizing.</strong> Daily loss · open cap · edge floor (3% global, 12% NBA, 10% NCAAB) · <strong>$0.10 lottery-ticket floor</strong> · composite ≥ 6.0 · min confidence · <strong>NO-favorite guard</strong> · dup · per-event cap · <strong>48h series dedup</strong> · $100 bet cap · 3× batch-median cap.',
+      body: '<strong>Every order clears reject gates 1–7 or is rejected; gates 8–9 cap sizing.</strong> Daily loss · open cap · edge floor (3% global, 12% NBA, 10% NCAAB) · <strong>$0.10 lottery-ticket floor</strong> · composite ≥ 6.0 · min confidence · <strong>NO-favorite guard</strong> · <strong>prediction-market safety (R25)</strong> · dup · per-event cap · <strong>48h series dedup</strong> · $100 bet cap · 3× batch-median cap.',
       files: ['risk_check.py', 'kalshi_executor.py'] },
     { id: 's6',   type: 'stage-node', badge: '6', title: 'Kelly Sizing',   meta: 'Batch-aware',      x: 1000, y: 680,
       kicker: 'STAGE 6',

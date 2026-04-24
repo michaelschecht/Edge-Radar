@@ -341,7 +341,7 @@ python scripts/polymarket/polymarket_edge.py scan [flags]
 
 ### Step 3: Present Results
 
-The scan table shows: **Sport** (NBA/NHL/MLB/etc.), **Bet** (matchup), **Type** (ML/Spread/Total/Prop), **Pick** (e.g., "Spurs win", "Over 220.5", "Blazers -7.5"), **When**, **Mkt**, **Fair**, **Edge**, **Conf**, **Score**.
+The scan table shows: **Sport** (NBA/NHL/MLB/etc.), **Bet** (matchup), **Type** (ML/Spread/Total/Prop), **Pick** (e.g., "Spurs win", "Over 220.5", "Blazers -7.5"), **When**, **Mkt**, **Fair**, **Edge**, **Conf**, **Score**, **Gate** (R18 — `ok` or a short label like `score` / `conf` / `no-fav` / `pred-off` showing which risk gate would reject this row at execute time).
 
 When `--unit-size` is passed, the executor table shows: **Sport**, **Bet**, **Type**, **Pick**, **When**, **Qty**, **Price**, **Cost**, **Edge**.
 
@@ -443,7 +443,7 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 
 **With `--unit-size` (execution report):** Sport, Bet, Type, Pick, Qty, Price, Cost, Edge, total cost.
 
-**Without `--unit-size` (scan report):** Sport, Bet, Type, Pick, When, Mkt, Fair, Edge, Conf, Score.
+**Without `--unit-size` (scan report):** Sport, Bet, Type, Pick, When, Mkt, Fair, Edge, Conf, Score, Gate.
 
 | Scanner | Report Path |
 |---------|-------------|
@@ -474,10 +474,11 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 - **Minimum composite score:** 6.0 (reject gate, confidence is factored into composite)
 - **Minimum confidence (R3, 2026-04-21):** Gate 4.5 rejects opportunities below `MIN_CONFIDENCE` (default `medium`). Values: low | medium | high. Low-confidence bets realized 0W-3L / -105% ROI across two review windows.
 - **NO-side favorite guard (R1, 2026-04-21):** Gate 4.6 rejects NO bets priced below `NO_SIDE_FAVORITE_THRESHOLD=0.25` unless edge ≥ `NO_SIDE_MIN_EDGE=0.25` AND confidence=high. Plus a sizing dampener: NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR=0.35` are sized at `NO_SIDE_KELLY_MULTIPLIER=0.5` of Kelly (half-Kelly). All 13 high-edge losers in the 14-day window were NO-side.
+- **Prediction-market safety gate (R25, 2026-04-24):** Gate 4.7 rejects opportunities where `opp.category` is `crypto`, `weather`, `spx`, `mentions`, `companies`, or `politics` unless `ALLOW_PREDICTION_BETS=true`. Default off. 2026-04-24 audit surfaced that all 6 prediction modules cache stale data with zero TTL, produce nonsense fair values (Miami weather at $1.00 fair on a 1°F window, crypto +80% "edges" on 4¢ tails), and have placed zero of 173 historical settled bets — no calibration data exists. Kept blocked until R25b (TTL caches) and R25c (rebuild one model with tests) are shipped.
 - **Resting-order janitor (R4, 2026-04-21):** At the top of any `--execute` run (non-dry-run), resting orders older than `RESTING_ORDER_MAX_HOURS=24` with zero fills are auto-cancelled. Partial/full fills untouched — settler handles them. Piggybacks on the 5AM daily execute task; no new scheduler.
 - **Confidence bumps one-way (R13, 2026-04-24):** `_adjust_confidence_with_stats()` in `edge_detector.py` now drops a tier on `contradicts` but no-ops on `supports`. Applies uniformly to team stats, rest/B2B, and sharp-money signals. 30-day calibration showed High-confidence WR (47%) below Medium (53%) and NBA High at 1-6 / -71% ROI — upward bumps correlated with inflated claimed edge, not better outcomes. Base "high" tier still reachable via the ≥8 sharp-books + tight-consensus rule. No env var.
 
-Gates 1-7 (including 3.5, 4.5, 4.6) reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
+Gates 1-7 (including 3.5, 4.5, 4.6, 4.7) reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
 
 ---
 
@@ -663,5 +664,5 @@ streamlit run webapp/app.py
 1. **Always check status first** before any scan or bet — if daily loss limit is breached, STOP.
 2. **Never execute without confirmation** unless `--execute`/`--go` was explicitly passed.
 3. **Preview is the default** — every scan shows a table first, orders only placed with `--execute`.
-4. **Twelve risk gates enforced** — daily loss, position count, edge (per-sport), market price floor (3.5, R7 — $0.10), score, min confidence (4.5), NO-side favorite guard (4.6), duplicate ticker, per-event cap, series dedup, max bet size, bet ratio cap. All checked before every order. Plus the resting-order janitor at the top of every live execute run.
+4. **Thirteen risk gates enforced** — daily loss, position count, edge (per-sport), market price floor (3.5, R7 — $0.10), score, min confidence (4.5), NO-side favorite guard (4.6), prediction-market safety (4.7, R25), duplicate ticker, per-event cap, series dedup, max bet size, bet ratio cap. All checked before every order. Plus the resting-order janitor at the top of every live execute run.
 5. **API keys are in `.env`** — never print, log, or expose them.

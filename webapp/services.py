@@ -56,6 +56,8 @@ try:
         "NO_SIDE_FAVORITE_THRESHOLD", "NO_SIDE_MIN_EDGE",
         "NO_SIDE_KELLY_PRICE_FLOOR", "NO_SIDE_KELLY_MULTIPLIER",
         "RESTING_ORDER_MAX_HOURS",
+        # Prediction-market safety gate (R25, 2026-04-24)
+        "ALLOW_PREDICTION_BETS",
     ]
     for env_var, getter in _secrets_map.items():
         if env_var not in os.environ:

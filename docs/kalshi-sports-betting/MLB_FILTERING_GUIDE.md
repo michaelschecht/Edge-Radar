@@ -24,7 +24,7 @@ python scripts/kalshi/edge_detector.py scan --filter mlb --save
 | Ticker | Market Type |
 |---|---|
 | `KXMLBGAME` | Game outcomes (moneyline) |
-| `KXMLBPLAYOFFS` | Playoff qualifier futures |
+| `KXMLBPLAYOFFS` | Playoff qualifier futures (edge detection **disabled 2026-04-24 (R22)** — needs dedicated "make playoffs" outrights, not currently available on The Odds API free tier) |
 | `KXMLB` | World Series champion futures |
 
 ---

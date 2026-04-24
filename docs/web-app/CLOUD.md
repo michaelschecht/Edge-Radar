@@ -110,6 +110,9 @@ DRY_RUN = "true"
 # NO_SIDE_KELLY_PRICE_FLOOR = "0.35"    # Below this NO-side price, apply Kelly multiplier
 # NO_SIDE_KELLY_MULTIPLIER = "0.5"      # Half-Kelly on NO bets below the price floor
 # RESTING_ORDER_MAX_HOURS = "24"        # Cancel zero-fill resting orders older than this (R4)
+
+# Prediction-market safety gate (R25, 2026-04-24): blocks crypto/weather/spx/mentions/companies/politics
+# ALLOW_PREDICTION_BETS = "false"       # Set to "true" only after prediction models are rebuilt
 ```
 
 ### How Secrets Work

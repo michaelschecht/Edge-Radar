@@ -59,6 +59,7 @@ The pipeline rejects opportunities that fail any of gates 1-7 (including 4.5 and
 | 4 | Composite score | Must meet `MIN_COMPOSITE_SCORE` (6.0) — confidence is factored into composite |
 | 4.5 | Min confidence (R3) | Confidence label must be ≥ `MIN_CONFIDENCE` (default `medium`). Added 2026-04-21 after low-confidence bets showed 0W-3L / -105% ROI across two review windows. |
 | 4.6 | NO-side favorite guard (R1) | NO bets whose market price < `NO_SIDE_FAVORITE_THRESHOLD` (0.25) need edge ≥ `NO_SIDE_MIN_EDGE` (0.25) AND confidence=high. Added 2026-04-21 after all 13 high-edge losers in the 14-day window were NO-side bets on heavy favorites. |
+| 4.7 | Prediction-market safety (R25) | Rejects opportunities where `opp.category` is one of `crypto` / `weather` / `spx` / `mentions` / `companies` / `politics` unless `ALLOW_PREDICTION_BETS=true`. Added 2026-04-24 after a prediction-market audit found all 6 modules cache stale data with no TTL, have zero historical settlements, and produce nonsense fair values (e.g. Miami weather at $1.00 fair on a 1°F window). |
 | 5 | Duplicate ticker | Can't already hold a position in this market |
 | 6 | Per-event cap | Max `MAX_PER_EVENT` (2) positions on the same game |
 | 7 | Series dedup | Same matchup (sport + team pair, date-agnostic) can't have been bet within `SERIES_DEDUP_HOURS` (48h). Added 2026-04-18 after calibration showed consecutive-night series bleeds. |

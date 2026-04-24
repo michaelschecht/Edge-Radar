@@ -2,6 +2,50 @@
 
 ---
 
+## 2026-04-24 (PM) -- Scanner Parity, Futures Bug Hunt, Prediction-Market Audit (R17, R18, R20, R21, R22, R23, R24a, R25)
+
+### R17. Scanner flag parity (`--budget`, `--report-dir`)
+- **Problem:** User tried `futures_edge.py scan --exclude-open --budget 5%` and discovered that `--budget` and `--report-dir` were sports-only. Futures / prediction / polymarket CLIs didn't accept them, and even if they had, `execute_pipeline(budget=…)` wasn't threaded through. Risk-gate logic itself was already uniform (all four call `execute_pipeline`).
+- **Fix:** Extracted `parse_budget_arg()` into `kalshi_executor.py` so all four scanners share the same `"10%"` / `"15"` / `"0.15"` / `"150"` parsing contract. Added `--budget` + `--report-dir` to futures / prediction / polymarket argparse; wired each to `execute_pipeline(budget=…)` and `save_scan_report(output_dir=…)`. Sports scanner's inline 7-line budget block replaced with the shared helper.
+
+### R21. `dedup_correlated_brackets` now passes futures through unchanged
+- **Problem:** A futures scan of 20 opportunities was being collapsed to 2 before risk gates even ran. `dedup_correlated_brackets` grouped by `(event_key, category)`; for championship futures `KXNBA-26-LAL` / `KXNBA-26-BOS` / `KXNBA-26-OKC` all share event key `KXNBA-26`, so dedup saw 16+ team outcomes as one "alt-line bracket" and kept only the top composite score.
+- **Fix:** When `opp.category == "futures"`, use the full ticker as the dedup key so each outcome survives. Correct for alt-line brackets ("Over 221.5" / "Over 224.5") that are genuinely correlated, wrong for futures where each team is a distinct independent bet. Concentration still bounded by Gate 6 (`MAX_PER_EVENT=2`).
+
+### R22. `FUTURES_MAP` prefix-collision + semantic-mismatch double bug
+- **Problem:** Futures scan surfacing "+30-75% edge" on basically every MLB team — too good to be true, and it was. Two compounding bugs: (1) **Prefix collision** — iteration broke on first `ticker.startswith(prefix)` match, so `KXMLBPLAYOFFS-26-LAD` matched the `KXMLB` entry first. Same silently affected `KXNBAEAST`/`KXNBAWEST`/`KXNHLEAST`/`KXNHLWEST`. (2) **Semantic mismatch** — even with prefix ordering fixed, those 5 derivative entries pointed to championship-winner odds while representing playoff-qualification or conference-winner questions. LAD's probability to **make playoffs** (~95%) is fundamentally different from LAD's probability to **win the World Series** (~28%).
+- **Fix:** Switched matching from `ticker.startswith(prefix)` to exact series extraction (`ticker.split("-", 1)[0]` lookup). Removed the 5 semantically-broken entries from `FUTURES_MAP` with a comment explaining why each needs a proper data source before being re-added (tracked in R19). Updated `FUTURES_FILTER_SHORTCUTS` to match.
+- **Verification:** Same scan went from 45 bogus opportunities at +30-75% edge → 2 real opportunities at +4% edge (OKC NBA Finals, LAD World Series). Modest edges are what a sharp futures market should look like.
+
+### R23. Robust Odds API key rotation + persistent quota cache
+- **Problem:** `--filter mlb-futures` returned "No outright data" despite unfiltered scan working seconds earlier. Live probe showed first 5 of 10 keys exhausted (500/500 used each). Two compounding bugs: (1) `futures_edge.fetch_outrights` used `for attempt in range(3)`, so after keys 0-2 all 401'd the retry loop exited before reaching the healthy key at index 5. (2) `_remaining` dict was process-local — every fresh invocation rediscovered exhaustion the hard way.
+- **Fix:** Replaced `range(3)` in `fetch_outrights` with the `tried: set[str]` loop pattern used in `edge_detector.fetch_odds_api` (cycles through every configured key). Added `mark_exhausted()` called on 401 responses. Persistent quota cache at `data/cache/odds_api_quota.json` — `_remaining` loaded at `_load_keys()` time, saved on every `report_remaining()` / `mark_exhausted()`. `get_current_key()` now auto-advances past keys with cached `remaining == 0`. Fallback: if every key is cached exhausted, return the current slot anyway so a monthly quota reset can be re-discovered.
+- Env: nothing new — uses existing `ODDS_API_KEYS`.
+
+### R24a. Webapp scan cache (`@st.cache_data(ttl=60)`)
+- **Problem:** Zero `@st.cache` decorators existed anywhere in `webapp/` before this. Every scan-button click fired a fresh Odds API fetch, and exploratory "try a filter, scan, change filter, scan again" sessions burned requests fast. Investigation under R24 surfaced this as one contributor to F31's 175-requests-in-5-min burn rate.
+- **Fix:** Added 60s TTL cache on `run_scan()` keyed on all scan parameters (market_type, ticker_filter, category, date, min_edge, top_n, exclude_open, cross_ref). Client param renamed `client` → `_client` per Streamlit convention for unhashable args. CLEAR button now also calls `run_scan.clear()` so the user can force a refresh on demand.
+
+### R18. Scan tables show "Gate" column previewing executor rejects
+- **Problem:** User ran `scan --filter mlb-futures --unit-size .5` and got "No opportunities passed risk checks" (LAD rejected on composite score 4.6 < 6.0). Same command without `--unit-size` happily listed LAD as a +4.3% edge row with no indication it would fail. Scan table promised an opportunity the system would never take.
+- **Fix:** Added `preflight_gate_status(opp)` helper in `kalshi_executor.py` that checks the 5 static per-opportunity gates and returns a short label: `"ok"` / `"edge"` / `"price"` / `"score"` / `"conf"` / `"no-fav"` / `"pred-off"`. Wired into the scan-table render path of all four scanners. Green "ok" for pass, red label for the failing gate. Runtime gates (daily loss, position count, duplicate ticker, per-event cap, series dedup) require live portfolio state and are NOT checked here — `"ok"` is necessary but not sufficient.
+
+### R20. Prediction-market audit
+- **Findings:** Zero prediction-market bets in 173 historical settlements. All 6 modules (crypto / weather / spx / mentions / companies / politics) cache live data with no TTL. 4 of 6 modules have zero unit tests. Live scans produce obvious garbage: crypto +80% "edges" on 4¢ tail bets, weather showing $1.00 fair values on 1°F range markets (one was ready to execute at HIG confidence, 9.7 composite, one `--unit-size` away). `DEMO_KEY` hardcoded in `companies_edge.py`.
+- **Prescription:** Safety-gate the category via R25. Rebuild (R25b/R25c) before any M1-M4 upgrades.
+
+### R25. New Gate 4.7 — prediction-market safety gate
+- **Fix:** New reject gate in `size_order()` — rejects opportunities where `opp.category in {"crypto", "weather", "spx", "mentions", "companies", "politics"}` unless `ALLOW_PREDICTION_BETS=true`. Default off. `preflight_gate_status()` returns `"pred-off"` so the R18 Gate column surfaces the rejection at scan time.
+- Env: `ALLOW_PREDICTION_BETS=false` added to `.env.example`, `CLAUDE.md`, `docs/ARCHITECTURE.md`, webapp secrets passthrough.
+
+### Gate Numbering
+- **Total gates:** 13 (was 12). Reject gates 1-7 (including 3.5, 4.5, 4.6, 4.7); sizing caps 8-9.
+
+### Tests
+- 38 new tests across the session: 5 for `TestDedupCorrelatedBrackets` (R21), 7 for `TestFuturesSeriesMatch` (R22), 13 for `tests/test_odds_api.py` (R23), 9 for `TestPreflightGateStatus` (R18), 4 for the prediction safety gate (R25). 218 → 260 passing.
+
+---
+
 ## 2026-04-24 -- 30-Day Calibration Cycle (R12, R13, R14, R15, R16)
 
 ### 30-Day Review (160 settled trades since 2026-03-25)
