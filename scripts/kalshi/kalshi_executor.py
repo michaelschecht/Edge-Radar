@@ -115,6 +115,28 @@ for _sport in _SUPPORTED_SPORTS:
             pass
 
 
+def parse_budget_arg(raw: str | None) -> float | None:
+    """Parse a CLI `--budget` value into the form `execute_pipeline` expects.
+
+    Accepts three forms:
+        "10%"   -> 0.10   (10% of bankroll — fraction)
+        "15"    -> 0.15   (bare integer 1-100 interpreted as percentage)
+        "0.15"  -> 0.15   (explicit fraction; <=1)
+        "150"   -> 150.0  (>100 interpreted as flat dollar amount)
+
+    Shared by the sports, futures, prediction, and polymarket scanners
+    so the `--budget` contract is identical across all four.
+    """
+    if raw is None:
+        return None
+    num = float(str(raw).strip().rstrip("%"))
+    if num <= 1:
+        return num  # already a fraction (e.g., 0.15)
+    if num <= 100:
+        return num / 100  # percentage (15 -> 0.15)
+    return num  # flat dollar amount (150 -> $150)
+
+
 def min_edge_for(opp: "Opportunity") -> float:
     """Return the edge threshold for an opportunity's sport, or the global default.
 

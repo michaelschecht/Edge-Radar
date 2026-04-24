@@ -474,8 +474,13 @@ def main():
                         help="Execute only these specific tickers")
     scan_p.add_argument("--date", type=str, default=None,
                         help="Only show markets on this date (today, tomorrow, YYYY-MM-DD, mar31)")
+    scan_p.add_argument("--budget", type=str, default=None,
+                        help="Max total cost for the batch. Percentage of bankroll (e.g. '10%%') "
+                             "or dollar amount (e.g. '15'). Bets scaled down proportionally.")
     scan_p.add_argument("--exclude-open", action="store_true",
                         help="Exclude markets where you already have an open position")
+    scan_p.add_argument("--report-dir", type=str, default=None,
+                        help="Override report output directory for --save")
 
     args = parser.parse_args()
 
@@ -510,8 +515,8 @@ def main():
             opportunities = filter_exclude_tickers(opportunities, open_tickers)
             rprint(f"[dim]Excluded open positions: {before} -> {len(opportunities)} opportunities[/dim]")
 
-        if opportunities and (args.execute or args.unit_size is not None):
-            from kalshi_executor import execute_pipeline, UNIT_SIZE
+        if opportunities and (args.execute or args.unit_size is not None or args.budget is not None):
+            from kalshi_executor import execute_pipeline, UNIT_SIZE, parse_budget_arg
             execute_pipeline(
                 client=client,
                 opportunities=opportunities,
@@ -520,6 +525,7 @@ def main():
                 unit_size=args.unit_size or UNIT_SIZE,
                 pick_rows=args.pick,
                 pick_tickers=args.ticker,
+                budget=parse_budget_arg(args.budget),
                 min_bets=args.min_bets,
             )
         else:
@@ -528,7 +534,8 @@ def main():
         if args.save and opportunities:
             from report_writer import save_scan_report
             rpt = save_scan_report(opportunities, report_type="prediction",
-                                   filter_label=args.ticker_filter or "", min_edge=args.min_edge)
+                                   filter_label=args.ticker_filter or "", min_edge=args.min_edge,
+                                   output_dir=args.report_dir)
             if rpt:
                 rprint(f"[dim]Report saved to {rpt}[/dim]")
 

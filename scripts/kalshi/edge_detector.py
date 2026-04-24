@@ -1835,22 +1835,8 @@ def main():
 
         sized_orders = None
         if opportunities and (args.execute or args.unit_size is not None or args.budget is not None):
-            from kalshi_executor import execute_pipeline, UNIT_SIZE
-            # Parse --budget: "10%" -> 0.10 (fraction), "15" -> 15.0 (dollars)
-            budget_val = None
-            if args.budget is not None:
-                raw = args.budget.strip().rstrip("%")
-                num = float(raw)
-                # Treat values <= 100 without a decimal point as percentages
-                # (e.g., "15" or "15%" both mean 15% of bankroll).
-                # Values > 100 are treated as flat dollar amounts.
-                # Explicit decimals like "0.15" are treated as fractions.
-                if num <= 1:
-                    budget_val = num  # already a fraction (e.g., 0.15)
-                elif num <= 100:
-                    budget_val = num / 100  # percentage (e.g., 15 -> 0.15)
-                else:
-                    budget_val = num  # flat dollar amount (e.g., 150)
+            from kalshi_executor import execute_pipeline, UNIT_SIZE, parse_budget_arg
+            budget_val = parse_budget_arg(args.budget)
             sized_orders = execute_pipeline(
                 client=client,
                 opportunities=opportunities,
