@@ -98,15 +98,11 @@ Futures use **N-way de-vigging** instead of the 2-way de-vig used for game outco
 
 **Kalshi prefixes:** `KXNBAEAST` (15 teams), `KXNBAWEST` (15 teams)
 
-**Edge detection:** Yes -- compares against NBA Championship outright odds. If sportsbooks give a team a high championship probability, their conference win probability should be at least that high.
-
-**Example markets:**
-- "Will Boston win the 2026 Eastern Conference Finals?"
-- "Will Oklahoma City win the 2026 Western Conference Finals?"
+**Edge detection:** **Disabled 2026-04-24 (R22).** Previously mapped to `basketball_nba_championship_winner` outrights (championship odds), which systematically underestimates conference-winner probability — a team's chance of winning their conference is always ≥ their chance of winning the championship. The mismatch produced misleading "NO-side edge" recommendations. Needs dedicated conference-winner outrights on The Odds API (not currently available on free tier); re-enable tracked in R19.
 
 **Settlement:** When the conference finals conclude.
 
-**Note:** `--filter nba-futures` scans all three: Finals champion + both conferences.
+**Note:** `--filter nba-futures` now scans only the Finals champion series (KXNBA).
 
 ### NBA Awards (Browse Only)
 
@@ -138,15 +134,11 @@ Futures use **N-way de-vigging** instead of the 2-way de-vig used for game outco
 
 **Kalshi prefixes:** `KXNHLEAST` (16 teams), `KXNHLWEST` (16 teams)
 
-**Edge detection:** Yes -- compares against NHL Championship outright odds.
-
-**Example markets:**
-- "Will the Florida Panthers win the Eastern Conference Finals?"
-- "Will the Edmonton Oilers win the Western Conference Finals?"
+**Edge detection:** **Disabled 2026-04-24 (R22).** Same issue as NBA conferences — was mapped to Stanley Cup champion odds, which understate per-conference probabilities. Re-enable tracked in R19 once proper conference-winner outrights are available.
 
 **Settlement:** When the conference finals conclude.
 
-**Note:** `--filter nhl-futures` scans all three: Stanley Cup champion + both conferences.
+**Note:** `--filter nhl-futures` now scans only the Stanley Cup champion series (KXNHL).
 
 ### NHL Awards (Browse Only)
 
@@ -176,13 +168,13 @@ Futures use **N-way de-vigging** instead of the 2-way de-vig used for game outco
 
 **Kalshi prefix:** `KXMLBPLAYOFFS` (~30 markets)
 
-**Edge detection:** Yes -- compares against World Series outright odds.
+**Edge detection:** **Disabled 2026-04-24 (R22).** Was mapped to `baseball_mlb_world_series_winner` outrights, which is fundamentally the wrong question — e.g., the Dodgers are ~95% to make the playoffs but only ~28% to win the World Series. Comparing Kalshi's playoff-qualifier YES price (~96¢) against WS-winner fair value (~28%) produced systematic "+67% edge" NO recommendations across nearly every team. Re-enable tracked in R19 once a "make the playoffs" outright is available.
 
 **Example market:** "Will the Yankees make the playoffs?"
 
 **Settlement:** When the MLB playoff field is set (late September/October).
 
-**Note:** `--filter mlb-futures` scans both: World Series champion + playoff qualifiers.
+**Note:** `--filter mlb-futures` now scans only the World Series champion series (KXMLB).
 
 ---
 
@@ -319,13 +311,13 @@ Use the raw ticker prefix with the edge detector or client:
 | **NFL** | Super Bowl Champion (KXSB) | ~32 | Yes |
 | **NFL** | MVP (KXNFLMVP) | ~45 | Browse only |
 | **NBA** | Finals Champion (KXNBA) | ~30 | Yes |
-| **NBA** | Conference winners (KXNBAEAST/WEST) | ~30 | Yes |
+| **NBA** | Conference winners (KXNBAEAST/WEST) | ~30 | Removed 2026-04-24 (R22) — mapped to championship-winner odds, produced garbage. Needs dedicated conference-winner outrights; see R19. |
 | **NBA** | MVP, ROY, DPOY | ~143 | Browse only |
 | **NHL** | Stanley Cup Champion (KXNHL) | ~32 | Yes |
-| **NHL** | Conference winners (KXNHLEAST/WEST) | ~32 | Yes |
+| **NHL** | Conference winners (KXNHLEAST/WEST) | ~32 | Removed 2026-04-24 (R22) — same issue as NBA conferences. |
 | **NHL** | Hart, Norris, Calder | ~90 | Browse only |
 | **MLB** | World Series Champion (KXMLB) | ~30 | Yes |
-| **MLB** | Playoff qualifiers (KXMLBPLAYOFFS) | ~30 | Yes |
+| **MLB** | Playoff qualifiers (KXMLBPLAYOFFS) | ~30 | Removed 2026-04-24 (R22) — was mapped to WS winner odds. "Make playoffs" (~95% for LAD) and "win the WS" (~28%) are different questions. |
 | **NCAAB** | Most Outstanding Player | ~35 | Yes |
 | **NCAAB** | Heisman Trophy | ~21 | Browse only |
 | **Soccer** | UCL, EPL, La Liga, Serie A, Bundesliga, Ligue 1 | ~84 | Browse only |

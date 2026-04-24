@@ -56,6 +56,8 @@ try:
         "NO_SIDE_FAVORITE_THRESHOLD", "NO_SIDE_MIN_EDGE",
         "NO_SIDE_KELLY_PRICE_FLOOR", "NO_SIDE_KELLY_MULTIPLIER",
         "RESTING_ORDER_MAX_HOURS",
+        # Prediction-market safety gate (R25, 2026-04-24)
+        "ALLOW_PREDICTION_BETS",
     ]
     for env_var, getter in _secrets_map.items():
         if env_var not in os.environ:
@@ -71,6 +73,8 @@ try:
                 pass
 except Exception:
     pass
+
+import streamlit as st
 
 from kalshi_client import KalshiClient
 from edge_detector import scan_all_markets, FILTER_SHORTCUTS
@@ -148,8 +152,19 @@ SUPPORTED_MARKET_TYPES = ("sports", "futures", "prediction")
 
 # ── Scan ────────────────────────────────────────────────────────────────────
 
+# 60s TTL chosen because:
+#   - Kalshi prices can move within a minute on live markets, so we don't
+#     want stale results showing stale edges after anyone acts on them.
+#   - 60s still absorbs the typical "click scan, look, click scan again"
+#     exploratory loop that used to fire a full Odds API fetch per click.
+#   - If the user executes a bet and re-scans within the window, the cached
+#     result still includes the just-bet opportunity as a candidate row.
+#     Mild staleness; they can change any filter or wait 60s to refresh.
+# The `_client` parameter is underscore-prefixed per Streamlit convention so
+# it's excluded from the cache key — KalshiClient is not hashable.
+@st.cache_data(ttl=60, show_spinner=False)
 def run_scan(
-    client: KalshiClient,
+    _client: KalshiClient,
     market_type: str = "sports",
     ticker_filter: str | None = None,
     category_filter: str | None = None,
@@ -169,6 +184,12 @@ def run_scan(
 
     Polymarket cross-ref is available via market_type="prediction" + cross_ref=True.
     Raw Polymarket as a standalone market type is not yet wired through the service layer.
+
+    Cached for 60 seconds via `st.cache_data` (R24a) so repeat scan clicks
+    with identical filters reuse the same Odds API + Kalshi results. Odds
+    API quota was being burned by repeat clicks re-running the full fetch
+    every time. Call `st.cache_data.clear()` or pass a different filter to
+    force a refresh.
     """
     if market_type not in SUPPORTED_MARKET_TYPES:
         raise ValueError(
@@ -183,7 +204,7 @@ def run_scan(
     with capture_console() as buf:
         if market_type == "sports":
             opportunities = scan_all_markets(
-                client,
+                _client,
                 min_edge=min_edge,
                 category_filter=category_filter,
                 ticker_filter=ticker_filter,
@@ -195,7 +216,7 @@ def run_scan(
 
         elif market_type == "futures":
             opportunities = scan_futures_markets(
-                client,
+                _client,
                 min_edge=min_edge,
                 ticker_filter=ticker_filter,
                 top_n=top_n,
@@ -203,7 +224,7 @@ def run_scan(
 
         else:  # prediction
             opportunities = scan_prediction_markets(
-                client,
+                _client,
                 min_edge=min_edge,
                 category_filter=category_filter,
                 ticker_filter=ticker_filter,
@@ -212,7 +233,7 @@ def run_scan(
             )
 
         if opportunities and exclude_open:
-            positions = client.get_positions(limit=200, count_filter="position")
+            positions = _client.get_positions(limit=200, count_filter="position")
             open_tickers = {p.get("ticker", "") for p in positions.get("market_positions", [])}
             opportunities = filter_exclude_tickers(opportunities, open_tickers)
 

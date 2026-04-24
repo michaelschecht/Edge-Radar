@@ -93,6 +93,18 @@ NO_SIDE_MIN_EDGE = float(os.getenv("NO_SIDE_MIN_EDGE", "0.25"))
 NO_SIDE_KELLY_PRICE_FLOOR = float(os.getenv("NO_SIDE_KELLY_PRICE_FLOOR", "0.35"))
 NO_SIDE_KELLY_MULTIPLIER = float(os.getenv("NO_SIDE_KELLY_MULTIPLIER", "0.5"))
 
+# R25 (2026-04-24): prediction-market safety gate. 2026-04-24 audit found
+# that all 6 prediction-market modules (crypto_edge, weather_edge, spx_edge,
+# mentions_edge, companies_edge, politics_edge) cache live data with zero
+# TTL, 4 of 6 have no unit tests, and live scans surface obvious garbage
+# (crypto +80% "edges" on 4¢ tail markets, weather "$1.00 fair value" on
+# 1-degree range bets). Historical settlements confirm zero prediction
+# bets have ever been placed — no calibration data exists. Park the
+# category until M1-M4 are properly rebuilt; users can opt back in with
+# ALLOW_PREDICTION_BETS=true.
+PREDICTION_CATEGORIES = frozenset({"crypto", "weather", "spx", "mentions", "companies", "politics"})
+ALLOW_PREDICTION_BETS = os.getenv("ALLOW_PREDICTION_BETS", "false").strip().lower() in ("true", "1", "yes")
+
 _CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
 
 
@@ -154,6 +166,61 @@ def min_edge_for(opp: "Opportunity") -> float:
     if sport and sport in _PER_SPORT_MIN_EDGE:
         return _PER_SPORT_MIN_EDGE[sport]
     return MIN_EDGE_THRESHOLD
+
+
+def preflight_gate_status(opp: "Opportunity") -> str:
+    """Predict which reject gate (if any) `size_order` would hit for this
+    opportunity, using only static per-opportunity properties.
+
+    Returns a short label suitable for a scan-table column:
+        "ok"       — all statically-checkable gates pass
+        "edge"     — Gate 3   (edge below per-sport floor)
+        "price"    — Gate 3.5 (market price below R7 floor)
+        "score"    — Gate 4   (composite score below minimum)
+        "conf"     — Gate 4.5 (confidence below MIN_CONFIDENCE)
+        "no-fav"   — Gate 4.6 (R1 NO-side favorite guard)
+        "pred-off" — Gate 4.7 (R25 prediction-market safety gate)
+
+    Static only. Runtime gates (daily loss, open positions, duplicate
+    ticker, per-event cap, series dedup) require live portfolio/log state
+    and are not checked here — an "ok" verdict doesn't guarantee execution
+    will succeed, just that the opportunity itself has no per-opp blockers.
+
+    Shipped as R18 (2026-04-24) after users observed a scan surfacing
+    rows at +3-4% edge that the executor silently rejected on composite
+    score (F23). Gives the scan table a truthful preview of what will
+    actually pass to order placement.
+    """
+    # Gate 3: per-sport edge floor
+    if opp.edge < min_edge_for(opp):
+        return "edge"
+
+    # Gate 3.5: R7 market-price floor (disabled if MIN_MARKET_PRICE == 0)
+    if MIN_MARKET_PRICE > 0 and opp.market_price < MIN_MARKET_PRICE:
+        return "price"
+
+    # Gate 4: minimum composite score
+    if opp.composite_score < MIN_COMPOSITE_SCORE:
+        return "score"
+
+    # Gate 4.5: minimum confidence level
+    if _confidence_rank(opp.confidence) < _confidence_rank(MIN_CONFIDENCE):
+        return "conf"
+
+    # Gate 4.6: R1 NO-side favorite guard
+    if (
+        opp.side and opp.side.strip().lower() == "no"
+        and opp.market_price < NO_SIDE_FAVORITE_THRESHOLD
+        and (opp.edge < NO_SIDE_MIN_EDGE
+             or _confidence_rank(opp.confidence) < _confidence_rank("high"))
+    ):
+        return "no-fav"
+
+    # Gate 4.7: R25 prediction-market safety gate
+    if not ALLOW_PREDICTION_BETS and opp.category in PREDICTION_CATEGORIES:
+        return "pred-off"
+
+    return "ok"
 
 
 def trusted_edge(edge: float, cap: float | None = None, decay: float | None = None) -> float:
@@ -415,6 +482,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         4.   Minimum composite score                      (reject)
         4.5  Minimum confidence level (R3)                (reject)
         4.6  NO-side favorite guard (R1)                  (reject)
+        4.7  Prediction-market safety gate (R25)          (reject)
         5.   Duplicate ticker (already holding this market) (reject)
         6.   Per-event cap (max positions on same game)   (reject)
         7.   Series dedup (same matchup within last Nh)   (reject)
@@ -473,6 +541,21 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
             f"no_side_favorite (price ${opp.market_price:.2f} < "
             f"${NO_SIDE_FAVORITE_THRESHOLD:.2f}; needs edge >= "
             f"{NO_SIDE_MIN_EDGE:.0%} and confidence=high)"
+        )
+
+    # ── Risk Gate 4.7: Prediction-market safety gate (R25)
+    #   Reject bets on prediction-market categories (crypto/weather/spx/
+    #   mentions/companies/politics) unless ALLOW_PREDICTION_BETS=true.
+    #   2026-04-24 audit found those modules produce garbage fair values
+    #   (crypto +80% on tail bets, weather $1.00 fair on 1-degree ranges)
+    #   and have never produced a settled bet — no calibration exists.
+    elif (
+        not ALLOW_PREDICTION_BETS
+        and opp.category in PREDICTION_CATEGORIES
+    ):
+        rejection = (
+            f"prediction_market_disabled (category={opp.category}; "
+            f"set ALLOW_PREDICTION_BETS=true to enable)"
         )
 
     # ── Risk Gate 5: Duplicate ticker

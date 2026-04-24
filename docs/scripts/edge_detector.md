@@ -93,7 +93,7 @@ Supports comma-separated multi-filter (e.g., `--filter mlb,nhl`).
 |--------|----------------|--------------|
 | `nba` | KXNBAGAME, KXNBASPREAD, KXNBATOTAL, ... | `basketball_nba` |
 | `nhl` | KXNHLGAME, KXNHLSPREAD, KXNHLTOTAL, ... | `icehockey_nhl` |
-| `mlb` | KXMLBGAME, KXMLBPLAYOFFS | `baseball_mlb` |
+| `mlb` | KXMLBGAME (KXMLBPLAYOFFS removed from futures scanner in R22 — 2026-04-24) | `baseball_mlb` |
 | `nfl` | KXNFLGAME, KXNFLSPREAD, KXNFLTOTAL, ... | `americanfootball_nfl` |
 | `ncaamb` | KXNCAAMBGAME, KXNCAAMBSPREAD, KXNCAAMBTOTAL | `basketball_ncaab` |
 | `ncaabb` | KXNCAABBGAME | `basketball_ncaab` |

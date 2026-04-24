@@ -788,6 +788,7 @@ def main():
             )
         else:
             from ticker_display import parse_game_datetime
+            from kalshi_executor import preflight_gate_status
 
             table = Table(title="Polymarket Cross-Reference Edges", show_lines=True)
             table.add_column("Kalshi Ticker", style="cyan", max_width=30)
@@ -798,19 +799,23 @@ def main():
             table.add_column("Edge", justify="right", style="bold green")
             table.add_column("Conf.")
             table.add_column("Score", justify="right")
+            table.add_column("Gate")  # R18: static gate preflight
             table.add_column("Poly Question", max_width=35)
 
-            for opp in top_results:
-                d = opp["details"]
+            for raw, opp_obj in zip(top_results, opportunities):
+                d = raw["details"]
+                gate = preflight_gate_status(opp_obj)
+                gate_display = "[green]ok[/green]" if gate == "ok" else f"[red]{gate}[/red]"
                 table.add_row(
-                    opp["ticker"][:30],
-                    parse_game_datetime(opp["ticker"]),
-                    opp["side"].upper(),
-                    f"${opp['market_price']:.2f}",
-                    f"${opp['fair_value']:.2f}",
-                    f"+{opp['edge']:.1%}",
-                    opp["confidence"][:3].upper(),
-                    f"{opp['composite_score']:.1f}",
+                    raw["ticker"][:30],
+                    parse_game_datetime(raw["ticker"]),
+                    raw["side"].upper(),
+                    f"${raw['market_price']:.2f}",
+                    f"${raw['fair_value']:.2f}",
+                    f"+{raw['edge']:.1%}",
+                    raw["confidence"][:3].upper(),
+                    f"{raw['composite_score']:.1f}",
+                    gate_display,
                     d.get("polymarket_question", "")[:35],
                 )
 

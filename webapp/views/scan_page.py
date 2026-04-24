@@ -117,7 +117,7 @@ def render():
     with col5:
         min_edge = st.slider(
             "Min Edge %", 1, 20, defaults["min_edge"],
-            help="Scan-level minimum edge. The executor additionally enforces per-sport floors at gate 3 (NBA 12%, NCAAB 10%), a $0.10 market-price floor at gate 3.5 (lottery-ticket filter), a medium-confidence floor at gate 4.5, a NO-side favorite guard at gate 4.6, and a 48h series-dedup at gate 7 — bets may be rejected on execute even if they pass this scan filter.",
+            help="Scan-level minimum edge. The executor additionally enforces per-sport floors at gate 3 (NBA 12%, NCAAB 10%), a $0.10 market-price floor at gate 3.5 (lottery-ticket filter), a medium-confidence floor at gate 4.5, a NO-side favorite guard at gate 4.6, a prediction-market safety gate at 4.7 (crypto/weather/spx/mentions/companies/politics blocked unless ALLOW_PREDICTION_BETS=true), and a 48h series-dedup at gate 7 — bets may be rejected on execute even if they pass this scan filter. Each scan row's Gate column previews which gate (if any) will reject it.",
         ) / 100
     with col6:
         top_n = st.number_input("Top N", min_value=1, max_value=50, value=defaults["top_n"])
@@ -155,10 +155,16 @@ def render():
     btn_col1, btn_col2 = st.columns([4, 1])
 
     with btn_col2:
-        if st.button("CLEAR", use_container_width=True):
+        if st.button("CLEAR", use_container_width=True,
+                     help="Clear displayed results AND drop the scan-result cache "
+                          "so the next scan fetches fresh data from the Odds API."):
             for key in ["scan_results", "scan_console", "scan_market_type", "exec_params",
                         "preview_orders", "preview_console", "execute_orders", "execute_console"]:
                 st.session_state.pop(key, None)
+            # Also wipe the 60s scan cache so the user can force a refresh
+            # (R24a). Otherwise an immediately-following scan would return
+            # the same cached rows even though the user asked for a clear.
+            run_scan.clear()
             st.rerun()
 
     with btn_col1:
@@ -221,7 +227,7 @@ def render():
             try:
                 client = get_client()
                 opps, console_out = run_scan(
-                    client=client,
+                    _client=client,
                     market_type=market_type,
                     ticker_filter=sport_filter if sport_filter != "(none)" else None,
                     category_filter=category if category and category != "all" else None,
