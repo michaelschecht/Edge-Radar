@@ -1118,3 +1118,38 @@ class TestPreflightGateStatus:
         monkeypatch.setattr(kalshi_executor, "MIN_CONFIDENCE", "medium")
         opp = _opp(score=4.6, confidence="low")
         assert preflight_gate_status(opp) == "score"
+
+    def test_flags_prediction_gate_when_disabled(self, monkeypatch):
+        # R25 Gate 4.7: crypto/weather/spx/mentions/companies/politics
+        # categories are blocked by default
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "ALLOW_PREDICTION_BETS", False)
+        for cat in ("crypto", "weather", "spx", "mentions", "companies", "politics"):
+            opp = _opp(category=cat, score=9.0, edge=0.20, confidence="high")
+            assert preflight_gate_status(opp) == "pred-off", f"{cat} should be blocked"
+
+    def test_prediction_gate_opens_with_env_flag(self, monkeypatch):
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "ALLOW_PREDICTION_BETS", True)
+        opp = _opp(category="crypto", score=9.0, edge=0.20, confidence="high")
+        assert preflight_gate_status(opp) == "ok"
+
+    def test_prediction_gate_does_not_affect_sports(self, monkeypatch):
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "ALLOW_PREDICTION_BETS", False)
+        # Sports categories should be untouched regardless of the flag
+        for cat in ("game", "spread", "total", "futures", "player_prop"):
+            opp = _opp(category=cat, score=9.0)
+            assert preflight_gate_status(opp) == "ok", f"{cat} should not be blocked"
+
+    def test_size_order_rejects_crypto_when_flag_off(self, monkeypatch):
+        # End-to-end: Gate 4.7 actually rejects through size_order, not just
+        # the preflight helper
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "ALLOW_PREDICTION_BETS", False)
+        opp = _opp(category="crypto", ticker="KXBTC-26MAY01-B80000",
+                   score=9.0, edge=0.20, confidence="high")
+        result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+        assert result.risk_approval.startswith("REJECTED")
+        assert "prediction_market_disabled" in result.risk_approval
+        assert "crypto" in result.risk_approval

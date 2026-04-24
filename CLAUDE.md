@@ -131,6 +131,7 @@ Before ANY trade executes:
 | 4 | Composite score >= minimum | Reject |
 | 4.5 | Confidence >= `MIN_CONFIDENCE` (low/medium/high) | Reject |
 | 4.6 | NO bets below `NO_SIDE_FAVORITE_THRESHOLD` need edge >= `NO_SIDE_MIN_EDGE` AND confidence=high | Reject |
+| 4.7 | Prediction-market categories (crypto/weather/spx/mentions/companies/politics) off by default unless `ALLOW_PREDICTION_BETS=true` (R25) | Reject |
 | 5 | Not already holding this market | Reject |
 | 6 | Per-event cap not exceeded | Reject |
 | 7 | Matchup not bet in last `SERIES_DEDUP_HOURS` (series dedup) | Reject |
@@ -175,6 +176,7 @@ KELLY_EDGE_CAP=0.15             # Soft-cap edge for Kelly sizing
 KELLY_EDGE_DECAY=0.5            # Decay factor on edge above the cap
 SERIES_DEDUP_HOURS=48           # Reject same-matchup bets within this window (0 disables)
 RESTING_ORDER_MAX_HOURS=24      # R4: cancel zero-fill resting orders older than this (0 disables)
+ALLOW_PREDICTION_BETS=false     # R25 Gate 4.7: true to enable crypto/weather/spx/mentions/companies/politics bets
 ```
 
 ---
