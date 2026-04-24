@@ -785,11 +785,43 @@
     page. The bundled artifact ships with all fonts/styles self-contained.
   -->
   <iframe
+    id="dataflow-frame"
     src="dataflow.html"
     title="Edge-Radar Data Flow diagram"
     loading="lazy"
-    style="width:100%; height:900px; border:0; border-radius:12px; background:#06070b; display:block; margin-top:16px;"
+    scrolling="no"
+    style="width:100%; height:1100px; border:0; border-radius:12px; background:#06070b; display:block; margin-top:16px; overflow:hidden;"
   ></iframe>
+  <script>
+    // Auto-resize the data-flow iframe to match its content height so the
+    // diagram shows without an internal scrollbar. Same-origin (both files
+    // served from the same host) so contentDocument access is allowed.
+    (function () {
+      const iframe = document.getElementById('dataflow-frame');
+      if (!iframe) return;
+      function fit() {
+        try {
+          const doc = iframe.contentDocument;
+          if (!doc || !doc.body) return;
+          const h = Math.max(
+            doc.body.scrollHeight,
+            doc.documentElement.scrollHeight,
+            820  // diagram's own min-height floor
+          );
+          iframe.style.height = h + 'px';
+        } catch (_) { /* cross-origin or not ready yet */ }
+      }
+      iframe.addEventListener('load', function () {
+        fit();
+        // The bundler unpacks content asynchronously. Keep polling briefly
+        // so we catch the post-unpack layout.
+        let tries = 0;
+        const id = setInterval(() => { fit(); if (++tries > 40) clearInterval(id); }, 100);
+        // Re-fit if the user resizes the window (diagram uses vh units)
+        window.addEventListener('resize', fit);
+      });
+    })();
+  </script>
 </section>
 
 <!-- ============ PIPELINE ============ -->
