@@ -58,30 +58,35 @@ FUTURES_MAP = {
     "KXSB":            ("americanfootball_nfl_super_bowl_winner", "outrights", "NFL Super Bowl Champion"),
     # NBA
     "KXNBA":           ("basketball_nba_championship_winner", "outrights", "NBA Finals Champion"),
-    "KXNBAEAST":       ("basketball_nba_championship_winner", "outrights", "NBA Eastern Conference Champion"),
-    "KXNBAWEST":       ("basketball_nba_championship_winner", "outrights", "NBA Western Conference Champion"),
     # NHL
     "KXNHL":           ("icehockey_nhl_championship_winner", "outrights", "NHL Stanley Cup Champion"),
-    "KXNHLEAST":       ("icehockey_nhl_championship_winner", "outrights", "NHL Eastern Conference Champion"),
-    "KXNHLWEST":       ("icehockey_nhl_championship_winner", "outrights", "NHL Western Conference Champion"),
     # MLB
     "KXMLB":           ("baseball_mlb_world_series_winner", "outrights", "MLB World Series Champion"),
-    "KXMLBPLAYOFFS":   ("baseball_mlb_world_series_winner", "outrights", "MLB Playoff Qualifier"),
     # NCAAB
     "KXNCAAMBMOP":     ("basketball_ncaab_championship_winner", "outrights", "NCAAB Most Outstanding Player"),
     # Golf
     "KXPGATOUR":       ("golf_pga_championship_winner", "outrights", "PGA Tour Winner"),
-    # Note: European soccer outrights (EPL, La Liga, etc.) and UCL
-    # are NOT available on The Odds API free tier.
+
+    # ── Intentionally NOT mapped (2026-04-24) ────────────────────────────────
+    # These markets exist on Kalshi but don't have a sensible free-tier Odds
+    # API counterpart, so scanning them with championship-winner odds produces
+    # garbage edges (e.g. KXMLBPLAYOFFS-26-LAD priced at $0.04 NO vs "fair" of
+    # $0.72 because LAD's odds to MAKE PLAYOFFS are ~95% but their odds to WIN
+    # THE WORLD SERIES are ~28%). R19 tracks adding proper data sources:
+    #   - KXMLBPLAYOFFS  : "will X make the MLB playoffs?" (different market)
+    #   - KXNBAEAST/WEST : NBA conference winners (need conf_winner outrights)
+    #   - KXNHLEAST/WEST : NHL conference winners (need conf_winner outrights)
+    # Note: European soccer outrights (EPL, La Liga, etc.) and UCL are also
+    # not on The Odds API free tier.
 }
 
 # Filter shortcuts for CLI
 FUTURES_FILTER_SHORTCUTS = {
     "futures":       list(FUTURES_MAP.keys()),
     "nfl-futures":   ["KXSB"],
-    "nba-futures":   ["KXNBA", "KXNBAEAST", "KXNBAWEST"],
-    "nhl-futures":   ["KXNHL", "KXNHLEAST", "KXNHLWEST"],
-    "mlb-futures":   ["KXMLB", "KXMLBPLAYOFFS"],
+    "nba-futures":   ["KXNBA"],
+    "nhl-futures":   ["KXNHL"],
+    "mlb-futures":   ["KXMLB"],
     "ncaab-futures": ["KXNCAAMBMOP"],
     "golf-futures":  ["KXPGATOUR"],
 }
@@ -415,16 +420,23 @@ def scan_futures_markets(
     if not all_markets:
         return []
 
-    # Determine which Odds API sport keys we need
+    # Determine which Odds API sport keys we need.
+    # Match on the series ticker (everything before the first '-') so that
+    # e.g. KXMLBPLAYOFFS-26-LAD doesn't collide with the KXMLB prefix and
+    # get priced against World Series winner odds. Unmapped series are
+    # silently skipped — see the FUTURES_MAP "intentionally NOT mapped"
+    # block for the rationale.
     sports_needed: dict[str, list] = {}  # odds_sport_key -> [market, ...]
     market_labels: dict[str, str] = {}   # ticker -> human label
     for m in all_markets:
         ticker = m["ticker"]
-        for prefix, (sport_key, _, label) in FUTURES_MAP.items():
-            if ticker.startswith(prefix):
-                sports_needed.setdefault(sport_key, []).append(m)
-                market_labels[ticker] = label
-                break
+        series = ticker.split("-", 1)[0]
+        entry = FUTURES_MAP.get(series)
+        if entry is None:
+            continue
+        sport_key, _, label = entry
+        sports_needed.setdefault(sport_key, []).append(m)
+        market_labels[ticker] = label
 
     # Fetch outright odds and build fair values
     opportunities: list[Opportunity] = []

@@ -12,7 +12,7 @@ from edge_detector import (
     _get_margin_stdev,
     _get_total_stdev,
 )
-from futures_edge import devig_nway
+from futures_edge import devig_nway, FUTURES_MAP
 
 
 # ── devig_nway ───────────────────────────────────────────────────────────────
@@ -80,6 +80,58 @@ class TestDevigNway:
         result = devig_nway(outcomes)
         # Only B has valid odds
         assert "B" in result
+
+
+# ── R22: futures ticker-to-series matching (no prefix collision) ─────────────
+
+class TestFuturesSeriesMatch:
+    """R22 (2026-04-24): `FUTURES_MAP` is now keyed by exact series (everything
+    before the first hyphen in the ticker). Old `ticker.startswith(prefix)`
+    logic had two bugs: (1) prefix collision — KXMLBPLAYOFFS-26-LAD matched
+    the KXMLB entry because startswith checked from the front, (2) even if
+    resolved, KXMLBPLAYOFFS was mapped to World Series winner odds but
+    represents playoff qualification — a different question. LAD is ~95% to
+    make playoffs but ~28% to win the WS, so championship odds produced
+    garbage "+60-75% edge" NO-favorite recommendations. Fix: exact series
+    match + remove the 5 semantically-wrong entries. Unmapped series are
+    skipped silently (see `scan_futures_markets` loop).
+    """
+
+    def test_kxmlb_maps_to_world_series(self):
+        series = "KXMLB-26-LAD".split("-", 1)[0]
+        assert series == "KXMLB"
+        assert FUTURES_MAP[series][2] == "MLB World Series Champion"
+
+    def test_kxmlbplayoffs_no_longer_maps(self):
+        # KXMLBPLAYOFFS was removed to avoid priced-against-wrong-odds bug.
+        assert "KXMLBPLAYOFFS" not in FUTURES_MAP
+
+    def test_kxmlbplayoffs_ticker_does_not_collide_with_kxmlb(self):
+        # Exact-series match: "KXMLBPLAYOFFS" != "KXMLB" even though the
+        # old startswith logic would have matched KXMLB first.
+        series = "KXMLBPLAYOFFS-26-LAD".split("-", 1)[0]
+        assert series == "KXMLBPLAYOFFS"
+        assert series not in FUTURES_MAP  # silently skipped by scanner
+
+    def test_nba_conferences_no_longer_map(self):
+        assert "KXNBAEAST" not in FUTURES_MAP
+        assert "KXNBAWEST" not in FUTURES_MAP
+
+    def test_nhl_conferences_no_longer_map(self):
+        assert "KXNHLEAST" not in FUTURES_MAP
+        assert "KXNHLWEST" not in FUTURES_MAP
+
+    def test_nba_conference_ticker_does_not_collide_with_kxnba(self):
+        series = "KXNBAEAST-26-BOS".split("-", 1)[0]
+        assert series == "KXNBAEAST"
+        assert series not in FUTURES_MAP
+
+    def test_valid_series_still_resolve(self):
+        # All non-removed entries still map to the right label
+        assert FUTURES_MAP["KXSB"][2] == "NFL Super Bowl Champion"
+        assert FUTURES_MAP["KXNBA"][2] == "NBA Finals Champion"
+        assert FUTURES_MAP["KXNHL"][2] == "NHL Stanley Cup Champion"
+        assert FUTURES_MAP["KXPGATOUR"][2] == "PGA Tour Winner"
 
 
 # ── R13: confidence bumps are one-way (down only) ───────────────────────────
