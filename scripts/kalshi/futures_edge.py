@@ -562,6 +562,8 @@ if __name__ == "__main__":
             console = Console()
             from ticker_display import parse_game_datetime
 
+            from kalshi_executor import preflight_gate_status
+
             table = Table(title=f"Futures Opportunities (edge >= {args.min_edge:.0%})", show_lines=True)
             table.add_column("Bet Type", style="bold", max_width=28)
             table.add_column("Candidate", style="cyan", max_width=25)
@@ -572,8 +574,11 @@ if __name__ == "__main__":
             table.add_column("Edge", justify="right", style="bold green")
             table.add_column("Conf.")
             table.add_column("Score", justify="right")
+            table.add_column("Gate")  # R18: will this row pass the static gates?
 
             for o in opps:
+                gate = preflight_gate_status(o)
+                gate_display = "[green]ok[/green]" if gate == "ok" else f"[red]{gate}[/red]"
                 table.add_row(
                     o.details.get("bet_type", "")[:28] or o.ticker[:28],
                     o.details.get("candidate", "")[:25],
@@ -584,6 +589,7 @@ if __name__ == "__main__":
                     f"+{o.edge:.1%}",
                     o.confidence[:3].upper(),
                     f"{o.composite_score:.1f}",
+                    gate_display,
                 )
             console.print(table)
 

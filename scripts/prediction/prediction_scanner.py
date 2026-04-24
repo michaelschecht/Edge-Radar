@@ -412,6 +412,7 @@ def print_opportunities(opportunities: list[Opportunity]):
         return
 
     from ticker_display import parse_game_datetime
+    from kalshi_executor import preflight_gate_status
 
     table = Table(title=f"Prediction Market Opportunities (edge >= {MIN_EDGE:.0%})", show_lines=True)
     table.add_column("Title", style="cyan", max_width=40)
@@ -423,8 +424,11 @@ def print_opportunities(opportunities: list[Opportunity]):
     table.add_column("Edge", justify="right", style="bold green")
     table.add_column("Conf.")
     table.add_column("Score", justify="right")
+    table.add_column("Gate")  # R18: will this row clear the static risk gates?
 
     for opp in opportunities:
+        gate = preflight_gate_status(opp)
+        gate_display = "[green]ok[/green]" if gate == "ok" else f"[red]{gate}[/red]"
         table.add_row(
             opp.title[:40],
             parse_game_datetime(opp.ticker),
@@ -435,6 +439,7 @@ def print_opportunities(opportunities: list[Opportunity]):
             f"+{opp.edge:.1%}",
             opp.confidence[:3].upper(),
             f"{opp.composite_score:.1f}",
+            gate_display,
         )
     console.print(table)
 

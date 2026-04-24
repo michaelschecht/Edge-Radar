@@ -16,6 +16,7 @@ from kalshi_executor import (
     matchup_key, recent_matchups_from_log,
     cancel_stale_resting_orders,
     dedup_correlated_brackets,
+    preflight_gate_status,
 )
 from kalshi_client import KalshiAPIError
 
@@ -1022,3 +1023,98 @@ class TestDedupCorrelatedBrackets:
         ]
         result = dedup_correlated_brackets(opps)
         assert [o.ticker for o in result] == ["KXNBA-26-OKC", "KXNBA-26-BOS", "KXNBA-26-LAL"]
+
+
+# ── preflight_gate_status (R18) ──────────────────────────────────────────────
+
+def _opp(ticker="KXMLBGAME-26APR24-LAD", side="yes", price=0.50, edge=0.10,
+         confidence="medium", score=7.0, category="game") -> Opportunity:
+    """Build an Opportunity fixture with defaults that pass every static gate."""
+    return Opportunity(
+        ticker=ticker,
+        title=ticker,
+        category=category,
+        side=side,
+        market_price=price,
+        fair_value=price + edge,
+        edge=edge,
+        edge_source="test",
+        confidence=confidence,
+        liquidity_score=5.0,
+        composite_score=score,
+        details={},
+    )
+
+
+class TestPreflightGateStatus:
+    """R18 (2026-04-24): `preflight_gate_status` must predict the same reject
+    verdict size_order reaches, using only static per-opportunity properties.
+    Runtime gates (daily loss, position count, dupe ticker, per-event cap,
+    series dedup) are NOT covered — those need portfolio/log state.
+    """
+
+    def test_ok_when_all_static_gates_pass(self):
+        assert preflight_gate_status(_opp()) == "ok"
+
+    def test_flags_edge_gate(self):
+        # NBA ticker + 0.05 edge is below the live 0.12 NBA floor
+        import kalshi_executor
+        orig = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
+        try:
+            kalshi_executor._PER_SPORT_MIN_EDGE["nba"] = 0.12
+            opp = _opp(ticker="KXNBAGAME-26APR24BOSPHI-BOS", edge=0.05)
+            assert preflight_gate_status(opp) == "edge"
+        finally:
+            kalshi_executor._PER_SPORT_MIN_EDGE.clear()
+            kalshi_executor._PER_SPORT_MIN_EDGE.update(orig)
+
+    def test_flags_price_gate(self, monkeypatch):
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "MIN_MARKET_PRICE", 0.10)
+        opp = _opp(price=0.08)
+        assert preflight_gate_status(opp) == "price"
+
+    def test_flags_score_gate(self, monkeypatch):
+        # This is the user-observed case (composite 4.6 on LAD futures)
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "MIN_COMPOSITE_SCORE", 6.0)
+        opp = _opp(score=4.6)
+        assert preflight_gate_status(opp) == "score"
+
+    def test_flags_confidence_gate(self, monkeypatch):
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "MIN_CONFIDENCE", "medium")
+        opp = _opp(confidence="low")
+        assert preflight_gate_status(opp) == "conf"
+
+    def test_flags_no_favorite_gate_when_edge_insufficient(self, monkeypatch):
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "NO_SIDE_FAVORITE_THRESHOLD", 0.25)
+        monkeypatch.setattr(kalshi_executor, "NO_SIDE_MIN_EDGE", 0.25)
+        # NO + market below threshold + edge 10% + medium confidence → rejected
+        opp = _opp(side="no", price=0.15, edge=0.10, confidence="medium")
+        assert preflight_gate_status(opp) == "no-fav"
+
+    def test_no_favorite_passes_with_high_conf_and_big_edge(self, monkeypatch):
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "NO_SIDE_FAVORITE_THRESHOLD", 0.25)
+        monkeypatch.setattr(kalshi_executor, "NO_SIDE_MIN_EDGE", 0.25)
+        # The R1 carve-out: edge >= 25% AND confidence = high → allowed
+        opp = _opp(side="no", price=0.15, edge=0.30, confidence="high", score=9.0)
+        assert preflight_gate_status(opp) == "ok"
+
+    def test_yes_side_never_hits_no_favorite_gate(self, monkeypatch):
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "NO_SIDE_FAVORITE_THRESHOLD", 0.25)
+        # YES + same low price should NOT trigger the NO-favorite gate
+        opp = _opp(side="yes", price=0.15, edge=0.10, confidence="medium", score=7.0)
+        assert preflight_gate_status(opp) == "ok"
+
+    def test_first_failing_gate_wins(self, monkeypatch):
+        # If both score and confidence fail, check we return the earlier gate
+        # in size_order's sequence (score is gate 4, conf is gate 4.5)
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "MIN_COMPOSITE_SCORE", 6.0)
+        monkeypatch.setattr(kalshi_executor, "MIN_CONFIDENCE", "medium")
+        opp = _opp(score=4.6, confidence="low")
+        assert preflight_gate_status(opp) == "score"

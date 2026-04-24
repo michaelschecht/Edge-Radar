@@ -156,6 +156,56 @@ def min_edge_for(opp: "Opportunity") -> float:
     return MIN_EDGE_THRESHOLD
 
 
+def preflight_gate_status(opp: "Opportunity") -> str:
+    """Predict which reject gate (if any) `size_order` would hit for this
+    opportunity, using only static per-opportunity properties.
+
+    Returns a short label suitable for a scan-table column:
+        "ok"     — all statically-checkable gates pass
+        "edge"   — Gate 3  (edge below per-sport floor)
+        "price"  — Gate 3.5 (market price below R7 floor)
+        "score"  — Gate 4  (composite score below minimum)
+        "conf"   — Gate 4.5 (confidence below MIN_CONFIDENCE)
+        "no-fav" — Gate 4.6 (R1 NO-side favorite guard)
+
+    Static only. Runtime gates (daily loss, open positions, duplicate
+    ticker, per-event cap, series dedup) require live portfolio/log state
+    and are not checked here — an "ok" verdict doesn't guarantee execution
+    will succeed, just that the opportunity itself has no per-opp blockers.
+
+    Shipped as R18 (2026-04-24) after users observed a scan surfacing
+    rows at +3-4% edge that the executor silently rejected on composite
+    score (F23). Gives the scan table a truthful preview of what will
+    actually pass to order placement.
+    """
+    # Gate 3: per-sport edge floor
+    if opp.edge < min_edge_for(opp):
+        return "edge"
+
+    # Gate 3.5: R7 market-price floor (disabled if MIN_MARKET_PRICE == 0)
+    if MIN_MARKET_PRICE > 0 and opp.market_price < MIN_MARKET_PRICE:
+        return "price"
+
+    # Gate 4: minimum composite score
+    if opp.composite_score < MIN_COMPOSITE_SCORE:
+        return "score"
+
+    # Gate 4.5: minimum confidence level
+    if _confidence_rank(opp.confidence) < _confidence_rank(MIN_CONFIDENCE):
+        return "conf"
+
+    # Gate 4.6: R1 NO-side favorite guard
+    if (
+        opp.side and opp.side.strip().lower() == "no"
+        and opp.market_price < NO_SIDE_FAVORITE_THRESHOLD
+        and (opp.edge < NO_SIDE_MIN_EDGE
+             or _confidence_rank(opp.confidence) < _confidence_rank("high"))
+    ):
+        return "no-fav"
+
+    return "ok"
+
+
 def trusted_edge(edge: float, cap: float | None = None, decay: float | None = None) -> float:
     """Soft-cap the edge used for Kelly sizing.
 
