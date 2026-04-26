@@ -66,15 +66,15 @@ try:
         "ALLOW_PREDICTION_BETS",
     ]
     for env_var, getter in _secrets_map.items():
-        if env_var not in os.environ:
+        if env_var not in os.environ:  # config-bootstrap
             try:
-                os.environ[env_var] = str(getter())
+                os.environ[env_var] = str(getter())  # config-bootstrap
             except (KeyError, FileNotFoundError):
                 pass
     for key in _flat_keys:
-        if key not in os.environ:
+        if key not in os.environ:  # config-bootstrap
             try:
-                os.environ[key] = str(st.secrets[key])
+                os.environ[key] = str(st.secrets[key])  # config-bootstrap
             except (KeyError, FileNotFoundError):
                 pass
 except Exception:

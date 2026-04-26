@@ -2,6 +2,36 @@
 
 ---
 
+## 2026-04-25 -- Config centralization Phase 3 (lint guard against regression)
+
+### `scripts/lint/check_config_centralization.py`
+
+Replaces the original "simple grep" idea from the spec with a small Python script — necessary because the rule needs nuance the raw grep can't express.
+
+**What it does:**
+- Walks `app/`, `scripts/`, `webapp/` for `os.getenv` / `os.environ`.
+- Excludes `app/config.py` (the single source of truth), `scripts/custom/` (user automation), and `scripts/lint/` itself (this script names the forbidden strings to communicate the rule).
+- Skips comment-only lines.
+- Skips lines tagged `# config-bootstrap` — reserved for the 4 Streamlit secrets-bootstrap lines in `webapp/services.py` (lines 69, 71, 75, 77 now carry the annotation inline).
+- Exits 1 on any violation, 0 otherwise. Output names file, line, content, and tells the contributor what to do.
+
+### Wired into automation
+
+- `make lint-config` Makefile target.
+- `.pre-commit-config.yaml` local hook with `pass_filenames: false` and `always_run: true` so the lint sees the whole tree, not just staged files (a sneaky violation in an unstaged file would otherwise slip through).
+
+### Unit tests — 5 new tests in `tests/test_lint_config_centralization.py`
+
+1. The current production codebase passes the lint cleanly.
+2. A regression — adding `os.getenv("FOO")` to a previously clean file — is detected.
+3. The `# config-bootstrap` annotation correctly suppresses violations.
+4. Comment-only lines mentioning `os.getenv` textually are ignored.
+5. `app/config.py` is unconditionally excluded.
+
+**Final test count: 297 passing** (292 from earlier phases + 5 lint tests). Production-code `os.getenv` reads outside `app/config.py`: 0.
+
+---
+
 ## 2026-04-25 -- Config centralization Phase 2 — all 8 script groups migrated
 
 ### What changed
