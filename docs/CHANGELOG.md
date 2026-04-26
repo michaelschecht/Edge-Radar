@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-04-25 -- Config centralization Phase 1 (refactor scaffolding)
+
+### `app/config.py` — typed config module landed (no script migrations yet)
+
+- **Why:** Audit found 75 `os.getenv` calls across 14 files, with `MIN_EDGE_THRESHOLD` read in 5 places using two type styles (string `"0.03"` vs float `0.03`) and `DRY_RUN` coerced inconsistently. Tracked under `docs/my-documents/enhancements/CONFIG_CENTRALIZATION.md`.
+- **What landed:** `app/config.py` with 10 frozen dataclasses (Kalshi creds, Kalshi-prod creds, OddsApi creds, Alpaca creds, Telegram creds, RiskLimits, GateThresholds, KellyConfig, PerSportOverrides, System). Each has `from_env()` for one-shot coercion; aggregate `Config.from_env()` runs `validate()`. Memoized via `get_config()` / `reset_config()`. 32 unit tests in `tests/test_config.py`.
+- **What did NOT change:** No existing script touched. `os.getenv` count unchanged. `.env.example` unchanged. No behavior change of any kind. Phase 2 (mechanical migration of 8 script groups) is a separate set of commits.
+- **Discrepancies flagged for a future doc-reconciliation PR (not fixed here):** `MAX_OPEN_POSITIONS` is `10` in code/CLAUDE.md but `50` in `.env.example`; `MAX_PER_EVENT` is `2` in code/`.env.example` but `3` in CLAUDE.md. Phase 1 followed code as source of truth.
+
+---
+
 ## 2026-04-24 (PM) -- Scanner Parity, Futures Bug Hunt, Prediction-Market Audit (R17, R18, R20, R21, R22, R23, R24a, R25)
 
 ### R17. Scanner flag parity (`--budget`, `--report-dir`)
