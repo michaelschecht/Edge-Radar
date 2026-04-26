@@ -766,7 +766,7 @@
     <div class="stat"><div class="stat-val">12</div><div class="stat-lbl">Risk gates</div></div>
     <div class="stat"><div class="stat-val">5</div><div class="stat-lbl">Edge models</div></div>
     <div class="stat"><div class="stat-val">27</div><div class="stat-lbl">Sport filters</div></div>
-    <div class="stat"><div class="stat-val">218</div><div class="stat-lbl">Tests passing</div></div>
+    <div class="stat"><div class="stat-val">297</div><div class="stat-lbl">Tests passing</div></div>
   </div>
 </section>
 
@@ -1214,6 +1214,29 @@
   </header>
 
   <div class="timeline">
+
+    <div class="t-entry">
+      <div class="t-date">2026-04-25 — Config Centralization (PR #149)</div>
+      <div class="t-title">Phase 1 + 2 + 3 — typed config module, 65 <code>os.getenv</code> reads migrated, lint guard against regression</div>
+      <div class="t-items">
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">P1</span>New <code>app/config.py</code> — single source of truth</div>
+          <div class="t-item-body">Audit found 75 <code>os.getenv</code> calls across 14 files with type-coercion drift (<code>MIN_EDGE_THRESHOLD</code> read in 5 places, two type styles; <code>DRY_RUN</code> coerced inconsistently). Built a typed module: 10 frozen dataclasses (Kalshi/Odds/Alpaca/Telegram credentials + <code>RiskLimits</code>, <code>GateThresholds</code>, <code>KellyConfig</code>, <code>PerSportOverrides</code>, <code>System</code>) with <code>from_env()</code> coercion and <code>Config.validate()</code> for impossible combos. Memoized via <code>get_config()</code> / <code>reset_config()</code>. 32 unit tests. Pure addition — no scripts touched, no behavior change.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">P2</span>Migrated all 8 script groups to <code>get_config()</code></div>
+          <div class="t-item-body">65 <code>os.getenv</code> reads removed across <code>doctor.py</code> (9), <code>risk_check.py</code> (5), <code>kalshi_client.py</code> (8), <code>edge_detector.py</code> + <code>fetch_odds.py</code> (3), <code>kalshi_executor.py</code> (23 — the heavyweight, all 11 risk gates and per-sport overrides), 6 small modules (11), and <code>webapp/services.py</code> (6). Module-level constants kept as plain mutable globals where tests directly mutate them; only the <em>initial source</em> changed. <code>or None</code> pattern preserves <code>None</code>-on-unset semantics for credentials spliced into HTTP headers. Streamlit Cloud bug found and fixed: <code>webapp/app.py</code> puts <code>webapp/</code> on <code>sys.path[0]</code>, shadowing the <code>app/</code> package; resolved by re-inserting <code>PROJECT_ROOT</code> at <code>sys.path[0]</code> inside <code>services.py</code>. All 292 prior tests still pass.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">P3</span>Lint guard at <code>scripts/lint/check_config_centralization.py</code></div>
+          <div class="t-item-body">Walks <code>app/</code>, <code>scripts/</code>, <code>webapp/</code> for <code>os.getenv</code> / <code>os.environ</code>. Allows <code>app/config.py</code>, comment-only lines, and lines tagged <code># config-bootstrap</code> (reserved for the 4 Streamlit secrets-bootstrap lines in <code>webapp/services.py</code>). Wired into <code>make lint-config</code> and a pre-commit hook with <code>always_run: true</code> so the lint sees the whole tree, not just staged files. 5 unit tests cover codebase-clean baseline, regression detection, annotation suppression, comment-line ignore, and <code>app/config.py</code> exclusion.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">P2</span>Bonus: dropped a small dead constant + display normalization</div>
+          <div class="t-item-body"><code>MIN_EDGE</code> in <code>risk_check.py</code> was defined but never referenced; deleted. <code>doctor.py</code>'s display of <code>UNIT_SIZE</code> is now <code>:.2f</code>-formatted, so a value of <code>.50</code> in <code>.env</code> renders as <code>$0.50</code> instead of <code>$.50</code>. Numeric values reaching every gate are byte-identical.</div>
+        </div>
+      </div>
+    </div>
 
     <div class="t-entry">
       <div class="t-date">2026-04-24 — 30-Day Calibration Cycle + Futures Bug Hunt + Prediction Audit</div>

@@ -480,6 +480,8 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 
 Gates 1-7 (including 3.5, 4.5, 4.6, 4.7) reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
 
+> **Where these knobs live (post-2026-04-25):** every env var named in this section is typed, defaulted, and validated in `app/config.py` (the single source of truth — see `CONFIG_CENTRALIZATION_SUMMARY.md` and `docs/CHANGELOG.md` 2026-04-25). User-facing surface is unchanged: still set everything in `.env` (or Streamlit secrets on Cloud); same names, same defaults. The lint guard (`make lint-config`) blocks any new `os.getenv` from sneaking back in.
+
 ---
 
 ## Daily Workflow Reference
