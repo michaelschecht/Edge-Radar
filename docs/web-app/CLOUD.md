@@ -117,7 +117,7 @@ DRY_RUN = "true"
 
 ### How Secrets Work
 
-Locally, scripts read from `.env` via `os.getenv()`. On Cloud, there's no `.env` file. Instead, `webapp/services.py` has a secrets bridge that injects Streamlit secrets into `os.environ` before any script imports, so all existing `os.getenv()` calls work unchanged.
+Locally, scripts read from `.env` via `app/config.py` (the typed config module — see `CONFIG_CENTRALIZATION_SUMMARY.md`). On Cloud, there's no `.env` file. Instead, `webapp/services.py` has a secrets bridge that injects Streamlit secrets into `os.environ` before any script imports, then calls `reset_config()` so the centralized config picks up the injected values. Same TOML schema as before; same env-var names downstream.
 
 The bridge supports two TOML layouts:
 
