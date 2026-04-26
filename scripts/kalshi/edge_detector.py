@@ -18,7 +18,6 @@ Edge sources:
 Requires: ODDS_API_KEY in .env for sports edge detection.
 """
 
-import os
 import re
 import sys
 import json
@@ -46,6 +45,7 @@ from line_movement import get_line_movement
 from pitcher_stats import prefetch_mlb_pitchers
 from rest_days import prefetch_rest_data
 from logging_setup import setup_logging
+from app.config import get_config
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -55,7 +55,7 @@ console = Console()
 from odds_api import get_current_key, rotate_key, report_remaining, mark_exhausted
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
-MIN_EDGE = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
+MIN_EDGE = get_config().gates.min_edge_threshold
 
 
 

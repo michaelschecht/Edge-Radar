@@ -11,12 +11,18 @@ from io import StringIO
 from pathlib import Path
 from contextlib import contextmanager
 
-# Ensure script dirs are on sys.path (mirrors what .pth does for the venv)
+# Ensure script dirs are on sys.path (mirrors what .pth does for the venv).
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 for subdir in ["scripts/kalshi", "scripts/shared", "scripts/prediction", "scripts/polymarket"]:
     p = str(PROJECT_ROOT / subdir)
     if p not in sys.path:
         sys.path.insert(0, p)
+
+# PROJECT_ROOT must come *before* `webapp/` on sys.path so that
+# `from app.config import ...` resolves to the `app/` package rather than the
+# `webapp/app.py` Streamlit entry point. webapp/app.py adds `webapp/` to
+# sys.path[0]; we re-insert PROJECT_ROOT here to guarantee it wins.
+sys.path.insert(0, str(PROJECT_ROOT))
 
 # On Streamlit Cloud, inject secrets into os.environ so all existing
 # os.getenv() calls in scripts (odds_api, edge_detector, etc.) work
@@ -76,6 +82,15 @@ except Exception:
 
 import streamlit as st
 
+# Invalidate any cfg cache so subsequent `get_config()` calls in downstream
+# imports see the post-bootstrap `os.environ` state. In the current flow this
+# is defensive — the bootstrap runs before any of the imports below trigger
+# `get_config()` in migrated modules — but it makes the contract explicit:
+# `app.config` is the single read-side, and `reset_config()` is the seam
+# whenever something writes to `os.environ` after potentially priming the cache.
+from app.config import get_config, reset_config
+reset_config()
+
 from kalshi_client import KalshiClient
 from edge_detector import scan_all_markets, FILTER_SHORTCUTS
 from futures_edge import scan_futures_markets
@@ -92,12 +107,17 @@ from ticker_display import (
     parse_game_datetime, format_bet_label, format_pick_label,
     sport_from_ticker, bet_type_from_ticker,
 )
-MAX_DAILY_LOSS = float(os.getenv("MAX_DAILY_LOSS", "250"))
-MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "10"))
-MAX_PER_EVENT = int(os.getenv("MAX_PER_EVENT", "2"))
-MIN_EDGE_THRESHOLD = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
-MIN_COMPOSITE_SCORE = float(os.getenv("MIN_COMPOSITE_SCORE", "6.0"))
-DRY_RUN = os.getenv("DRY_RUN", "true").lower() in ("true", "1", "yes")
+
+# Module-level constants imported by `views/scan_page.py` and
+# `views/portfolio_page.py`. Only the source has changed; downstream code
+# continues to import them as plain names.
+_cfg = get_config()
+MAX_DAILY_LOSS = _cfg.risk.max_daily_loss
+MAX_OPEN_POSITIONS = _cfg.risk.max_open_positions
+MAX_PER_EVENT = _cfg.risk.max_per_event
+MIN_EDGE_THRESHOLD = _cfg.gates.min_edge_threshold
+MIN_COMPOSITE_SCORE = _cfg.gates.min_composite_score
+DRY_RUN = _cfg.system.dry_run
 
 
 @contextmanager

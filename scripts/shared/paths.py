@@ -39,6 +39,8 @@ for d in [DATA_DIR / "history", DATA_DIR / "watchlists", DATA_DIR / "positions"]
     d.mkdir(parents=True, exist_ok=True)
 
 # Add script directories to sys.path (idempotent)
-for p in [str(SCRIPTS_DIR), str(KALSHI_DIR), str(PREDICTION_DIR), str(POLYMARKET_DIR), str(SHARED_DIR), str(SCHEDULERS_DIR)]:
+# PROJECT_ROOT first so `from app.config import ...` resolves; script subdirs
+# remain for the existing `from kalshi_client import ...` pattern.
+for p in [str(PROJECT_ROOT), str(SCRIPTS_DIR), str(KALSHI_DIR), str(PREDICTION_DIR), str(POLYMARKET_DIR), str(SHARED_DIR), str(SCHEDULERS_DIR)]:
     if p not in sys.path:
         sys.path.insert(0, p)

@@ -2,6 +2,46 @@
 
 ---
 
+## 2026-04-25 -- Config centralization Phase 2 — all 8 script groups migrated
+
+### What changed
+
+Mechanical migration of every `os.getenv` config read across the production codebase to `app.config.get_config()`. Per-step breakdown:
+
+| Step | Files | Calls removed |
+|:----:|:------|:-------------:|
+| 1 | `scripts/doctor.py` | 9 |
+| 2 | `scripts/kalshi/risk_check.py` | 5 |
+| 3 | `scripts/kalshi/kalshi_client.py` | 8 |
+| 4+6 | `scripts/kalshi/edge_detector.py`, `scripts/kalshi/fetch_odds.py` | 1 + 2 |
+| 5 | `scripts/kalshi/kalshi_executor.py` | 23 |
+| 7 | `prediction_scanner.py`, `backtester.py`, `logging_setup.py`, `odds_api.py`, `fetch_market_data.py`, `telegram_bot.py` | 11 |
+| 8 | `webapp/services.py` (6 reads — bootstrap retained) | 6 |
+
+**Final tally: 65 reads removed, 0 outside `app/config.py`.** The 4 `os.environ` writes in the `webapp/services.py` Streamlit secrets bootstrap are deliberately retained — they're the input side of cfg, not config consumption.
+
+### Notable per-file details
+
+- **`doctor.py`:** display normalization is the only user-visible change (`UNIT_SIZE=.50` previously rendered as `$.50`; now `$0.50` via explicit `:.2f` format). Numeric values reaching every gate are byte-identical.
+- **`risk_check.py`:** dropped a dead `MIN_EDGE` constant that no caller imported.
+- **`kalshi_client.py`:** Streamlit-secrets timing preserved — all reads happen at instantiation, not import. The `st.secrets["kalshi"]["private_key"]` fallback in `_resolve_key_content` is kept as a backup for direct Streamlit-app use that bypasses `services.py`. Phase 1 default for `KalshiCredentials.private_key_path` tweaked from `"keys/live/kalshi_private.key"` to `""` to mirror the original `os.getenv("KALSHI_PRIVATE_KEY_PATH", "")` runtime default; preserves byte-identical "credentials not configured" error path when env is unset. `.env.example` unchanged.
+- **`kalshi_executor.py`:** all 21 module-level risk constants and the per-sport edge-override dict source from `_cfg = get_config()`. Constants stay as plain mutable globals because `tests/test_risk_gates.py` mutates them directly (`kalshi_executor.MAX_OPEN_POSITIONS = 10`) — only the *initial source* changed. Two in-function `DRY_RUN` reads (resting-order janitor + execute-table title) use `get_config().system.dry_run` against the memoized cache.
+- **`fetch_odds.py`, `fetch_market_data.py`, `telegram_bot.py`:** API-key constants use `cfg.X or None` to preserve `None`-on-unset semantics from the original `os.getenv("X")` — matters where credentials get spliced into HTTP headers and URL f-strings (`None` and `""` render differently).
+- **`logging_setup.py`:** `from app.config import get_config` placed *after* `load_dotenv()` so `.env` values are in `os.environ` before the first cfg read.
+- **`webapp/services.py`:** module-level constants (imported by `views/scan_page.py` and `views/portfolio_page.py`) sourced from `_cfg = get_config()`. `reset_config()` defensive call added between the secrets bootstrap and downstream imports — explicit contract that any code mutating `os.environ` after potentially priming the cache uses this seam. Bug found and fixed: Streamlit's `webapp/app.py` puts `webapp/` on `sys.path[0]`, which made `from app.config import …` resolve to `webapp/app.py` (a file) instead of the `app/` package. Resolved by explicitly inserting `PROJECT_ROOT` at `sys.path[0]` inside `services.py` after the script-subdir loop. Documented inline.
+
+### Infra side-fix
+
+`scripts/shared/paths.py` and `.venv/Lib/site-packages/edge_radar.pth` both now prepend `PROJECT_ROOT` to `sys.path` so `from app.config import get_config` resolves in any script that imports `paths`. Without this, every migrated script would need its own ad-hoc `sys.path.insert(0, str(PROJECT_ROOT))`.
+
+### Out of scope (flagged, not migrated)
+
+- `scripts/custom/Python/send_daily_email.py` uses `os.environ["AGENTMAIL_API_KEY"]` — user-automation script, knob not documented in `.env.example` or core docs. Migrating it would add a non-core knob to `app/config.py`, violating the "no new knobs" non-goal.
+
+All 292 tests still pass after the migration.
+
+---
+
 ## 2026-04-25 -- Config centralization Phase 1 (refactor scaffolding)
 
 ### `app/config.py` — typed config module landed (no script migrations yet)

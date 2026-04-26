@@ -8,11 +8,11 @@ Usage:
     python scripts/doctor.py
 """
 
-import os
 import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "scripts" / "shared"))
 
 from dotenv import load_dotenv
@@ -21,7 +21,10 @@ load_dotenv(PROJECT_ROOT / ".env")
 from rich.console import Console
 from rich.table import Table
 
+from app.config import get_config
+
 console = Console()
+cfg = get_config()
 
 PASS = "[green]PASS[/green]"
 FAIL = "[red]FAIL[/red]"
@@ -54,10 +57,10 @@ def main():
 
     # ── Required env vars
     console.print("\n[bold]Credentials[/bold]")
-    kalshi_key = os.getenv("KALSHI_API_KEY", "")
+    kalshi_key = cfg.kalshi.api_key
     check("KALSHI_API_KEY set", bool(kalshi_key), "Missing — required for all Kalshi operations")
 
-    key_path = os.getenv("KALSHI_PRIVATE_KEY_PATH", "")
+    key_path = cfg.kalshi.private_key_path
     if key_path:
         full_path = PROJECT_ROOT / key_path if not Path(key_path).is_absolute() else Path(key_path)
         check("KALSHI_PRIVATE_KEY_PATH exists", full_path.exists(),
@@ -65,8 +68,7 @@ def main():
     else:
         check("KALSHI_PRIVATE_KEY_PATH set", False, "Missing — required for Kalshi auth")
 
-    odds_keys = os.getenv("ODDS_API_KEYS", "")
-    key_count = len([k for k in odds_keys.split(",") if k.strip()]) if odds_keys else 0
+    key_count = len(cfg.odds.keys)
     check("ODDS_API_KEYS set", key_count > 0, "Missing — required for sportsbook odds")
     if key_count > 0:
         check(f"  Odds API keys loaded: {key_count}", True)
@@ -89,27 +91,17 @@ def main():
 
     # ── System settings
     console.print("\n[bold]Configuration[/bold]")
-    dry_run = os.getenv("DRY_RUN", "true").lower() == "true"
-    if dry_run:
+    if cfg.system.dry_run:
         check("DRY_RUN = true (safe mode)", True)
     else:
         check("DRY_RUN = false (LIVE EXECUTION)", True)
         console.print("    [red bold]Orders will be placed with real money![/red bold]")
 
-    unit_size = os.getenv("UNIT_SIZE", "1.00")
-    check(f"UNIT_SIZE = ${unit_size}", True)
-
-    kelly = os.getenv("KELLY_FRACTION", "0.25")
-    check(f"KELLY_FRACTION = {kelly}", True)
-
-    max_loss = os.getenv("MAX_DAILY_LOSS", "250")
-    check(f"MAX_DAILY_LOSS = ${max_loss}", True)
-
-    max_pos = os.getenv("MAX_OPEN_POSITIONS", "10")
-    check(f"MAX_OPEN_POSITIONS = {max_pos}", True)
-
-    max_event = os.getenv("MAX_PER_EVENT", "2")
-    check(f"MAX_PER_EVENT = {max_event}", True)
+    check(f"UNIT_SIZE = ${cfg.risk.unit_size:.2f}", True)
+    check(f"KELLY_FRACTION = {cfg.kelly.kelly_fraction:g}", True)
+    check(f"MAX_DAILY_LOSS = ${cfg.risk.max_daily_loss:.0f}", True)
+    check(f"MAX_OPEN_POSITIONS = {cfg.risk.max_open_positions}", True)
+    check(f"MAX_PER_EVENT = {cfg.risk.max_per_event}", True)
 
     # ── Kalshi API connectivity
     console.print("\n[bold]API Connectivity[/bold]")

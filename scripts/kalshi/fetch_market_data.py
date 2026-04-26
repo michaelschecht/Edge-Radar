@@ -8,7 +8,6 @@ Usage:
     python scripts/fetch_market_data.py --type all
 """
 
-import os
 import sys
 import json
 import argparse
@@ -23,20 +22,26 @@ from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
 from logging_setup import setup_logging
+from app.config import get_config
 
 # ── Setup ──────────────────────────────────────────────────────────────────────
 load_dotenv()
 console = Console()
 log = setup_logging("fetch_market_data")
 
-ALPACA_API_KEY    = os.getenv("ALPACA_API_KEY")
-ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
-ALPACA_BASE_URL   = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+_cfg = get_config()
+# `or None` preserves the original `os.getenv("X")` semantics — if unset,
+# the credential is `None` (falsy) rather than `""`. The downstream
+# `if not X:` checks are identical, but headers dicts and f-strings would
+# render `""` differently from `None`.
+ALPACA_API_KEY    = _cfg.alpaca.api_key or None
+ALPACA_SECRET_KEY = _cfg.alpaca.secret_key or None
+ALPACA_BASE_URL   = _cfg.alpaca.base_url
 ALPACA_DATA_URL   = "https://data.alpaca.markets/v2"
 
 POLYMARKET_URL    = "https://clob.polymarket.com"
 KALSHI_URL        = "https://trading-api.kalshi.com/trade-api/v2"
-KALSHI_API_KEY    = os.getenv("KALSHI_API_KEY")
+KALSHI_API_KEY    = _cfg.kalshi.api_key or None
 
 COINBASE_URL      = "https://api.coinbase.com/api/v3/brokerage"
 
