@@ -7,7 +7,6 @@ Usage:
     python scripts/fetch_odds.py --market nfl --min-edge 0.04
 """
 
-import os
 import json
 import sys
 import argparse
@@ -22,16 +21,18 @@ from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
 from logging_setup import setup_logging
+from app.config import get_config
 
 # ── Setup ──────────────────────────────────────────────────────────────────────
 load_dotenv()
 console = Console()
 log = setup_logging("fetch_odds")
 
+_cfg = get_config()
 BASE_URL = "https://api.the-odds-api.com/v4"
-API_KEY = os.getenv("ODDS_API_KEY")
+API_KEY = _cfg.odds.single_key or None
 
-MIN_EDGE = float(os.getenv("MIN_EDGE_THRESHOLD", 0.03))
+MIN_EDGE = _cfg.gates.min_edge_threshold
 
 # Market slugs supported by The Odds API
 SPORT_KEYS = {

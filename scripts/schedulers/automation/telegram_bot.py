@@ -5,7 +5,6 @@ Place at: scripts/schedulers/automation/telegram_bot.py
 Run: python scripts/schedulers/automation/telegram_bot.py
 """
 
-import os
 import sys
 import time
 import subprocess
@@ -16,9 +15,18 @@ from dotenv import load_dotenv
 # ── Path setup ────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parents[3]  # Edge-Radar root
 load_dotenv(ROOT / ".env")
+# Ensure PROJECT_ROOT is on sys.path so `from app.config import` resolves
+# when running this script directly (it doesn't import the shared `paths`
+# module that handles this for other scripts).
+sys.path.insert(0, str(ROOT))
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+from app.config import get_config
+
+_cfg = get_config().telegram
+# `or None` preserves the original `os.getenv` semantics for downstream
+# string interpolation in API URLs.
+TELEGRAM_TOKEN = _cfg.token or None
+TELEGRAM_CHAT_ID = _cfg.chat_id or None
 
 if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
     sys.exit("❌ TELEGRAM_TOKEN or TELEGRAM_CHAT_ID missing from .env")

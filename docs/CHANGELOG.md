@@ -2,6 +2,87 @@
 
 ---
 
+## 2026-04-25 -- Config centralization Phase 3 (lint guard against regression)
+
+### `scripts/lint/check_config_centralization.py`
+
+Replaces the original "simple grep" idea from the spec with a small Python script — necessary because the rule needs nuance the raw grep can't express.
+
+**What it does:**
+- Walks `app/`, `scripts/`, `webapp/` for `os.getenv` / `os.environ`.
+- Excludes `app/config.py` (the single source of truth), `scripts/custom/` (user automation), and `scripts/lint/` itself (this script names the forbidden strings to communicate the rule).
+- Skips comment-only lines.
+- Skips lines tagged `# config-bootstrap` — reserved for the 4 Streamlit secrets-bootstrap lines in `webapp/services.py` (lines 69, 71, 75, 77 now carry the annotation inline).
+- Exits 1 on any violation, 0 otherwise. Output names file, line, content, and tells the contributor what to do.
+
+### Wired into automation
+
+- `make lint-config` Makefile target.
+- `.pre-commit-config.yaml` local hook with `pass_filenames: false` and `always_run: true` so the lint sees the whole tree, not just staged files (a sneaky violation in an unstaged file would otherwise slip through).
+
+### Unit tests — 5 new tests in `tests/test_lint_config_centralization.py`
+
+1. The current production codebase passes the lint cleanly.
+2. A regression — adding `os.getenv("FOO")` to a previously clean file — is detected.
+3. The `# config-bootstrap` annotation correctly suppresses violations.
+4. Comment-only lines mentioning `os.getenv` textually are ignored.
+5. `app/config.py` is unconditionally excluded.
+
+**Final test count: 297 passing** (292 from earlier phases + 5 lint tests). Production-code `os.getenv` reads outside `app/config.py`: 0.
+
+---
+
+## 2026-04-25 -- Config centralization Phase 2 — all 8 script groups migrated
+
+### What changed
+
+Mechanical migration of every `os.getenv` config read across the production codebase to `app.config.get_config()`. Per-step breakdown:
+
+| Step | Files | Calls removed |
+|:----:|:------|:-------------:|
+| 1 | `scripts/doctor.py` | 9 |
+| 2 | `scripts/kalshi/risk_check.py` | 5 |
+| 3 | `scripts/kalshi/kalshi_client.py` | 8 |
+| 4+6 | `scripts/kalshi/edge_detector.py`, `scripts/kalshi/fetch_odds.py` | 1 + 2 |
+| 5 | `scripts/kalshi/kalshi_executor.py` | 23 |
+| 7 | `prediction_scanner.py`, `backtester.py`, `logging_setup.py`, `odds_api.py`, `fetch_market_data.py`, `telegram_bot.py` | 11 |
+| 8 | `webapp/services.py` (6 reads — bootstrap retained) | 6 |
+
+**Final tally: 65 reads removed, 0 outside `app/config.py`.** The 4 `os.environ` writes in the `webapp/services.py` Streamlit secrets bootstrap are deliberately retained — they're the input side of cfg, not config consumption.
+
+### Notable per-file details
+
+- **`doctor.py`:** display normalization is the only user-visible change (`UNIT_SIZE=.50` previously rendered as `$.50`; now `$0.50` via explicit `:.2f` format). Numeric values reaching every gate are byte-identical.
+- **`risk_check.py`:** dropped a dead `MIN_EDGE` constant that no caller imported.
+- **`kalshi_client.py`:** Streamlit-secrets timing preserved — all reads happen at instantiation, not import. The `st.secrets["kalshi"]["private_key"]` fallback in `_resolve_key_content` is kept as a backup for direct Streamlit-app use that bypasses `services.py`. Phase 1 default for `KalshiCredentials.private_key_path` tweaked from `"keys/live/kalshi_private.key"` to `""` to mirror the original `os.getenv("KALSHI_PRIVATE_KEY_PATH", "")` runtime default; preserves byte-identical "credentials not configured" error path when env is unset. `.env.example` unchanged.
+- **`kalshi_executor.py`:** all 21 module-level risk constants and the per-sport edge-override dict source from `_cfg = get_config()`. Constants stay as plain mutable globals because `tests/test_risk_gates.py` mutates them directly (`kalshi_executor.MAX_OPEN_POSITIONS = 10`) — only the *initial source* changed. Two in-function `DRY_RUN` reads (resting-order janitor + execute-table title) use `get_config().system.dry_run` against the memoized cache.
+- **`fetch_odds.py`, `fetch_market_data.py`, `telegram_bot.py`:** API-key constants use `cfg.X or None` to preserve `None`-on-unset semantics from the original `os.getenv("X")` — matters where credentials get spliced into HTTP headers and URL f-strings (`None` and `""` render differently).
+- **`logging_setup.py`:** `from app.config import get_config` placed *after* `load_dotenv()` so `.env` values are in `os.environ` before the first cfg read.
+- **`webapp/services.py`:** module-level constants (imported by `views/scan_page.py` and `views/portfolio_page.py`) sourced from `_cfg = get_config()`. `reset_config()` defensive call added between the secrets bootstrap and downstream imports — explicit contract that any code mutating `os.environ` after potentially priming the cache uses this seam. Bug found and fixed: Streamlit's `webapp/app.py` puts `webapp/` on `sys.path[0]`, which made `from app.config import …` resolve to `webapp/app.py` (a file) instead of the `app/` package. Resolved by explicitly inserting `PROJECT_ROOT` at `sys.path[0]` inside `services.py` after the script-subdir loop. Documented inline.
+
+### Infra side-fix
+
+`scripts/shared/paths.py` and `.venv/Lib/site-packages/edge_radar.pth` both now prepend `PROJECT_ROOT` to `sys.path` so `from app.config import get_config` resolves in any script that imports `paths`. Without this, every migrated script would need its own ad-hoc `sys.path.insert(0, str(PROJECT_ROOT))`.
+
+### Out of scope (flagged, not migrated)
+
+- `scripts/custom/Python/send_daily_email.py` uses `os.environ["AGENTMAIL_API_KEY"]` — user-automation script, knob not documented in `.env.example` or core docs. Migrating it would add a non-core knob to `app/config.py`, violating the "no new knobs" non-goal.
+
+All 292 tests still pass after the migration.
+
+---
+
+## 2026-04-25 -- Config centralization Phase 1 (refactor scaffolding)
+
+### `app/config.py` — typed config module landed (no script migrations yet)
+
+- **Why:** Audit found 75 `os.getenv` calls across 14 files, with `MIN_EDGE_THRESHOLD` read in 5 places using two type styles (string `"0.03"` vs float `0.03`) and `DRY_RUN` coerced inconsistently. Tracked under `docs/my-documents/enhancements/CONFIG_CENTRALIZATION.md`.
+- **What landed:** `app/config.py` with 10 frozen dataclasses (Kalshi creds, Kalshi-prod creds, OddsApi creds, Alpaca creds, Telegram creds, RiskLimits, GateThresholds, KellyConfig, PerSportOverrides, System). Each has `from_env()` for one-shot coercion; aggregate `Config.from_env()` runs `validate()`. Memoized via `get_config()` / `reset_config()`. 32 unit tests in `tests/test_config.py`.
+- **What did NOT change:** No existing script touched. `os.getenv` count unchanged. `.env.example` unchanged. No behavior change of any kind. Phase 2 (mechanical migration of 8 script groups) is a separate set of commits.
+- **Discrepancies flagged for a future doc-reconciliation PR (not fixed here):** `MAX_OPEN_POSITIONS` is `10` in code/CLAUDE.md but `50` in `.env.example`; `MAX_PER_EVENT` is `2` in code/`.env.example` but `3` in CLAUDE.md. Phase 1 followed code as source of truth.
+
+---
+
 ## 2026-04-24 (PM) -- Scanner Parity, Futures Bug Hunt, Prediction-Market Audit (R17, R18, R20, R21, R22, R23, R24a, R25)
 
 ### R17. Scanner flag parity (`--budget`, `--report-dir`)

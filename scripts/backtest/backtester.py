@@ -13,7 +13,6 @@ Usage:
     python scripts/backtest/backtester.py --save                # Save markdown report
 """
 
-import os
 import sys
 import json
 import math
@@ -28,6 +27,7 @@ import paths  # noqa: F401
 from trade_log import load_settlement_log
 from ticker_display import sport_from_ticker, bet_type_from_ticker
 from logging_setup import setup_logging
+from app.config import get_config
 
 from rich.console import Console
 from rich.table import Table
@@ -705,7 +705,7 @@ def main():
 
     # Save report
     if args.save:
-        report_dir = Path(os.getenv("PROJECT_ROOT", paths.PROJECT_ROOT)) / "reports" / "backtest"
+        report_dir = Path(get_config().system.project_root or paths.PROJECT_ROOT) / "reports" / "backtest"
         report_dir.mkdir(parents=True, exist_ok=True)
         filename = f"backtest_{datetime.now().strftime('%Y-%m-%d_%H%M')}.md"
         report_path = report_dir / filename

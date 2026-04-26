@@ -64,16 +64,18 @@ Edge-Radar/
 │   ├── scripts/                     # Per-script detailed docs
 │   ├── setup/                       # Setup & automation guides
 │   └── enhancements/               # Roadmap (gitignored)
-├── app/domain/                      # Typed domain objects
-│   ├── opportunity.py               # Opportunity dataclass (canonical)
-│   ├── risk.py                      # RiskDecision dataclass
-│   └── execution.py                # ExecutionPreview, ExecutionResult
+├── app/                             # Application core
+│   ├── config.py                    # Single source of truth for env-driven knobs (see CONFIG_CENTRALIZATION.md, Phase 1 landed 2026-04-25)
+│   └── domain/                      # Typed domain objects
+│       ├── opportunity.py           # Opportunity dataclass (canonical)
+│       ├── risk.py                  # RiskDecision dataclass
+│       └── execution.py             # ExecutionPreview, ExecutionResult
 ├── webapp/                          # Streamlit web dashboard
 │   ├── app.py                       # Entry: streamlit run webapp/app.py
 │   ├── services.py                  # Wrapper around core scripts
 │   ├── theme.py                     # Dark terminal CSS
 │   └── views/                       # Page modules (scan, portfolio, settle)
-├── tests/                           # 150 pytest tests
+├── tests/                           # 297 pytest tests
 └── scripts/
     ├── scan.py                      # Unified entry point
     ├── doctor.py                    # Environment validator

@@ -15,13 +15,14 @@ monthly quota reset can be re-discovered naturally.
 """
 
 import json
-import os
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
 log = logging.getLogger("odds_api")
+
+from app.config import get_config
 
 # ── Key Management ───────────────────────────────────────────────────────────
 
@@ -59,16 +60,15 @@ def _load_keys() -> list[str]:
     """Load API keys from environment and hydrate the on-disk quota cache."""
     global _keys
 
+    odds = get_config().odds
+
     # Try ODDS_API_KEYS first (comma-separated list)
-    keys_str = os.getenv("ODDS_API_KEYS", "")
-    if keys_str:
-        _keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+    if odds.keys:
+        _keys = list(odds.keys)
 
     # Fallback to single ODDS_API_KEY
-    if not _keys:
-        single = os.getenv("ODDS_API_KEY", "")
-        if single:
-            _keys = [single]
+    if not _keys and odds.single_key:
+        _keys = [odds.single_key]
 
     if _keys:
         log.info("Loaded %d Odds API key(s)", len(_keys))

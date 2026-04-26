@@ -8,7 +8,6 @@ Usage:
 """
 
 import logging
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,9 +15,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Imported after load_dotenv so the config picks up `.env` values on first
+# call. Safe even if get_config() was already cached by an earlier import —
+# load_dotenv is idempotent (default `override=False`).
+from app.config import get_config
+
 LOG_DIR = Path(__file__).resolve().parent.parent.parent / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+LOG_LEVEL = get_config().system.log_level
 
 
 def setup_logging(name: str) -> logging.Logger:

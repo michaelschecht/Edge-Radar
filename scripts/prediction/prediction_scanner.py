@@ -14,7 +14,6 @@ Usage:
     python scripts/prediction/prediction_scanner.py scan --filter btc --save
 """
 
-import os
 import sys
 import json
 import logging
@@ -33,6 +32,7 @@ from rich.table import Table
 from rich import print as rprint
 
 from kalshi_client import KalshiClient
+from app.config import get_config
 
 # Local imports
 from crypto_edge import detect_edge_crypto, CRYPTO_PREFIX_MAP, fetch_crypto_price, fetch_crypto_history
@@ -56,7 +56,7 @@ from logging_setup import setup_logging
 log = setup_logging("prediction_scanner")
 console = Console()
 
-MIN_EDGE = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
+MIN_EDGE = get_config().gates.min_edge_threshold
 
 
 

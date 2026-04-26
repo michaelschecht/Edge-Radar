@@ -11,7 +11,6 @@ Usage:
     python scripts/kalshi/risk_check.py --gate                # Returns exit code 1 if limits breached
 """
 
-import os
 import sys
 import json
 import argparse
@@ -31,18 +30,19 @@ from kalshi_client import KalshiClient
 from trade_log import load_trade_log, get_today_pnl, get_filled_cost
 from ticker_display import parse_game_datetime, parse_matchup, parse_pick_team, TEAM_NAMES
 from logging_setup import setup_logging
+from app.config import get_config
 
 # ── Setup ──────────────────────────────────────────────────────────────────────
 load_dotenv()
 console = Console()
 log = setup_logging("risk_check")
 
-# ── Risk Limits (from .env with defaults) ─────────────────────────────────────
-MAX_BET_SIZE        = float(os.getenv("MAX_BET_SIZE", 100))
-MAX_DAILY_LOSS      = float(os.getenv("MAX_DAILY_LOSS", 250))
-MAX_OPEN_POSITIONS  = int(os.getenv("MAX_OPEN_POSITIONS", 10))
-MIN_EDGE            = float(os.getenv("MIN_EDGE_THRESHOLD", 0.03))
-DRY_RUN             = os.getenv("DRY_RUN", "true").lower() == "true"
+# ── Risk Limits (from app.config) ─────────────────────────────────────────────
+_cfg = get_config()
+MAX_BET_SIZE        = _cfg.risk.max_bet_size
+MAX_DAILY_LOSS      = _cfg.risk.max_daily_loss
+MAX_OPEN_POSITIONS  = _cfg.risk.max_open_positions
+DRY_RUN             = _cfg.system.dry_run
 
 # ── Watchlist path ────────────────────────────────────────────────────────────
 WATCHLIST_PATH = paths.SPORTS_OPPORTUNITIES_PATH

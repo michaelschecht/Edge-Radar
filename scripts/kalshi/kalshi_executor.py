@@ -19,7 +19,6 @@ Usage:
     python scripts/kalshi_executor.py status
 """
 
-import os
 import sys
 import json
 import uuid
@@ -43,6 +42,7 @@ from rich import print as rprint
 from kalshi_client import KalshiClient, KalshiAPIError, make_prod_client
 from edge_detector import scan_all_markets
 from ticker_display import _detect_sport
+from app.config import get_config
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -53,34 +53,38 @@ console = Console()
 TRADE_LOG_PATH = paths.TRADE_LOG_PATH
 
 # ── Risk Parameters ───────────────────────────────────────────────────────────
+# Module-level constants sourced from `app.config` at import time. Tests mutate
+# these directly (e.g. `kalshi_executor.MAX_OPEN_POSITIONS = 10`), so they
+# remain plain mutable globals — only the *source* is centralized.
 
-MAX_BET_SIZE = float(os.getenv("MAX_BET_SIZE", "100"))
-UNIT_SIZE = float(os.getenv("UNIT_SIZE", "1.00"))
-MAX_DAILY_LOSS = float(os.getenv("MAX_DAILY_LOSS", "250"))
-MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "10"))
-MIN_EDGE_THRESHOLD = float(os.getenv("MIN_EDGE_THRESHOLD", "0.03"))
-KELLY_FRACTION = float(os.getenv("KELLY_FRACTION", "0.25"))
-MAX_PER_EVENT = int(os.getenv("MAX_PER_EVENT", "2"))
-MAX_BET_RATIO = float(os.getenv("MAX_BET_RATIO", "3.0"))
-MIN_COMPOSITE_SCORE = float(os.getenv("MIN_COMPOSITE_SCORE", "6.0"))
-KELLY_EDGE_CAP = float(os.getenv("KELLY_EDGE_CAP", "0.15"))
-KELLY_EDGE_DECAY = float(os.getenv("KELLY_EDGE_DECAY", "0.5"))
-SERIES_DEDUP_HOURS = int(os.getenv("SERIES_DEDUP_HOURS", "48"))
+_cfg = get_config()
+MAX_BET_SIZE = _cfg.risk.max_bet_size
+UNIT_SIZE = _cfg.risk.unit_size
+MAX_DAILY_LOSS = _cfg.risk.max_daily_loss
+MAX_OPEN_POSITIONS = _cfg.risk.max_open_positions
+MIN_EDGE_THRESHOLD = _cfg.gates.min_edge_threshold
+KELLY_FRACTION = _cfg.kelly.kelly_fraction
+MAX_PER_EVENT = _cfg.risk.max_per_event
+MAX_BET_RATIO = _cfg.risk.max_bet_ratio
+MIN_COMPOSITE_SCORE = _cfg.gates.min_composite_score
+KELLY_EDGE_CAP = _cfg.kelly.kelly_edge_cap
+KELLY_EDGE_DECAY = _cfg.kelly.kelly_edge_decay
+SERIES_DEDUP_HOURS = _cfg.gates.series_dedup_hours
 
 # R7 (2026-04-22): reject lottery-ticket bets below this market price. F10 from
 # the 2026-04-21 14-day review: sub-10¢ bets went 1W-3L with the model claiming
 # "+50% edge" on 8-10¢ longshots. 0 disables the gate (keep longshots).
-MIN_MARKET_PRICE = float(os.getenv("MIN_MARKET_PRICE", "0.10"))
+MIN_MARKET_PRICE = _cfg.gates.min_market_price
 
 # R4 (2026-04-21): auto-cancel resting orders older than this with zero fills.
 # 14-day review showed 16% of new-log orders (4/25) resting 25-66h with zero
 # fills. 0 disables. Triggered at the top of execute_pipeline() when
 # execute=True AND DRY_RUN=false.
-RESTING_ORDER_MAX_HOURS = int(os.getenv("RESTING_ORDER_MAX_HOURS", "24"))
+RESTING_ORDER_MAX_HOURS = _cfg.gates.resting_order_max_hours
 
 # R3 (2026-04-21): reject opportunities below this confidence level. Two review
 # windows showed low-confidence at 0W-3L / -105% ROI. Values: low|medium|high.
-MIN_CONFIDENCE = os.getenv("MIN_CONFIDENCE", "medium").strip().lower()
+MIN_CONFIDENCE = _cfg.gates.min_confidence
 
 # R1 (2026-04-21): side-aware penalty for NO bets on heavy favorites. 14-day
 # review: all 13 high-edge losers were NO-side; NO at >=20% edge realized 31%
@@ -88,10 +92,10 @@ MIN_CONFIDENCE = os.getenv("MIN_CONFIDENCE", "medium").strip().lower()
 # NO_SIDE_FAVORITE_THRESHOLD unless edge >= NO_SIDE_MIN_EDGE AND confidence is
 # "high". Separately, apply NO_SIDE_KELLY_MULTIPLIER to Kelly sizing for any NO
 # bet priced below NO_SIDE_KELLY_PRICE_FLOOR.
-NO_SIDE_FAVORITE_THRESHOLD = float(os.getenv("NO_SIDE_FAVORITE_THRESHOLD", "0.25"))
-NO_SIDE_MIN_EDGE = float(os.getenv("NO_SIDE_MIN_EDGE", "0.25"))
-NO_SIDE_KELLY_PRICE_FLOOR = float(os.getenv("NO_SIDE_KELLY_PRICE_FLOOR", "0.35"))
-NO_SIDE_KELLY_MULTIPLIER = float(os.getenv("NO_SIDE_KELLY_MULTIPLIER", "0.5"))
+NO_SIDE_FAVORITE_THRESHOLD = _cfg.gates.no_side_favorite_threshold
+NO_SIDE_MIN_EDGE = _cfg.gates.no_side_min_edge
+NO_SIDE_KELLY_PRICE_FLOOR = _cfg.kelly.no_side_kelly_price_floor
+NO_SIDE_KELLY_MULTIPLIER = _cfg.kelly.no_side_kelly_multiplier
 
 # R25 (2026-04-24): prediction-market safety gate. 2026-04-24 audit found
 # that all 6 prediction-market modules (crypto_edge, weather_edge, spx_edge,
@@ -103,7 +107,7 @@ NO_SIDE_KELLY_MULTIPLIER = float(os.getenv("NO_SIDE_KELLY_MULTIPLIER", "0.5"))
 # category until M1-M4 are properly rebuilt; users can opt back in with
 # ALLOW_PREDICTION_BETS=true.
 PREDICTION_CATEGORIES = frozenset({"crypto", "weather", "spx", "mentions", "companies", "politics"})
-ALLOW_PREDICTION_BETS = os.getenv("ALLOW_PREDICTION_BETS", "false").strip().lower() in ("true", "1", "yes")
+ALLOW_PREDICTION_BETS = _cfg.gates.allow_prediction_bets
 
 _CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
 
@@ -115,16 +119,10 @@ def _confidence_rank(level: str | None) -> int:
     return _CONFIDENCE_RANK.get(level.strip().lower(), _CONFIDENCE_RANK["medium"])
 
 # Per-sport edge-threshold overrides. Any sport not listed falls back to
-# MIN_EDGE_THRESHOLD. Read at import; tests patch _PER_SPORT_MIN_EDGE directly.
+# MIN_EDGE_THRESHOLD. Read via app.config at import; tests patch
+# _PER_SPORT_MIN_EDGE directly.
 _SUPPORTED_SPORTS = ("mlb", "nba", "nhl", "nfl", "ncaab", "ncaaf", "mls", "soccer")
-_PER_SPORT_MIN_EDGE: dict[str, float] = {}
-for _sport in _SUPPORTED_SPORTS:
-    _val = os.getenv(f"MIN_EDGE_THRESHOLD_{_sport.upper()}")
-    if _val:
-        try:
-            _PER_SPORT_MIN_EDGE[_sport] = float(_val)
-        except ValueError:
-            pass
+_PER_SPORT_MIN_EDGE: dict[str, float] = dict(_cfg.per_sport.min_edge)
 
 
 def parse_budget_arg(raw: str | None) -> float | None:
@@ -836,7 +834,7 @@ def execute_pipeline(
                   the budget into too few positions.
     """
     # ── Resting-order janitor (R4): cancel stale zero-fill orders before new ones
-    dry_run_for_janitor = os.getenv("DRY_RUN", "true").lower() == "true"
+    dry_run_for_janitor = get_config().system.dry_run
     if execute and not dry_run_for_janitor and RESTING_ORDER_MAX_HOURS > 0:
         cancelled = cancel_stale_resting_orders(client)
         if cancelled:
@@ -955,7 +953,7 @@ def execute_pipeline(
         parse_game_datetime, format_bet_label, format_pick_label, sport_from_ticker,
     )
 
-    dry_run = os.getenv("DRY_RUN", "true").lower() == "true"
+    dry_run = get_config().system.dry_run
     if execute and dry_run:
         table_title = f"DRY RUN -- {len(to_execute)} orders (DRY_RUN=true, no real orders placed)"
     elif execute:

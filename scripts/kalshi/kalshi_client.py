@@ -15,7 +15,6 @@ Usage:
                                   yes_price_cents=55, count=10)
 """
 
-import os
 import sys
 import json
 import datetime
@@ -29,6 +28,8 @@ from dotenv import load_dotenv
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import padding
+
+from app.config import get_config
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -45,10 +46,9 @@ class KalshiClient:
         private_key_content: str | None = None,
         base_url: str | None = None,
     ):
-        self.api_key = api_key or os.getenv("KALSHI_API_KEY", "")
-        self.base_url = (base_url or os.getenv(
-            "KALSHI_BASE_URL", "https://api.elections.kalshi.com/trade-api/v2"
-        )).rstrip("/")
+        cfg = get_config()
+        self.api_key = api_key or cfg.kalshi.api_key
+        self.base_url = (base_url or cfg.kalshi.base_url).rstrip("/")
 
         # Load private key — inline content takes priority over file path.
         # This allows Streamlit Cloud (st.secrets) or KALSHI_PRIVATE_KEY env
@@ -61,7 +61,7 @@ class KalshiClient:
             )
         else:
             # Fall back to file path (local dev with .env)
-            key_path = private_key_path or os.getenv("KALSHI_PRIVATE_KEY_PATH", "")
+            key_path = private_key_path or cfg.kalshi.private_key_path
             if not key_path:
                 raise FileNotFoundError(
                     "Kalshi credentials not configured. Set KALSHI_PRIVATE_KEY "
@@ -81,7 +81,7 @@ class KalshiClient:
             self._private_key = self._load_private_key(key_file)
 
         self.is_demo = "demo" in self.base_url
-        self.dry_run = os.getenv("DRY_RUN", "true").lower() == "true"
+        self.dry_run = cfg.system.dry_run
 
         log.info(
             "KalshiClient initialized — env=%s, dry_run=%s",
@@ -92,7 +92,7 @@ class KalshiClient:
     @staticmethod
     def _resolve_key_content() -> str:
         """Check for inline PEM content from env var or Streamlit secrets."""
-        content = os.getenv("KALSHI_PRIVATE_KEY", "")
+        content = get_config().kalshi.private_key_inline
         if content:
             return content
         try:
@@ -418,18 +418,16 @@ def make_prod_client() -> KalshiClient | None:
     Create a production Kalshi client for read-only market data.
     Returns None if prod credentials are not configured.
     """
-    prod_key = os.getenv("KALSHI_PROD_API_KEY", "")
-    prod_key_path = os.getenv("KALSHI_PROD_PRIVATE_KEY_PATH", "")
-    prod_url = os.getenv("KALSHI_PROD_BASE_URL", "https://api.elections.kalshi.com/trade-api/v2")
+    prod = get_config().kalshi_prod
 
-    if not prod_key or not prod_key_path:
+    if not prod.api_key or not prod.private_key_path:
         return None
 
     try:
         return KalshiClient(
-            api_key=prod_key,
-            private_key_path=prod_key_path,
-            base_url=prod_url,
+            api_key=prod.api_key,
+            private_key_path=prod.private_key_path,
+            base_url=prod.base_url,
         )
     except FileNotFoundError:
         return None
