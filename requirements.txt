@@ -13,7 +13,6 @@ cryptography>=44.0.0              # RSA-PSS signing for Kalshi API auth
 # coinbase-advanced-py==1.0.0   # planned — Coinbase Advanced Trade
 
 # === Prediction Markets ===
-# py-clob-client==0.11.0        # planned — Polymarket CLOB
 # kalshi-python==1.0.0          # planned — Kalshi (install from their repo)
 
 # === Data & Analysis ===

@@ -80,7 +80,6 @@ For championship and season-long markets with N outcomes, de-vig the full N-way 
 | Crypto (BTC, ETH, XRP, DOGE, SOL) | CoinGecko | Current price + 24h volatility vs. Kalshi strike; log-normal distribution |
 | Weather (13 US cities) | NWS / NOAA | Ensemble forecast temperature distributions vs. Kalshi strike thresholds |
 | S&P 500 | Yahoo Finance + VIX | Current level + implied volatility → probability of reaching strike by expiry |
-| Cross-market | Polymarket Gamma API | Fuzzy-match Kalshi ↔ Polymarket; price discrepancy = edge signal |
 
 ---
 

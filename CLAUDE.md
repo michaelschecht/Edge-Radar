@@ -25,7 +25,7 @@ Read relevant memory files before starting work to avoid re-learning prior conte
 <details>
 <summary><b>Planned (not yet implemented)</b></summary>
 
-- Polymarket, Manifold prediction markets
+- Manifold prediction markets
 - Alpaca stocks/options trading
 - Coinbase/Binance crypto trading
 - FanDuel/DraftKings DFS + sportsbook APIs
@@ -81,7 +81,6 @@ Edge-Radar/
     ├── doctor.py                    # Environment validator
     ├── backtest/backtester.py       # Strategy analysis & equity curves
     ├── kalshi/                      # Core: client, executor, settler, edge, risk
-    ├── polymarket/                  # Cross-market edge detection
     ├── shared/                      # Shared modules (stats, weather, logging, etc.)
     └── schedulers/                  # Automation (batch, Task Scheduler)
 ```
@@ -209,8 +208,7 @@ pip install -r requirements.txt
 python scripts/scan.py sports --filter mlb --date today --save
 python scripts/scan.py sports --filter mlb,nhl --date today --save
 python scripts/scan.py futures --filter nba-futures
-python scripts/scan.py prediction --filter crypto --cross-ref
-python scripts/scan.py polymarket --filter crypto
+python scripts/scan.py prediction --filter crypto
 
 # Execute with budget cap
 python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date today --exclude-open --execute
@@ -305,7 +303,7 @@ RISK_MANAGER_APPROVAL:  [approved/rejected] — [reason]
 |:----------|:-----------|
 | Language | Python 3.11+ |
 | Import Setup | `.venv/Lib/site-packages/edge_radar.pth` auto-adds script dirs |
-| Key Libraries | `pandas`, `numpy`, `scipy`, `alpaca-trade-api`, `polymarket-py` |
+| Key Libraries | `pandas`, `numpy`, `scipy`, `alpaca-trade-api` |
 | Database | SQLite (local), PostgreSQL (production) |
 | Scheduling | `APScheduler` / Windows Task Scheduler |
 | Notifications | Slack webhook / email |

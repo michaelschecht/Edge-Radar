@@ -16,8 +16,3 @@ Group results by category (crypto, weather, S&P 500, mentions, companies, politi
 - When it settles
 
 Which category has the most actionable edge right now?
-
-To cross-reference against Polymarket:
-```
-python scripts/scan.py prediction --min-edge 0.03 --top 20 --exclude-open --cross-ref
-```

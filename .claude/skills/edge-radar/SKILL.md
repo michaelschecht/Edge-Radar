@@ -1,6 +1,6 @@
 ---
 name: edge-radar
-description: Unified Edge-Radar skill for scanning markets, placing wagers, managing portfolio, settling bets, and researching edge across Kalshi sports, futures, prediction markets, and Polymarket cross-reference. Covers all scripts, filters, and workflows.
+description: Unified Edge-Radar skill for scanning markets, placing wagers, managing portfolio, settling bets, and researching edge across Kalshi sports, futures, and prediction markets. Covers all scripts, filters, and workflows.
 argument-hint: <action> [market/filter] [flags] — e.g., "scan nba", "bet mlb --unit-size 2", "status", "settle", "detail TICKER"
 user-invocable: true
 allowed-tools: Read, Bash, Glob, Grep
@@ -48,7 +48,6 @@ Parse the user's intent from the arguments. The skill supports natural language 
 | `--pick '1,3,5'` | (none) | Cherry-pick specific rows from preview |
 | `--ticker TICKER` | (none) | Target a specific Kalshi ticker |
 | `--category CAT` | (none) | Market type: `game`, `spread`, `total`, `player_prop` |
-| `--cross-ref` | off | Cross-reference against Polymarket |
 | `--top N` | `20` | Number of opportunities to show |
 | `--detail` | off | Show per-trade breakdown (for reports) |
 | `--from-file` | off | Load from saved watchlist |
@@ -64,11 +63,10 @@ Parse the user's intent from the arguments. The skill supports natural language 
 python scripts/scan.py sports --filter mlb --date today --save
 python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date today --exclude-open --execute
 python scripts/scan.py futures --filter nba-futures
-python scripts/scan.py prediction --filter crypto --cross-ref
-python scripts/scan.py polymarket --filter crypto
+python scripts/scan.py prediction --filter crypto
 ```
 
-Aliases: `sport` = `sports`, `pred` = `prediction`, `poly`/`xref` = `polymarket`.
+Aliases: `sport` = `sports`, `pred` = `prediction`.
 
 The `scan` subcommand is auto-inserted if omitted. All flags are forwarded directly.
 
@@ -84,7 +82,6 @@ make scan-nfl          # Scan NFL
 make scan-sports       # All sports
 make scan-futures      # All futures
 make scan-predictions  # All prediction markets
-make scan-polymarket   # Polymarket cross-reference
 make scan-all          # Everything
 make status            # Portfolio status
 make risk              # Risk dashboard
@@ -145,12 +142,6 @@ make hooks             # Install pre-commit hooks
 | `companies`, `bankruptcy`, `ipo` | Corporate events | Partial | Historical baseline |
 | `politics`, `impeach` | Political events | Yes | Time-decay model |
 | `techscience`, `quantum`, `fusion` | Tech milestones | Yes | Time-decay model |
-
-### Polymarket Cross-Reference — `polymarket_edge.py`
-
-| Filter | Description |
-|--------|-------------|
-| `polymarket`, `poly`, `xref` | Cross-market edge (Kalshi vs Polymarket) |
 
 ### Raw Ticker Prefixes
 
@@ -237,12 +228,6 @@ python scripts/kalshi/edge_detector.py detail <TICKER>
 
 Shows: matched sportsbook odds, de-vigged probabilities, fair value, edge, and confidence breakdown.
 
-For Polymarket match lookup:
-
-```bash
-python scripts/polymarket/polymarket_edge.py match <TICKER>
-```
-
 ---
 
 ## Action: Raw Odds
@@ -262,7 +247,7 @@ Sports: `nba`, `nfl`, `mlb`, `nhl`, `ncaafb`, `ncaabb`, `soccer`, `mma`, `all`.
 Fetch market data for research.
 
 ```bash
-python scripts/kalshi/fetch_market_data.py --type <type> [--symbols SYM1 SYM2] [--source kalshi|polymarket]
+python scripts/kalshi/fetch_market_data.py --type <type> [--symbols SYM1 SYM2] [--source kalshi]
 ```
 
 Types: `stocks`, `prediction`, `crypto`, `account`, `all`.
@@ -317,17 +302,6 @@ python scripts/scan.py prediction \
   [--top <N>] \
   [--date <DATE>] \
   [--exclude-open] \
-  [--cross-ref] \
-  [--save]
-```
-
-**Polymarket cross-reference:**
-```bash
-python scripts/scan.py polymarket \
-  [--filter <category>] \
-  [--min-edge <threshold>] \
-  [--min-match <score>] \
-  [--top <N>] \
   [--save]
 ```
 
@@ -336,7 +310,6 @@ python scripts/scan.py polymarket \
 python scripts/kalshi/edge_detector.py scan [flags]
 python scripts/kalshi/futures_edge.py scan [flags]
 python scripts/prediction/prediction_scanner.py scan [flags]
-python scripts/polymarket/polymarket_edge.py scan [flags]
 ```
 
 ### Step 3: Present Results
@@ -392,14 +365,6 @@ python scripts/scan.py prediction \
   [--pick '1,3,5'] [--ticker <TICKER>]
 ```
 
-**Polymarket cross-reference:**
-```bash
-python scripts/scan.py polymarket \
-  --filter <category> --execute \
-  [--unit-size <N>] [--max-bets <N>] [--budget <X>] [--min-edge <N>] \
-  [--pick '1,3,5'] [--ticker <TICKER>]
-```
-
 ### Step 6: Report
 
 After execution, summarize:
@@ -421,7 +386,6 @@ After execution, summarize:
 | `/edge-radar superbowl` | `scan.py futures --filter nfl-futures` |
 | `/edge-radar crypto` | `scan.py prediction --filter crypto` |
 | `/edge-radar weather --min-edge 0.05` | `scan.py prediction --filter weather --min-edge 0.05` |
-| `/edge-radar polymarket crypto` | `scan.py polymarket --filter crypto` |
 | `/edge-radar status` | `kalshi_executor.py status` |
 | `/edge-radar settle` | `kalshi_settler.py settle` + `report --detail` |
 | `/edge-radar reconcile` | `kalshi_settler.py reconcile` |
@@ -508,7 +472,7 @@ Or with full control:
 python scripts/scan.py sports --filter mlb --date today --exclude-open --save
 python scripts/scan.py sports --filter nba
 python scripts/scan.py futures --filter nba-futures
-python scripts/scan.py prediction --filter crypto --cross-ref
+python scripts/scan.py prediction --filter crypto
 ```
 
 ### Executing

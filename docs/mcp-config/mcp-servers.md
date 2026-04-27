@@ -135,15 +135,12 @@ npm install -g @modelcontextprotocol/server-filesystem
 ```bash
 npm install -g @modelcontextprotocol/server-fetch
 ```
-**What it enables:** Direct HTTP calls to any market API endpoint — odds APIs, Polymarket CLOB, Kalshi, Alpaca, Coinbase.
+**What it enables:** Direct HTTP calls to any market API endpoint — odds APIs, Kalshi, Alpaca, Coinbase.
 
 **Common usage patterns:**
 ```
 # Check odds on The Odds API
 GET https://api.the-odds-api.com/v4/sports/basketball_nba/odds?apiKey={KEY}&regions=us&markets=h2h,spreads,totals
-
-# Polymarket market list
-GET https://clob.polymarket.com/markets?limit=20&active=true
 
 # Alpaca account info (paper)
 GET https://paper-api.alpaca.markets/v2/account
@@ -177,7 +174,6 @@ npm install -g @modelcontextprotocol/server-brave-search
 - "Latest injury report [player name]"
 - "[Team] vs [Team] preview analysis"
 - "[Company] earnings forecast"
-- "Polymarket [event] current market"
 
 ---
 
@@ -265,7 +261,6 @@ RAPIDAPI_KEY=                        # https://rapidapi.com
 SPORTRADAR_API_KEY=                  # https://sportradar.com
 
 # === PREDICTION MARKETS ===
-POLYMARKET_PRIVATE_KEY=              # Polygon wallet private key
 KALSHI_API_KEY=                      # https://kalshi.com/api
 KALSHI_API_SECRET=
 
@@ -335,5 +330,4 @@ Don't rely on system PATH for env vars — specify them explicitly per server co
 | `slack` or `discord` | When adding team alerts | Bet alerts, P&L notifications |
 | `google-sheets` | When sharing reports | Stakeholder P&L reporting |
 | `neon` / `supabase` | Cloud DB option | Hosted PostgreSQL alternative |
-| Custom `polymarket-mcp` | When prediction market activity grows | Full Polymarket CLOB integration |
 | Custom `kalshi-mcp` | For regulated prediction markets | Full Kalshi trading API |

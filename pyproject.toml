@@ -20,7 +20,6 @@ pythonpath = [
     "scripts/shared",
     "scripts/kalshi",
     "scripts/prediction",
-    "scripts/polymarket",
     "scripts/schedulers",
     "scripts/backtest",
     "scripts",

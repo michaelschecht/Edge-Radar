@@ -2,6 +2,63 @@
 
 ---
 
+## 2026-04-27 -- Polymarket integration removed
+
+### Why
+
+Zero historical use evidenced. No `data/polymarket/`, no `reports/Polymarket/`, no scheduled tasks ever ran the polymarket subcommand. Prediction-market betting is gated off by default (`ALLOW_PREDICTION_BETS=false`, R25), and the Polymarket cross-reference branch in `prediction_scanner.py` was carrying ~350 lines of decision logic for a code path nothing exercised. Decision: full delete now, recoverable via git history if the use case revives.
+
+### Code removed
+
+- **Deleted:** `scripts/polymarket/` (entire directory — `__init__.py` + 872-line `polymarket_edge.py`)
+- **Deleted:** `.claude/skills/polymarket/` (SKILL.md + 9 reference files)
+- **Deleted:** `prompts/polymarket/` (`cross-reference-scan.md`, `crypto-arbitrage.md`)
+- **Deleted:** `docs/scripts/polymarket_edge.md`
+- **Stripped from `scripts/scan.py`:** `polymarket` subcommand registry entry; `poly`/`xref` aliases; example/help-text mentions
+- **Stripped from `scripts/prediction/prediction_scanner.py`:** `polymarket_edge` import block; `cross_ref` parameter on `scan_prediction_markets`; `polymarket`/`poly`/`xref` filter shortcuts; the standalone xref scan branch + the per-opportunity Polymarket enrichment loop (~70 lines); `--cross-ref` CLI flag; `is_poly_filter` dispatch logic in `main()`
+- **Stripped from `scripts/kalshi/fetch_market_data.py`:** `POLYMARKET_URL` constant; `fetch_polymarket_markets()`; `fetch_polymarket_orderbook()`; `--source polymarket` choice; default flipped from `polymarket` to `kalshi`
+- **Stripped from `scripts/shared/paths.py`:** `POLYMARKET_DIR` constant + sys.path entry
+- **Stripped from `scripts/shared/report_writer.py`:** `polymarket` key in `REPORT_DIRS`
+- **Stripped from `scripts/schedulers/automation/telegram_bot.py`:** `--cross-ref` flag in `/scan prediction`
+- **Stripped from `webapp/services.py`:** `scripts/polymarket` from sys.path; `cross_ref` parameter on `run_scan`; `cross_ref` plumbed through to `scan_prediction_markets`
+- **Stripped from `webapp/views/scan_page.py`:** `cross_ref` defaults; "Cross-Ref Polymarket" checkbox; `cross_ref` in favorite save state and the service-layer call
+- **Stripped from `Makefile`:** `scan-polymarket` target; `scan-polymarket` from `scan-all`; help-text and `.PHONY` entries
+- **Stripped from `requirements.txt`:** commented `py-clob-client` line
+- **Stripped from `pyproject.toml`:** `scripts/polymarket` from pytest `pythonpath`
+
+### Docs updated
+
+- `CLAUDE.md` — removed Polymarket from "Planned" section; removed `polymarket/` from the project tree; removed `polymarket-py` from the key-libraries list
+- `README.md` — dropped "Polymarket cross-ref" bullet from supported markets, "Polymarket Cross-Reference" section, polymarket dir from tree, `polymarket-py` mention in description, "Polymarket" data-sources row
+- `docs/ARCHITECTURE.md` — removed Polymarket cross-market row from prediction model table
+- `docs/SCRIPTS_REFERENCE.md` — removed polymarket from goal table, scanner registry, alias resolution mermaid + alias table, scanner subgraph, `--cross-ref` tip, examples; flipped `fetch_market_data --source` default from polymarket to kalshi
+- `docs/setup/SETUP_GUIDE.md` — dropped Polymarket from free-API list, data-sources table, external-docs links
+- `docs/web-app/LOCAL.md` — removed `scripts/polymarket/*.py` from architecture diagram, Cross-Ref filter row, Polymarket-via-CLI note
+- `docs/mcp-config/mcp-servers.md` — removed `POLYMARKET_PRIVATE_KEY` env line, polymarket-mcp future-integration row, Polymarket fetch examples
+- `docs/scripts/prediction_scanner.md` — full rewrite without `--cross-ref` references
+- `.claude/skills/edge-radar/SKILL.md` — multiple sections cleaned: description frontmatter, flag table, scanner table, makefile shortcuts, polymarket subsection, scan-and-bet block, routing examples
+- `prompts/predictions/full-prediction-execute.md` — full rewrite (Polymarket cross-ref was central)
+- `prompts/predictions/{execute-predictions,crypto-edge-scan,scan-all-predictions}.md` — removed cross-ref blocks
+- `prompts/portfolio/morning-routine.md` — removed step 7 + cross-market brief item
+
+### Known stale (not edited — flagging for future refresh)
+
+- `.claude/images/diagrams/**/*.{mmd,svg}` — data-flow diagrams still depict the Polymarket node; will need regeneration if/when diagrams are next refreshed.
+- `.claude/html/{index.html,index2.html,dataflow.html}` and `docs/my-documents/HTML-Interactive-Pages/Edge-Radar-Only/index2-*.html` — interactive visualizations include Polymarket; same status as the Mermaid diagrams.
+- `docs/my-documents/temp/archive/*` and `docs/my-documents/repo-analysis/edge_radar_repository_analysis_2026-04-22.md` — point-in-time snapshots; intentionally left as-is to preserve the historical record.
+
+### Validation
+
+- `pytest tests/` passing (no tests referenced polymarket).
+- `python scripts/scan.py --help` no longer lists polymarket.
+- `python scripts/scan.py prediction --help` no longer carries `--cross-ref`.
+
+### Recovery path
+
+Polymarket integration can be restored from `git show <commit-before-removal>:scripts/polymarket/polymarket_edge.py` — but if/when revisited, treat as a fresh design (Polymarket Gamma/CLOB APIs evolve, a current-state implementation will likely be more useful than reverting).
+
+---
+
 ## 2026-04-25 -- Config centralization Phase 3 (lint guard against regression)
 
 ### `scripts/lint/check_config_centralization.py`

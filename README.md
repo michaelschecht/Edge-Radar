@@ -21,7 +21,7 @@
   <a href="https://michaelschecht.github.io/Edge-Radar/"><b>▶ View the interactive data-flow diagram</b></a>
 </p>
 
-> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + 9 free APIs (including Polymarket, MLB pitcher stats, and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with Kelly criterion (soft-capped above 15% edge per calibration), enforces 13 risk gates including per-sport edge floors, a $0.10 lottery-ticket price floor, NO-side favorite guard, a prediction-market safety gate, and 48h series dedup, and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
+> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + free APIs (including MLB pitcher stats and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with Kelly criterion (soft-capped above 15% edge per calibration), enforces 13 risk gates including per-sport edge floors, a $0.10 lottery-ticket price floor, NO-side favorite guard, a prediction-market safety gate, and 48h series dedup, and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
 
 ---
 
@@ -64,9 +64,8 @@
 📊 S&P 500 + VIX
 🌡️ Weather (13 cities)
 🗳️ Politics
-🔗 Polymarket cross-ref
 
-<sub><b>5 categories</b> · CoinGecko, Yahoo Finance, NWS, Gamma API</sub>
+<sub><b>4 categories</b> · CoinGecko, Yahoo Finance, NWS</sub>
 
 </td>
 </tr>
@@ -229,17 +228,6 @@ python scripts/scan.py futures --filter nba-futures --save
 python scripts/scan.py prediction --filter crypto
 python scripts/scan.py prediction --filter weather
 python scripts/scan.py prediction --filter crypto --execute --unit-size 1 --max-bets 5
-python scripts/scan.py prediction --filter crypto --cross-ref
-```
-</details>
-
-<details>
-<summary><b>Polymarket Cross-Reference</b></summary>
-
-```bash
-python scripts/scan.py polymarket --filter crypto
-python scripts/scan.py polymarket --execute --unit-size 1 --max-bets 5
-python scripts/polymarket/polymarket_edge.py match KXBTC-28MAR26-T88000
 ```
 </details>
 
@@ -270,7 +258,7 @@ Edge-Radar ships with two slash commands for [Claude Code](https://claude.ai/cla
 
 | Skill | Definition | Description |
 |:------|:-----------|:------------|
-| [`/edge-radar`](.claude/skills/edge-radar/SKILL.md) | `.claude/skills/edge-radar/SKILL.md` | Unified command center — scan, bet, status, settle, risk, detail, backtest across Kalshi sports, futures, prediction markets, and Polymarket. |
+| [`/edge-radar`](.claude/skills/edge-radar/SKILL.md) | `.claude/skills/edge-radar/SKILL.md` | Unified command center — scan, bet, status, settle, risk, detail, backtest across Kalshi sports, futures, and prediction markets. |
 | [`/edge-radar-analysis`](.claude/skills/edge-radar-analysis/SKILL.md) | `.claude/skills/edge-radar-analysis/SKILL.md` | Post-hoc performance report — trade ledger + slices by sport, category, side, edge bucket, confidence, price, calibration, longshots, streaks, daily P&L. |
 
 ```
@@ -335,14 +323,12 @@ Edge-Radar/
 │   └── web-app/                       # LOCAL.md, CLOUD.md
 ├── prompts/                           # LLM prompts for analysis agents
 │   ├── futures/
-│   ├── polymarket/
 │   ├── portfolio/
 │   ├── predictions/
 │   └── sports-betting/
 ├── scripts/
 │   ├── backtest/                      # Equity curve, calibration, strategy simulation
 │   ├── kalshi/                        # Scan → Size → Execute → Settle pipeline
-│   ├── polymarket/                    # Cross-market edge detection
 │   ├── prediction/                    # Crypto, weather, S&P 500 scanners
 │   ├── shared/                        # Team stats, weather, tickers, logging, odds API
 │   ├── scan.py                        # Unified entry point (routes to each scanner)
@@ -408,7 +394,6 @@ All external data is **free**. Only Kalshi requires a funded account.
 | **[NWS](https://weather.gov)** | Hourly forecasts for 61 NFL/MLB outdoor venues |
 | **[CoinGecko](https://coingecko.com)** | Crypto prices + 24h volatility |
 | **[Yahoo Finance](https://finance.yahoo.com)** | S&P 500 + VIX implied volatility |
-| **[Polymarket](https://polymarket.com)** | Cross-market price reference via Gamma API (free) |
 
 ---
 

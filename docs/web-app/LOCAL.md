@@ -47,7 +47,6 @@ The dashboard is a thin UI layer over the same Python functions the CLI uses. Al
 ```
 Browser  ->  Streamlit (webapp/)  ->  services.py  ->  scripts/kalshi/*.py
                                                        scripts/prediction/*.py
-                                                       scripts/polymarket/*.py
                                                        scripts/shared/*.py
 ```
 
@@ -101,7 +100,6 @@ The primary workflow page. Configure filters, scan for opportunities, preview si
 | Min Bets | `--min-bets` | (none) | Abort if fewer pass risk checks |
 | Exclude Open | `--exclude-open` | off | Skip markets with existing positions |
 | Budget % | `--budget` | (none) | Max batch cost as % of bankroll (sports only) |
-| Cross-Ref | `--cross-ref` | off | Cross-reference Polymarket (prediction only) |
 
 **Workflow:**
 
@@ -112,7 +110,7 @@ The primary workflow page. Configure filters, scan for opportunities, preview si
 5. Click **EXECUTE** — opens confirmation dialog showing mode (DRY RUN / LIVE), order summary, and real-money warning if live. Click **Confirm** to place orders
 6. Click **CLEAR** to wipe all results and start fresh
 
-**Quick Scan:** Sidebar buttons (Sports, Futures, Prediction) jump to the scan page with that market type pre-selected. Standalone Polymarket scanning is CLI-only today (`python scripts/scan.py polymarket --filter crypto`); the dashboard exposes Polymarket via the **Cross-Ref** toggle on prediction scans.
+**Quick Scan:** Sidebar buttons (Sports, Futures, Prediction) jump to the scan page with that market type pre-selected.
 
 **Favorites:** Toggle **MANAGE FAVORITES** to save the current filter config with a name. Saved favorites appear in the sidebar as clickable buttons. Stored at `data/webapp/favorites.json`.
 

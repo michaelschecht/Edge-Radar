@@ -1,6 +1,6 @@
 """
 fetch_market_data.py
-Fetches current market data across stocks, prediction markets, and crypto.
+Fetches current market data across stocks, Kalshi markets, and crypto.
 Usage:
     python scripts/fetch_market_data.py --type stocks --symbols AAPL TSLA NVDA
     python scripts/fetch_market_data.py --type prediction --limit 20
@@ -39,7 +39,6 @@ ALPACA_SECRET_KEY = _cfg.alpaca.secret_key or None
 ALPACA_BASE_URL   = _cfg.alpaca.base_url
 ALPACA_DATA_URL   = "https://data.alpaca.markets/v2"
 
-POLYMARKET_URL    = "https://clob.polymarket.com"
 KALSHI_URL        = "https://trading-api.kalshi.com/trade-api/v2"
 KALSHI_API_KEY    = _cfg.kalshi.api_key or None
 
@@ -147,29 +146,6 @@ def print_stock_quotes(quotes: dict):
 
 # ── Prediction Markets ─────────────────────────────────────────────────────────
 
-def fetch_polymarket_markets(limit: int = 20, active: bool = True) -> list:
-    """Fetch active markets from Polymarket CLOB."""
-    resp = requests.get(
-        f"{POLYMARKET_URL}/markets",
-        params={"limit": limit, "active": str(active).lower(), "closed": "false"},
-        timeout=10
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    return data.get("data", data) if isinstance(data, dict) else data
-
-
-def fetch_polymarket_orderbook(token_id: str) -> dict:
-    """Fetch order book for a specific Polymarket token."""
-    resp = requests.get(
-        f"{POLYMARKET_URL}/book",
-        params={"token_id": token_id},
-        timeout=10
-    )
-    resp.raise_for_status()
-    return resp.json()
-
-
 def fetch_kalshi_markets(limit: int = 20, status: str = "open") -> list:
     """Fetch markets from Kalshi."""
     headers = {}
@@ -186,7 +162,7 @@ def fetch_kalshi_markets(limit: int = 20, status: str = "open") -> list:
     return resp.json().get("markets", [])
 
 
-def print_prediction_markets(markets: list, source: str = "Polymarket"):
+def print_prediction_markets(markets: list, source: str = "Kalshi"):
     table = Table(title=f"{source} Active Markets", show_lines=True)
     table.add_column("Question", style="cyan", max_width=50)
     table.add_column("Yes Price", justify="right", style="green")
@@ -281,8 +257,8 @@ def main():
                         help="Number of prediction market results")
     parser.add_argument("--save", action="store_true",
                         help="Save snapshot to data/ directory")
-    parser.add_argument("--source", default="polymarket",
-                        choices=["polymarket", "kalshi"],
+    parser.add_argument("--source", default="kalshi",
+                        choices=["kalshi"],
                         help="Prediction market source")
     args = parser.parse_args()
 
@@ -316,16 +292,10 @@ def main():
     if fetch_type in ("prediction", "all"):
         rprint(f"\n[bold cyan]── {args.source.title()} Markets ──────────────────[/bold cyan]")
         try:
-            if args.source == "polymarket":
-                markets = fetch_polymarket_markets(limit=args.limit)
-                print_prediction_markets(markets, "Polymarket")
-                if args.save:
-                    save_snapshot("polymarket", markets)
-            elif args.source == "kalshi":
-                markets = fetch_kalshi_markets(limit=args.limit)
-                print_prediction_markets(markets, "Kalshi")
-                if args.save:
-                    save_snapshot("kalshi", markets)
+            markets = fetch_kalshi_markets(limit=args.limit)
+            print_prediction_markets(markets, "Kalshi")
+            if args.save:
+                save_snapshot("kalshi", markets)
         except Exception as e:
             rprint(f"[red]Prediction markets error: {e}[/red]")
 

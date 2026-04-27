@@ -24,10 +24,7 @@ scan-futures:
 scan-predictions:
 	$(PYTHON) scripts/scan.py prediction --min-edge 0.03 --top 20
 
-scan-polymarket:
-	$(PYTHON) scripts/scan.py polymarket --min-edge 0.03 --top 20
-
-scan-all: scan-sports scan-futures scan-predictions scan-polymarket
+scan-all: scan-sports scan-futures scan-predictions
 
 # ── Portfolio Management ─────────────────────────────────────────────────────
 
@@ -91,7 +88,6 @@ help:
 	@echo "  make scan-sports       Scan all sports"
 	@echo "  make scan-futures      Scan championship futures"
 	@echo "  make scan-predictions  Scan prediction markets"
-	@echo "  make scan-polymarket   Scan Polymarket cross-ref"
 	@echo "  make scan-all          Scan everything"
 	@echo ""
 	@echo "Portfolio:"
@@ -111,4 +107,4 @@ help:
 	@echo "  make install           Install dependencies"
 	@echo "  make hooks             Install pre-commit hooks"
 
-.PHONY: scan-mlb scan-nba scan-nhl scan-nfl scan-sports scan-futures scan-predictions scan-polymarket scan-all status risk settle report reconcile backtest backtest-sim test test-quick lint-config doctor install hooks help
+.PHONY: scan-mlb scan-nba scan-nhl scan-nfl scan-sports scan-futures scan-predictions scan-all status risk settle report reconcile backtest backtest-sim test test-quick lint-config doctor install hooks help

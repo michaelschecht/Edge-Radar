@@ -24,7 +24,6 @@ SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 KALSHI_DIR = SCRIPTS_DIR / "kalshi"
 PREDICTION_DIR = SCRIPTS_DIR / "prediction"
 SHARED_DIR = SCRIPTS_DIR / "shared"
-POLYMARKET_DIR = SCRIPTS_DIR / "polymarket"
 SCHEDULERS_DIR = SCRIPTS_DIR / "schedulers"
 
 # Data directories
@@ -41,6 +40,6 @@ for d in [DATA_DIR / "history", DATA_DIR / "watchlists", DATA_DIR / "positions"]
 # Add script directories to sys.path (idempotent)
 # PROJECT_ROOT first so `from app.config import ...` resolves; script subdirs
 # remain for the existing `from kalshi_client import ...` pattern.
-for p in [str(PROJECT_ROOT), str(SCRIPTS_DIR), str(KALSHI_DIR), str(PREDICTION_DIR), str(POLYMARKET_DIR), str(SHARED_DIR), str(SCHEDULERS_DIR)]:
+for p in [str(PROJECT_ROOT), str(SCRIPTS_DIR), str(KALSHI_DIR), str(PREDICTION_DIR), str(SHARED_DIR), str(SCHEDULERS_DIR)]:
     if p not in sys.path:
         sys.path.insert(0, p)

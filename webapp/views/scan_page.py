@@ -48,7 +48,6 @@ def _get_defaults() -> dict:
         "max_bets": 6,
         "min_bets": 0,
         "exclude_open": True,
-        "cross_ref": False,
     }
 
     # Quick-scan button sets market type
@@ -143,12 +142,6 @@ def render():
     else:
         budget_pct = 0
 
-    # Prediction-only params
-    cross_ref = False
-    if market_type == "prediction":
-        with col11:
-            cross_ref = st.checkbox("Cross-Ref Polymarket", value=defaults.get("cross_ref", False))
-
     st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
 
     # ── Scan + Clear buttons ────────────────────────────────────────────
@@ -199,7 +192,6 @@ def render():
                         "max_bets": max_bets,
                         "min_bets": min_bets,
                         "exclude_open": exclude_open,
-                        "cross_ref": cross_ref,
                     }
                     save_favorite(fav_data)
                     st.success(f"Saved '{fav_name.strip()}'")
@@ -235,7 +227,6 @@ def render():
                     min_edge=min_edge,
                     top_n=top_n,
                     exclude_open=exclude_open,
-                    cross_ref=cross_ref,
                 )
                 st.session_state.scan_results = opps
                 st.session_state.scan_console = console_out
