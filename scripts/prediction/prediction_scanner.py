@@ -45,10 +45,6 @@ from mentions_edge import (
 )
 from companies_edge import detect_edge_bankruptcy, fetch_bankruptcy_data
 from politics_edge import detect_edge_political_event, EVENT_BASE_RATES
-from polymarket_edge import (
-    scan_polymarket_cross_refs, enrich_opportunity_with_polymarket,
-    fetch_polymarket_by_category, TICKER_TOPIC_MAP, CATEGORY_SEARCH_MAP,
-)
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -91,10 +87,6 @@ FILTER_SHORTCUTS = {
     "techscience": ["KXQUANTUM", "KXFUSION"],
     "quantum": ["KXQUANTUM"],
     "fusion":  ["KXFUSION"],
-    # Polymarket cross-reference (uses all matchable prefixes)
-    "polymarket": list(TICKER_TOPIC_MAP.keys()),
-    "poly":      list(TICKER_TOPIC_MAP.keys()),
-    "xref":      list(TICKER_TOPIC_MAP.keys()),
 }
 
 
@@ -141,7 +133,6 @@ def scan_prediction_markets(
     category_filter: str | None = None,
     ticker_filter: str | None = None,
     top_n: int = 20,
-    cross_ref: bool = False,
 ) -> list[Opportunity]:
     """
     Scan Kalshi prediction markets for +EV opportunities.
@@ -152,7 +143,6 @@ def scan_prediction_markets(
         category_filter: "crypto", "weather", "spx", or None for all
         ticker_filter: Filter shortcut or raw ticker prefix
         top_n: Maximum opportunities to return
-        cross_ref: If True, cross-reference Kalshi prices against Polymarket
 
     Returns:
         List of Opportunity objects sorted by composite score
@@ -342,63 +332,6 @@ def scan_prediction_markets(
 
         rprint(f"  Political/tech opportunities: {sum(1 for o in opportunities if o.category == 'politics')}")
 
-    # ── Polymarket Cross-Reference ──
-    # Run in two modes:
-    # 1. Standalone: scan Kalshi markets for cross-market edges vs Polymarket
-    # 2. Enrichment: for each existing opportunity, check if Polymarket confirms it
-    if cross_ref:
-        # Standalone cross-reference scan
-        xref_markets = [m for m in all_markets if any(
-            m["ticker"].startswith(prefix) for prefix in TICKER_TOPIC_MAP
-        )]
-        if xref_markets:
-            rprint(f"\n[bold]Cross-referencing {len(xref_markets)} markets against Polymarket...[/bold]")
-            xref_results = scan_polymarket_cross_refs(
-                xref_markets, min_edge=min_edge,
-            )
-            for xr in xref_results:
-                opportunities.append(Opportunity(**xr))
-            rprint(f"  Polymarket cross-ref opportunities: {len(xref_results)}")
-
-        # Enrichment: boost/penalize existing opportunities based on Polymarket agreement
-        if opportunities:
-            rprint(f"[bold]Enriching {len(opportunities)} opportunities with Polymarket data...[/bold]")
-            # Pre-fetch Polymarket markets by category to avoid repeated API calls
-            poly_cache: dict[str, list[dict]] = {}
-            for cat in CATEGORY_SEARCH_MAP:
-                poly_cache[cat] = fetch_polymarket_by_category(cat)
-
-            enriched = []
-            for opp in opportunities:
-                # Find the original Kalshi market for this opportunity
-                km = next((m for m in all_markets if m.get("ticker") == opp.ticker), None)
-                if km and opp.category != "polymarket_xref":
-                    # Determine which poly category to use
-                    opp_cat = None
-                    for prefix, (cat, *_kw) in TICKER_TOPIC_MAP.items():
-                        if opp.ticker.startswith(prefix):
-                            opp_cat = cat
-                            break
-                    poly_markets = poly_cache.get(opp_cat, []) if opp_cat else []
-
-                    opp_dict = enrich_opportunity_with_polymarket(
-                        {
-                            "ticker": opp.ticker, "title": opp.title,
-                            "category": opp.category, "side": opp.side,
-                            "market_price": opp.market_price, "fair_value": opp.fair_value,
-                            "edge": opp.edge, "edge_source": opp.edge_source,
-                            "confidence": opp.confidence,
-                            "liquidity_score": opp.liquidity_score,
-                            "composite_score": opp.composite_score,
-                            "details": opp.details,
-                        },
-                        km, poly_markets=poly_markets,
-                    )
-                    enriched.append(Opportunity(**opp_dict))
-                else:
-                    enriched.append(opp)
-            opportunities = enriched
-
     # Sort by composite score
     opportunities.sort(key=lambda o: o.composite_score, reverse=True)
     return opportunities[:top_n]
@@ -462,8 +395,6 @@ def main():
                         help="Number of top opportunities")
     scan_p.add_argument("--save", action="store_true",
                         help="Save results to watchlist")
-    scan_p.add_argument("--cross-ref", action="store_true",
-                        help="Cross-reference Kalshi prices against Polymarket")
     scan_p.add_argument("--execute", action="store_true",
                         help="Execute bets through the pipeline (requires confirmation)")
     scan_p.add_argument("--unit-size", type=float, default=None,
@@ -492,17 +423,12 @@ def main():
     client = KalshiClient()
 
     if args.command == "scan":
-        # If filter is polymarket/poly/xref, force cross-ref mode
-        is_poly_filter = args.ticker_filter and args.ticker_filter.lower() in ("polymarket", "poly", "xref")
-        use_cross_ref = args.cross_ref or is_poly_filter
-
         opportunities = scan_prediction_markets(
             client,
             min_edge=args.min_edge,
             category_filter=args.category,
             ticker_filter=args.ticker_filter,
             top_n=args.top,
-            cross_ref=use_cross_ref,
         )
 
         # Apply date and open-position filters

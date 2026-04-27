@@ -16,7 +16,6 @@ REPORT_DIRS = {
     "sports": _PROJECT_ROOT / "reports" / "Sports",
     "futures": _PROJECT_ROOT / "reports" / "Futures",
     "prediction": _PROJECT_ROOT / "reports" / "Predictions",
-    "polymarket": _PROJECT_ROOT / "reports" / "Predictions",
 }
 
 
@@ -31,7 +30,7 @@ def save_scan_report(
 
     Args:
         opportunities: List of Opportunity objects (or dicts with same keys)
-        report_type: "sports", "futures", "prediction", or "polymarket"
+        report_type: "sports", "futures", or "prediction"
         filter_label: Filter used (e.g., "mlb", "crypto") — appears in filename and header
         min_edge: Minimum edge threshold used in the scan
         output_dir: Override the default report directory (optional)

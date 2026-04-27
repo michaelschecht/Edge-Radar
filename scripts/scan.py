@@ -5,8 +5,7 @@ Routes to the correct scanner based on market type:
 
     python scripts/scan.py sports --filter mlb --date tomorrow --exclude-open
     python scripts/scan.py futures --filter nba-futures --save
-    python scripts/scan.py prediction --filter crypto --cross-ref
-    python scripts/scan.py polymarket --filter crypto --min-edge 0.05
+    python scripts/scan.py prediction --filter crypto
 
 All flags are forwarded directly to the underlying scanner.
 Run any subcommand with --help to see its full flag list.
@@ -23,14 +22,11 @@ SCANNERS = {
     "sports":     PROJECT_ROOT / "scripts" / "kalshi"      / "edge_detector.py",
     "futures":    PROJECT_ROOT / "scripts" / "kalshi"      / "futures_edge.py",
     "prediction": PROJECT_ROOT / "scripts" / "prediction"  / "prediction_scanner.py",
-    "polymarket": PROJECT_ROOT / "scripts" / "polymarket"  / "polymarket_edge.py",
 }
 
 ALIASES = {
     "sport": "sports",
     "pred":  "prediction",
-    "poly":  "polymarket",
-    "xref":  "polymarket",
 }
 
 
@@ -69,9 +65,8 @@ Market types:
   sports       Kalshi sports betting (NBA, NHL, MLB, NFL, NCAA, etc.)
   futures      Championship & season-long futures
   prediction   Crypto, weather, S&P 500, politics
-  polymarket   Polymarket cross-reference edge detection
 
-Aliases:  sport, pred, poly, xref
+Aliases:  sport, pred
 
 Common flags (all scanners):
   --filter X       Filter by sport/asset/category
@@ -90,8 +85,7 @@ Common flags (all scanners):
 Examples:
   python scripts/scan.py sports --filter mlb --date today --save
   python scripts/scan.py futures --filter nba-futures --top 10
-  python scripts/scan.py prediction --filter crypto --cross-ref
-  python scripts/scan.py polymarket --filter crypto --min-edge 0.05
+  python scripts/scan.py prediction --filter crypto
 
 Run with <market-type> --help for the full flag list of each scanner.""")
 

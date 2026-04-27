@@ -1,6 +1,6 @@
 # Full Prediction Market Execute Session
 
-Scan all prediction categories, cross-reference against Polymarket, and execute the best opportunities.
+Scan all prediction categories and execute the best opportunities.
 
 ## Steps
 
@@ -14,33 +14,31 @@ python scripts/kalshi/kalshi_executor.py status
 python scripts/kalshi/kalshi_settler.py settle
 ```
 
-3. Scan all prediction markets with Polymarket cross-reference:
+3. Scan all prediction markets:
 ```bash
-python scripts/scan.py prediction --min-edge 0.03 --top 20 --cross-ref --exclude-open
+python scripts/scan.py prediction --min-edge 0.03 --top 20 --exclude-open
 ```
 
 4. Or scan by category for focused analysis:
 ```bash
-python scripts/scan.py prediction --filter crypto --min-edge 0.03 --top 10 --cross-ref --exclude-open
+python scripts/scan.py prediction --filter crypto --min-edge 0.03 --top 10 --exclude-open
 python scripts/scan.py prediction --filter weather --min-edge 0.05 --top 10 --exclude-open
 python scripts/scan.py prediction --filter spx --min-edge 0.03 --top 10 --exclude-open
 ```
 
 5. Execute top picks:
 ```bash
-python scripts/scan.py prediction --min-edge 0.05 --max-bets 5 --unit-size 1 --cross-ref --exclude-open --execute
+python scripts/scan.py prediction --min-edge 0.05 --max-bets 5 --unit-size 1 --exclude-open --execute
 ```
 
 6. Or cherry-pick from preview:
 ```bash
-python scripts/scan.py prediction --min-edge 0.03 --cross-ref --exclude-open --execute --pick '1,4,7'
+python scripts/scan.py prediction --min-edge 0.03 --exclude-open --execute --pick '1,4,7'
 ```
 
 ## Output
 
 The scan table shows: Title, Date, Cat. (crypto/weather/spx/mentions), Side, Mkt, Fair, Edge, Conf, Score.
-
-When --cross-ref is used, Polymarket price comparison is included as additional validation.
 
 ## Category notes
 

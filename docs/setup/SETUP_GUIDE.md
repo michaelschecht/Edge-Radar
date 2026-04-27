@@ -38,7 +38,7 @@ Complete guide from clone → first scan → operating Edge-Radar in production.
 - **A Kalshi account** — Free to create at [kalshi.com](https://kalshi.com)
 - **An Odds API key** — Free tier at [the-odds-api.com](https://the-odds-api.com) (500 requests/month)
 
-> **Note:** All other data sources (ESPN, NHL, MLB, NWS, CoinGecko, Yahoo Finance, Polymarket) are free and require no API keys. They work out of the box.
+> **Note:** All other data sources (ESPN, NHL, MLB, NWS, CoinGecko, Yahoo Finance) are free and require no API keys. They work out of the box.
 
 ---
 
@@ -77,7 +77,6 @@ Only two credentials are strictly required. Everything else is a free public end
 |:-------|:--------|:----------|:----------------|:-----|
 | **Kalshi API** | Market data + order execution | Yes | `KALSHI_API_KEY`, `KALSHI_PRIVATE_KEY_PATH`, `KALSHI_BASE_URL` | [docs.kalshi.com](https://docs.kalshi.com) |
 | **The Odds API** | Sportsbook prices for edge comparison | Yes (for sports workflows) | `ODDS_API_KEYS` (or legacy `ODDS_API_KEY`) | [the-odds-api.com](https://the-odds-api.com) |
-| Polymarket Gamma API | Cross-market reference scans | No (public endpoint) | — | [docs.polymarket.com](https://docs.polymarket.com) |
 | CoinGecko / Yahoo Finance / NWS / ESPN / MLB / NHL | Prediction/signal enrichment | No | — | Public endpoints used by scanner |
 | Kalshi production fallback | Optional split-credential setup | Optional | `KALSHI_PROD_API_KEY`, `KALSHI_PROD_PRIVATE_KEY_PATH`, `KALSHI_PROD_BASE_URL` | — |
 
@@ -492,5 +491,4 @@ Every configured key is either invalid or has hit its monthly quota (free tier =
 - [Kalshi API docs](https://docs.kalshi.com)
 - [Kalshi production API keys](https://kalshi.com/account/api-keys) · [demo](https://demo.kalshi.com/account/api-keys)
 - [Odds API docs](https://the-odds-api.com/liveapi/guides/v4/)
-- [Polymarket docs](https://docs.polymarket.com)
 - [Python venv docs](https://docs.python.org/3/library/venv.html)

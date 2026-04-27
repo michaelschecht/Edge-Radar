@@ -137,7 +137,7 @@ def handle_command(text: str) -> str:
         filter_arg = parts[1].lower()
         send(f"⏳ Scanning {filter_arg}...")
         if filter_arg == "prediction":
-            return run_script(["scripts/scan.py", "prediction", "--cross-ref"])
+            return run_script(["scripts/scan.py", "prediction"])
         elif filter_arg == "futures":
             return run_script(["scripts/scan.py", "futures"])
         else:

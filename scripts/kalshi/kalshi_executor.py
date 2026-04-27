@@ -134,8 +134,8 @@ def parse_budget_arg(raw: str | None) -> float | None:
         "0.15"  -> 0.15   (explicit fraction; <=1)
         "150"   -> 150.0  (>100 interpreted as flat dollar amount)
 
-    Shared by the sports, futures, prediction, and polymarket scanners
-    so the `--budget` contract is identical across all four.
+    Shared by the sports, futures, and prediction scanners
+    so the `--budget` contract is identical across all three.
     """
     if raw is None:
         return None
@@ -1258,8 +1258,6 @@ def main():
                        help="Execute only specific rows from preview (e.g., '1,3,5' or '1-3')")
     run_p.add_argument("--ticker", type=str, nargs="+", default=None,
                        help="Execute specific market ticker(s) from the scan results")
-    run_p.add_argument("--cross-ref", action="store_true",
-                       help="Cross-reference Kalshi prices against Polymarket (prediction markets only)")
     run_p.add_argument("--date", type=str, default=None,
                        help="Only show games on this date (today, tomorrow, YYYY-MM-DD, mar31)")
     run_p.add_argument("--budget", type=str, default=None,
@@ -1301,14 +1299,11 @@ def main():
             # Use prediction market scanner
             rprint("[bold]Running prediction market scan...[/bold]")
             from prediction_scanner import scan_prediction_markets
-            is_poly_filter = args.ticker_filter and args.ticker_filter.lower() in ("polymarket", "poly", "xref")
-            use_cross_ref = args.cross_ref or is_poly_filter
             opportunities = scan_prediction_markets(
                 scan_client,
                 min_edge=args.min_edge,
                 ticker_filter=args.ticker_filter,
                 top_n=args.top,
-                cross_ref=use_cross_ref,
             )
 
         else:

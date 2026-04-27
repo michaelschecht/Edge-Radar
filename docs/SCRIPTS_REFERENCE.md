@@ -18,7 +18,6 @@ For domain-specific guides: **[Sports](kalshi-sports-betting/SPORTS_GUIDE.md)** 
 | **Scan for sports bets** | `scan.py sports --filter mlb` | [edge_detector.md](scripts/edge_detector.md) |
 | **Scan championship futures** | `scan.py futures --filter nba-futures` | [futures_edge.md](scripts/futures_edge.md) |
 | **Scan prediction markets** | `scan.py prediction --filter crypto` | [prediction_scanner.md](scripts/prediction_scanner.md) |
-| **Cross-reference Polymarket** | `scan.py polymarket --filter crypto` | [polymarket_edge.md](scripts/polymarket_edge.md) |
 | **Scan AND execute** | Add `--execute` to any scan | Orders placed through risk pipeline |
 | **Quick portfolio status** | `kalshi_executor.py status` | [kalshi_executor.md](scripts/kalshi_executor.md) |
 | **Full risk dashboard** | `risk_check.py` | [risk_check.md](scripts/risk_check.md) |
@@ -43,8 +42,6 @@ flowchart LR
         direction TB
         A1["sport → sports"]
         A2["pred → prediction"]
-        A3["poly → polymarket"]
-        A4["xref → polymarket"]
     end
 
     CMD --> ALIAS
@@ -71,15 +68,9 @@ flowchart LR
         P1D["Crypto · Weather\nS&P 500 · Politics\nModel-specific edge"]
     end
 
-    subgraph POLY ["🔗 Polymarket"]
-        PO1["polymarket_edge.py\npolymarket/"]
-        PO1D["Cross-market edge\nGamma API fuzzy match\nKalshi ↔ Polymarket"]
-    end
-
     R1 -- "sports" --> S1 --> S1D
     R1 -- "futures" --> F1 --> F1D
     R1 -- "prediction" --> P1 --> P1D
-    R1 -- "polymarket" --> PO1 --> PO1D
 
     subgraph INSERT ["Auto-Insert"]
         INS["If first arg starts with '-'\nauto-prepend 'scan' subcommand"]
@@ -91,7 +82,7 @@ flowchart LR
         EX["python &lt;scanner&gt; scan [flags]\nAll flags forwarded directly\nRuns from PROJECT_ROOT"]
     end
 
-    S1D & F1D & P1D & PO1D --> EX
+    S1D & F1D & P1D --> EX
 
     style CMD fill:#1e293b,stroke:#60a5fa,color:#e2e8f0
     style ALIAS fill:#1e1b4b,stroke:#818cf8,color:#c7d2fe
@@ -99,7 +90,6 @@ flowchart LR
     style SPORTS fill:#14532d,stroke:#4ade80,color:#e2e8f0
     style FUTURES fill:#7c2d12,stroke:#fb923c,color:#e2e8f0
     style PRED fill:#581c87,stroke:#a855f7,color:#e2e8f0
-    style POLY fill:#164e63,stroke:#22d3ee,color:#e2e8f0
     style INSERT fill:#374151,stroke:#9ca3af,color:#d1d5db
     style EXEC fill:#1e293b,stroke:#60a5fa,color:#e2e8f0
 ```
@@ -113,7 +103,6 @@ python scripts/scan.py <market-type> [flags]
 | `sports` | `sport` | `edge_detector.py scan` |
 | `futures` | — | `futures_edge.py scan` |
 | `prediction` | `pred` | `prediction_scanner.py scan` |
-| `polymarket` | `poly`, `xref` | `polymarket_edge.py scan` |
 
 ### Common Flags
 
@@ -136,7 +125,7 @@ python scripts/scan.py <market-type> [flags]
 | `--report-dir X` | *(auto)* | Override report output directory for `--save` |
 
 > [!TIP]
-> The `scan` subcommand is auto-inserted if omitted. Some scanners accept additional flags (e.g., `--cross-ref` for polymarket). Run `<market-type> --help` for the full flag list.
+> The `scan` subcommand is auto-inserted if omitted. Run `<market-type> --help` for the full flag list of each scanner.
 
 ### Examples
 
@@ -145,8 +134,7 @@ python scripts/scan.py sports --filter mlb --date today --save
 python scripts/scan.py sports --filter mlb,nhl --date today --save
 python scripts/scan.py sports --filter nba --category total --date tomorrow
 python scripts/scan.py futures --filter nba-futures --top 10
-python scripts/scan.py prediction --filter crypto --cross-ref
-python scripts/scan.py polymarket --filter crypto --min-edge 0.05
+python scripts/scan.py prediction --filter crypto
 ```
 
 ---
@@ -224,8 +212,6 @@ Each script has a dedicated doc with full flag tables, examples, methodology, an
 | `edge_detector.py` | Sports edge detection (NBA, MLB, NHL, NFL, NCAA, etc.) | [edge_detector.md](scripts/edge_detector.md) |
 | `futures_edge.py` | Championship & season-long futures | [futures_edge.md](scripts/futures_edge.md) |
 | `prediction_scanner.py` | Crypto, weather, S&P 500, politics | [prediction_scanner.md](scripts/prediction_scanner.md) |
-| `polymarket_edge.py` | Polymarket cross-reference edge | [polymarket_edge.md](scripts/polymarket_edge.md) |
-
 ### 💼 Execution & Portfolio
 
 | Script | Purpose | Docs |
@@ -332,7 +318,7 @@ python scripts/kalshi/fetch_market_data.py [flags]
 | `--symbols SYM [SYM ...]` | `AAPL NVDA TSLA SPY QQQ` | Tickers to fetch |
 | `--limit N` | `20` | Number of prediction market results |
 | `--save` | off | Save snapshot to data/ |
-| `--source SOURCE` | `polymarket` | `polymarket` or `kalshi` |
+| `--source SOURCE` | `kalshi` | Prediction market source (currently `kalshi` only) |
 
 </details>
 

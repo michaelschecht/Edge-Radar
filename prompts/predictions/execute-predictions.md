@@ -15,8 +15,3 @@ Output columns: Title | Date | Cat. | Side | Mkt | Fair | Edge | Conf | Score
 2. Wait for my go-ahead
 3. Execute and report results
 4. Tell me when each bet settles so I know when to run `python scripts/kalshi/kalshi_settler.py settle`
-
-To cross-reference against Polymarket before executing:
-```
-python scripts/scan.py prediction --filter <category> --cross-ref --min-edge 0.05 --max-bets 5 --unit-size 1 --exclude-open --execute
-```

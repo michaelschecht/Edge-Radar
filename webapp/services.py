@@ -13,7 +13,7 @@ from contextlib import contextmanager
 
 # Ensure script dirs are on sys.path (mirrors what .pth does for the venv).
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-for subdir in ["scripts/kalshi", "scripts/shared", "scripts/prediction", "scripts/polymarket"]:
+for subdir in ["scripts/kalshi", "scripts/shared", "scripts/prediction"]:
     p = str(PROJECT_ROOT / subdir)
     if p not in sys.path:
         sys.path.insert(0, p)
@@ -192,7 +192,6 @@ def run_scan(
     min_edge: float = MIN_EDGE_THRESHOLD,
     top_n: int = 20,
     exclude_open: bool = False,
-    cross_ref: bool = False,
 ) -> tuple[list, str]:
     """
     Run a scan for the given market type and return (opportunities, console_output).
@@ -200,10 +199,7 @@ def run_scan(
     market_type dispatches to the matching scanner:
       - "sports"     → edge_detector.scan_all_markets (respects date_filter, category_filter)
       - "futures"    → futures_edge.scan_futures_markets (date_filter and category_filter ignored)
-      - "prediction" → prediction_scanner.scan_prediction_markets (date_filter ignored; cross_ref honored)
-
-    Polymarket cross-ref is available via market_type="prediction" + cross_ref=True.
-    Raw Polymarket as a standalone market type is not yet wired through the service layer.
+      - "prediction" → prediction_scanner.scan_prediction_markets (date_filter ignored)
 
     Cached for 60 seconds via `st.cache_data` (R24a) so repeat scan clicks
     with identical filters reuse the same Odds API + Kalshi results. Odds
@@ -249,7 +245,6 @@ def run_scan(
                 category_filter=category_filter,
                 ticker_filter=ticker_filter,
                 top_n=top_n,
-                cross_ref=cross_ref,
             )
 
         if opportunities and exclude_open:

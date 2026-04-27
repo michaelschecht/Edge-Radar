@@ -20,9 +20,6 @@ python scripts/scan.py prediction --min-edge 0.03 --top 10 --exclude-open
 
 # 6. Check futures (weekly, not daily)
 python scripts/scan.py futures --min-edge 0.01 --top 10 --exclude-open
-
-# 7. Polymarket cross-reference
-python scripts/scan.py polymarket --min-edge 0.03 --top 10 --exclude-open
 ```
 
 Give me a morning brief:
@@ -30,5 +27,4 @@ Give me a morning brief:
 - **Portfolio**: balance, open positions (Type/Pick columns), risk room remaining
 - **Today's sports**: top 3-5 picks across all sports
 - **Predictions**: any crypto/weather/SPX edge worth taking?
-- **Cross-market**: any Kalshi vs Polymarket discrepancies?
 - **Action plan**: where should I focus today?
