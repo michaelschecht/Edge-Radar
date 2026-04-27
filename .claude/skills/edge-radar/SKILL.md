@@ -215,6 +215,7 @@ python scripts/kalshi/risk_check.py
 | `--report pnl` | Just P&L |
 | `--report limits` | Just risk limit status |
 | `--report watchlist` | Just active watchlist |
+| `--report reconciliation` | R5 (2026-04-27): trade-log ↔ settlement join audit. Counts, `trade_id` overlap %, orphan-window dates, and per-field coverage matrix for the R5 settlement-schema additions. |
 | `--gate` | Exit code 1 if limits breached (for automation) |
 | `--save` | Save dashboard as markdown |
 
@@ -430,7 +431,7 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 - **Max bet size:** $100 per position (gate 8 — sizing cap, not reject)
 - **Bet ratio cap:** 3.0x batch median cost (gate 9 — sizing cap, not reject)
 - **Max per event:** 2 positions on the same game (reject gate)
-- **Series dedup (C5, 2026-04-18):** Reject a new bet if the same matchup (sport + team pair, date-agnostic) was bet within the last `SERIES_DEDUP_HOURS=48`. Catches consecutive-night series bleeds like the LA Angels @ NY Yankees Apr 13/14/15 pattern. 0 disables.
+- **Series dedup (C5, 2026-04-18; R9, 2026-04-27):** Reject a new bet if the same matchup (sport + team pair, date-agnostic) was bet within the dedup window. Global default `SERIES_DEDUP_HOURS=48`; per-sport overrides via `SERIES_DEDUP_HOURS_<SPORT>` (live: MLB=72, NHL=72 to cover 3-game series cycles after F12 — a NYM/LAD MLB pair bet 49h apart slipped the global window and both lost). Catches consecutive-night series bleeds like the LA Angels @ NY Yankees Apr 13/14/15 pattern. 0 disables (global or per-sport).
 - **Daily loss limit:** $250 (reject gate)
 - **Max open positions:** 50 (reject gate)
 - **Minimum edge (C3, 2026-04-18; R14, 2026-04-24):** 3% global; **12% NBA**, **10% NCAAB** (per-sport overrides via `MIN_EDGE_THRESHOLD_<SPORT>` env). NBA bumped 0.08 → 0.12 in R14 after 30-day calibration showed NBA Brier 0.3306 — worst of all sports. Rejection message shows the sport-specific floor in use.

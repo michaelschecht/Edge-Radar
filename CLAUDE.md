@@ -135,7 +135,7 @@ Before ANY trade executes:
 | 4.7 | Prediction-market categories (crypto/weather/spx/mentions/companies/politics) off by default unless `ALLOW_PREDICTION_BETS=true` (R25) | Reject |
 | 5 | Not already holding this market | Reject |
 | 6 | Per-event cap not exceeded | Reject |
-| 7 | Matchup not bet in last `SERIES_DEDUP_HOURS` (series dedup) | Reject |
+| 7 | Matchup not bet in last `SERIES_DEDUP_HOURS` (or per-sport override; series dedup) | Reject |
 | 8 | Bet size <= MAX_BET_SIZE | Cap |
 | 9 | Single bet <= 3x batch median cost | Cap |
 
@@ -176,6 +176,8 @@ NO_SIDE_KELLY_MULTIPLIER=0.5    # R1: half-Kelly on NO bets below the price floo
 KELLY_EDGE_CAP=0.15             # Soft-cap edge for Kelly sizing
 KELLY_EDGE_DECAY=0.5            # Decay factor on edge above the cap
 SERIES_DEDUP_HOURS=48           # Reject same-matchup bets within this window (0 disables)
+SERIES_DEDUP_HOURS_MLB=72       # R9: MLB series span up to 72h (default 48h leaks the 49h adjacent-day case)
+SERIES_DEDUP_HOURS_NHL=72       # R9: NHL series cycle on consecutive days like MLB
 RESTING_ORDER_MAX_HOURS=24      # R4: cancel zero-fill resting orders older than this (0 disables)
 ALLOW_PREDICTION_BETS=false     # R25 Gate 4.7: true to enable crypto/weather/spx/mentions/companies/politics bets
 ```

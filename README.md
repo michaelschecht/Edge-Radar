@@ -21,7 +21,7 @@
   <a href="https://michaelschecht.github.io/Edge-Radar/"><b>▶ View the interactive data-flow diagram</b></a>
 </p>
 
-> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + free APIs (including MLB pitcher stats and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with Kelly criterion (soft-capped above 15% edge per calibration), enforces 13 risk gates including per-sport edge floors, a $0.10 lottery-ticket price floor, NO-side favorite guard, a prediction-market safety gate, and 48h series dedup, and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
+> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + free APIs (including MLB pitcher stats and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with Kelly criterion (soft-capped above 15% edge per calibration), enforces 13 risk gates including per-sport edge floors, a $0.10 lottery-ticket price floor, NO-side favorite guard, a prediction-market safety gate, and per-sport series dedup (MLB/NHL 72h, others 48h), and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
 
 ---
 
@@ -127,7 +127,7 @@ Every order must clear gates 1-7 (including 3.5, 4.5, 4.6, 4.7). Gates 8-9 cap s
 | 4.7 | Prediction-market safety | Reject crypto/weather/spx/mentions/companies/politics unless `ALLOW_PREDICTION_BETS=true` (R25) |
 | 5 | Duplicate check | Reject same market |
 | 6 | Per-event cap | Reject at 2/game |
-| 7 | Series dedup | Reject same matchup bet within 48h |
+| 7 | Series dedup | Reject same matchup bet within window (MLB/NHL 72h, others 48h; per-sport via `SERIES_DEDUP_HOURS_<SPORT>`) |
 | 8 | Bet size cap | Cap at $100 |
 | 9 | Bet ratio cap | Cap at 3x batch median |
 

@@ -189,6 +189,34 @@ class TestPerSportOverrides:
         # Empty / unknown sport falls back to global
         assert cfg.edge_threshold_for_sport("") == cfg.gates.min_edge_threshold
 
+    # ── R9: per-sport SERIES_DEDUP_HOURS overrides ─────────────────────────
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_series_dedup_no_overrides_when_unset(self):
+        assert PerSportOverrides.from_env().series_dedup_hours == {}
+
+    @patch.dict(os.environ, {
+        "SERIES_DEDUP_HOURS_MLB": "72",
+        "SERIES_DEDUP_HOURS_NHL": "72",
+    }, clear=True)
+    def test_series_dedup_only_set_sports_appear(self):
+        overrides = PerSportOverrides.from_env()
+        assert overrides.series_dedup_hours == {"mlb": 72, "nhl": 72}
+
+    @patch.dict(os.environ, {"SERIES_DEDUP_HOURS_MLB": "garbage"}, clear=True)
+    def test_series_dedup_invalid_value_skipped_silently(self):
+        assert PerSportOverrides.from_env().series_dedup_hours == {}
+
+    @patch.dict(os.environ, {
+        "MIN_EDGE_THRESHOLD_NBA": "0.12",
+        "SERIES_DEDUP_HOURS_MLB": "72",
+    }, clear=True)
+    def test_min_edge_and_series_dedup_load_independently(self):
+        """Setting one override doesn't suppress the other."""
+        overrides = PerSportOverrides.from_env()
+        assert overrides.min_edge == {"nba": 0.12}
+        assert overrides.series_dedup_hours == {"mlb": 72}
+
 
 # ── Validation ──────────────────────────────────────────────────────────────
 

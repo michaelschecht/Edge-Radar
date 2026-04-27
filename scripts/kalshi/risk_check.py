@@ -8,6 +8,7 @@ Usage:
     python scripts/kalshi/risk_check.py --report pnl          # Today's P&L only
     python scripts/kalshi/risk_check.py --report limits       # Risk limit status
     python scripts/kalshi/risk_check.py --report watchlist    # Pending opportunities
+    python scripts/kalshi/risk_check.py --report reconciliation  # Trade-log ↔ settlement audit
     python scripts/kalshi/risk_check.py --gate                # Returns exit code 1 if limits breached
 """
 
@@ -27,7 +28,7 @@ from rich.panel import Panel
 from rich import print as rprint
 
 from kalshi_client import KalshiClient
-from trade_log import load_trade_log, get_today_pnl, get_filled_cost
+from trade_log import load_trade_log, load_settlement_log, get_today_pnl, get_filled_cost
 from ticker_display import parse_game_datetime, parse_matchup, parse_pick_team, TEAM_NAMES
 from logging_setup import setup_logging
 from app.config import get_config
@@ -313,6 +314,94 @@ def print_watchlist(opps: list[dict]):
     console.print(table)
 
 
+# ── Reconciliation Report ─────────────────────────────────────────────────────
+
+# Settlement-side fields that became part of the schema after R5 (2026-04-27).
+# Pre-R5 settlements have these as null/missing — useful for measuring how much
+# of the historical cohort is missing trade-side context.
+_R5_FIELDS = (
+    "composite_score", "risk_approval", "bankroll_pct", "edge_source",
+    "fill_status", "category", "title", "unit_size", "closing_price", "clv",
+    "order_id",
+)
+
+
+def print_reconciliation():
+    """Audit the trade log ↔ settlement log join health.
+
+    Three views:
+      1. Counts and trade_id overlap (how many settlements have a matching trade record).
+      2. Open trades and orphaned settlements (still-pending vs no-link-back).
+      3. Field-coverage on settlements (% populated for the fields R5 added).
+    """
+    trades = load_trade_log()
+    settlements = load_settlement_log()
+
+    trade_ids_log = {t.get("trade_id") for t in trades if t.get("trade_id")}
+    trade_ids_settled = {s.get("trade_id") for s in settlements if s.get("trade_id")}
+    overlap = trade_ids_log & trade_ids_settled
+    orphaned_settlements = trade_ids_settled - trade_ids_log
+    open_trades = [t for t in trades if not t.get("closed_at") and t.get("status") != "error"]
+
+    # ── Summary counts ────────────────────────────────────────────────────────
+    summary = Table(title="Trade Log <-> Settlement Reconciliation", show_lines=False)
+    summary.add_column("Metric", style="cyan")
+    summary.add_column("Value", justify="right")
+    summary.add_row("Trade log entries", str(len(trades)))
+    summary.add_row("Settlement entries", str(len(settlements)))
+    summary.add_row("Joined on trade_id", f"[green]{len(overlap)}[/green]")
+    coverage = (len(overlap) / len(settlements) * 100) if settlements else 0
+    summary.add_row("Settlement join coverage", f"{coverage:.1f}%")
+    summary.add_row("Orphaned settlements (no trade-log match)",
+                    f"[red]{len(orphaned_settlements)}[/red]" if orphaned_settlements else "0")
+    summary.add_row("Open trades (not yet settled)", str(len(open_trades)))
+    console.print(summary)
+
+    # ── Orphan window (oldest / newest) ───────────────────────────────────────
+    if orphaned_settlements:
+        orphan_records = [s for s in settlements if s.get("trade_id") in orphaned_settlements]
+        orphan_records.sort(key=lambda s: s.get("settled_at") or "")
+        oldest = orphan_records[0].get("settled_at", "?")
+        newest = orphan_records[-1].get("settled_at", "?")
+        rprint(
+            f"\n[dim]Orphaned settlement window: {oldest[:10]} -> {newest[:10]} "
+            f"({len(orphan_records)} records)[/dim]"
+        )
+
+    # ── Field-coverage matrix ─────────────────────────────────────────────────
+    if settlements:
+        coverage_table = Table(
+            title="Settlement Field Coverage (R5-added fields)",
+            show_lines=False,
+        )
+        coverage_table.add_column("Field", style="cyan")
+        coverage_table.add_column("Populated", justify="right")
+        coverage_table.add_column("%", justify="right")
+
+        for field in _R5_FIELDS:
+            populated = sum(
+                1 for s in settlements
+                if s.get(field) not in (None, "", 0)
+            )
+            pct = populated / len(settlements) * 100
+            color = "green" if pct >= 80 else "yellow" if pct >= 20 else "red"
+            coverage_table.add_row(
+                field,
+                f"{populated}/{len(settlements)}",
+                f"[{color}]{pct:.0f}%[/{color}]",
+            )
+        console.print(coverage_table)
+
+        if any(
+            sum(1 for s in settlements if s.get(f) not in (None, "", 0)) == 0
+            for f in _R5_FIELDS
+        ):
+            rprint(
+                "\n[dim]Fields at 0% are pre-R5 -- see "
+                "data/history/README.md for context.[/dim]"
+            )
+
+
 # ── Gate Mode ─────────────────────────────────────────────────────────────────
 
 def run_gate_check(client: KalshiClient) -> int:
@@ -347,13 +436,18 @@ def run_gate_check(client: KalshiClient) -> int:
 def main():
     parser = argparse.ArgumentParser(description="Live portfolio risk dashboard (Kalshi API)")
     parser.add_argument("--report", default="all",
-                        choices=["all", "positions", "pnl", "limits", "watchlist"],
+                        choices=["all", "positions", "pnl", "limits", "watchlist", "reconciliation"],
                         help="Report type to display")
     parser.add_argument("--gate", action="store_true",
                         help="Gate mode: exit 1 if limits breached (for automation)")
     parser.add_argument("--save", action="store_true",
                         help="Save dashboard as markdown to reports/Accounts/Kalshi/")
     args = parser.parse_args()
+
+    # Reconciliation report doesn't need live API data — short-circuit.
+    if args.report == "reconciliation":
+        print_reconciliation()
+        return
 
     client = KalshiClient()
 

@@ -757,18 +757,23 @@ class TestSeriesDedupGate:
         assert result.risk_approval == "APPROVED"
 
     def test_disabled_when_hours_zero(self):
-        # SERIES_DEDUP_HOURS=0 should bypass the gate even with entries in the set
+        # SERIES_DEDUP_HOURS=0 AND no per-sport override → gate fully disabled.
+        # Post-R9: must also clear _PER_SPORT_SERIES_DEDUP since per-sport
+        # overrides can re-enable the gate independently of the global.
         import kalshi_executor
-        orig = kalshi_executor.SERIES_DEDUP_HOURS
+        orig_global = kalshi_executor.SERIES_DEDUP_HOURS
+        orig_per_sport = kalshi_executor._PER_SPORT_SERIES_DEDUP
         try:
             kalshi_executor.SERIES_DEDUP_HOURS = 0
+            kalshi_executor._PER_SPORT_SERIES_DEDUP = {}
             opp = self._opp("KXMLBGAME-26APR15LAAANYY-NYY")
             recent = {("mlb", "LAAANYY")}
             result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0,
                                 recent_matchups=recent)
             assert result.risk_approval == "APPROVED"
         finally:
-            kalshi_executor.SERIES_DEDUP_HOURS = orig
+            kalshi_executor.SERIES_DEDUP_HOURS = orig_global
+            kalshi_executor._PER_SPORT_SERIES_DEDUP = orig_per_sport
 
     def test_non_game_ticker_bypasses_gate(self):
         # Futures/prediction markets have no matchup key — should not be blocked
@@ -777,6 +782,143 @@ class TestSeriesDedupGate:
         result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0,
                             recent_matchups=recent)
         assert result.risk_approval == "APPROVED"
+
+
+# ── R9: Per-sport SERIES_DEDUP_HOURS overrides ──────────────────────────────
+
+class TestPerSportSeriesDedupConstruction:
+    """recent_matchups_from_log() uses each sport's specific window when given
+    a per_sport_hours map. Motivated by F12 — a 49h NYM/LAD MLB pair slipped
+    past the 48h global window and both bets lost."""
+
+    def _entry(self, ticker: str, hours_ago: float) -> dict:
+        ts = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+        return {"ticker": ticker, "timestamp": ts.isoformat()}
+
+    def test_mlb_at_49h_caught_with_72h_override(self):
+        """The exact F12 case: MLB matchup 49h ago, MLB-specific window 72h."""
+        log = [self._entry("KXMLBGAME-26APR14NYMLAD-NYM", hours_ago=49)]
+        result = recent_matchups_from_log(
+            log, hours=48, per_sport_hours={"mlb": 72}
+        )
+        assert ("mlb", "NYMLAD") in result
+
+    def test_nba_at_49h_not_caught_when_nba_falls_back_to_48h_global(self):
+        """NBA gets no per-sport override → falls back to 48h global → 49h slips."""
+        log = [self._entry("KXNBAGAME-26APR14BOSMIL-BOS", hours_ago=49)]
+        result = recent_matchups_from_log(
+            log, hours=48, per_sport_hours={"mlb": 72}
+        )
+        assert result == set()
+
+    def test_mlb_at_73h_not_caught_with_72h_override(self):
+        """Just past the per-sport window: should NOT be in the recent set."""
+        log = [self._entry("KXMLBGAME-26APR14NYMLAD-NYM", hours_ago=73)]
+        result = recent_matchups_from_log(
+            log, hours=48, per_sport_hours={"mlb": 72}
+        )
+        assert result == set()
+
+    def test_per_sport_zero_disables_dedup_for_that_sport_only(self):
+        """A sport mapped to 0 is opted out even when global is positive."""
+        log = [
+            self._entry("KXMLBGAME-26APR14NYMLAD-NYM", hours_ago=10),
+            self._entry("KXNBAGAME-26APR14BOSMIL-BOS", hours_ago=10),
+        ]
+        result = recent_matchups_from_log(
+            log, hours=48, per_sport_hours={"mlb": 0}
+        )
+        # MLB disabled → not in set; NBA falls back to global 48h → in set
+        assert ("mlb", "NYMLAD") not in result
+        assert ("nba", "BOSMIL") in result
+
+    def test_global_zero_with_per_sport_override_still_works(self):
+        """User can disable globally but enable per-sport via the override."""
+        log = [
+            self._entry("KXMLBGAME-26APR14NYMLAD-NYM", hours_ago=10),
+            self._entry("KXNBAGAME-26APR14BOSMIL-BOS", hours_ago=10),
+        ]
+        result = recent_matchups_from_log(
+            log, hours=0, per_sport_hours={"mlb": 72}
+        )
+        # MLB has explicit 72h → in set; NBA inherits the 0 fallback → not in set
+        assert ("mlb", "NYMLAD") in result
+        assert ("nba", "BOSMIL") not in result
+
+    def test_empty_per_sport_map_preserves_legacy_behavior(self):
+        """No per-sport overrides → all sports use the global hours value."""
+        log = [
+            self._entry("KXMLBGAME-26APR14NYMLAD-NYM", hours_ago=49),
+            self._entry("KXMLBGAME-26APR14LAAANYY-NYY", hours_ago=10),
+        ]
+        result = recent_matchups_from_log(log, hours=48, per_sport_hours={})
+        # 49h MLB slips through (legacy bug — exactly what R9 fixes when overrides ARE set)
+        assert ("mlb", "NYMLAD") not in result
+        assert ("mlb", "LAAANYY") in result
+
+
+class TestPerSportSeriesDedupGate:
+    """size_order() Gate 7 honors the per-sport window in the rejection check
+    and reports the actual sport-specific window in the rejection message."""
+
+    def _opp(self, ticker: str) -> Opportunity:
+        return Opportunity(
+            ticker=ticker, title="Test", category="game", side="yes",
+            market_price=0.50, fair_value=0.60, edge=0.10,
+            edge_source="test", confidence="high",
+            liquidity_score=8.0, composite_score=8.0, details={},
+        )
+
+    def test_mlb_per_sport_hours_appear_in_rejection_message(self):
+        """When MLB rejects via per-sport 72h, the message says '72h' not '48h'."""
+        import kalshi_executor
+        orig = kalshi_executor._PER_SPORT_SERIES_DEDUP
+        try:
+            kalshi_executor._PER_SPORT_SERIES_DEDUP = {"mlb": 72}
+            opp = self._opp("KXMLBGAME-26APR16NYMLAD-NYM")
+            recent = {("mlb", "NYMLAD")}
+            result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0,
+                                recent_matchups=recent)
+            assert result.risk_approval.startswith("REJECTED")
+            assert "series_dedup" in result.risk_approval
+            assert "72h" in result.risk_approval
+        finally:
+            kalshi_executor._PER_SPORT_SERIES_DEDUP = orig
+
+    def test_per_sport_zero_disables_gate_for_that_sport(self):
+        """If MLB is mapped to 0 in the per-sport dict, MLB matchups bypass the gate."""
+        import kalshi_executor
+        orig = kalshi_executor._PER_SPORT_SERIES_DEDUP
+        try:
+            kalshi_executor._PER_SPORT_SERIES_DEDUP = {"mlb": 0}
+            opp = self._opp("KXMLBGAME-26APR16NYMLAD-NYM")
+            recent = {("mlb", "NYMLAD")}
+            result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0,
+                                recent_matchups=recent)
+            assert result.risk_approval == "APPROVED"
+        finally:
+            kalshi_executor._PER_SPORT_SERIES_DEDUP = orig
+
+    def test_unmapped_sport_uses_global_window(self):
+        """A sport without an override still gets gated by the global window.
+        Uses NHL because the test environment may set per-sport edge floors
+        for NBA/NCAAB that would short-circuit Gate 3 before Gate 7."""
+        import kalshi_executor
+        orig_per = kalshi_executor._PER_SPORT_SERIES_DEDUP
+        orig_global = kalshi_executor.SERIES_DEDUP_HOURS
+        try:
+            kalshi_executor._PER_SPORT_SERIES_DEDUP = {"mlb": 72}  # only MLB
+            kalshi_executor.SERIES_DEDUP_HOURS = 48
+            opp = self._opp("KXNHLGAME-26APR15BOSPHI-BOS")
+            recent = {("nhl", "BOSPHI")}
+            result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0,
+                                recent_matchups=recent)
+            assert result.risk_approval.startswith("REJECTED")
+            assert "series_dedup" in result.risk_approval
+            assert "48h" in result.risk_approval  # global window used
+        finally:
+            kalshi_executor._PER_SPORT_SERIES_DEDUP = orig_per
+            kalshi_executor.SERIES_DEDUP_HOURS = orig_global
 
 
 # ── R4: Resting-order janitor ────────────────────────────────────────────────
