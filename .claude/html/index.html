@@ -757,7 +757,7 @@
   <h1>Automated edge detection<br>&amp; execution pipeline</h1>
   <p class="lede">
     Edge-Radar scans thousands of open Kalshi markets, cross-references prices against
-    sportsbook consensus, crypto spot, weather forecasts, and Polymarket —
+    sportsbook consensus, crypto spot, and weather forecasts —
     then surfaces mispriced contracts through 13 risk gates and Kelly sizing before
     placing limit orders. Every decision is logged for post-hoc calibration.
   </p>
@@ -847,9 +847,9 @@
       <div class="stage-num">01</div>
       <div class="stage-body">
         <h3>Fetch <span class="tag">read · parallel</span></h3>
-        <p>Pull all open Kalshi markets via the signed REST client. In parallel, query 8-12 US sportsbooks through The Odds API, ESPN, NHL/MLB stats, CoinGecko spot, NWS hourly forecasts, and Polymarket Gamma.</p>
+        <p>Pull all open Kalshi markets via the signed REST client. In parallel, query 8-12 US sportsbooks through The Odds API, ESPN, NHL/MLB stats, CoinGecko spot, and NWS hourly forecasts.</p>
         <div class="stage-details">
-          <div class="detail"><div class="k">Sources</div><div class="v">Kalshi, Odds API (rotating keys), ESPN, NHL/MLB Stats, CoinGecko, NWS, Yahoo, Polymarket</div></div>
+          <div class="detail"><div class="k">Sources</div><div class="v">Kalshi, Odds API (rotating keys), ESPN, NHL/MLB Stats, CoinGecko, NWS, Yahoo</div></div>
           <div class="detail"><div class="k">Rotation</div><div class="v">Set-based Odds API key rotation — tries every key once on 401/429 before bailing</div></div>
           <div class="detail"><div class="k">Caching</div><div class="v">Weather fetched once per home team; shared across spread + total markets</div></div>
         </div>
@@ -995,17 +995,6 @@
         <li>Crypto: BTC, ETH, XRP, DOGE, SOL</li>
         <li>Weather: 13 US cities (NWS/NOAA)</li>
         <li>S&amp;P: Yahoo + VIX → strike prob</li>
-      </ul>
-    </div>
-
-    <div class="box">
-      <div class="box-ico">XR</div>
-      <h3>Cross-market (Polymarket)</h3>
-      <p>Fuzzy-matches Kalshi events to Polymarket on title + strike + expiry. Price discrepancy is the edge signal.</p>
-      <ul>
-        <li>Polymarket Gamma API</li>
-        <li>Reference only — scans run standalone</li>
-        <li><code>--cross-ref</code> flag on prediction scans</li>
       </ul>
     </div>
 
@@ -1264,7 +1253,7 @@
         </div>
         <div class="t-item">
           <div class="t-item-title"><span class="tag">R17</span>Scanner flag parity (<code>--budget</code>, <code>--report-dir</code>)</div>
-          <div class="t-item-body">Futures / prediction / polymarket didn't accept <code>--budget</code> or <code>--report-dir</code>. Extracted shared <code>parse_budget_arg()</code> helper; added both flags across all four scanners; wired each to <code>execute_pipeline(budget=…)</code> and <code>save_scan_report(output_dir=…)</code>.</div>
+          <div class="t-item-body">Futures and prediction scanners didn't accept <code>--budget</code> or <code>--report-dir</code>. Extracted shared <code>parse_budget_arg()</code> helper; added both flags across all scanners; wired each to <code>execute_pipeline(budget=…)</code> and <code>save_scan_report(output_dir=…)</code>.</div>
         </div>
         <div class="t-item">
           <div class="t-item-title"><span class="tag">R21</span>Dedup passes futures through unchanged</div>
@@ -1307,7 +1296,7 @@
         </div>
         <div class="t-item">
           <div class="t-item-title"><span class="tag">Q1</span>Web app <code>market_type</code> wired through service layer</div>
-          <div class="t-item-body">UI exposed sports/futures/prediction/polymarket but everything routed into sports-only. <code>run_scan()</code> now dispatches by market type; cross-ref passed through for Polymarket reference pricing.</div>
+          <div class="t-item-body">UI exposed sports/futures/prediction but everything routed into sports-only. <code>run_scan()</code> now dispatches by market type.</div>
         </div>
         <div class="t-item">
           <div class="t-item-title"><span class="tag">Q2-Q5</span>Test contamination, doc drift, Pages branch, pandas</div>
