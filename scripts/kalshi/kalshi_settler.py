@@ -82,6 +82,48 @@ def calculate_pnl(trade: dict, settlement: dict) -> dict:
     }
 
 
+def build_settlement_record(
+    trade: dict,
+    pnl: dict,
+    closing_price: float | None,
+    clv: float | None,
+) -> dict:
+    """Construct a settlement-log record from a trade + pnl pair.
+
+    Carries the full trade-side context so the settlement is self-describing
+    for calibration/analytics — see ROADMAP R5 (2026-04-27).
+    """
+    return {
+        "trade_id": trade.get("trade_id"),
+        "order_id": trade.get("order_id"),
+        "ticker": trade.get("ticker", ""),
+        "title": trade.get("title"),
+        "category": trade.get("category"),
+        "side": trade.get("side"),
+        "result": pnl["result"],
+        "won": pnl["won"],
+        "contracts": int(get_filled_contracts(trade)),
+        "cost": pnl["cost"],
+        "revenue": pnl["revenue"],
+        "fees": pnl["fees"],
+        "net_pnl": pnl["net_pnl"],
+        "roi": pnl["roi"],
+        "edge_estimated": trade.get("edge_estimated"),
+        "edge_source": trade.get("edge_source"),
+        "fair_value": trade.get("fair_value"),
+        "market_price_at_entry": trade.get("market_price_at_entry"),
+        "closing_price": closing_price,
+        "clv": clv,
+        "confidence": trade.get("confidence"),
+        "composite_score": trade.get("composite_score"),
+        "risk_approval": trade.get("risk_approval"),
+        "bankroll_pct": trade.get("bankroll_pct"),
+        "unit_size": trade.get("unit_size"),
+        "fill_status": trade.get("fill_status"),
+        "settled_at": trade.get("closed_at"),
+    }
+
+
 def settle_trades(client: KalshiClient) -> dict:
     """
     Fetch settlements from Kalshi and update the trade log.
@@ -199,25 +241,7 @@ def settle_trades(client: KalshiClient) -> dict:
             f"(cost=${pnl['cost']:.2f}, rev=${pnl['revenue']:.2f}, fees=${pnl['fees']:.2f})"
         )
 
-        # Add to settlement log (use filled values for accurate accounting)
-        settlement_log.append({
-            "trade_id": trade.get("trade_id"),
-            "ticker": ticker,
-            "side": trade.get("side"),
-            "result": pnl["result"],
-            "won": pnl["won"],
-            "contracts": int(get_filled_contracts(trade)),
-            "cost": pnl["cost"],
-            "revenue": pnl["revenue"],
-            "fees": pnl["fees"],
-            "net_pnl": pnl["net_pnl"],
-            "roi": pnl["roi"],
-            "edge_estimated": trade.get("edge_estimated"),
-            "fair_value": trade.get("fair_value"),
-            "market_price_at_entry": trade.get("market_price_at_entry"),
-            "confidence": trade.get("confidence"),
-            "settled_at": trade["closed_at"],
-        })
+        settlement_log.append(build_settlement_record(trade, pnl, closing_price, clv))
 
     # Save
     save_trade_log(trade_log)

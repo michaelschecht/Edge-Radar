@@ -245,7 +245,7 @@ Every order must pass gates 1-7 (including 4.5 and 4.6) before execution. Gates 
 | 4.7 | **Prediction-market safety (R25)** | Opportunity category in `{crypto, weather, spx, mentions, companies, politics}` | **Reject** unless `ALLOW_PREDICTION_BETS=true` |
 | 5 | **Duplicate ticker** | Already holding this exact market | **Reject** if ticker in open positions |
 | 6 | **Per-event cap** | Too many positions on the same game | **Reject** if event count ≥ `MAX_PER_EVENT` |
-| 7 | **Series dedup** | Same matchup bet on a recent date (sport + team pair) | **Reject** if matchup key appears in trade log within `SERIES_DEDUP_HOURS` |
+| 7 | **Series dedup** | Same matchup bet on a recent date (sport + team pair) | **Reject** if matchup key appears in trade log within `SERIES_DEDUP_HOURS` (per-sport override via `SERIES_DEDUP_HOURS_<SPORT>` — MLB/NHL default to 72h, others 48h — R9, 2026-04-27) |
 | 8 | **Max bet size** | Bet exceeds max size | **Cap** — downsize to `MAX_BET_SIZE` |
 | 9 | **Bet ratio cap** | Single bet cost vs. median batch cost | **Cap** — downsize so cost ≤ `MAX_BET_RATIO` × median batch cost |
 
@@ -279,7 +279,8 @@ In addition, NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` (default $0.35) ar
 | `MAX_BET_RATIO` | 3.0 | Max ratio of any single bet cost to median batch cost |
 | `KELLY_EDGE_CAP` | 0.15 | Soft-cap on edge used for Kelly sizing (raw edge unchanged elsewhere) |
 | `KELLY_EDGE_DECAY` | 0.5 | Decay factor for edge above the cap |
-| `SERIES_DEDUP_HOURS` | 48 | Reject bet if same matchup was bet within this window (0 disables) |
+| `SERIES_DEDUP_HOURS` | 48 | Global default: reject bet if same matchup was bet within this window (0 disables) |
+| `SERIES_DEDUP_HOURS_<SPORT>` | (optional) | R9 (2026-04-27): per-sport override. Live: `SERIES_DEDUP_HOURS_MLB=72`, `SERIES_DEDUP_HOURS_NHL=72`. Sports without an override fall back to the global. Per-sport `0` disables the gate just for that sport. |
 | `ALLOW_PREDICTION_BETS` | false | Gate 4.7 (R25): when false, reject all crypto/weather/spx/mentions/companies/politics bets. Default off until the prediction-market models are rebuilt (see R25b/R25c). |
 
 ---
@@ -324,7 +325,8 @@ python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date to
 | File Path | Contents |
 | :--- | :--- |
 | `data/history/kalshi_trades.json` | Complete trade log: edge estimate, sizing, fill price, fees, status |
-| `data/history/kalshi_settlements.json` | Settlement history with outcome, realized P&L, edge calibration |
+| `data/history/kalshi_settlements.json` | Settlement history with outcome, realized P&L, edge calibration. Self-describing schema as of R5 (2026-04-27): also carries `composite_score`, `risk_approval`, `bankroll_pct`, `closing_price`, `clv`, `category`, `title`, `unit_size`, `fill_status`. |
+| `data/history/README.md` | Documents the trade-log/settlement schema lifecycle and the pre-R5 historical-orphan cohort. Run `python scripts/kalshi/risk_check.py --report reconciliation` to audit the join health. |
 | `data/watchlists/kalshi_opportunities.json` | Latest scored opportunities from the edge detector |
 | `data/positions/open_positions.json` | Snapshot of current open positions |
 | `data/finagent.db` | SQLite database (schema defined in `scripts/sql/init_db.sql`) |

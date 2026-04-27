@@ -62,7 +62,7 @@ The pipeline rejects opportunities that fail any of gates 1-7 (including 4.5 and
 | 4.7 | Prediction-market safety (R25) | Rejects opportunities where `opp.category` is one of `crypto` / `weather` / `spx` / `mentions` / `companies` / `politics` unless `ALLOW_PREDICTION_BETS=true`. Added 2026-04-24 after a prediction-market audit found all 6 modules cache stale data with no TTL, have zero historical settlements, and produce nonsense fair values (e.g. Miami weather at $1.00 fair on a 1°F window). |
 | 5 | Duplicate ticker | Can't already hold a position in this market |
 | 6 | Per-event cap | Max `MAX_PER_EVENT` (2) positions on the same game |
-| 7 | Series dedup | Same matchup (sport + team pair, date-agnostic) can't have been bet within `SERIES_DEDUP_HOURS` (48h). Added 2026-04-18 after calibration showed consecutive-night series bleeds. |
+| 7 | Series dedup | Same matchup (sport + team pair, date-agnostic) can't have been bet within `SERIES_DEDUP_HOURS` (48h global). Per-sport overrides via `SERIES_DEDUP_HOURS_<SPORT>` (R9, 2026-04-27): MLB=72h, NHL=72h to cover 3-game series cycles after F12 (NYM/LAD pair @ 49h slipped the global, both lost). Added 2026-04-18 (C5) after calibration showed consecutive-night bleeds. |
 | 8 | Max bet size | Cost can't exceed `MAX_BET_SIZE` ($100) — sizing cap |
 | 9 | Bet ratio cap | Single bet can't exceed `MAX_BET_RATIO` (3.0) times the batch median cost — sizing cap |
 

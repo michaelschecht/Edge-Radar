@@ -2,6 +2,67 @@
 
 ---
 
+## 2026-04-27 -- R9: Per-Sport `SERIES_DEDUP_HOURS`
+
+### Why
+
+F12 (14-day review): a NYM/LAD MLB matchup was bet on Apr 14 and again on Apr 16 — about 49 hours apart, just outside the single 48h global `SERIES_DEDUP_HOURS` window. Both bets landed (every other gate passed) and both lost. Series-dedup is the gate that catches "same model wrong twice on the same matchup," and the global window was tight enough to leak adjacent-day MLB and NHL repeats. NBA matchups against the same opponent within 48h are rare outside the playoffs, so the issue is sport-shaped — not a global threshold problem.
+
+### What landed
+
+- **`PerSportOverrides.series_dedup_hours: dict[str, int]`** in `app/config.py` — populated from `SERIES_DEDUP_HOURS_<SPORT>` env vars. Same pattern as `MIN_EDGE_THRESHOLD_<SPORT>`.
+- **`recent_matchups_from_log()`** extended with a `per_sport_hours` keyword arg. Each sport uses its own cutoff; sports without an override fall back to the global `hours`. A per-sport `0` opts that sport out, even when the global is non-zero. A global `0` with a per-sport override re-enables the gate just for the listed sport — both directions tested.
+- **Gate 7 in `size_order()`** now resolves the candidate's per-sport window and reports the actual sport-specific window in the rejection message: `series_dedup (matchup NYMLAD bet within 72h)` instead of the old fixed `48h`.
+- **Module-level `_PER_SPORT_SERIES_DEDUP`** in `kalshi_executor.py` — tests can patch it directly the same way `_PER_SPORT_MIN_EDGE` is patched.
+- **Live `.env`:** `SERIES_DEDUP_HOURS_MLB=72` and `SERIES_DEDUP_HOURS_NHL=72`. NBA leaves the global default. 72h covers any 3-game series start-to-finish regardless of game-time skew.
+
+### Verification
+
+- 9 new regression tests in `test_risk_gates.py` (6 set-construction edge cases including the exact F12 49h scenario, plus 3 gate-rejection-message cases).
+- 4 new config-layer tests in `test_config.py` for the new loader.
+- Pre-existing `test_disabled_when_hours_zero` updated to also clear `_PER_SPORT_SERIES_DEDUP` since per-sport overrides can now re-enable the gate independently of the global.
+- **320 tests passing** (was 307). Lint clean.
+- Live config smoke: `_PER_SPORT_SERIES_DEDUP={'mlb': 72, 'nhl': 72}` loads correctly.
+
+### Caveat
+
+Gate 7 reads from `kalshi_trades.json`. After R5, that file is currently the test stub R5 surfaced — empty of real history. The gate will start protecting against new repeats as bets accumulate going forward; R5 made the missing-history visible and R9 ensures the gate catches the right pattern when history exists.
+
+### Files
+
+`app/config.py`, `scripts/kalshi/kalshi_executor.py`, `webapp/services.py`, `tests/test_risk_gates.py`, `tests/test_config.py`, `.env`, `.env.example`, `CLAUDE.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/setup/SETUP_GUIDE.md`, `docs/web-app/CLOUD.md`, `docs/scripts/kalshi_executor.md`, `.claude/skills/edge-radar/SKILL.md`, `.claude/html/index.html`.
+
+---
+
+## 2026-04-27 -- R5: Settlement-Schema Fix + Reconciliation Report
+
+### Why
+
+F8 (14-day review) said "10/76 14-day settlements match a trade-log entry." Investigation today revealed the actual state was worse: the production trade log got wiped at some point, leaving a single test stub from this morning and **178 settlement entries with zero `trade_id` overlap** to anything in the trade log. Beyond the orphan problem, even when the two files were both healthy the settler only carried forward a hand-picked subset of trade-side fields — missing `composite_score`, `risk_approval`, `bankroll_pct`, `closing_price`, `clv`, etc. — so calibration analytics couldn't slice settlements by score bucket or risk-approval flag without re-joining to a trade log that may not exist.
+
+### What landed
+
+- **`build_settlement_record()` helper** in `kalshi_settler.py` — extracted from the inline `settlement_log.append({...})` so the schema is testable. Settlement record extended from 16 → 27 fields. New fields: `order_id`, `title`, `category`, `edge_source`, `closing_price`, `clv` (settler already computes these but used to discard them), `composite_score`, `risk_approval`, `bankroll_pct`, `unit_size`, `fill_status`. Pre-existing fields unchanged. After this, every future settlement is fully self-describing for calibration without joining to the trade log.
+- **`--report reconciliation` mode** in `risk_check.py` — prints trade-log/settlement counts, `trade_id` overlap %, orphaned-settlement window dates, and a field-coverage matrix per R5-added field. Surfaces the join health at every session start.
+- **`data/history/README.md`** — documents the two-file lifecycle and the pre-R5 historical-orphan rationale (no backfill: the missing fields don't exist anywhere on disk and synthesizing them would be fabricating data). Added a `.gitignore` exception so the README ships with the repo while runtime state stays gitignored.
+- **+10 regression tests** in `tests/test_reconciliation.py`: 5 schema-coverage + 5 report-rendering edge cases (empty / all-orphan / clean-join / mixed cohort / open-trade counting).
+
+### Verification
+
+- **307 tests passing** (was 297). Config lint clean.
+- Live `--report reconciliation` against the user's data renders cleanly: 178 orphans (oldest 2026-03-22, newest 2026-04-27), 0% R5-field coverage. Expected pre-R5 baseline.
+- The R15 normalizer in `model_calibration.py` continues to work (R5 only adds fields, never removes).
+
+### What this does NOT solve
+
+The 178 historical orphan settlements stay orphaned. Their trade-side context isn't recoverable. R5 stops the bleed and makes the gap measurable; A3 (DB migration) can now import a clean schema without compounding the data debt.
+
+### Files
+
+`scripts/kalshi/kalshi_settler.py`, `scripts/kalshi/risk_check.py`, `tests/test_reconciliation.py`, `data/history/README.md`, `.gitignore`, `docs/ARCHITECTURE.md`.
+
+---
+
 ## 2026-04-27 -- Polymarket integration removed
 
 ### Why

@@ -91,7 +91,8 @@ Full CLI flags:
 `data/history/kalshi_settlements.json` is populated by `kalshi_settler.py`, scheduled as the Windows task installed via `python scripts/schedulers/automation/install_windows_task.py install settle` (nightly 11 PM).
 
 - If the user asks about "today's" bets and the settler hasn't run since those games ended, the report will be missing them. Suggest manually running the settler (`python scripts/kalshi/kalshi_settler.py settle` or `make settle`) before generating the report.
-- Per roadmap finding F8, only ~10/76 recent settlements match a trade log entry. Older settlements may be missing `edge_estimated`, `fair_value`, or `confidence`. These show as "—" / "n/a" in the report and are excluded from calibration math (but counted in win rate / P&L).
+- **Schema changed 2026-04-27 (R5).** Settlements written from this point carry `composite_score`, `risk_approval`, `bankroll_pct`, `category`, `title`, `closing_price`, `clv`, `edge_source`, `unit_size`, `fill_status` in addition to the legacy fields. Pre-R5 settlements (the historical 178 orphans) only carry the legacy schema — these show as `null` for the new fields and are excluded from any slicing on those dimensions. They still contribute to win rate / Brier / edge-bucket math (which only need `won`, `cost`, `revenue`, `edge_estimated`, `confidence`).
+- For an audit of the trade-log/settlement join health and per-field coverage, run `python scripts/kalshi/risk_check.py --report reconciliation`.
 
 ## Scheduling
 

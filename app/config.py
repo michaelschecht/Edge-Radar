@@ -225,28 +225,40 @@ class KellyConfig:
 
 @dataclass(frozen=True)
 class PerSportOverrides:
-    """Per-sport `MIN_EDGE_THRESHOLD_<SPORT>` overrides.
+    """Per-sport overrides for sport-sensitive gate thresholds.
 
-    Only sports with the env var explicitly set appear in `min_edge`. Callers
-    should fall back to `GateThresholds.min_edge_threshold` for any sport not
-    in the dict — preserving the existing `_PER_SPORT_MIN_EDGE` behavior in
-    `kalshi_executor.py`.
+    Only sports with the env var explicitly set appear in each dict. Callers
+    should fall back to the corresponding global value in `GateThresholds`
+    for any sport not in the dict — preserving the existing fallback idiom.
+
+    - `min_edge`            : `MIN_EDGE_THRESHOLD_<SPORT>` (per-sport edge floor)
+    - `series_dedup_hours`  : `SERIES_DEDUP_HOURS_<SPORT>` (R9: MLB/NHL series
+      cycles on consecutive days exceed the 48h global default — F12 observed
+      a NYM/LAD pair bet at 49h apart that slipped through; both lost)
     """
     min_edge: dict[str, float] = field(default_factory=dict)
+    series_dedup_hours: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def from_env(cls, sports: Iterable[str] = _SUPPORTED_SPORTS) -> "PerSportOverrides":
-        overrides: dict[str, float] = {}
+        min_edge: dict[str, float] = {}
+        series_dedup: dict[str, int] = {}
         for sport in sports:
-            raw = os.getenv(f"MIN_EDGE_THRESHOLD_{sport.upper()}")
-            if raw is None or raw == "":
-                continue
-            try:
-                overrides[sport] = float(raw)
-            except ValueError:
-                # Match current kalshi_executor behavior: skip bad values silently.
-                continue
-        return cls(min_edge=overrides)
+            raw_edge = os.getenv(f"MIN_EDGE_THRESHOLD_{sport.upper()}")
+            if raw_edge is not None and raw_edge != "":
+                try:
+                    min_edge[sport] = float(raw_edge)
+                except ValueError:
+                    # Match current kalshi_executor behavior: skip bad values.
+                    pass
+
+            raw_dedup = os.getenv(f"SERIES_DEDUP_HOURS_{sport.upper()}")
+            if raw_dedup is not None and raw_dedup != "":
+                try:
+                    series_dedup[sport] = int(raw_dedup)
+                except ValueError:
+                    pass
+        return cls(min_edge=min_edge, series_dedup_hours=series_dedup)
 
 
 @dataclass(frozen=True)

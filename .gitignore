@@ -26,7 +26,10 @@ venv/
 env/
 
 # === Runtime Data ===
-data/
+data/*
+!data/history/
+data/history/*
+!data/history/README.md
 logs/
 *.log
 reports/

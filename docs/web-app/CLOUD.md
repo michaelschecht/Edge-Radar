@@ -101,7 +101,9 @@ DRY_RUN = "true"
 # MIN_COMPOSITE_SCORE = "6.0"       # Minimum score 0-10 (6.0)
 # KELLY_EDGE_CAP = "0.15"           # Soft-cap edge for Kelly sizing (2026-04-18)
 # KELLY_EDGE_DECAY = "0.5"          # Decay factor above the cap
-# SERIES_DEDUP_HOURS = "48"         # Reject same-matchup bets within this window (2026-04-18)
+# SERIES_DEDUP_HOURS = "48"         # Global default (2026-04-18)
+# SERIES_DEDUP_HOURS_MLB = "72"     # R9 (2026-04-27): MLB series span up to 72h
+# SERIES_DEDUP_HOURS_NHL = "72"     # R9 (2026-04-27): NHL series same as MLB
 
 # 14-day review response (2026-04-21): R1 + R3 + R4
 # MIN_CONFIDENCE = "medium"             # Reject opportunities below this confidence (R3)
@@ -157,6 +159,7 @@ Mapped via `st.secrets["KALSHI_API_KEY"]` -> `os.environ["KALSHI_API_KEY"]`
 | `KELLY_EDGE_CAP` | `KELLY_EDGE_CAP` | `"0.15"` | `kalshi_executor.py` |
 | `KELLY_EDGE_DECAY` | `KELLY_EDGE_DECAY` | `"0.5"` | `kalshi_executor.py` |
 | `SERIES_DEDUP_HOURS` | `SERIES_DEDUP_HOURS` | `"48"` | `kalshi_executor.py` |
+| `SERIES_DEDUP_HOURS_<SPORT>` | `SERIES_DEDUP_HOURS_<SPORT>` | (optional) | R9 (2026-04-27): per-sport override of the global window. Live: MLB=72, NHL=72. Supported: MLB, NBA, NHL, NFL, NCAAB, NCAAF, MLS, SOCCER. |
 | `MIN_CONFIDENCE` | `MIN_CONFIDENCE` | `"medium"` | `kalshi_executor.py` (R3, Gate 4.5) |
 | `NO_SIDE_FAVORITE_THRESHOLD` | `NO_SIDE_FAVORITE_THRESHOLD` | `"0.25"` | `kalshi_executor.py` (R1, Gate 4.6) |
 | `NO_SIDE_MIN_EDGE` | `NO_SIDE_MIN_EDGE` | `"0.25"` | `kalshi_executor.py` (R1, Gate 4.6) |

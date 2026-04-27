@@ -254,7 +254,9 @@ MIN_EDGE_THRESHOLD_NCAAB=0.10   # Per-sport override
 MIN_COMPOSITE_SCORE=6.0         # Minimum opportunity score (0-10)
 KELLY_EDGE_CAP=0.15             # Soft-cap edge for Kelly sizing
 KELLY_EDGE_DECAY=0.5            # Decay factor above the cap
-SERIES_DEDUP_HOURS=48           # Reject same-matchup bets within this window (0 disables)
+SERIES_DEDUP_HOURS=48           # Global default: reject same-matchup bets within this window (0 disables)
+SERIES_DEDUP_HOURS_MLB=72       # R9: MLB series cycle on consecutive days; 72h covers any 3-game series
+SERIES_DEDUP_HOURS_NHL=72       # R9: NHL series same as MLB
 ```
 
 > **Key paths are relative to the project root.** The client resolves `keys/live/kalshi_private.key` from the Edge-Radar directory automatically.
@@ -459,7 +461,7 @@ Every configured key is either invalid or has hit its monthly quota (free tier =
 - Check `--date` — if no games today, try `--date tomorrow`
 - Check `--filter` — some sports are seasonal
 - Minimum edge is 3% global, 12% for NBA, 10% for NCAAB (per-sport floors set 2026-04-18 from calibration; NBA raised 0.08 → 0.12 in R14 on 2026-04-24 after NBA Brier 0.3306 — worst-calibrated sport). Low-edge days happen.
-- Gate 7 rejects same-matchup bets within 48h (`SERIES_DEDUP_HOURS`). Set `SERIES_DEDUP_HOURS=0` to disable or wait the window out.
+- Gate 7 rejects same-matchup bets within the per-sport window (MLB/NHL 72h via R9, others 48h global). Set `SERIES_DEDUP_HOURS=0` (and any per-sport `SERIES_DEDUP_HOURS_<SPORT>=0`) to disable, or wait the window out.
 
 ---
 

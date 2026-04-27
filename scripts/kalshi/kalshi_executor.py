@@ -124,6 +124,12 @@ def _confidence_rank(level: str | None) -> int:
 _SUPPORTED_SPORTS = ("mlb", "nba", "nhl", "nfl", "ncaab", "ncaaf", "mls", "soccer")
 _PER_SPORT_MIN_EDGE: dict[str, float] = dict(_cfg.per_sport.min_edge)
 
+# R9 (2026-04-27): per-sport SERIES_DEDUP_HOURS overrides. MLB/NHL series
+# cycles span 2-4 consecutive days; the 48h global default is too tight (F12:
+# a NYM/LAD pair bet 49h apart slipped through, both lost). Sports not listed
+# fall back to SERIES_DEDUP_HOURS. Tests patch _PER_SPORT_SERIES_DEDUP directly.
+_PER_SPORT_SERIES_DEDUP: dict[str, int] = dict(_cfg.per_sport.series_dedup_hours)
+
 
 def parse_budget_arg(raw: str | None) -> float | None:
     """Parse a CLI `--budget` value into the form `execute_pipeline` expects.
@@ -291,6 +297,8 @@ def recent_matchups_from_log(
     trade_log: list[dict],
     hours: int | None = None,
     now: datetime | None = None,
+    *,
+    per_sport_hours: dict[str, int] | None = None,
 ) -> set[tuple[str, str]]:
     """Matchup keys that had a bet placed in the last ``hours`` window.
 
@@ -303,12 +311,23 @@ def recent_matchups_from_log(
 
     Any entry in the trade log counts as a placed order — dry-run runs don't
     write to the log, so no extra filtering is needed.
+
+    R9 (2026-04-27): when ``per_sport_hours`` is provided, each sport uses its
+    own cutoff; ``hours`` is the fallback for sports not in the dict. Motivated
+    by F12 — a 49h NYM/LAD MLB pair slipped past the 48h global window. A
+    per-sport ``0`` disables dedup for that sport even when the global is set.
     """
     if hours is None:
         hours = SERIES_DEDUP_HOURS
-    if hours <= 0:
+    fallback_hours = hours
+    per_sport_hours = per_sport_hours or {}
+
+    # If both the global fallback AND every per-sport override is non-positive,
+    # the gate is fully disabled — short-circuit to avoid log iteration.
+    if fallback_hours <= 0 and not any(h > 0 for h in per_sport_hours.values()):
         return set()
-    cutoff = (now or datetime.now(timezone.utc)) - timedelta(hours=hours)
+
+    now_dt = now or datetime.now(timezone.utc)
     keys: set[tuple[str, str]] = set()
     for trade in trade_log:
         ts = trade.get("timestamp")
@@ -320,11 +339,17 @@ def recent_matchups_from_log(
             continue
         if placed_at.tzinfo is None:
             placed_at = placed_at.replace(tzinfo=timezone.utc)
-        if placed_at < cutoff:
-            continue
+
         key = matchup_key(trade.get("ticker", ""))
-        if key:
-            keys.add(key)
+        if not key:
+            continue
+        sport = key[0]
+        sport_hours = per_sport_hours.get(sport, fallback_hours)
+        if sport_hours <= 0:
+            continue
+        if placed_at < now_dt - timedelta(hours=sport_hours):
+            continue
+        keys.add(key)
     return keys
 
 
@@ -566,11 +591,16 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         if event_counts.get(evt, 0) >= max_per_event:
             rejection = f"per_event_cap ({event_counts[evt]}/{max_per_event} on {evt[:30]})"
 
-    # ── Risk Gate 7: Series dedup (C5) -- same matchup bet in last SERIES_DEDUP_HOURS
-    if rejection is None and recent_matchups and SERIES_DEDUP_HOURS > 0:
+    # ── Risk Gate 7: Series dedup (C5 + R9) -- same matchup bet in last
+    # SERIES_DEDUP_HOURS, with per-sport overrides (R9: MLB/NHL series cycles
+    # exceed the 48h global default — F12). A per-sport `0` (or global `0`
+    # without a per-sport override) disables the gate for that sport.
+    if rejection is None and recent_matchups:
         mkey = matchup_key(opp.ticker)
-        if mkey and mkey in recent_matchups:
-            rejection = f"series_dedup (matchup {mkey[1]} bet within {SERIES_DEDUP_HOURS}h)"
+        if mkey:
+            sport_hours = _PER_SPORT_SERIES_DEDUP.get(mkey[0], SERIES_DEDUP_HOURS)
+            if sport_hours > 0 and mkey in recent_matchups:
+                rejection = f"series_dedup (matchup {mkey[1]} bet within {sport_hours}h)"
 
     if rejection:
         return SizedOrder(
@@ -866,7 +896,9 @@ def execute_pipeline(
 
     trade_log = load_trade_log()
     daily_pnl = get_today_pnl(trade_log)
-    recent_matchups = recent_matchups_from_log(trade_log)
+    recent_matchups = recent_matchups_from_log(
+        trade_log, per_sport_hours=_PER_SPORT_SERIES_DEDUP
+    )
     rprint(f"  Today P&L:  ${daily_pnl:,.2f} (limit: -${MAX_DAILY_LOSS:,.2f})")
     rprint(f"  Unit size:  ${unit_size:.2f}")
     rprint(f"  Per-game:   {MAX_PER_EVENT} max")

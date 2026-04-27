@@ -1082,7 +1082,7 @@
         <td><code>7</code></td>
         <td><span class="pill pill-reject">reject</span> <span class="pill pill-new">C5</span></td>
         <td>Series dedup</td>
-        <td>Matchup (sport + team pair, date-agnostic) already bet in last <code>SERIES_DEDUP_HOURS</code> (48)</td>
+        <td>Matchup (sport + team pair, date-agnostic) already bet in last <code>SERIES_DEDUP_HOURS</code> (48 global; per-sport: MLB 72, NHL 72 — R9)</td>
       </tr>
       <tr>
         <td><code>8</code></td>
@@ -1149,7 +1149,7 @@
         <li><code>MAX_OPEN_POSITIONS</code> = 10</li>
         <li><code>MAX_PER_EVENT</code> = 3</li>
         <li><code>MAX_BET_RATIO</code> = 3.0× batch median</li>
-        <li><code>SERIES_DEDUP_HOURS</code> = 48</li>
+        <li><code>SERIES_DEDUP_HOURS</code> = 48 (MLB 72, NHL 72 via per-sport overrides — R9)</li>
       </ul>
     </div>
     <div class="box">
@@ -1342,7 +1342,7 @@
         </div>
         <div class="t-item">
           <div class="t-item-title"><span class="tag">C5</span>Series-level dedup (Gate 7)</div>
-          <div class="t-item-body">Same-matchup bets across consecutive nights compounded losses (Angels @ Yankees 3-night, Mets @ Dodgers 2-night). New gate rejects bets whose matchup key was already bet within <code>SERIES_DEDUP_HOURS</code> (48).</div>
+          <div class="t-item-body">Same-matchup bets across consecutive nights compounded losses (Angels @ Yankees 3-night, Mets @ Dodgers 2-night). New gate rejects bets whose matchup key was already bet within <code>SERIES_DEDUP_HOURS</code> (48). Per-sport overrides added in R9 (2026-04-27): MLB and NHL bumped to 72h after F12 — a NYM/LAD pair bet 49h apart slipped the global window.</div>
         </div>
       </div>
     </div>
