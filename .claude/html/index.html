@@ -1205,6 +1205,25 @@
   <div class="timeline">
 
     <div class="t-entry">
+      <div class="t-date">2026-04-28 — R24b File-Backed Odds API Cache</div>
+      <div class="t-title">Two-tier cache for The Odds API — in-process dict in front of a new file-backed layer at <code>data/cache/odds/</code></div>
+      <div class="t-items">
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R24b</span>Cross-process cache for sportsbook odds payloads</div>
+          <div class="t-item-body">F31 documented one Odds API key dropping 175 → 0 remaining in five minutes. Root cause: each <code>scan.py</code> invocation started with empty in-process caches and refetched all 18 sport keys from scratch; back-to-back scans (scheduler bursts, dashboard re-renders) doubled quota burn for no gain. New <code>scripts/shared/odds_cache.py</code> with <code>load(sport_key, markets, ttl_seconds)</code>, <code>store()</code>, <code>clear()</code>; files at <code>data/cache/odds/&lt;sport_key&gt;__&lt;markets&gt;.json</code> (commas in markets sanitized to underscores; original markets string preserved inside JSON). Silent-on-error throughout — corrupt file = miss, never an exception.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R24b</span>Two new env knobs in <code>app/config.py</code></div>
+          <div class="t-item-body"><code>ODDS_CACHE_TTL_SECONDS=300</code> (5 min default — longer than typical filter-fiddling, shorter than meaningful pre-game line movement; 0 disables) and <code>ODDS_CACHE_ENABLED=true</code>. Validates non-negative TTL. Wired into both <code>edge_detector.fetch_odds_api()</code> and <code>futures_edge.fetch_outrights()</code>; the existing in-process dicts stay so existing <code>_odds_cache.clear()</code> test calls still work. Hits log <code>Odds API file cache hit for X (age Ns, M events)</code> so cache age is visible in scan output.</div>
+        </div>
+        <div class="t-item">
+          <div class="t-item-title"><span class="tag">R24b</span>Distinct from R23's quota cache</div>
+          <div class="t-item-body">R23 caches per-key remaining-request counters at <code>data/cache/odds_api_quota.json</code> so fresh processes skip exhausted keys. R24b caches the actual sportsbook payloads. Both layered cleanly: a key-rotation 401 doesn't poison the response cache, and a stored response doesn't lie about quota state. +10 regression tests (320 → 330 passing). Offline round-trip smoke confirms call 2 (in-process dict cleared, file cache populated) returns identical events with 0 HTTP calls.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="t-entry">
       <div class="t-date">2026-04-25 — Config Centralization (PR #149)</div>
       <div class="t-title">Phase 1 + 2 + 3 — typed config module, 65 <code>os.getenv</code> reads migrated, lint guard against regression</div>
       <div class="t-items">

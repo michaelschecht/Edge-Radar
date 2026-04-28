@@ -276,6 +276,24 @@ class System:
         )
 
 
+@dataclass(frozen=True)
+class OddsCacheConfig:
+    """File-backed cache for Odds API responses (R24b).
+
+    Survives across CLI invocations so back-to-back `scan.py` calls don't
+    refetch the same sport keys. Files live under `data/cache/odds/`.
+    """
+    ttl_seconds: int = 300
+    enabled: bool = True
+
+    @classmethod
+    def from_env(cls) -> "OddsCacheConfig":
+        return cls(
+            ttl_seconds=_int("ODDS_CACHE_TTL_SECONDS", 300),
+            enabled=_bool("ODDS_CACHE_ENABLED", True),
+        )
+
+
 # ── Aggregate ───────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -290,6 +308,7 @@ class Config:
     kelly: KellyConfig
     per_sport: PerSportOverrides
     system: System
+    odds_cache: OddsCacheConfig
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -304,6 +323,7 @@ class Config:
             kelly=KellyConfig.from_env(),
             per_sport=PerSportOverrides.from_env(),
             system=System.from_env(),
+            odds_cache=OddsCacheConfig.from_env(),
         )
         cfg.validate()
         return cfg
@@ -355,6 +375,10 @@ class Config:
             raise ValueError(
                 f"LOG_LEVEL must be one of {sorted(_LOG_LEVELS)}, "
                 f"got {self.system.log_level!r}"
+            )
+        if self.odds_cache.ttl_seconds < 0:
+            raise ValueError(
+                f"ODDS_CACHE_TTL_SECONDS must be >= 0, got {self.odds_cache.ttl_seconds}"
             )
 
     def edge_threshold_for_sport(self, sport: str) -> float:

@@ -75,7 +75,7 @@ Edge-Radar/
 │   ├── services.py                  # Wrapper around core scripts
 │   ├── theme.py                     # Dark terminal CSS
 │   └── views/                       # Page modules (scan, portfolio, settle)
-├── tests/                           # 297 pytest tests
+├── tests/                           # 330 pytest tests
 └── scripts/
     ├── scan.py                      # Unified entry point
     ├── doctor.py                    # Environment validator
@@ -180,6 +180,8 @@ SERIES_DEDUP_HOURS_MLB=72       # R9: MLB series span up to 72h (default 48h lea
 SERIES_DEDUP_HOURS_NHL=72       # R9: NHL series cycle on consecutive days like MLB
 RESTING_ORDER_MAX_HOURS=24      # R4: cancel zero-fill resting orders older than this (0 disables)
 ALLOW_PREDICTION_BETS=false     # R25 Gate 4.7: true to enable crypto/weather/spx/mentions/companies/politics bets
+ODDS_CACHE_TTL_SECONDS=300      # R24b: file-backed cache for Odds API responses (5 min default; 0 disables)
+ODDS_CACHE_ENABLED=true         # R24b: false bypasses the file cache entirely
 ```
 
 ---

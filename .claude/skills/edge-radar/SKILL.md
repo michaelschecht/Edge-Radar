@@ -88,7 +88,7 @@ make risk              # Risk dashboard
 make settle            # Settle completed bets
 make report            # P&L report
 make reconcile         # Compare local log vs API
-make test              # Run full test suite (100 tests)
+make test              # Run full test suite (330 tests)
 make test-quick        # Quick test run
 make install           # Install dependencies
 make hooks             # Install pre-commit hooks
@@ -442,6 +442,7 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 - **Prediction-market safety gate (R25, 2026-04-24):** Gate 4.7 rejects opportunities where `opp.category` is `crypto`, `weather`, `spx`, `mentions`, `companies`, or `politics` unless `ALLOW_PREDICTION_BETS=true`. Default off. 2026-04-24 audit surfaced that all 6 prediction modules cache stale data with zero TTL, produce nonsense fair values (Miami weather at $1.00 fair on a 1°F window, crypto +80% "edges" on 4¢ tails), and have placed zero of 173 historical settled bets — no calibration data exists. Kept blocked until R25b (TTL caches) and R25c (rebuild one model with tests) are shipped.
 - **Resting-order janitor (R4, 2026-04-21):** At the top of any `--execute` run (non-dry-run), resting orders older than `RESTING_ORDER_MAX_HOURS=24` with zero fills are auto-cancelled. Partial/full fills untouched — settler handles them. Piggybacks on the 5AM daily execute task; no new scheduler.
 - **Confidence bumps one-way (R13, 2026-04-24):** `_adjust_confidence_with_stats()` in `edge_detector.py` now drops a tier on `contradicts` but no-ops on `supports`. Applies uniformly to team stats, rest/B2B, and sharp-money signals. 30-day calibration showed High-confidence WR (47%) below Medium (53%) and NBA High at 1-6 / -71% ROI — upward bumps correlated with inflated claimed edge, not better outcomes. Base "high" tier still reachable via the ≥8 sharp-books + tight-consensus rule. No env var.
+- **File-backed Odds API response cache (R24b, 2026-04-28):** Two-tier cache for The Odds API responses — in-process dict in front of a new file-backed layer at `data/cache/odds/<sport_key>__<markets>.json`. Survives across CLI invocations so back-to-back scans (scheduler bursts, dashboard re-renders) don't refetch the same sport keys. Knobs: `ODDS_CACHE_TTL_SECONDS=300` (5 min default — longer than typical filter-fiddling, shorter than meaningful pre-game line movement; 0 disables), `ODDS_CACHE_ENABLED=true`. Hits log `Odds API file cache hit for X (age Ns, M events)` so cache age is visible. Distinct from R23's quota cache at `data/cache/odds_api_quota.json` — that tracks per-key remaining requests, this caches the actual sportsbook payloads.
 
 Gates 1-7 (including 3.5, 4.5, 4.6, 4.7) reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
 
