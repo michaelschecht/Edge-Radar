@@ -205,7 +205,7 @@ The system cross-references Kalshi prices against these Odds API sport keys:
 | KXLIGUE1 | `soccer_france_ligue_one` | Moneyline (h2h) |
 | KXUFCFIGHT | `mma_mixed_martial_arts` | Moneyline (h2h) |
 | KXBOXING | `boxing_boxing` | Moneyline (h2h) |
-| KXPGATOUR | `golf_pga_championship_winner` | Tournament winner |
+| KXPGATOUR | -- (outrights-only; handled by `futures_edge.py`) | Tournament winner |
 | KXIPL | `cricket_ipl` | Moneyline (h2h) |
 
 ---

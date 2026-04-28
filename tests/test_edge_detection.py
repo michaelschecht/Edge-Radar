@@ -301,11 +301,14 @@ class TestFetchOddsApiKeyRotation:
 
     @pytest.fixture(autouse=True)
     def _isolate_quota_cache(self, tmp_path, monkeypatch):
-        """Redirect the odds_api on-disk quota cache to a tmpdir so
-        mark_exhausted() during these tests doesn't clobber real keys.
+        """Redirect the odds_api on-disk quota cache and the odds_cache
+        file-backed response cache to a tmpdir so test calls neither clobber
+        real keys nor reuse responses across tests.
         """
         import odds_api
+        import odds_cache
         monkeypatch.setattr(odds_api, "_QUOTA_CACHE_PATH", tmp_path / "quota.json")
+        monkeypatch.setattr(odds_cache, "_CACHE_DIR", tmp_path / "odds_cache")
 
     def _setup_keys(self, keys: list[str]) -> None:
         """Install a known key list into odds_api module state."""

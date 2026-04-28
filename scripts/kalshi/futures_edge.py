@@ -46,6 +46,8 @@ load_dotenv()
 log = setup_logging("futures_edge")
 
 from odds_api import get_current_key, rotate_key, report_remaining, mark_exhausted
+import odds_cache
+from app.config import get_config
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
 # ── Kalshi-to-Odds-API Mapping ───────────────────────────────────────────────
@@ -100,13 +102,26 @@ _outrights_cache: dict[str, list] = {}
 def fetch_outrights(sport_key: str) -> list:
     """Fetch outright/futures odds from The Odds API with key rotation.
 
+    Two-tier cache: in-process `_outrights_cache` in front of the file-backed
+    `odds_cache` (R24b). The file layer survives across CLI invocations and
+    cuts quota burn for scheduler bursts and dashboard re-renders.
+
     Cycles through every configured key (not just the first 3 like the old
     `range(3)` version) so we can skip past several exhausted keys to find a
     working one. On 401 the key is marked exhausted in the persistent quota
-    cache so future processes don't retry it. Cached per sport.
+    cache so future processes don't retry it.
     """
     if sport_key in _outrights_cache:
         return _outrights_cache[sport_key]
+
+    cfg = get_config().odds_cache
+    if cfg.enabled:
+        cached_events, age = odds_cache.load(sport_key, "outrights", cfg.ttl_seconds)
+        if cached_events is not None:
+            log.info("Odds API file cache hit for outrights %s (age %ds, %d events)",
+                     sport_key, age, len(cached_events))
+            _outrights_cache[sport_key] = cached_events
+            return cached_events
 
     if not get_current_key():
         return []
@@ -150,8 +165,11 @@ def fetch_outrights(sport_key: str) -> list:
             except (ValueError, TypeError):
                 pass
 
-            _outrights_cache[sport_key] = resp.json()
-            return resp.json()
+            events = resp.json()
+            _outrights_cache[sport_key] = events
+            if cfg.enabled:
+                odds_cache.store(sport_key, "outrights", events)
+            return events
         except Exception as e:
             log.warning("Odds API outright error for %s: %s", sport_key, e)
             return []

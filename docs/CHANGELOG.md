@@ -2,6 +2,32 @@
 
 ---
 
+## 2026-04-28 -- R24b: File-Backed Odds API Cache
+
+### Why
+
+F31 (2026-04-24): one Odds API key dropped from 175 → 0 remaining in five minutes during a normal session. The dominant cause is that every `scan.py` invocation starts with a fresh in-process `_odds_cache` / `_outrights_cache`. Running the same scan twice — or the dashboard re-rendering with a tweaked filter — refetches all 18 sport keys from scratch. R23 fixed the persistent quota counter; R24a fixed the dashboard's lack of `@st.cache_data`; R24b is the structural piece: persist the actual response payloads across processes so back-to-back invocations within a 5-minute window don't burn quota.
+
+### What landed
+
+- **`scripts/shared/odds_cache.py`** (new): `load(sport_key, markets, ttl_seconds)`, `store(sport_key, markets, events)`, `clear()`. Files live at `data/cache/odds/<sport_key>__<markets>.json`. Comma-sanitized filenames (`h2h,spreads,totals` → `h2h_spreads_totals`); the original markets string is preserved inside the JSON body. Silent-on-error throughout — corrupt file = miss, never an exception. Mirrors the existing `data/cache/odds_api_quota.json` precedent in `scripts/shared/odds_api.py`.
+- **`OddsCacheConfig`** in `app/config.py` with `ODDS_CACHE_TTL_SECONDS` (default 300) and `ODDS_CACHE_ENABLED` (default true). `validate()` rejects negative TTL.
+- **Two-tier cache wiring** in `edge_detector.fetch_odds_api()` and `futures_edge.fetch_outrights()`: in-process dict in front of the file layer. The in-process dict stays so existing tests calling `_odds_cache.clear()` still work; the file layer survives across processes. Hits log `Odds API file cache hit for X (age Ns, M events)` so cache age is visible in scan output.
+- **`.env.example`** documents both knobs in section 6 (System).
+
+### Verification
+
+- 10 new tests in `tests/test_odds_cache.py`: hit-within-TTL, miss-after-TTL, disabled-via-zero-ttl, corrupted-file-silently-misses, missing-file, missing-required-fields, store round-trip, store-creates-parent-dir, clear-removes-all, clear-when-dir-missing.
+- Updated the autouse fixture in `TestFetchOddsApiKeyRotation` (`tests/test_edge_detection.py`) to redirect `odds_cache._CACHE_DIR` to a tmpdir alongside the existing quota-cache redirect — otherwise the rotation tests sharing one process would pick up each other's stored responses.
+- **330 tests passing** (was 320). Lint clean.
+- Offline round-trip smoke (mocked HTTP, fake key): call 1 hits HTTP and writes the cache file; clearing only the in-process dict and calling again returns identical events with 0 HTTP calls.
+
+### Files
+
+`app/config.py`, `scripts/shared/odds_cache.py` (new), `scripts/kalshi/edge_detector.py`, `scripts/kalshi/futures_edge.py`, `tests/test_odds_cache.py` (new), `tests/test_edge_detection.py`, `.env.example`, `docs/my-documents/enhancements/ROADMAP.md`.
+
+---
+
 ## 2026-04-27 -- R9: Per-Sport `SERIES_DEDUP_HOURS`
 
 ### Why

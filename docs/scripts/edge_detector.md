@@ -111,7 +111,7 @@ Supports comma-separated multi-filter (e.g., `--filter mlb,nhl`).
 | `boxing` | KXBOXING | `boxing_boxing` |
 | `f1` | KXF1, KXF1CONSTRUCTORS | -- (not on Odds API) |
 | `nascar` | KXNASCARRACE | -- (not on Odds API) |
-| `pga` | KXPGATOUR | `golf_pga_championship_winner` |
+| `pga` | KXPGATOUR | -- (outrights-only on Odds API; tournament winners handled by `futures_edge.py`) |
 | `ipl` | KXIPL | `cricket_ipl` |
 | `esports` | KXCS2MAP, KXCS2GAME, KXLOLMAP, KXLOLGAME | -- |
 

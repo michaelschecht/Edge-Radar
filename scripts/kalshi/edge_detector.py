@@ -53,6 +53,7 @@ log = setup_logging("edge_detector")
 console = Console()
 
 from odds_api import get_current_key, rotate_key, report_remaining, mark_exhausted
+import odds_cache
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
 MIN_EDGE = get_config().gates.min_edge_threshold
@@ -155,11 +156,12 @@ KALSHI_TO_ODDS_SPORT = {
     # --- Combat Sports ---
     "KXUFCFIGHT":      "mma_mixed_martial_arts",
     "KXBOXING":        "boxing_boxing",
-    # --- Motorsports ---
-    # NOTE: The Odds API does not support F1 or NASCAR — no sport keys exist.
-    # KXF1 and KXNASCARRACE markets are scanned on Kalshi but scored without external odds.
-    # --- Golf ---
-    "KXPGATOUR":       "golf_pga_championship_winner",
+    # --- Motorsports / Golf ---
+    # NOTE: The Odds API has no game-level keys for F1, NASCAR, or PGA tournament winners.
+    # `golf_pga_championship_winner` is outrights-only, which 422s when requested with
+    # h2h/spreads/totals. KXF1, KXNASCARRACE, and KXPGATOUR are scanned on Kalshi but
+    # scored without external odds; PGA tournament winners are handled separately by
+    # futures_edge.py using the `outrights` market type.
     # --- Cricket ---
     "KXIPL":           "cricket_ipl",
 }
@@ -181,6 +183,13 @@ _odds_cache: dict[str, list] = {}
 def fetch_odds_api(sport_key: str, markets: str = "h2h") -> list:
     """Fetch odds from The Odds API with caching and key rotation.
 
+    Two-tier cache: the in-process `_odds_cache` dict (fastest, scoped to
+    one Python process) sits in front of `odds_cache` (file-backed, shared
+    across processes). On a fresh process the file cache lets back-to-back
+    `scan.py` invocations within `ODDS_CACHE_TTL_SECONDS` skip the HTTP
+    fetch entirely — addresses R24b / F31 (quota burn from scheduler bursts
+    + dashboard re-renders).
+
     Rotates through every configured key at most once on 401/429 before
     giving up, so a single-sport scan (no prior rotation warmup from other
     sports) still lands on a working key. Previously `range(3)` capped
@@ -188,12 +197,21 @@ def fetch_odds_api(sport_key: str, markets: str = "h2h") -> list:
     all-sports scan masked the issue because earlier sports burned through
     exhausted keys first.
     """
-    if not get_current_key():
-        return []
-
     cache_key = f"{sport_key}:{markets}"
     if cache_key in _odds_cache:
         return _odds_cache[cache_key]
+
+    cfg = get_config().odds_cache
+    if cfg.enabled:
+        cached_events, age = odds_cache.load(sport_key, markets, cfg.ttl_seconds)
+        if cached_events is not None:
+            log.info("Odds API file cache hit for %s (age %ds, %d events)",
+                     sport_key, age, len(cached_events))
+            _odds_cache[cache_key] = cached_events
+            return cached_events
+
+    if not get_current_key():
+        return []
 
     tried: set[str] = set()
     while True:
@@ -233,6 +251,8 @@ def fetch_odds_api(sport_key: str, markets: str = "h2h") -> list:
                 pass
 
             _odds_cache[cache_key] = events
+            if cfg.enabled:
+                odds_cache.store(sport_key, markets, events)
             return events
         except Exception as e:
             log.warning("Odds API error for %s: %s", sport_key, e)
