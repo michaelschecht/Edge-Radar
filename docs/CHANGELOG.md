@@ -40,6 +40,15 @@ The second call replays the same row order the user saw, regardless of any live-
 
 `app/config.py`, `scripts/shared/scan_cache.py` (new), `scripts/kalshi/kalshi_executor.py`, `scripts/kalshi/edge_detector.py`, `tests/test_scan_cache.py` (new), `.env.example`, `CLAUDE.md`, `docs/my-documents/enhancements/ROADMAP.md`.
 
+### Streamlit UX cleanup (2026-04-29)
+
+Two unrelated dashboard polish fixes shipped the same day as R26:
+
+1. **Preview/Execute results table now shows the matchup.** Previously columns were `Ticker, Side, Contracts, Price, Cost, Edge, Status` — the raw Kalshi ticker was the only identifier. The user couldn't tell which scan-table row a preview row corresponded to without parsing the ticker. Now mirrors the scan-results table via the same `format_bet_label / format_pick_label / sport_from_ticker / parse_game_datetime` helpers from `ticker_display`. Final columns: `Ticker | Sport | Bet | Type | Pick | When | Side | Contracts | Price | Cost | Edge | Status`. Files: `webapp/views/scan_page.py`.
+2. **Hide Streamlit's "Press Enter to apply" hint.** The frontend renders a `[data-testid="InputInstructions"]` div next to every `st.text_input` / `st.number_input`. On the auth page the hint visibly overlapped the password field; on the scan page it cluttered the dense Execution Parameters row. Added a single CSS rule in `webapp/theme.py` (`display: none !important` on `[data-testid="InputInstructions"]` and `[data-testid="stWidgetInstructions"]`). Visible state of the input itself (focus ring, ✓/✗ icons) is preserved.
+
+Files: `webapp/views/scan_page.py`, `webapp/theme.py`, `docs/my-documents/web-app/USAGE.md`, `docs/my-documents/web-app/ARCHITECTURE.md`, `docs/web-app/LOCAL.md`. **347 tests still passing.**
+
 ### R26 follow-up — UX fixes from first live run (2026-04-29)
 
 User ran the new flow on a real session and surfaced two cosmetic-but-real issues:

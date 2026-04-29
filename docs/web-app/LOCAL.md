@@ -106,7 +106,7 @@ The primary workflow page. Configure filters, scan for opportunities, preview si
 1. Configure filters and parameters (or click a **Quick Scan** / **Favorite** in the sidebar)
 2. Click **SCAN MARKETS** — fetches markets, calculates edge, displays results table
 3. Optionally select specific rows from the multiselect dropdown
-4. Click **PREVIEW** — runs full pipeline (risk gates, Kelly sizing, budget cap). Shows order table with Ticker, Side, Contracts, Price, Cost, Edge, Status
+4. Click **PREVIEW** — runs full pipeline (risk gates, Kelly sizing, budget cap). Shows order table with Ticker, Sport, Bet (matchup), Type (ML/Spread/Total/Prop), Pick, When (game time), Side, Contracts, Price, Cost, Edge, Status. (Matchup/Pick/When columns added 2026-04-29; previously the preview showed only the raw ticker.)
 5. Click **EXECUTE** — opens confirmation dialog showing mode (DRY RUN / LIVE), order summary, and real-money warning if live. Click **Confirm** to place orders
 6. Click **CLEAR** to wipe all results and start fresh
 

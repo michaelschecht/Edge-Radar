@@ -54,6 +54,15 @@ def inject_css():
         display: none !important;
     }
 
+    /* ── Hide Streamlit's "Press Enter to apply" / character-count hints
+          rendered next to text_input / number_input fields. They overlap
+          our auth password field and clutter the form rows on the scan
+          page. Visible state is preserved (✓ / ✗ icons still render). */
+    [data-testid="InputInstructions"],
+    [data-testid="stWidgetInstructions"] {
+        display: none !important;
+    }
+
     /* ── Typography ─────────────────────────────────────────────── */
     h1, h2, h3, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
         font-family: 'Outfit', sans-serif !important;
