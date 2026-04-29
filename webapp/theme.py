@@ -54,6 +54,27 @@ def inject_css():
         display: none !important;
     }
 
+    /* ── Hide Streamlit's "Press Enter to apply" / character-count hints
+          rendered next to text_input / number_input fields. They overlap
+          our auth password field and clutter the form rows on the scan
+          page. Visible state is preserved (✓ / ✗ icons still render).
+          The `html body` prefix raises specificity so it beats Streamlit's
+          own !important rules across versions; the 4 selectors cover
+          known data-testid + class variants (1.28→1.40+ as of 2026-04). */
+    html body [data-testid="InputInstructions"],
+    html body [data-testid="stWidgetInstructions"],
+    html body div[data-testid="InputInstructions"],
+    html body .stTextInput div[data-baseweb="base-input"] ~ div,
+    html body .stNumberInput div[data-baseweb="input"] ~ div[class*="st-"] {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        width: 0 !important;
+        overflow: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
     /* ── Typography ─────────────────────────────────────────────── */
     h1, h2, h3, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
         font-family: 'Outfit', sans-serif !important;

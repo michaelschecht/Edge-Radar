@@ -52,6 +52,7 @@ Parse the user's intent from the arguments. The skill supports natural language 
 | `--detail` | off | Show per-trade breakdown (for reports) |
 | `--from-file` | off | Load from saved watchlist |
 | `--report-dir PATH` | (none) | Override report output directory (used in batch jobs) |
+| `--rescan` | off | R26 (2026-04-29): force a live rescan even when a fresh scan-cache exists. Default behavior for `--execute --pick/--ticker` is to replay the cached preview so row indices match what you saw — this opts out per-call. |
 
 ---
 
@@ -88,7 +89,7 @@ make risk              # Risk dashboard
 make settle            # Settle completed bets
 make report            # P&L report
 make reconcile         # Compare local log vs API
-make test              # Run full test suite (330 tests)
+make test              # Run full test suite (347 tests)
 make test-quick        # Quick test run
 make install           # Install dependencies
 make hooks             # Install pre-commit hooks
@@ -342,6 +343,8 @@ Unless `--execute` or `--go` was passed, **always ask the user to confirm** befo
 
 Once confirmed, add `--execute` to the scan command. All 4 scanners support `--execute`, `--unit-size`, `--max-bets`, and `--pick` directly.
 
+> **R26 row-order lock (sports scanner only, 2026-04-29):** When `--execute` is paired with `--pick` or `--ticker`, the executor replays the previous preview's cached rows from `data/cache/last_scan.json` instead of rescanning live. Row indices map to the same tickers the user saw — drift between calls no longer reorders the table. Re-use the same filter args (`--filter`, `--date`, `--exclude-open`, `--min-edge`, `--top`) on both calls; if any change, a bold red banner warns that picks reference a NEW ranking and the executor rescans. Pass `--rescan` to opt out (force live rescan); set `SCAN_CACHE_ENABLED=false` in `.env` to disable globally.
+
 **Sports:**
 ```bash
 python scripts/scan.py sports \
@@ -396,7 +399,8 @@ After execution, summarize:
 | `/edge-radar scan all` | `scan.py sports` (no filter = all sports) |
 | `/edge-radar scan all --date today` | `scan.py sports --date today` (all sports, today only) |
 | `/edge-radar bet all --unit-size .5 --max-bets 10` | `scan.py sports --unit-size .5 --max-bets 10` then confirm then `--execute` |
-| `/edge-radar bet mlb --pick '1,3,5'` | `scan.py sports --filter mlb --execute --pick '1,3,5'` |
+| `/edge-radar bet mlb --pick '1,3,5'` | `scan.py sports --filter mlb --execute --pick '1,3,5'` (R26: replays last `--filter mlb` preview from `data/cache/last_scan.json`; mismatched filter args trigger a red banner + rescan) |
+| Two-call pattern (preview, then pick) | `scan.py sports --filter mlb --exclude-open` (preview), then `scan.py sports --filter mlb --exclude-open --pick '1,3' --execute` — keep the same flags so R26 replays cleanly. Add `--rescan` to force a live rescan. |
 | `/edge-radar bet mlb --budget 10% --max-bets 5` | `scan.py sports --filter mlb --budget 10% --max-bets 5` then confirm then `--execute` |
 | `/edge-radar bet all --budget 15 --unit-size .5` | `scan.py sports --budget 15 --unit-size .5` then confirm then `--execute` |
 
@@ -443,6 +447,8 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 - **Resting-order janitor (R4, 2026-04-21):** At the top of any `--execute` run (non-dry-run), resting orders older than `RESTING_ORDER_MAX_HOURS=24` with zero fills are auto-cancelled. Partial/full fills untouched — settler handles them. Piggybacks on the 5AM daily execute task; no new scheduler.
 - **Confidence bumps one-way (R13, 2026-04-24):** `_adjust_confidence_with_stats()` in `edge_detector.py` now drops a tier on `contradicts` but no-ops on `supports`. Applies uniformly to team stats, rest/B2B, and sharp-money signals. 30-day calibration showed High-confidence WR (47%) below Medium (53%) and NBA High at 1-6 / -71% ROI — upward bumps correlated with inflated claimed edge, not better outcomes. Base "high" tier still reachable via the ≥8 sharp-books + tight-consensus rule. No env var.
 - **File-backed Odds API response cache (R24b, 2026-04-28):** Two-tier cache for The Odds API responses — in-process dict in front of a new file-backed layer at `data/cache/odds/<sport_key>__<markets>.json`. Survives across CLI invocations so back-to-back scans (scheduler bursts, dashboard re-renders) don't refetch the same sport keys. Knobs: `ODDS_CACHE_TTL_SECONDS=300` (5 min default — longer than typical filter-fiddling, shorter than meaningful pre-game line movement; 0 disables), `ODDS_CACHE_ENABLED=true`. Hits log `Odds API file cache hit for X (age Ns, M events)` so cache age is visible. Distinct from R23's quota cache at `data/cache/odds_api_quota.json` — that tracks per-key remaining requests, this caches the actual sportsbook payloads.
+- **File-backed scan cache + row-order lock (R26, 2026-04-29):** Each preview's post-dedup, post-risk-gate, post-budget-cap rows are persisted to `data/cache/last_scan.json`. When `--execute --pick/--ticker` is invoked, the executor replays the cached rows instead of rescanning live — so row indices map to the same tickers the user saw in the preview, even if Kalshi prices or composite scores drift between calls. Knobs: `SCAN_CACHE_TTL_SECONDS=600` (10 min default), `SCAN_CACHE_ENABLED=true`. New `--rescan` CLI flag opts out per-call. **Fingerprint mismatch warning:** if any of `{scanner, filter, category, date, exclude_open, min_edge, top}` differ between the preview and the execute call (e.g. `--exclude-open` dropped on the second call), the executor prints a bold red banner explaining `--pick` row numbers will reference a NEW ranking, lists the differing args, and rescans. Pass `--rescan` to silence the warning intentionally. Banner on hit: `Replaying cached preview (N rows, age Xs)`. Motivated by 2026-04-29 user bug where two back-to-back live scans reordered rows and `--pick '1,3,4,5'` placed the wrong bets.
+- **Truthful post-pick cost line (R26 follow-up, 2026-04-29):** When `--pick` or `--ticker` is filtering, the summary now prints `Placing N orders, total cost: $X.XX (selected from M-row menu totaling $Y.YY)` — replacing the old misleading `Total cost: $9.40 of $70.99 available` which showed the menu total even when only 3 of 10 rows were actually placed.
 
 Gates 1-7 (including 3.5, 4.5, 4.6, 4.7) reject orders outright. Gates 8-9 downsize and approve, logging the approval subtype (`APPROVED`, `APPROVED_CAPPED_MAX_BET`, `APPROVED_CAPPED_BET_RATIO`).
 
@@ -634,3 +640,4 @@ streamlit run webapp/app.py
 3. **Preview is the default** — every scan shows a table first, orders only placed with `--execute`.
 4. **Thirteen risk gates enforced** — daily loss, position count, edge (per-sport), market price floor (3.5, R7 — $0.10), score, min confidence (4.5), NO-side favorite guard (4.6), prediction-market safety (4.7, R25), duplicate ticker, per-event cap, series dedup, max bet size, bet ratio cap. All checked before every order. Plus the resting-order janitor at the top of every live execute run.
 5. **API keys are in `.env`** — never print, log, or expose them.
+6. **R26 row-order lock for `--pick`** — when running `--execute --pick/--ticker`, keep filter args identical to the previous preview so the cached row→ticker mapping replays. If anything differs, the executor prints a bold red banner and rescans (different rows). Pass `--rescan` only when you intend a fresh ranking.

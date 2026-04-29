@@ -1823,6 +1823,10 @@ def main():
                         help="Exclude markets where you already have an open position")
     scan_p.add_argument("--report-dir", type=str, default=None,
                         help="Override report output directory for --save")
+    scan_p.add_argument("--rescan", action="store_true",
+                        help="R26: ignore the scan cache and rescan live. Default behavior "
+                             "for --execute --pick/--ticker is to replay the cached preview "
+                             "so row indices stay locked to what you saw.")
 
     detail_p = sub.add_parser("detail", help="Detailed analysis of one market")
     detail_p.add_argument("ticker", help="Market ticker")
@@ -1838,31 +1842,91 @@ def main():
             from ticker_display import resolve_date_arg
             resolved_date = resolve_date_arg(args.date)
 
-        opportunities = scan_all_markets(
-            client,
-            min_edge=args.min_edge,
-            category_filter=args.category,
-            ticker_filter=args.ticker_filter,
-            top_n=args.top,
-            date_filter=resolved_date,
-        )
-        # Apply date filter on opportunities (catches any edge cases the early filter missed)
-        if opportunities and resolved_date:
-            from ticker_display import filter_by_date
-            before = len(opportunities)
-            opportunities = filter_by_date(opportunities, resolved_date)
-            if len(opportunities) < before:
-                rprint(f"[dim]Date filter ({resolved_date}): {before} -> {len(opportunities)} opportunities[/dim]")
-        if opportunities and args.exclude_open:
-            from ticker_display import filter_exclude_tickers
-            positions = client.get_positions(limit=200, count_filter="position")
-            open_tickers = {p.get("ticker", "") for p in positions.get("market_positions", [])}
-            before = len(opportunities)
-            opportunities = filter_exclude_tickers(opportunities, open_tickers)
-            rprint(f"[dim]Excluded open positions: {before} -> {len(opportunities)} opportunities[/dim]")
+        # R26 scan-cache fingerprint — args that determine the row universe.
+        # `--unit-size`, `--max-bets`, `--budget`, `--min-bets` deliberately
+        # excluded: those reshape sizing/caps but the rows already in
+        # `cached_rows` were sized under the original args.
+        fingerprint = {
+            "scanner": "sports",
+            "filter": args.ticker_filter,
+            "category": args.category,
+            "date": resolved_date,
+            "exclude_open": bool(args.exclude_open),
+            "min_edge": float(args.min_edge),
+            "top": int(args.top),
+        }
+
+        # ── R26 replay path: when the user follows up a preview with
+        #    `--pick`/`--ticker --execute`, replay the cached rows instead
+        #    of rescanning live. Without this, two back-to-back live scans
+        #    can reorder rows on price/score drift, executing the wrong picks.
+        cached_rows = None
+        cache_age_seconds = None
+        if (
+            args.execute
+            and (args.pick is not None or args.ticker is not None)
+            and not args.rescan
+        ):
+            from scan_cache import load as _scan_cache_load, fingerprints_match
+            cached = _scan_cache_load()
+            if cached is None:
+                rprint(
+                    "[dim]Scan cache: no fresh preview found "
+                    "— running a live scan first.[/dim]"
+                )
+            else:
+                ok, diffs = fingerprints_match(cached["fingerprint"], fingerprint)
+                if not ok:
+                    rprint(
+                        "\n[bold red]"
+                        "╔══════════════════════════════════════════════════════════════════╗\n"
+                        "║  WARNING: Scan-cache fingerprint mismatch.                       ║\n"
+                        "║  Your --pick row numbers will reference a NEW ranking, not the   ║\n"
+                        "║  preview you just saw. Differing args:                           ║\n"
+                        "╚══════════════════════════════════════════════════════════════════╝"
+                        "[/bold red]"
+                    )
+                    for d in diffs:
+                        rprint(f"  [bold red]- {d}[/bold red]")
+                    rprint(
+                        "[bold yellow]Rescanning live now. To lock row order: re-run the "
+                        "preview with the same filter args, then re-run with --pick. "
+                        "Pass --rescan to silence this warning.[/bold yellow]\n"
+                    )
+                else:
+                    cached_rows = cached["rows"]
+                    cache_age_seconds = cached["age_seconds"]
+
+        if cached_rows is not None:
+            opportunities = []  # not used on the replay path
+        else:
+            opportunities = scan_all_markets(
+                client,
+                min_edge=args.min_edge,
+                category_filter=args.category,
+                ticker_filter=args.ticker_filter,
+                top_n=args.top,
+                date_filter=resolved_date,
+            )
+            # Apply date filter on opportunities (catches any edge cases the early filter missed)
+            if opportunities and resolved_date:
+                from ticker_display import filter_by_date
+                before = len(opportunities)
+                opportunities = filter_by_date(opportunities, resolved_date)
+                if len(opportunities) < before:
+                    rprint(f"[dim]Date filter ({resolved_date}): {before} -> {len(opportunities)} opportunities[/dim]")
+            if opportunities and args.exclude_open:
+                from ticker_display import filter_exclude_tickers
+                positions = client.get_positions(limit=200, count_filter="position")
+                open_tickers = {p.get("ticker", "") for p in positions.get("market_positions", [])}
+                before = len(opportunities)
+                opportunities = filter_exclude_tickers(opportunities, open_tickers)
+                rprint(f"[dim]Excluded open positions: {before} -> {len(opportunities)} opportunities[/dim]")
 
         sized_orders = None
-        if opportunities and (args.execute or args.unit_size is not None or args.budget is not None):
+        if (cached_rows is not None) or (
+            opportunities and (args.execute or args.unit_size is not None or args.budget is not None)
+        ):
             from kalshi_executor import execute_pipeline, UNIT_SIZE, parse_budget_arg
             budget_val = parse_budget_arg(args.budget)
             sized_orders = execute_pipeline(
@@ -1875,6 +1939,9 @@ def main():
                 pick_tickers=args.ticker,
                 budget=budget_val,
                 min_bets=args.min_bets,
+                fingerprint=fingerprint,
+                cached_rows=cached_rows,
+                cache_age_seconds=cache_age_seconds,
             )
         else:
             print_opportunities(opportunities)

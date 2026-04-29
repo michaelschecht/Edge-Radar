@@ -2,6 +2,65 @@
 
 ---
 
+## 2026-04-29 -- R26: File-Backed Scan Cache (Row-Order Lock for `--pick`)
+
+### Why
+
+User-reported bug, 2026-04-29: ran a sports scan with `--exclude-open` that returned 5 games, then ran the same scan with `--pick '1,3,4,5' --execute` (without `--exclude-open`). The execute call did a fresh live scan, the row order shifted on price/score drift between the two invocations, and the wrong bets were placed against rows 1/3/4/5 of a different ranking. Two compounding causes: every `scan.py` invocation runs `scan_all_markets()` against live Kalshi prices and Odds API data and re-sorts by `composite_score`; small drifts reorder rows. And dropping `--exclude-open` on the second call changes the row universe outright. Until R26, the `--pick` flag was a foot-gun any time the user's two invocations diverged — even seconds apart, even with identical args.
+
+### What landed
+
+- **`scripts/shared/scan_cache.py`** (new): `store(fingerprint, sized_orders, bankroll)`, `load() -> {fingerprint, saved_at, age_seconds, bankroll_at_scan, rows}`, `clear()`, `fingerprints_match(saved, current) -> (ok, diffs)`. Single file at `data/cache/last_scan.json`, latest preview only. Serializes `SizedOrder` (incl. embedded `Opportunity`) so the executor's existing order-placement loop rehydrates without conditional branches. Silent-on-error throughout — corrupt file = miss, never an exception. Mirrors `scripts/shared/odds_cache.py` precedent.
+- **`ScanCacheConfig`** in `app/config.py`: `SCAN_CACHE_TTL_SECONDS=600` (10 min default — long enough to read the preview table and pick rows, short enough that a user returning hours later gets a fresh scan) and `SCAN_CACHE_ENABLED=true`. `validate()` rejects negative TTL.
+- **`execute_pipeline` wiring** in `kalshi_executor.py`: added `fingerprint`, `cached_rows`, `cache_age_seconds` params. The dedup / sizing / bet-ratio-cap / budget-cap block is now wrapped in `if cached_rows is None:` so the replay path bypasses it entirely — those decisions are locked from the original preview. On the fresh-scan path, the rendered preview rows are persisted right after `console.print(table)`.
+- **CLI wiring** in `edge_detector.py main()`: new `--rescan` flag for opt-out. When `args.execute` AND (`args.pick` OR `args.ticker`) AND not `args.rescan`, attempt cache load before scanning. Fingerprint = `{scanner, filter, category, date, exclude_open, min_edge, top}` — the args that determine row identity. `--unit-size`, `--max-bets`, `--budget`, `--min-bets` deliberately excluded since those reshape sizing/caps but the rows in `cached_rows` were already sized under the original args.
+- **Mismatch handling**: on fingerprint mismatch, prints the differing keys (e.g. `exclude_open: cached=True, now=False`) and rescans live rather than silently executing the wrong universe. The user's exact bug pattern from the original report.
+- **Banner on hit**: `Replaying cached preview (N rows, age Xs).` + `Pass --rescan to force a fresh scan instead.`
+- **`.env.example`** documents both knobs in section 6.
+
+### Verification
+
+- 17 new tests in `tests/test_scan_cache.py`: round-trip preserves SizedOrder + Opportunity fields; age-is-recent; miss-after-TTL; disabled-via-zero-ttl; disabled-via-env-flag; corrupted-file-silently-misses; missing-file; wrong-version; missing-required-fields; store-disabled-does-not-write; creates-parent-dir; clear-removes-file; clear-when-missing; fingerprints identical-match / value-mismatch / extra-key / exclude-open-change-mismatch (the last specifically reproduces the user's bug case).
+- **347 tests passing** (was 330). Lint clean (config-centralization guard).
+- Live offline round-trip smoke: `store()` writes `data/cache/last_scan.json`, `load()` rehydrates with `age_seconds=0`, `fingerprints_match` returns `(True, [])`. File cleared after smoke.
+- Live `get_config()` smoke: `ScanCacheConfig(ttl_seconds=600, enabled=True)` loads from environment as expected.
+
+### How to use
+
+The default workflow now Just Works:
+
+```
+python scripts/scan.py sports --filter mlb --exclude-open      # writes cache
+python scripts/scan.py sports --filter mlb --exclude-open --pick '1,3,4,5' --execute   # replays cache
+```
+
+The second call replays the same row order the user saw, regardless of any live-data drift between the two invocations. To force a live rescan: append `--rescan`. To disable the cache globally: set `SCAN_CACHE_ENABLED=false` or `SCAN_CACHE_TTL_SECONDS=0` in `.env`.
+
+### Files
+
+`app/config.py`, `scripts/shared/scan_cache.py` (new), `scripts/kalshi/kalshi_executor.py`, `scripts/kalshi/edge_detector.py`, `tests/test_scan_cache.py` (new), `.env.example`, `CLAUDE.md`, `docs/my-documents/enhancements/ROADMAP.md`.
+
+### Streamlit UX cleanup (2026-04-29)
+
+Three dashboard polish fixes shipped the same day as R26:
+
+1. **Preview/Execute results table now shows the matchup.** Previously columns were `Ticker, Side, Contracts, Price, Cost, Edge, Status` — the raw Kalshi ticker was the only identifier. The user couldn't tell which scan-table row a preview row corresponded to without parsing the ticker. Now mirrors the scan-results table via the same `format_bet_label / format_pick_label / sport_from_ticker / parse_game_datetime` helpers from `ticker_display`. Final columns: `Ticker | Sport | Bet | Type | Pick | When | Side | Contracts | Price | Cost | Edge | Status`. Files: `webapp/views/scan_page.py`.
+2. **Hide Streamlit's "Press Enter to apply" hint on free-standing inputs.** The frontend renders the hint next to every `st.text_input` / `st.number_input`. On the scan page it cluttered the dense Execution Parameters row. Added CSS rules in `webapp/theme.py` with `html body` specificity prefix (Streamlit 1.56 ships its own `!important` rules at the same specificity, so the prefix is required) targeting `[data-testid="InputInstructions"]` + `[data-testid="stWidgetInstructions"]` plus structural sibling-of-baseweb-input fallbacks. Belt-and-suspenders `visibility:hidden / height:0 / overflow:hidden` so even if `display:none` loses, the element doesn't take up layout space. Visible state of the input itself (focus ring, ✓/✗ icons) is preserved.
+3. **Auth form: explicit submit instead of auto-submit-on-blur.** The original `check_password()` used a bare `st.text_input` and ran `if pw == correct_pw: authenticate` on every rerun. Streamlit reruns on blur/tab-out, so typing the password then clicking away would auto-authenticate without an explicit submit click — and the "Press Enter to apply" hint would render next to the password field after typing (DOM screenshot 2026-04-29 confirmed the hint appears in a portal outside the `stTextInput` subtree, which is why the CSS rule from fix #2 didn't catch it). Wrapped the input in `st.form("auth_form")` with an explicit `st.form_submit_button("Sign in")`. Streamlit suppresses the per-widget hint inside forms (the form's submit button IS the apply trigger), so the hint goes away as a side effect. Submission now requires either clicking **Sign in** or pressing Enter while focused inside the form. Files: `webapp/app.py`.
+
+Files: `webapp/views/scan_page.py`, `webapp/theme.py`, `webapp/app.py`, `docs/my-documents/web-app/USAGE.md`, `docs/my-documents/web-app/SETUP.md`, `docs/my-documents/web-app/ARCHITECTURE.md`, `docs/web-app/LOCAL.md`. **347 tests still passing.**
+
+### R26 follow-up — UX fixes from first live run (2026-04-29)
+
+User ran the new flow on a real session and surfaced two cosmetic-but-real issues:
+
+1. **Misleading post-execute cost line.** The "Total cost: $9.40 of $70.99 available" line was computed against the full preview menu and printed before the `--pick` filter. Three rows actually placed (= $1.85 stakes), so the user reasonably thought $9.40 had gone out. Fix: after `--pick`/`--ticker` filtering, print `Placing N orders, total cost: $X.XX (selected from M-row menu totaling $Y.YY)`. The pre-filter `Total cost` line stays — it describes the menu — but the post-filter line is now the truthful one. Also fixes a latent crash on the cache-replay path: the old summary line referenced `len(approved)`, which doesn't exist when rows came from cache.
+2. **Quiet fingerprint-mismatch warning.** The original mismatch message was a single dim-yellow line. Easy to miss when scrolling past a long Kalshi/Odds API fetch log. Fix: bold red boxed banner with a one-line explanation that `--pick` row numbers will reference a NEW ranking, each differing arg printed in bold red, and a bold yellow trailer naming the recovery options (`re-run preview with same args`, or `--rescan` to silence intentionally).
+
+Files: `scripts/kalshi/kalshi_executor.py`, `scripts/kalshi/edge_detector.py`, `.claude/skills/edge-radar/SKILL.md`, `docs/scripts/edge_detector.md`. **347 tests still passing.**
+
+---
+
 ## 2026-04-28 -- R24b: File-Backed Odds API Cache
 
 ### Why
