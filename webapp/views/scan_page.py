@@ -13,6 +13,9 @@ from services import (
     SPORT_FILTERS, CATEGORY_OPTIONS, DATE_OPTIONS,
     MIN_EDGE_THRESHOLD, DRY_RUN,
 )
+from ticker_display import (
+    sport_from_ticker, format_bet_label, format_pick_label, parse_game_datetime,
+)
 from favorites import save_favorite, delete_favorite, load_favorites
 from theme import page_header, section_label, CYAN, AMBER, RED, GREEN, DIM
 
@@ -478,13 +481,30 @@ def _display_orders(sized_orders, console_out, is_preview):
             st.code(summary)
 
     if sized_orders:
+        # Mirror the column set used by the scan-results table
+        # (services.opportunities_to_rows) so the user can see matchup names,
+        # picks, and game times alongside the sized order — not just the raw
+        # ticker. Same helpers as the scan table for label parity.
+        cat_labels = {
+            "game": "ML", "spread": "Spread", "total": "Total",
+            "player_prop": "Prop", "esports": "Esports",
+        }
         order_rows = []
         for s in sized_orders:
             opp = s.opportunity if hasattr(s, "opportunity") else s.get("opportunity", {})
             if hasattr(s, "contracts"):
+                ticker = opp.ticker if hasattr(opp, "ticker") else opp.get("ticker", "")
+                title = opp.title if hasattr(opp, "title") else opp.get("title", "")
+                category = opp.category if hasattr(opp, "category") else opp.get("category", "")
+                side = opp.side if hasattr(opp, "side") else opp.get("side", "")
                 order_rows.append({
-                    "Ticker": opp.ticker if hasattr(opp, "ticker") else opp.get("ticker", ""),
-                    "Side": opp.side if hasattr(opp, "side") else opp.get("side", ""),
+                    "Ticker": ticker,
+                    "Sport": sport_from_ticker(ticker),
+                    "Bet": format_bet_label(ticker, title),
+                    "Type": cat_labels.get(category, category.title()),
+                    "Pick": format_pick_label(ticker, title, side, category),
+                    "When": parse_game_datetime(ticker),
+                    "Side": side,
                     "Contracts": s.contracts,
                     "Price": f"${s.price_cents / 100:.2f}",
                     "Cost": f"${s.cost_dollars:.2f}",
