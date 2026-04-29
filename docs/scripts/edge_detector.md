@@ -29,8 +29,9 @@ python scripts/kalshi/edge_detector.py scan [flags]
 | `--execute` | off | Place orders through executor pipeline |
 | `--unit-size N` | (from .env) | Dollar amount per bet -- routes through executor pipeline |
 | `--max-bets N` | `5` | Max bets to place |
-| `--pick '1,3'` | (none) | Execute specific rows from the preview table |
-| `--ticker TICKER` | (none) | Execute specific ticker(s) |
+| `--pick '1,3'` | (none) | Execute specific rows from the preview table. R26 (2026-04-29): when paired with `--execute`, replays the cached preview rows from `data/cache/last_scan.json` instead of rescanning live — row indices map to the same tickers the user saw. Mismatched filter args trigger a red banner and rescan. |
+| `--ticker TICKER` | (none) | Execute specific ticker(s). R26: same replay behavior as `--pick`. |
+| `--rescan` | off | R26 (2026-04-29): force a live rescan even when a fresh scan-cache exists. Pairs with `--execute --pick/--ticker` to opt out of cached-row replay per call. |
 
 ### Examples
 

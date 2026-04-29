@@ -182,6 +182,8 @@ RESTING_ORDER_MAX_HOURS=24      # R4: cancel zero-fill resting orders older than
 ALLOW_PREDICTION_BETS=false     # R25 Gate 4.7: true to enable crypto/weather/spx/mentions/companies/politics bets
 ODDS_CACHE_TTL_SECONDS=300      # R24b: file-backed cache for Odds API responses (5 min default; 0 disables)
 ODDS_CACHE_ENABLED=true         # R24b: false bypasses the file cache entirely
+SCAN_CACHE_TTL_SECONDS=600      # R26: cache last preview's row→ticker mapping so `--pick … --execute` replays instead of rescanning (10 min default; 0 disables)
+SCAN_CACHE_ENABLED=true         # R26: false forces every --execute call to rescan
 ```
 
 ---

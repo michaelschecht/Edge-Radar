@@ -850,6 +850,9 @@ def execute_pipeline(
     pick_tickers: list[str] | None = None,
     budget: float | None = None,
     min_bets: int | None = None,
+    fingerprint: dict | None = None,
+    cached_rows: list["SizedOrder"] | None = None,
+    cache_age_seconds: int | None = None,
 ) -> list[dict]:
     """
     Run the full pipeline: risk-check, size, and optionally execute.
@@ -862,6 +865,15 @@ def execute_pipeline(
         min_bets: Minimum approved bets required to proceed. If fewer pass
                   risk checks, abort execution to avoid over-concentrating
                   the budget into too few positions.
+        fingerprint: Scan-cache fingerprint (R26). When supplied on a fresh-
+                  scan run, the displayed preview rows are persisted to
+                  `data/cache/last_scan.json` so a follow-up `--pick … --execute`
+                  can replay the same row order instead of rescanning.
+        cached_rows: Pre-sized SizedOrders rehydrated from the scan cache (R26).
+                  When supplied, skips dedup / sizing / budget-cap entirely —
+                  those decisions are locked from the original preview.
+        cache_age_seconds: Age of the cached rows, used only for the replay
+                  banner.
     """
     # ── Resting-order janitor (R4): cancel stale zero-fill orders before new ones
     dry_run_for_janitor = get_config().system.dry_run
@@ -909,77 +921,89 @@ def execute_pipeline(
         rprint("[red bold]DAILY LOSS LIMIT HIT -- no new bets allowed today[/red bold]")
         return []
 
-    # ── Deduplicate correlated brackets (e.g., multiple totals lines on same game)
-    before_dedup = len(opportunities)
-    opportunities = dedup_correlated_brackets(opportunities)
-    if len(opportunities) < before_dedup:
-        rprint(f"[dim]Deduped correlated brackets: {before_dedup} -> {len(opportunities)} opportunities[/dim]")
-
-    # ── Size all opportunities
-    # Divide Kelly fraction by batch size so total exposure stays proportional
-    batch_sz = min(len(opportunities), max_bets)
-    rprint(f"\n[bold]Risk-checking {len(opportunities)} opportunities (batch={batch_sz})...[/bold]")
-    sized_orders: list[SizedOrder] = []
-    for opp in opportunities:
-        sized = size_order(
-            opp, bankroll, open_count + len([s for s in sized_orders if s.risk_approval.startswith("APPROVED")]),
-            daily_pnl, unit_size, open_tickers, event_counts, MAX_PER_EVENT,
-            batch_size=batch_sz,
-            recent_matchups=recent_matchups,
+    if cached_rows is not None:
+        # ── R26 replay path: rows already passed dedup/sizing/caps in the
+        #    original preview run. Skip straight to the preview table + execute
+        #    loop so --pick row indices map to the same tickers the user saw.
+        age_str = f"{cache_age_seconds}s" if cache_age_seconds is not None else "unknown"
+        rprint(
+            f"\n[bold cyan]Replaying cached preview "
+            f"({len(cached_rows)} rows, age {age_str}).[/bold cyan]"
         )
-        sized_orders.append(sized)
-        # Track newly approved positions for subsequent gate checks
-        if sized.risk_approval.startswith("APPROVED"):
-            open_tickers.add(opp.ticker)
-            evt = _event_key(opp.ticker)
-            event_counts[evt] = event_counts.get(evt, 0) + 1
-            mkey = matchup_key(opp.ticker)
-            if mkey:
-                recent_matchups.add(mkey)
+        rprint("[dim]Pass --rescan to force a fresh scan instead.[/dim]")
+        to_execute = list(cached_rows)
+    else:
+        # ── Deduplicate correlated brackets (e.g., multiple totals lines on same game)
+        before_dedup = len(opportunities)
+        opportunities = dedup_correlated_brackets(opportunities)
+        if len(opportunities) < before_dedup:
+            rprint(f"[dim]Deduped correlated brackets: {before_dedup} -> {len(opportunities)} opportunities[/dim]")
 
-    approved = [s for s in sized_orders if s.risk_approval.startswith("APPROVED")]
-    rejected = [s for s in sized_orders if not s.risk_approval.startswith("APPROVED")]
+        # ── Size all opportunities
+        # Divide Kelly fraction by batch size so total exposure stays proportional
+        batch_sz = min(len(opportunities), max_bets)
+        rprint(f"\n[bold]Risk-checking {len(opportunities)} opportunities (batch={batch_sz})...[/bold]")
+        sized_orders: list[SizedOrder] = []
+        for opp in opportunities:
+            sized = size_order(
+                opp, bankroll, open_count + len([s for s in sized_orders if s.risk_approval.startswith("APPROVED")]),
+                daily_pnl, unit_size, open_tickers, event_counts, MAX_PER_EVENT,
+                batch_size=batch_sz,
+                recent_matchups=recent_matchups,
+            )
+            sized_orders.append(sized)
+            # Track newly approved positions for subsequent gate checks
+            if sized.risk_approval.startswith("APPROVED"):
+                open_tickers.add(opp.ticker)
+                evt = _event_key(opp.ticker)
+                event_counts[evt] = event_counts.get(evt, 0) + 1
+                mkey = matchup_key(opp.ticker)
+                if mkey:
+                    recent_matchups.add(mkey)
 
-    rprint(f"  Approved: [green]{len(approved)}[/green]  Rejected: [red]{len(rejected)}[/red]")
+        approved = [s for s in sized_orders if s.risk_approval.startswith("APPROVED")]
+        rejected = [s for s in sized_orders if not s.risk_approval.startswith("APPROVED")]
 
-    # Show rejections
-    if rejected:
-        for s in rejected[:5]:
-            rprint(f"  [dim]SKIP {s.opportunity.ticker}: {s.risk_approval}[/dim]")
-        if len(rejected) > 5:
-            rprint(f"  [dim]... and {len(rejected) - 5} more[/dim]")
+        rprint(f"  Approved: [green]{len(approved)}[/green]  Rejected: [red]{len(rejected)}[/red]")
 
-    if not approved:
-        rprint("[yellow]No opportunities passed risk checks.[/yellow]")
-        return []
+        # Show rejections
+        if rejected:
+            for s in rejected[:5]:
+                rprint(f"  [dim]SKIP {s.opportunity.ticker}: {s.risk_approval}[/dim]")
+            if len(rejected) > 5:
+                rprint(f"  [dim]... and {len(rejected) - 5} more[/dim]")
 
-    # ── Min-bets gate: abort if too few approved to avoid over-concentration
-    if min_bets is not None and len(approved) < min_bets:
-        rprint(f"[yellow bold]MIN-BETS GATE: only {len(approved)} approved but "
-               f"--min-bets requires {min_bets}. Skipping execution to avoid "
-               f"over-concentrating budget into too few positions.[/yellow bold]")
-        return []
+        if not approved:
+            rprint("[yellow]No opportunities passed risk checks.[/yellow]")
+            return []
 
-    # ── Preview table
-    to_execute = approved[:max_bets]
+        # ── Min-bets gate: abort if too few approved to avoid over-concentration
+        if min_bets is not None and len(approved) < min_bets:
+            rprint(f"[yellow bold]MIN-BETS GATE: only {len(approved)} approved but "
+                   f"--min-bets requires {min_bets}. Skipping execution to avoid "
+                   f"over-concentrating budget into too few positions.[/yellow bold]")
+            return []
 
-    # ── Bet ratio cap: prevent one bet from dominating the batch
-    pre_ratio_cost = sum(s.cost_dollars for s in to_execute)
-    to_execute = _apply_bet_ratio_cap(to_execute)
-    post_ratio_cost = sum(s.cost_dollars for s in to_execute)
-    if post_ratio_cost < pre_ratio_cost:
-        rprint(f"  Bet ratio cap: [yellow]${pre_ratio_cost:.2f} -> ${post_ratio_cost:.2f}[/yellow] (max {MAX_BET_RATIO:.1f}x median)")
+        # ── Preview table
+        to_execute = approved[:max_bets]
 
-    # ── Budget cap: proportionally scale if total exceeds budget
-    if budget is not None:
-        budget_dollars = budget * bankroll if budget <= 1 else budget
-        pre_budget_cost = sum(s.cost_dollars for s in to_execute)
-        if pre_budget_cost > budget_dollars:
-            to_execute = _apply_budget_cap(to_execute, budget_dollars)
-            post_budget_cost = sum(s.cost_dollars for s in to_execute)
-            rprint(f"  Budget cap: [yellow]${pre_budget_cost:.2f} -> ${post_budget_cost:.2f}[/yellow] (limit ${budget_dollars:.2f})")
-        else:
-            rprint(f"  Budget cap: [green]${pre_budget_cost:.2f} within ${budget_dollars:.2f} limit[/green]")
+        # ── Bet ratio cap: prevent one bet from dominating the batch
+        pre_ratio_cost = sum(s.cost_dollars for s in to_execute)
+        to_execute = _apply_bet_ratio_cap(to_execute)
+        post_ratio_cost = sum(s.cost_dollars for s in to_execute)
+        if post_ratio_cost < pre_ratio_cost:
+            rprint(f"  Bet ratio cap: [yellow]${pre_ratio_cost:.2f} -> ${post_ratio_cost:.2f}[/yellow] (max {MAX_BET_RATIO:.1f}x median)")
+
+        # ── Budget cap: proportionally scale if total exceeds budget
+        if budget is not None:
+            budget_dollars = budget * bankroll if budget <= 1 else budget
+            pre_budget_cost = sum(s.cost_dollars for s in to_execute)
+            if pre_budget_cost > budget_dollars:
+                to_execute = _apply_budget_cap(to_execute, budget_dollars)
+                post_budget_cost = sum(s.cost_dollars for s in to_execute)
+                rprint(f"  Budget cap: [yellow]${pre_budget_cost:.2f} -> ${post_budget_cost:.2f}[/yellow] (limit ${budget_dollars:.2f})")
+            else:
+                rprint(f"  Budget cap: [green]${pre_budget_cost:.2f} within ${budget_dollars:.2f} limit[/green]")
 
     from ticker_display import (
         parse_game_datetime, format_bet_label, format_pick_label, sport_from_ticker,
@@ -1028,27 +1052,55 @@ def execute_pipeline(
         )
     console.print(table)
     rprint(f"  Total cost: [bold]${total_cost:.2f}[/bold] of ${bankroll:.2f} available")
+
+    # ── R26: persist the displayed rows so a follow-up `--pick … --execute`
+    #    can replay the same row order. Only on fresh-scan runs — replay
+    #    runs already came from this same cache. Silent on failure.
+    if cached_rows is None and fingerprint is not None:
+        try:
+            from scan_cache import store as _scan_cache_store
+            _scan_cache_store(fingerprint, to_execute, bankroll)
+        except Exception as e:
+            log.debug("scan_cache.store skipped: %s", e)
+
     if not execute:
         rprint("[dim]  Tip: use --pick '1,3' --execute to bet on specific rows[/dim]")
         rprint("\n[yellow]DRY RUN -- pass --execute to place these orders[/yellow]")
         return to_execute  # Return sized orders for reporting
 
+    # Snapshot the pre-filter menu so the post-pick summary can compare
+    # "placing N of M, $X of $Y menu total" — avoids the misleading
+    # "Total cost: $9.40" when only 3 of 10 are actually being placed.
+    menu_size = len(to_execute)
+    menu_cost = sum(s.cost_dollars for s in to_execute)
+
     # ── Filter by --pick or --ticker if specified
     if pick_rows is not None:
         selected = _parse_pick_rows(pick_rows, len(to_execute))
         to_execute = [to_execute[i] for i in selected]
-        rprint(f"\n[bold]Picked {len(to_execute)} of {len(approved)} approved orders[/bold]")
+        rprint(f"\n[bold]Picked {len(to_execute)} of {menu_size} preview rows[/bold]")
     if pick_tickers is not None:
         pick_set = {t.upper() for t in pick_tickers}
         to_execute = [s for s in to_execute if s.opportunity.ticker.upper() in pick_set]
-        rprint(f"\n[bold]Matched {len(to_execute)} orders by ticker[/bold]")
+        rprint(f"\n[bold]Matched {len(to_execute)} of {menu_size} preview rows by ticker[/bold]")
 
     if not to_execute:
         rprint("[yellow]No orders matched your --pick or --ticker selection.[/yellow]")
         return []
 
     # ── Execute
-    rprint(f"\n[bold]Placing {len(to_execute)} orders...[/bold]")
+    placing_cost = sum(s.cost_dollars for s in to_execute)
+    if len(to_execute) < menu_size:
+        rprint(
+            f"\n[bold]Placing {len(to_execute)} orders, total cost: "
+            f"[green]${placing_cost:.2f}[/green] "
+            f"[dim](selected from {menu_size}-row menu totaling ${menu_cost:.2f})[/dim][/bold]"
+        )
+    else:
+        rprint(
+            f"\n[bold]Placing {len(to_execute)} orders, total cost: "
+            f"[green]${placing_cost:.2f}[/green][/bold]"
+        )
     results = []
 
     for s in to_execute:

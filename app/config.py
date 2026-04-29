@@ -294,6 +294,29 @@ class OddsCacheConfig:
         )
 
 
+@dataclass(frozen=True)
+class ScanCacheConfig:
+    """File-backed cache of the last preview's row→ticker mapping (R26).
+
+    Locks the row order between `scan.py … --filter X` (preview) and the
+    follow-up `scan.py … --pick 1,3 --execute`. Without it, a second live
+    scan can reorder rows on price/score drift, executing the wrong picks.
+
+    File: `data/cache/last_scan.json`. TTL default 600s = 10 minutes
+    (long enough to read the table and pick rows, short enough that a
+    user returning hours later gets a fresh scan). 0 disables.
+    """
+    ttl_seconds: int = 600
+    enabled: bool = True
+
+    @classmethod
+    def from_env(cls) -> "ScanCacheConfig":
+        return cls(
+            ttl_seconds=_int("SCAN_CACHE_TTL_SECONDS", 600),
+            enabled=_bool("SCAN_CACHE_ENABLED", True),
+        )
+
+
 # ── Aggregate ───────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -309,6 +332,7 @@ class Config:
     per_sport: PerSportOverrides
     system: System
     odds_cache: OddsCacheConfig
+    scan_cache: ScanCacheConfig
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -324,6 +348,7 @@ class Config:
             per_sport=PerSportOverrides.from_env(),
             system=System.from_env(),
             odds_cache=OddsCacheConfig.from_env(),
+            scan_cache=ScanCacheConfig.from_env(),
         )
         cfg.validate()
         return cfg
@@ -379,6 +404,10 @@ class Config:
         if self.odds_cache.ttl_seconds < 0:
             raise ValueError(
                 f"ODDS_CACHE_TTL_SECONDS must be >= 0, got {self.odds_cache.ttl_seconds}"
+            )
+        if self.scan_cache.ttl_seconds < 0:
+            raise ValueError(
+                f"SCAN_CACHE_TTL_SECONDS must be >= 0, got {self.scan_cache.ttl_seconds}"
             )
 
     def edge_threshold_for_sport(self, sport: str) -> float:
