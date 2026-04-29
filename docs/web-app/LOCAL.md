@@ -38,6 +38,8 @@ user = "your_password_here"
 
 When no secrets file exists, the password gate is bypassed — the dashboard is open to anyone on your network.
 
+The auth gate uses an `st.form` so the password only submits when you click **Sign in** (or press Enter while focused inside the form). Typing then tabbing/clicking away does NOT auto-authenticate (form-staging semantics).
+
 ---
 
 ## How It Works

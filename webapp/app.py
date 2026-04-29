@@ -56,14 +56,24 @@ def check_password() -> bool:
     </div>
     """, unsafe_allow_html=True)
 
-    pw = st.text_input("Password", type="password", label_visibility="collapsed",
-                       placeholder="Enter password...")
-    if pw:
+    # Form gate: keeps the password staged inside the form so it doesn't
+    # auto-submit on blur/tab-out (the default st.text_input behavior would
+    # rerun the script and `if pw:` would auth as soon as the value matches).
+    # Also, Streamlit suppresses the "Press Enter to apply" hint inside
+    # forms — the submit button IS the apply trigger.
+    with st.form("auth_form", clear_on_submit=False):
+        pw = st.text_input("Password", type="password", label_visibility="collapsed",
+                           placeholder="Enter password...")
+        submitted = st.form_submit_button("Sign in", use_container_width=True)
+
+    if submitted:
         if pw == correct_pw:
             st.session_state.authenticated = True
             st.rerun()
-        else:
+        elif pw:
             st.error("Incorrect password")
+        else:
+            st.error("Enter a password")
     return False
 
 
