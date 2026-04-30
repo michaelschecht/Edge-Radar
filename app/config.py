@@ -188,6 +188,7 @@ class GateThresholds:
     allow_prediction_bets: bool = False
     no_side_favorite_threshold: float = 0.25
     no_side_min_edge: float = 0.25
+    cross_category_dedup: bool = False
 
     @classmethod
     def from_env(cls) -> "GateThresholds":
@@ -201,6 +202,7 @@ class GateThresholds:
             allow_prediction_bets=_bool("ALLOW_PREDICTION_BETS", False),
             no_side_favorite_threshold=_float("NO_SIDE_FAVORITE_THRESHOLD", 0.25),
             no_side_min_edge=_float("NO_SIDE_MIN_EDGE", 0.25),
+            cross_category_dedup=_bool("CROSS_CATEGORY_DEDUP", False),
         )
 
 
@@ -231,18 +233,24 @@ class PerSportOverrides:
     should fall back to the corresponding global value in `GateThresholds`
     for any sport not in the dict — preserving the existing fallback idiom.
 
-    - `min_edge`            : `MIN_EDGE_THRESHOLD_<SPORT>` (per-sport edge floor)
-    - `series_dedup_hours`  : `SERIES_DEDUP_HOURS_<SPORT>` (R9: MLB/NHL series
+    - `min_edge`              : `MIN_EDGE_THRESHOLD_<SPORT>` (per-sport edge floor)
+    - `series_dedup_hours`    : `SERIES_DEDUP_HOURS_<SPORT>` (R9: MLB/NHL series
       cycles on consecutive days exceed the 48h global default — F12 observed
       a NYM/LAD pair bet at 49h apart that slipped through; both lost)
+    - `cross_category_dedup`  : `CROSS_CATEGORY_DEDUP_<SPORT>` (R8: when true,
+      collapse ML+Total+Spread on the same game to one bet for that sport;
+      sports not present in the dict fall back to the global
+      `CROSS_CATEGORY_DEDUP` value)
     """
     min_edge: dict[str, float] = field(default_factory=dict)
     series_dedup_hours: dict[str, int] = field(default_factory=dict)
+    cross_category_dedup: dict[str, bool] = field(default_factory=dict)
 
     @classmethod
     def from_env(cls, sports: Iterable[str] = _SUPPORTED_SPORTS) -> "PerSportOverrides":
         min_edge: dict[str, float] = {}
         series_dedup: dict[str, int] = {}
+        cross_cat: dict[str, bool] = {}
         for sport in sports:
             raw_edge = os.getenv(f"MIN_EDGE_THRESHOLD_{sport.upper()}")
             if raw_edge is not None and raw_edge != "":
@@ -258,7 +266,15 @@ class PerSportOverrides:
                     series_dedup[sport] = int(raw_dedup)
                 except ValueError:
                     pass
-        return cls(min_edge=min_edge, series_dedup_hours=series_dedup)
+
+            raw_xcat = os.getenv(f"CROSS_CATEGORY_DEDUP_{sport.upper()}")
+            if raw_xcat is not None and raw_xcat != "":
+                cross_cat[sport] = raw_xcat.strip().lower() in _TRUTHY
+        return cls(
+            min_edge=min_edge,
+            series_dedup_hours=series_dedup,
+            cross_category_dedup=cross_cat,
+        )
 
 
 @dataclass(frozen=True)
@@ -420,6 +436,19 @@ class Config:
             return self.gates.min_edge_threshold
         return self.per_sport.min_edge.get(
             sport.strip().lower(), self.gates.min_edge_threshold
+        )
+
+    def cross_category_dedup_for(self, sport: str | None) -> bool:
+        """Resolve per-sport cross-category dedup flag with fallback to global (R8).
+
+        Returns True iff ML + Total + Spread on the same game should collapse
+        to a single bet for this sport. ``None`` or unknown sport falls back
+        to the global `CROSS_CATEGORY_DEDUP`.
+        """
+        if not sport:
+            return self.gates.cross_category_dedup
+        return self.per_sport.cross_category_dedup.get(
+            sport.strip().lower(), self.gates.cross_category_dedup
         )
 
 

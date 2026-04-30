@@ -1166,6 +1166,74 @@ class TestDedupCorrelatedBrackets:
         result = dedup_correlated_brackets(opps)
         assert [o.ticker for o in result] == ["KXNBA-26-OKC", "KXNBA-26-BOS", "KXNBA-26-LAL"]
 
+    # ── R8: cross-category dedup ────────────────────────────────────────────
+
+    def test_cross_category_off_keeps_categories_separate(self):
+        """Default (no opt-in) preserves pre-R8 behavior: ML+Total+Spread on
+        the same game survive as 3 distinct bets. Regression guard."""
+        opps = [
+            _dedup_opp("KXNBAGAME-26APR24SASPOR-SAS", "game", score=7.0),
+            _dedup_opp("KXNBATOTAL-26APR24SASPOR-208", "total", score=8.0),
+            _dedup_opp("KXNBASPREAD-26APR24SASPOR-7", "spread", score=6.5),
+        ]
+        # Both no-arg and explicit-empty-set must behave identically
+        assert len(dedup_correlated_brackets(opps)) == 3
+        assert len(dedup_correlated_brackets(opps, cross_category_sports=set())) == 3
+
+    def test_cross_category_on_collapses_categories(self):
+        """When sport opted in, all categories on the same game collapse to
+        the highest-composite bet."""
+        opps = [
+            _dedup_opp("KXNBAGAME-26APR24SASPOR-SAS", "game", score=7.0),
+            _dedup_opp("KXNBATOTAL-26APR24SASPOR-208", "total", score=8.5),  # best
+            _dedup_opp("KXNBASPREAD-26APR24SASPOR-7", "spread", score=6.5),
+        ]
+        result = dedup_correlated_brackets(opps, cross_category_sports={"nba"})
+        assert len(result) == 1
+        assert result[0].ticker == "KXNBATOTAL-26APR24SASPOR-208"
+
+    def test_cross_category_per_sport_scope(self):
+        """Opting in NBA must not collapse MLB. Different games on the same
+        sport also stay independent (event_key still distinguishes games)."""
+        opps = [
+            # Same NBA game across 3 categories — collapses to 1
+            _dedup_opp("KXNBAGAME-26APR24SASPOR-SAS", "game", score=7.0),
+            _dedup_opp("KXNBATOTAL-26APR24SASPOR-208", "total", score=8.5),  # best NBA
+            _dedup_opp("KXNBASPREAD-26APR24SASPOR-7", "spread", score=6.5),
+            # Same MLB game across 2 categories — both kept (MLB not opted in)
+            _dedup_opp("KXMLBGAME-26APR24LADNYM-LAD", "game", score=7.5),
+            _dedup_opp("KXMLBTOTAL-26APR24LADNYM-8.5", "total", score=8.0),
+            # Different NBA game — its own collapse group, unaffected
+            _dedup_opp("KXNBAGAME-26APR24LALDEN-LAL", "game", score=6.0),
+        ]
+        result = dedup_correlated_brackets(opps, cross_category_sports={"nba"})
+        tickers = {o.ticker for o in result}
+        assert tickers == {
+            "KXNBATOTAL-26APR24SASPOR-208",  # best of the SAS/POR collapse
+            "KXMLBGAME-26APR24LADNYM-LAD",
+            "KXMLBTOTAL-26APR24LADNYM-8.5",
+            "KXNBAGAME-26APR24LALDEN-LAL",
+        }
+        assert len(result) == 4
+
+    def test_cross_category_does_not_affect_futures(self):
+        """Even when NBA is opted in, futures outcomes (each team distinct)
+        must still pass through — same-sport but they're not bracket bets."""
+        opps = [
+            _dedup_opp("KXNBA-26-LAL", "futures", score=6.5),
+            _dedup_opp("KXNBA-26-BOS", "futures", score=7.2),
+            _dedup_opp("KXNBA-26-OKC", "futures", score=8.0),
+            # Plus one regular NBA game with two categories — should collapse
+            _dedup_opp("KXNBAGAME-26APR24SASPOR-SAS", "game", score=7.0),
+            _dedup_opp("KXNBATOTAL-26APR24SASPOR-208", "total", score=8.5),
+        ]
+        result = dedup_correlated_brackets(opps, cross_category_sports={"nba"})
+        # 3 futures (untouched) + 1 collapsed game = 4
+        assert len(result) == 4
+        tickers = {o.ticker for o in result}
+        assert {"KXNBA-26-LAL", "KXNBA-26-BOS", "KXNBA-26-OKC"} <= tickers
+        assert "KXNBATOTAL-26APR24SASPOR-208" in tickers
+
 
 # ── preflight_gate_status (R18) ──────────────────────────────────────────────
 

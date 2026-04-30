@@ -2,6 +2,57 @@
 
 ---
 
+## 2026-04-29 -- R8: Cross-Category Same-Event Dedup (Optional, Per-Sport)
+
+### Why
+
+The existing `dedup_correlated_brackets()` keys by `(event_key, category)`, which catches alt-line brackets within a category (3× Over lines on the same NBA game collapse to one) but treats ML + Total + Spread on the same game as 3 distinct bets. F11 (14-day review) flagged 12 matchups bet ≥2× in 14d, several same-day on different categories — when an NBA game blows out, the ML + Spread + Total all win or lose together, so stacking three categories adds correlation, not diversification. Cross-category correlation is sport-dependent (NHL low-scoring → ML and Total weakly correlated; NBA blowouts → all three move together), so this needs to be opt-in per sport rather than a global flip.
+
+### What landed
+
+- **`dedup_correlated_brackets()`** in `scripts/kalshi/kalshi_executor.py` now accepts `cross_category_sports: set[str] | None`. When an opportunity's detected sport is in the set, the dedup key becomes `("_xcat", sport, game_id)` where `game_id` is the date+teams middle segment of the ticker (e.g. `26APR24SASPOR` from `KXNBATOTAL-26APR24SASPOR-208`). All categories on the same game collapse to the highest-composite row. Futures pass-through (R21) is checked first and immune.
+- **Why a separate game_id**: `_event_key()` strips only the trailing hyphen segment, so `KXNBAGAME-…` and `KXNBATOTAL-…` produce different event keys (different prefixes). Splitting on `-` and taking `parts[1]` is identical across categories for the same game.
+- **Config**: new `GateThresholds.cross_category_dedup: bool` (env `CROSS_CATEGORY_DEDUP=false` default) + `PerSportOverrides.cross_category_dedup: dict[str, bool]` (env `CROSS_CATEGORY_DEDUP_<SPORT>=true|false`) + `Config.cross_category_dedup_for(sport)` helper. Mirrors the R9 series-dedup pattern; per-sport `false` overrides global `true` in either direction.
+- **Wiring**: module-level `CROSS_CATEGORY_DEDUP` and `_PER_SPORT_CROSS_CATEGORY_DEDUP` constants in `kalshi_executor.py` (test-patchable, mirrors `_PER_SPORT_SERIES_DEDUP`); `_cross_category_sports()` builds the active set on each call. `execute_pipeline` passes the set to `dedup_correlated_brackets` and surfaces it in the dedup banner when non-empty: `Deduped correlated brackets: 12 -> 8 opportunities (cross-category: ['nba', 'nfl'])`.
+- **Why default OFF**: lets the user A/B test per sport against live calibration data once enough cross-category bets accumulate. Existing per-event cap (Gate 6, `MAX_PER_EVENT=2`) already provides a soft ceiling, so switching this off doesn't leave the system unbounded.
+- **`.env.example`**: documents `CROSS_CATEGORY_DEDUP` in the gate section + 8 commented `CROSS_CATEGORY_DEDUP_<SPORT>` lines in the per-sport-overrides section. **CLAUDE.md**: added to Risk Limits block.
+
+### Verification
+
+- 4 new tests in `tests/test_risk_gates.py::TestDedupCorrelatedBrackets`: off-default preserves pre-R8 behavior (regression guard); on collapses 3 categories to highest-composite; per-sport scope (NBA collapses but MLB on same scan stays uncollapsed); futures pass-through preserved even when their sport is opted in.
+- 4 new tests in `tests/test_config.py::TestPerSportOverrides`: default off; global on cascades to all sports; per-sport-only override; per-sport `false` overrides global `true`.
+- **355 tests passing** (was 347). Lint clean (config-centralization guard).
+- One initial round of tests caught a real bug: my first cut keyed cross-category by `_event_key`, which doesn't strip the category prefix from the ticker — so the three categories never collided. The game-id-segment approach fixes it; the failure was visible in test output before any user impact.
+
+### How to use
+
+Default behavior is unchanged — the system keeps ML+Total+Spread on the same game as 3 independent bets. To opt in:
+
+```env
+# Enable for every sport
+CROSS_CATEGORY_DEDUP=true
+
+# OR enable for specific sports only
+CROSS_CATEGORY_DEDUP_NBA=true
+CROSS_CATEGORY_DEDUP_NCAAB=true
+
+# OR enable globally but exclude one sport
+CROSS_CATEGORY_DEDUP=true
+CROSS_CATEGORY_DEDUP_NHL=false
+```
+
+When active, the dedup banner prints which sports are in the cross-category set so it's visible at run time.
+
+### Files
+
+`app/config.py`, `scripts/kalshi/kalshi_executor.py`, `tests/test_risk_gates.py`, `tests/test_config.py`, `.env.example`, `CLAUDE.md`, `docs/my-documents/enhancements/ROADMAP.md`, `scripts/schedulers/maintenance/r8_cross_category_review.py` (new), `scripts/schedulers/maintenance/r8_review.bat` (new), `docs/my-documents/task-schedules/README.md`.
+
+### Follow-up
+
+A one-shot Windows scheduled task `\Edge-Radar\R8-Review` will fire on **2026-05-29 06:00 PT** (`scripts/schedulers/maintenance/r8_review.bat` → `r8_cross_category_review.py`). It slices `data/history/kalshi_settlements.json` into ML/Total/Spread same-game cohorts per sport, simulates the R8-on outcome (highest-edge bet kept — `composite_score` isn't on settlement records yet, blocked on R11), and writes a recommendation report to `reports/Performance/R8_cross_category_review_<date>.md` with FLIP ON / FLIP OFF / NEED MORE DATA per sport plus a copy-pasteable `.env` snippet for the FLIP ON sports. Smoke-run on 2026-04-29 against the live 178-bet settlement file produced "NEED MORE DATA: 5" — too thin per sport (NBA 2 cohorts, NCAAB 4, NHL 3) to recommend either way; the May 29 run will have ~30 more days of cohorts to evaluate. Migrated to local Windows Task Scheduler (consistent with the rest of `\Edge-Radar\`) instead of a remote claude.ai routine — deterministic, fast, and same management UX as `Calibration` / `Backtest` / `Weekly-Analysis`. Doc: `docs/my-documents/task-schedules/README.md` § 14. R10 (category-weighted composite score) is the next P2 item after this measurement.
+
+---
+
 ## 2026-04-29 -- R26: File-Backed Scan Cache (Row-Order Lock for `--pick`)
 
 ### Why
