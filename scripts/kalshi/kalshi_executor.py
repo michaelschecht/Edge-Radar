@@ -130,6 +130,29 @@ _PER_SPORT_MIN_EDGE: dict[str, float] = dict(_cfg.per_sport.min_edge)
 # fall back to SERIES_DEDUP_HOURS. Tests patch _PER_SPORT_SERIES_DEDUP directly.
 _PER_SPORT_SERIES_DEDUP: dict[str, int] = dict(_cfg.per_sport.series_dedup_hours)
 
+# R8 (2026-04-29): cross-category dedup — global default + per-sport overrides.
+# When enabled for a sport, `dedup_correlated_brackets` collapses ML+Total+Spread
+# on the same game to one bet (highest composite). Default off because cross-
+# category correlation varies by sport. Tests patch the module-level globals.
+CROSS_CATEGORY_DEDUP = _cfg.gates.cross_category_dedup
+_PER_SPORT_CROSS_CATEGORY_DEDUP: dict[str, bool] = dict(
+    _cfg.per_sport.cross_category_dedup
+)
+
+
+def _cross_category_sports() -> set[str]:
+    """Resolve which sports have cross-category dedup enabled.
+
+    A sport with an explicit per-sport override uses that value; sports
+    without an override fall back to ``CROSS_CATEGORY_DEDUP``. Reads at call
+    time so tests that monkey-patch the module globals see fresh state.
+    """
+    enabled: set[str] = set()
+    for sport in _SUPPORTED_SPORTS:
+        if _PER_SPORT_CROSS_CATEGORY_DEDUP.get(sport, CROSS_CATEGORY_DEDUP):
+            enabled.add(sport)
+    return enabled
+
 
 def parse_budget_arg(raw: str | None) -> float | None:
     """Parse a CLI `--budget` value into the form `execute_pipeline` expects.
@@ -418,7 +441,10 @@ def cancel_stale_resting_orders(
     return cancelled
 
 
-def dedup_correlated_brackets(opportunities: list[Opportunity]) -> list[Opportunity]:
+def dedup_correlated_brackets(
+    opportunities: list[Opportunity],
+    cross_category_sports: set[str] | None = None,
+) -> list[Opportunity]:
     """Remove correlated bracket bets from the same game, keeping the best one.
 
     Multiple totals/spread lines on the same game (e.g., Over 221.5, Over 224.5,
@@ -427,22 +453,47 @@ def dedup_correlated_brackets(opportunities: list[Opportunity]) -> list[Opportun
 
     Groups opportunities by (event_key, category) and keeps only the highest
     composite_score from each group. Different categories on the same game
-    (e.g., ML + totals) are kept since they're less correlated.
+    (e.g., ML + totals) are kept by default since their correlation is weaker
+    than alt-line brackets within a category.
 
-    Futures (`category == "futures"`) pass through unchanged: each team
+    R8 (2026-04-29): when an opportunity's detected sport is in
+    ``cross_category_sports``, the category is dropped from the dedup key so
+    ML + Total + Spread on the same game collapse to one bet (highest
+    composite). Motivated by F11 — same-day cross-category repeats add
+    correlated exposure with no diversification benefit. Per-sport opt-in
+    because cross-category correlation varies by sport (NHL low-scoring →
+    weak correlation, NBA blowouts → tight correlation).
+
+    Futures (``category == "futures"``) pass through unchanged: each team
     outcome in a championship is a separate independent bet (KXNBA-26-LAL,
     KXNBA-26-BOS, ...), not an alt-line bracket. Stripping the last hyphen
     segment to get an "event key" would collapse all 16+ teams to one entry
     and kill most of the scan. Concentration is already bounded by Gate 6
-    (`MAX_PER_EVENT`). Fixed 2026-04-24 after a futures scan of 20 opps
+    (``MAX_PER_EVENT``). Fixed 2026-04-24 after a futures scan of 20 opps
     was deduping to 2.
     """
-    best: dict[tuple[str, str], Opportunity] = {}
+    cross_category_sports = cross_category_sports or set()
+    best: dict[tuple, Opportunity] = {}
     for opp in opportunities:
         if opp.category == "futures":
-            key = (opp.ticker, "futures")
+            key: tuple = (opp.ticker, "futures")
         else:
-            key = (_event_key(opp.ticker), opp.category)
+            sport = _detect_sport(opp.ticker)
+            if sport and sport in cross_category_sports:
+                # Cross-category key: same (sport, game_id) collapses across
+                # ML/Total/Spread. The category-specific prefix differs
+                # (KXNBAGAME-… vs KXNBATOTAL-… vs KXNBASPREAD-…) so we can't
+                # reuse `_event_key`; instead pull the date+teams segment,
+                # which is identical across categories for the same game.
+                parts = opp.ticker.split("-")
+                if len(parts) >= 2 and parts[1]:
+                    key = ("_xcat", sport, parts[1])
+                else:
+                    # Malformed ticker — fall back to current behavior so
+                    # the row isn't accidentally collapsed against an unrelated bet.
+                    key = (_event_key(opp.ticker), opp.category)
+            else:
+                key = (_event_key(opp.ticker), opp.category)
         existing = best.get(key)
         if existing is None or opp.composite_score > existing.composite_score:
             best[key] = opp
@@ -935,9 +986,13 @@ def execute_pipeline(
     else:
         # ── Deduplicate correlated brackets (e.g., multiple totals lines on same game)
         before_dedup = len(opportunities)
-        opportunities = dedup_correlated_brackets(opportunities)
+        xcat_sports = _cross_category_sports()
+        opportunities = dedup_correlated_brackets(
+            opportunities, cross_category_sports=xcat_sports
+        )
         if len(opportunities) < before_dedup:
-            rprint(f"[dim]Deduped correlated brackets: {before_dedup} -> {len(opportunities)} opportunities[/dim]")
+            xcat_note = f" (cross-category: {sorted(xcat_sports)})" if xcat_sports else ""
+            rprint(f"[dim]Deduped correlated brackets: {before_dedup} -> {len(opportunities)} opportunities{xcat_note}[/dim]")
 
         # ── Size all opportunities
         # Divide Kelly fraction by batch size so total exposure stays proportional

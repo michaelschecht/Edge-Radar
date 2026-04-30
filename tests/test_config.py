@@ -217,6 +217,46 @@ class TestPerSportOverrides:
         assert overrides.min_edge == {"nba": 0.12}
         assert overrides.series_dedup_hours == {"mlb": 72}
 
+    # ── R8: per-sport CROSS_CATEGORY_DEDUP overrides ───────────────────────
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_cross_category_default_is_off(self):
+        cfg = Config.from_env()
+        assert cfg.gates.cross_category_dedup is False
+        assert cfg.per_sport.cross_category_dedup == {}
+        assert cfg.cross_category_dedup_for("nba") is False
+
+    @patch.dict(os.environ, {"CROSS_CATEGORY_DEDUP": "true"}, clear=True)
+    def test_cross_category_global_on(self):
+        cfg = Config.from_env()
+        assert cfg.gates.cross_category_dedup is True
+        # Sports without overrides inherit the global True
+        assert cfg.cross_category_dedup_for("nba") is True
+        assert cfg.cross_category_dedup_for("mlb") is True
+
+    @patch.dict(os.environ, {"CROSS_CATEGORY_DEDUP_NBA": "true"}, clear=True)
+    def test_cross_category_per_sport_only(self):
+        cfg = Config.from_env()
+        assert cfg.gates.cross_category_dedup is False
+        assert cfg.per_sport.cross_category_dedup == {"nba": True}
+        # Override wins for NBA, others fall back to global False
+        assert cfg.cross_category_dedup_for("nba") is True
+        assert cfg.cross_category_dedup_for("mlb") is False
+        assert cfg.cross_category_dedup_for("NBA") is True  # case-insensitive
+        assert cfg.cross_category_dedup_for(None) is False
+
+    @patch.dict(os.environ, {
+        "CROSS_CATEGORY_DEDUP": "true",
+        "CROSS_CATEGORY_DEDUP_NBA": "false",
+    }, clear=True)
+    def test_cross_category_sport_can_override_global_off(self):
+        """Per-sport `false` must override a global `true` (R9 pattern parity)."""
+        cfg = Config.from_env()
+        assert cfg.gates.cross_category_dedup is True
+        assert cfg.per_sport.cross_category_dedup == {"nba": False}
+        assert cfg.cross_category_dedup_for("nba") is False
+        assert cfg.cross_category_dedup_for("mlb") is True
+
 
 # ── Validation ──────────────────────────────────────────────────────────────
 

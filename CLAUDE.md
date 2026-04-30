@@ -178,6 +178,7 @@ KELLY_EDGE_DECAY=0.5            # Decay factor on edge above the cap
 SERIES_DEDUP_HOURS=48           # Reject same-matchup bets within this window (0 disables)
 SERIES_DEDUP_HOURS_MLB=72       # R9: MLB series span up to 72h (default 48h leaks the 49h adjacent-day case)
 SERIES_DEDUP_HOURS_NHL=72       # R9: NHL series cycle on consecutive days like MLB
+CROSS_CATEGORY_DEDUP=false      # R8: when true, collapse ML+Total+Spread on same game to one bet (highest composite). Per-sport overrides via CROSS_CATEGORY_DEDUP_<SPORT>=true|false
 RESTING_ORDER_MAX_HOURS=24      # R4: cancel zero-fill resting orders older than this (0 disables)
 ALLOW_PREDICTION_BETS=false     # R25 Gate 4.7: true to enable crypto/weather/spx/mentions/companies/politics bets
 ODDS_CACHE_TTL_SECONDS=300      # R24b: file-backed cache for Odds API responses (5 min default; 0 disables)
