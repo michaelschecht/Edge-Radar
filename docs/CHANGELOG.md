@@ -2,6 +2,62 @@
 
 ---
 
+## 2026-04-30 -- U2: Daily P&L Email Digest
+
+### Why
+
+The R12-R26 P1 wave shipped through 2026-04-29 leaves Priority 1 empty. Between monthly R12 calibration runs (the next attribution checkpoint) the user has no daily wake-up signal — the evening Weekly-Analysis runs Sun-only, and the existing morning emails are forward-looking execution reports, not retrospective P&L. U2 fills that gap: a morning digest that lands before the 5:05 AM same-day execute so the user sees what happened yesterday + what's still on the books before today's bets get placed.
+
+### What landed
+
+- **`scripts/kalshi/daily_summary.py`** — pure-functions report generator. Joins yesterday's settlements (rolling 24h window, robust to DST) with currently open trade-log positions, today's pending events, and an optional live Kalshi balance. Sections:
+  - **Yesterday** — N settled, W-L, P&L, ROI, per-sport breakdown table, top-win + top-loss callouts
+  - **Open Exposure** — count + $ at risk + per-sport split (excludes `closed_at`, `fill_status=resting`, `status=error`, zero-fill)
+  - **Pending Today** — open positions whose game datetime parses to today's PST calendar day (via `parse_game_datetime` from `ticker_display`)
+  - **Context** — live Kalshi balance + 7-day rolling line (WR, P&L, ROI, Brier; flips probability for NO-side bets so it's directly comparable to the calibration report)
+- **Empty-day proof-of-life** — every section still renders with `_No settlements in window._` / `_No open positions._` placeholders. Matches `feedback_sameday_empty_emails`: empty digest = "the system ran" signal, never silent.
+- **Architecture** — clean split between pure functions (`load_recent_settlements`, `aggregate_yesterday`, `aggregate_exposure`, `filter_pending_today`, `rolling_7d_context`, `render_report`) and I/O wrappers (`_fetch_balance` swallows all Kalshi-API failures gracefully, `--save` filesystem write). `build_report()` is the test-friendly composition entry point.
+- **Window choice — rolling 24h not "yesterday in PST".** Robust to DST transitions, captures the 11 PM PST settler's late-night settlements, and survives wall-clock weirdness. Defaultable via `--hours` for ad-hoc runs.
+- **Two new scheduled tasks** under `\Edge-Radar\`:
+  - `Daily-Summary` (Daily 4:50 AM PT) — runs `scripts/schedulers/maintenance/daily_summary.bat` → `daily_summary.py --save`
+  - `Email-Daily-Summary` (Daily 5:00 AM PT) — runs `scripts/custom/Shell-Scripts/Run-Reports/Daily-Summary-Report.sh` (mirrors the existing email pattern: `claude --dangerously-skip-permissions -p` subprocess + `agentmail` skill, dark-themed HTML, skip-on-missing-report)
+- **Timing rationale** — 4:50 AM PT is the slot before `All-Sports-SameDay-Execution` (5:05 AM) so "Open Exposure" reflects overnight carry rather than mixing in today's new fills. The 10-min email buffer matches the `Weekly-Analysis` precedent (the underlying report is fast — no API fetches except a single optional balance call).
+
+### Verification
+
+- 26 new tests in `tests/test_daily_summary.py` covering: window-boundary inclusion (`>=` cutoff), malformed-timestamp skip, sort order, open-position filtering (closed/resting/error/zero-fill), per-sport aggregation math (NBA + MLB), pending-today PST filtering across day boundaries, 7-day rolling minimum-sample threshold (5-bet floor), balance present + missing rendering, full empty-day report renders all four sections.
+- **381 tests passing** (was 355). Lint clean.
+- End-to-end smoke confirmed: `.bat` ran cleanly, fetched live Kalshi balance ($66.85), wrote `reports/Performance/daily_summary_2026-04-30.md` with all four sections (empty-day proof-of-life intact). Real-data round-trip with `--hours 720` showed the 173 historical settlements aggregating correctly: NHL +72.9% ROI on 44 bets, MLB -5.1% on 39, NBA -14.8% on 17 (matches the canonical 30-day numbers).
+
+### Follow-up
+
+A one-shot Windows scheduled task `\Edge-Radar\U2-Review` will fire on **2026-05-14 07:00 PT** (`scripts/schedulers/maintenance/u2_2week_review.bat` → `u2_2week_review.py`). It scans `reports/Performance/daily_summary_*.md` for the prior 14 days to surface firing-reliability and section-coverage stats (which sections were consistently empty across the window — candidates for trimming), then spawns a `claude --dangerously-skip-permissions -p` subprocess to do a fresh-eyes code review of `daily_summary.py` + tests with explicit instructions to be opinionated about what to drop. Output combines local-verifiable signals + model findings + an operational checklist for the user to fill in (which sections they actually read each morning, any rendering issues, anything missing) into `reports/Performance/u2_2week_review_<date>.md`. Pure analysis — never modifies code or opens PRs. Migrated to local Windows Task Scheduler (consistent with the rest of `\Edge-Radar\` and the R8-Review precedent) instead of a remote claude.ai routine — the firing-reliability signal lives only on the user's machine since `reports/Performance/` is gitignored, so a remote agent literally couldn't see it. Original remote routine `trig_01Q6iNTVkob15MewHYS5CKYH` disabled but kept for record. Doc: `docs/my-documents/task-schedules/README.md` § 15.
+
+### How to use
+
+The script is invoked automatically by the scheduled task. To run manually:
+
+```bash
+# Default — yesterday's 24h window, save to reports/Performance/
+.venv/Scripts/python.exe scripts/kalshi/daily_summary.py --save
+
+# Custom window
+.venv/Scripts/python.exe scripts/kalshi/daily_summary.py --hours 48 --save
+
+# Skip the live Kalshi balance fetch (offline-safe)
+.venv/Scripts/python.exe scripts/kalshi/daily_summary.py --no-bankroll --save
+
+# Manual scheduled-task trigger
+schtasks /run /tn "\Edge-Radar\Daily-Summary"
+schtasks /run /tn "\Edge-Radar\Email-Daily-Summary"
+```
+
+### Files
+
+`scripts/kalshi/daily_summary.py` (new), `tests/test_daily_summary.py` (new), `scripts/schedulers/maintenance/daily_summary.bat` (new, gitignored), `scripts/custom/Shell-Scripts/Run-Reports/Daily-Summary-Report.sh` (new, gitignored), `scripts/schedulers/maintenance/u2_2week_review.py` (new, gitignored — fires 2026-05-14), `scripts/schedulers/maintenance/u2_2week_review.bat` (new, gitignored), `docs/my-documents/task-schedules/README.md` (new entries 0a/0b/15 + install snippets, gitignored), `docs/my-documents/enhancements/ROADMAP.md` (gitignored), `CLAUDE.md`, `README.md`, `.claude/skills/edge-radar/SKILL.md`, `.claude/skills/edge-radar-analysis/SKILL.md`, `docs/CHANGELOG.md`.
+
+---
+
 ## 2026-04-29 -- R8: Cross-Category Same-Event Dedup (Optional, Per-Sport)
 
 ### Why

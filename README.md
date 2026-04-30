@@ -289,6 +289,7 @@ python scripts/schedulers/automation/install_windows_task.py install all
 
 | Task | Schedule | Description |
 |:-----|:---------|:------------|
+| `daily-summary` | 4:50 AM PT | Morning P&L digest — yesterday settled + open exposure + today pending + 7d context. Emailed at 5:00 AM PT (U2, 2026-04-30) |
 | `scan` | 8:00 AM ET | Preview scan — saves report, no bets |
 | `execute` | 8:00 AM ET | Scan + execute — places live orders |
 | `settle` | 11:00 PM ET | Settle bets, update P&L |
