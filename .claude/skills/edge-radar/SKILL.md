@@ -21,6 +21,7 @@ Parse the user's intent from the arguments. The skill supports natural language 
 | User Says | Action | Notes |
 |-----------|--------|-------|
 | `status`, `portfolio`, `balance`, `positions` | **Status** | Show portfolio dashboard |
+| `daily-summary`, `morning`, `digest` | **Daily Summary** | Morning P&L digest — yesterday + open exposure + today pending + 7d context |
 | `settle`, `results`, `pnl` | **Settle & Report** | Settle completed bets, show P&L |
 | `reconcile`, `sync` | **Reconcile** | Compare local log vs Kalshi API |
 | `risk`, `limits`, `dashboard` | **Risk Dashboard** | Full risk check with limits |
@@ -167,6 +168,29 @@ python scripts/kalshi/risk_check.py
 ```
 
 Add `--save` to either command to persist as markdown report.
+
+---
+
+## Action: Daily Summary
+
+Morning P&L digest. Joins yesterday's settlements (rolling 24h window) with currently open trade-log positions and today's pending events; optional live Kalshi balance + 7-day rolling context. Empty-day proof-of-life — still renders every section so a zero-bet day shows "the system ran" rather than going silent.
+
+```bash
+.venv/Scripts/python.exe scripts/kalshi/daily_summary.py --save
+.venv/Scripts/python.exe scripts/kalshi/daily_summary.py --hours 48 --save     # custom window
+.venv/Scripts/python.exe scripts/kalshi/daily_summary.py --no-bankroll         # skip Kalshi balance fetch
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--hours N` | `24` | Rolling-window size for "yesterday" |
+| `--save` | off | Write to `reports/Performance/daily_summary_YYYY-MM-DD.md` |
+| `--out PATH` | (none) | Explicit output path (overrides `--save` default) |
+| `--no-bankroll` | off | Skip live Kalshi balance fetch (offline-safe) |
+
+Sections: **Yesterday** (W-L, P&L, ROI, per-sport table, top-win/top-loss), **Open Exposure** ($ at risk + per-sport split), **Pending Today** (open positions whose game datetime lands today PST), **Context** (live Kalshi balance + 7-day rolling line: WR, P&L, Brier).
+
+**Automated cadence (U2, 2026-04-30):** `\Edge-Radar\Daily-Summary` runs daily at 4:50 AM PT and `\Edge-Radar\Email-Daily-Summary` emails it at 5:00 AM PT. The digest lands before the 5:05 AM same-day execute so "Open Exposure" reflects overnight carry rather than today's new fills.
 
 ---
 
@@ -460,6 +484,7 @@ Gates 1-7 (including 3.5, 4.5, 4.6, 4.7) reject orders outright. Gates 8-9 downs
 
 ### Morning
 ```bash
+.venv/Scripts/python.exe scripts/kalshi/daily_summary.py --save  # U2 (2026-04-30) — yesterday + open exposure + 7d context
 make status                    # Check balance & positions
 make settle                    # Settle overnight results
 make report                    # Quick P&L summary
@@ -522,6 +547,7 @@ python scripts/schedulers/automation/install_windows_task.py run execute
 
 | Profile | Schedule | Description |
 |---------|----------|-------------|
+| `daily-summary` | 4:50 AM PT | Morning P&L digest (U2, 2026-04-30) — yesterday + open exposure + today pending + 7d context. Emailed at 5:00 AM PT |
 | `scan` | 8:00 AM | Preview scan — saves report, no bets |
 | `execute` | 8:00 AM | Scan + execute — places live orders |
 | `settle` | 11:00 PM | Settle bets, update P&L |

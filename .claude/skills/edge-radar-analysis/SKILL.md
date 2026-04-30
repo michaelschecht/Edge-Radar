@@ -108,5 +108,6 @@ Suggested command for a scheduled task:
 ## Related
 
 - **`/edge-radar`** — unified scan/bet/status/settle command.
+- **`scripts/kalshi/daily_summary.py`** (U2, 2026-04-30) — daily morning digest. Different scope: 24h rolling window + open exposure + today-pending events + live balance, designed as a quick wake-up signal. Use this skill for retrospective / weekly+ analysis; `daily_summary.py` for the single-morning view. Both pull from `data/history/kalshi_settlements.json` so freshness caveats are identical.
 - **`scripts/kalshi/model_calibration.py`** — complementary calibration-focused report (Brier decomposition, cross-tabs, prescriptive recommendations). `betting_analysis.py` is broader and less prescriptive.
 - **Roadmap items this report surfaces evidence for:** R7 (min market price floor — longshot section), R10 (category-weighted composite — by category), R12 (R2 attribution check at 100 trades — headline Brier + calibration section), C6 (totals bias audit — category + sport cross-reference).

@@ -223,6 +223,9 @@ python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date to
 # Portfolio
 python scripts/kalshi/risk_check.py --report positions
 
+# Morning digest (yesterday P&L + open exposure + today pending)
+python scripts/kalshi/daily_summary.py --save
+
 # Backtest
 python scripts/backtest/backtester.py --simulate --save
 
@@ -298,6 +301,7 @@ RISK_MANAGER_APPROVAL:  [approved/rejected] — [reason]
 
 | Time | Action |
 |:-----|:-------|
+| 4:50 AM PT | `Daily-Summary` — generate morning digest (yesterday P&L + open exposure + today pending + 7d rolling). Email at 5:00 AM PT (U2, 2026-04-30) |
 | Morning | Pull overnight news, check positions, reset daily counters |
 | Midday | Scan for opportunities, review open positions |
 | Evening | Close day trades, log P&L, update strategy performance |
