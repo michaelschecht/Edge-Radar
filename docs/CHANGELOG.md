@@ -2,6 +2,45 @@
 
 ---
 
+## 2026-05-01 -- Account Snapshot Chart (Snapshot Mode for `edge-radar-analysis`)
+
+### Why
+
+Visual companion to the markdown betting analysis. After each Kalshi balance pull the user wants to see cumulative account growth — deposit baseline through today's live total — in one re-runnable artifact, with the same sport / bet-type / side / confidence breakdowns the analysis report already produces. Markdown tables answer "how am I doing"; a chart answers "what does the growth curve look like, and where is the open-position value sitting today."
+
+### What landed
+
+- **`docs/my-documents/account-graph/Script/build_account_graph.py`** (local-only, gitignored) — self-contained Plotly HTML builder. Reads `data/history/kalshi_settlements.json`, parses sport + bet-type from the `KX<SPORT><BET_TYPE>-…` ticker prefix (works across the full 178-bet pre-R5 cohort whose `category` field is `null` on disk), aggregates daily P&L, and writes a single CDN-loaded HTML page — no install step.
+- **CLI args:** `--cash`, `--portfolio`, `--positions` required; `--as-of`, `--deposit`, `--deposit-date`, `--out-dir`, `--settlements` optional. Each run also writes a `snapshot.json` next to the HTML capturing every input + summary stats so the chart is byte-reproducible from the snapshot file alone.
+- **Folder convention:** `docs/my-documents/account-graph/Script/` for the builder, `docs/my-documents/account-graph/<M-D-YY>/` for each run's output. The dated subfolder is auto-derived from `--as-of` so historical snapshots are preserved automatically — no manual rename or move step.
+- **Live point handling:** the historical line uses the settled-only model (deposit + cumulative settled P&L) since open-position market value isn't observable for past days. The `--as-of` day is anchored to the actual `cash + portfolio` total and rendered as a gold star on the chart; hover surfaces the cash / open-position / settled-only split. The "open-position drift" reported in the footer is the unrealized value sitting in open positions on the snapshot date.
+- **`.claude/skills/edge-radar-analysis/SKILL.md`** (tracked) — extended with a new "Account Snapshot Chart" section documenting trigger phrases ("snapshot the account", "regenerate the account graph", "build the account chart"), required inputs, run command, optional flags, and execution steps. Skill description + argument-hint also expanded so dispatch routes correctly.
+
+### Verification
+
+- Smoke-tested with the user's 2026-05-01 portfolio status pull (cash $65.88, portfolio $27.54, 23 open positions): builder writes `account_graph.html` + `snapshot.json` to `5-1-26/`, settled-only balance reconciles to $78.04 (deposit $45.50 + settled P&L $32.54 across 178 bets), live total $93.42, open-position drift $15.38.
+- Path resolution survives the `Script/` subfolder hop: `REPO_ROOT = SCRIPT_DIR.parents[3]`, `default_out_dir` writes to `ACCOUNT_GRAPH_DIR / <M-D-YY>` (one level above `Script/`) instead of nesting.
+
+### How to use
+
+```bash
+# Pull live portfolio first
+python scripts/kalshi/risk_check.py --report positions
+
+# Then build the chart (auto-named M-D-YY folder)
+python docs/my-documents/account-graph/Script/build_account_graph.py \
+  --cash 65.88 --portfolio 27.54 --positions 23
+
+# Or via the skill — natural-language triggers route to snapshot mode
+# "snapshot the account" / "regenerate the account graph" / "build the account chart"
+```
+
+### Files
+
+`.claude/skills/edge-radar-analysis/SKILL.md`, `docs/CHANGELOG.md`. Local-only (gitignored): `docs/my-documents/account-graph/Script/build_account_graph.py`, `docs/my-documents/account-graph/README.md`, `docs/my-documents/account-graph/<M-D-YY>/account_graph.html`, `docs/my-documents/account-graph/<M-D-YY>/snapshot.json`.
+
+---
+
 ## 2026-04-30 -- U2: Daily P&L Email Digest
 
 ### Why

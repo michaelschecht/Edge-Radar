@@ -1,7 +1,7 @@
 ---
 name: edge-radar-analysis
-description: Generate a comprehensive post-hoc betting performance report from local Kalshi settlement data. Trade ledger + slices by sport, category, side (YES/NO), edge bucket, confidence, market price, predicted-probability calibration, longshots, streaks, and daily P&L. Ad-hoc or scheduled.
-argument-hint: [days] [--save] [--out PATH] — e.g., "30", "14 --save", "90"
+description: Generate a comprehensive post-hoc betting performance report from local Kalshi settlement data. Trade ledger + slices by sport, category, side (YES/NO), edge bucket, confidence, market price, predicted-probability calibration, longshots, streaks, and daily P&L. Ad-hoc or scheduled. Also handles snapshot mode — interactive Plotly account-growth chart at docs/my-documents/account-graph/<M-D-YY>/ — triggered by "snapshot the account", "regenerate the account graph", "build the account chart" or after a Kalshi balance pull.
+argument-hint: [days] [--save] [--out PATH] — or "snapshot --cash X --portfolio Y --positions N"
 user-invocable: true
 allowed-tools: Read, Bash, Glob, Grep
 ---
@@ -24,8 +24,9 @@ Arguments: `$ARGUMENTS`
 | `--save` | 30 days + save (default window) |
 | `--out PATH` | Write to a specific path |
 | `last week` / `last month` | Interpret as 7 / 30 days |
+| `snapshot` / `chart` / `graph` | Generate the **interactive account-growth HTML chart** instead of the markdown report. See "Account Snapshot Chart" below. |
 
-Accept natural phrasing. "Run the betting analysis for the last 30 days" = `30 --save`.
+Accept natural phrasing. "Run the betting analysis for the last 30 days" = `30 --save`. "Snapshot the account" / "regenerate the account graph" / "build the account chart" → snapshot mode.
 
 ## What The Report Contains
 
@@ -104,6 +105,48 @@ Suggested command for a scheduled task:
 .venv/Scripts/python.exe scripts/kalshi/betting_analysis.py --days 7 --save
 .venv/Scripts/python.exe scripts/kalshi/betting_analysis.py --days 30 --save
 ```
+
+## Account Snapshot Chart
+
+Snapshot mode produces the interactive Plotly HTML at `docs/my-documents/account-graph/<M-D-YY>/account_graph.html` — a visual companion to the markdown report. Use it when the user asks to **"snapshot the account"**, **"regenerate the account graph"**, **"build the account chart"**, or after a new Kalshi deposit / balance pull. Each run lands in its own dated subfolder so historical snapshots are preserved.
+
+### Required inputs
+
+The script reads settled bets from `data/history/kalshi_settlements.json` automatically, but the **live snapshot must come from the user**:
+
+| Value | Source |
+|---|---|
+| `--cash` | Kalshi cash balance (USD) |
+| `--portfolio` | Kalshi portfolio value — open-position market value (USD) |
+| `--positions` | Open-position count |
+
+If the user hasn't provided these, ask them to run `python scripts/kalshi/risk_check.py --report positions` (or paste the Kalshi UI's Portfolio Status block) and surface those three numbers.
+
+### How to run
+
+```bash
+.venv/Scripts/python.exe docs/my-documents/account-graph/Script/build_account_graph.py \
+  --cash 65.88 --portfolio 27.54 --positions 23
+```
+
+`--as-of` defaults to today; the output folder is named `<M-D-YY>` based on it. The builder also writes a `snapshot.json` capturing every input + summary stats, so the chart is reproducible.
+
+### Optional flags
+
+| Flag | Default | When to use |
+|---|---|---|
+| `--as-of YYYY-MM-DD` | today | Backfill or post-date a snapshot |
+| `--deposit USD` | `45.50` | New deposits to Kalshi land here |
+| `--deposit-date YYYY-MM-DD` | `2026-03-22` | Update if deposits start before/after |
+| `--out-dir PATH` | `<M-D-YY>/` | Override the dated subfolder |
+| `--settlements PATH` | `data/history/kalshi_settlements.json` | Use a different settlements source |
+
+### Execution steps
+
+1. Confirm the user has provided cash + portfolio + positions. If not, prompt for them.
+2. Run the builder via Bash with the resolved args.
+3. Print the output path and the three key numbers from stdout: settled-only balance, live total, open-position drift.
+4. If the open-position drift looks wrong (e.g., negative when the user is up overall), suggest re-pulling settlements (`make settle`) — the local ledger may be stale.
 
 ## Related
 
