@@ -212,6 +212,7 @@ def _generate_recommendations(
     by_sport: list[dict],
     by_edge: list[dict],
     calibration: list[dict],
+    by_side: list[dict] | None = None,
 ) -> list[dict]:
     """Generate prioritized recommendations from the analysis.
 
@@ -319,7 +320,35 @@ def _generate_recommendations(
                 ),
             })
 
-    # 6. Brier score baseline check
+    # 6. YES/NO side asymmetry — analogous trigger to the R1 NO-side guard
+    if by_side:
+        side_map = {s["name"]: s for s in by_side}
+        yes = side_map.get("YES")
+        no = side_map.get("NO")
+        if yes and no and yes["count"] >= 20 and no["count"] >= 20:
+            wr_gap = no["wr"] - yes["wr"]
+            roi_gap = no["roi"] - yes["roi"]
+            # Flag when one side is winning ≥15pts more often AND the loser has negative ROI
+            if abs(wr_gap) >= 0.15 and (yes["roi"] < 0 or no["roi"] < 0):
+                worse, better = (yes, no) if wr_gap > 0 else (no, yes)
+                recs.append({
+                    "priority": 1,
+                    "area": "Side Asymmetry (YES vs NO)",
+                    "finding": (
+                        f"{better['name']} side: {better['count']} bets, {better['wr']:.0%} WR, "
+                        f"{better['roi']:+.0%} ROI. {worse['name']} side: {worse['count']} bets, "
+                        f"{worse['wr']:.0%} WR, {worse['roi']:+.0%} ROI. "
+                        f"{abs(wr_gap):.0%}-pt WR gap, {abs(roi_gap):.0%}-pt ROI gap."
+                    ),
+                    "action": (
+                        f"Investigate why {worse['name']}-side selection is unprofitable. "
+                        f"Consider adding a {worse['name']}-side gate analogous to R1's NO-side guard "
+                        f"(elevated edge/confidence floor for {worse['name']} bets), or audit the model "
+                        f"for systematic bias toward overpriced {worse['name']} contracts."
+                    ),
+                })
+
+    # 7. Brier score baseline check
     overall_brier = _brier_score(settled)
     if overall_brier > 0.25:
         recs.append({
@@ -466,6 +495,12 @@ def generate_calibration_report(days: int | None = None, save: bool = False):
     )
     _print_dimension_table("By Sport", by_sport, md)
 
+    # ── By side (YES vs NO)
+    by_side = _dimension_stats(
+        settled, lambda t: (t.get("side") or "unknown").upper(), "Side"
+    )
+    _print_dimension_table("By Side", by_side, md)
+
     # ── By edge bucket
     by_edge = _edge_bucket_stats(settled)
     if by_edge:
@@ -488,7 +523,7 @@ def generate_calibration_report(days: int | None = None, save: bool = False):
 
     # ── Recommendations
     recs = _generate_recommendations(
-        settled, by_category, by_confidence, by_sport, by_edge, calibration
+        settled, by_category, by_confidence, by_sport, by_edge, calibration, by_side
     )
     if recs:
         rprint(f"\n[bold]{'='*60}[/bold]")
