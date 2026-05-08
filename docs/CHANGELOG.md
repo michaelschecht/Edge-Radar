@@ -2,6 +2,29 @@
 
 ---
 
+## 2026-05-08 -- Pages Site Privacy Pass + Streamlit Cross-Link
+
+### Why
+
+The Streamlit dashboard at `edge-radar.streamlit.app` is functionally complete and the user wants it discoverable from the personal GitHub Pages diagram site at `edge-radar.mikesailab.com` — but **not** advertised from the public GitHub repo. Three things had to land at once: scrub the README of every link that points strangers at the deployed instance, add the cross-link on the Pages site below its hero, and document the previously-unwritten fact that the Pages deploy is workflow-driven from `.claude/html/` (not from the orphan `gh-pages` branch).
+
+### What landed
+
+- **`README.md`** — removed five outbound advertisements: the `Dashboard` shields.io badge, the `Data Flow` shields.io badge, the centered hero banner pointing at the data-flow diagram, the inline pointer above the Mermaid graph, and the `Local Dashboard` + `Cloud Dashboard` rows from both the Next Steps and Documentation tables. The README no longer surfaces `mikesailab.com`, `michaelschecht.github.io/Edge-Radar/`, or `edge-radar.streamlit.app` to drive-by GitHub visitors. The `webapp/` and `.github/workflows/` lines in the architecture diagram stay — those describe code structure, not advertising.
+- **`docs/ARCHITECTURE.md`** — same scrub: dropped the "View the interactive data-flow diagram" callout that pointed at the GitHub Pages site.
+- **`.claude/html/index.html`** — added a small JetBrains Mono `↗ edge-radar.streamlit.app` link directly under the hero stats, styled with `var(--accent)` so it inherits the existing emerald accent and the underline picks up `var(--accent-dim)` for hover affordance. Sits inside `<section class="hero" id="overview">` so it visually closes the title block. Triggers the `Deploy to GitHub Pages` workflow on merge to master via the `.claude/html/**` path filter.
+- **`webapp/theme.py`** — _briefly_ rendered the same link from `page_header()` as a misread of the user's intent (assumed `mikesailab.com` was a Streamlit deployment with a custom domain; it's actually GitHub Pages). Reverted in `8b8854e` once the hosting model was clarified — the Streamlit app linking to itself was a no-op self-link.
+
+### Where the deploy actually lives (corrects a bad assumption)
+
+`mikesailab.com` is a custom CNAME on GitHub Pages, **not** a Streamlit Cloud custom-domain deployment. The current Pages config is `build_type=workflow` with source `gh-pages /` — but the `gh-pages` branch is vestigial. The live site is built and uploaded by `.github/workflows/deploy.yml`, which runs on pushes to `master` that touch `.claude/html/**` and uploads the entire `.claude/html/` directory as the Pages artifact. Direct commits to the `gh-pages` branch (such as the dead `e388f5f` commit on that branch from earlier in this session) are ignored by the deploy. Future edits to the diagram site go through `.claude/html/index.html` on master, full stop.
+
+### Files
+
+`README.md`, `docs/ARCHITECTURE.md`, `docs/CHANGELOG.md`, `.claude/html/index.html`, `webapp/theme.py` (revert).
+
+---
+
 ## 2026-05-01 -- Account Snapshot Chart (Snapshot Mode for `edge-radar-analysis`)
 
 ### Why
