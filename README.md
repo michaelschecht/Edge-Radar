@@ -10,14 +10,9 @@
 [![Risk Gates](https://img.shields.io/badge/Risk-13%20Gates%20%2B%20Kelly-e74c3c?style=flat-square)](#%EF%B8%8F-risk--position-sizing)
 [![Docs](https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square)](#-documentation)
 [![APIs](https://img.shields.io/badge/APIs-9%20Free%20%2B%20Kalshi-F97316?style=flat-square)](#-data-sources)
-[![Data Flow](https://img.shields.io/badge/Data%20Flow-Interactive-00d4aa?style=flat-square)](https://michaelschecht.github.io/Edge-Radar/)
 
 <p align="center">
   <img src=".claude/images/logos/logo.png" alt="Edge-Radar Banner" width="600">
-</p>
-
-<p align="center">
-  <a href="https://michaelschecht.github.io/Edge-Radar/"><b>▶ View the interactive data-flow diagram</b></a>
 </p>
 
 > Scans thousands of Kalshi markets, cross-references 12 sportsbooks + free APIs (including MLB pitcher stats and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with Kelly criterion (soft-capped above 15% edge per calibration), enforces 13 risk gates including per-sport edge floors, a $0.10 lottery-ticket price floor, NO-side favorite guard, a prediction-market safety gate, and per-sport series dedup (MLB/NHL 72h, others 48h), and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
@@ -73,8 +68,6 @@
 ---
 
 ## Edge Detection Pipeline
-
-> 🔗 **[View the interactive version →](https://michaelschecht.github.io/Edge-Radar/)**
 
 ```mermaid
 graph LR
