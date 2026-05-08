@@ -388,14 +388,6 @@ def page_header(title: str, subtitle: str = ""):
     if subtitle:
         st.markdown(f'<p style="color: #64748b; margin-top: -1rem; font-size: 0.78rem;">{subtitle}</p>',
                     unsafe_allow_html=True)
-    st.markdown(
-        '<p style="margin-top:-0.5rem; font-family:JetBrains Mono,monospace; '
-        'font-size:0.72rem; color:#64748b;">'
-        '↗ <a href="https://edge-radar.streamlit.app/" target="_blank" '
-        'style="color:#00d4aa; text-decoration:none;">edge-radar.streamlit.app</a>'
-        '</p>',
-        unsafe_allow_html=True,
-    )
 
 
 def status_badge(text: str, color: str = CYAN) -> str:
