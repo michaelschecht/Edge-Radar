@@ -667,7 +667,7 @@
       <tr>
         <td>3</td>
         <td><span class="task-name">NextDay-Execute</span></td>
-        <td><span class="pill pill-weekly">Sun-Thu</span></td>
+        <td><span class="pill pill-weekly">Sun · Mon · Tue · Wed · Thu</span></td>
         <td>6:00 PM</td>
         <td>Locks in early lines for <strong>tomorrow's</strong> games. <code>--date tomorrow --budget 10% --max-bets 6 --exclude-open</code></td>
       </tr>
@@ -676,9 +676,9 @@
   </div>
 
   <h3 style="margin-top:32px;">Daily fire sequence</h3>
-<pre>5:05 AM  Daily    ─ All-Sports-SameDay-Execution      (today's games)
-5:20 AM  Mon Thu  ─ All-Sports-NoDateFilter-Execution  (multi-day edge)
-6:00 PM  Sun-Thu  ─ NextDay-Execute                    (tomorrow's games)</pre>
+<pre>5:05 AM  Sun Mon Tue Wed Thu Fri Sat  ─ All-Sports-SameDay-Execution      (today's games)
+5:20 AM  Mon Thu                      ─ All-Sports-NoDateFilter-Execution  (multi-day edge)
+6:00 PM  Sun Mon Tue Wed Thu          ─ NextDay-Execute                    (tomorrow's games)</pre>
 
   <details>
     <summary>Manual trigger commands (Git Bash)</summary>
