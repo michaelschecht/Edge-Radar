@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Edge-Radar &middot; Data Flow &amp; Pipeline</title>
+<title>Edge-Radar &middot; Ops Dashboard</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,20 +30,6 @@
     --info-dim: #3b82f622;
     --purple: #a78bfa;
     --purple-dim: #a78bfa22;
-
-    /* Data-flow diagram tokens (aliased to main palette) */
-    --er-primary:   #00d4aa;
-    --er-amber:     #f59e0b;
-    --er-green:     #22c55e;
-    --er-bg-deep:   #0a0e17;
-    --er-surface-1: #111827;
-    --er-surface-2: #1e293b;
-    --er-surface-3: #334155;
-    --er-text-1:    #e2e8f0;
-    --er-text-2:    #94a3b8;
-    --er-text-3:    #64748b;
-    --er-text-4:    #475569;
-    --er-text-5:    #334155;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -65,6 +51,17 @@
     padding: 1px 6px;
     border-radius: 4px;
     color: var(--accent);
+  }
+  pre {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--text-dim);
+    overflow-x: auto;
   }
 
   /* ---------- Nav ---------- */
@@ -139,11 +136,11 @@
     padding: 0 32px 120px;
   }
   section {
-    padding: 80px 0 20px;
+    padding: 64px 0 16px;
     scroll-margin-top: 70px;
   }
   section > header {
-    margin-bottom: 32px;
+    margin-bottom: 28px;
     border-bottom: 1px solid var(--border);
     padding-bottom: 14px;
   }
@@ -187,7 +184,7 @@
 
   /* ---------- Hero ---------- */
   .hero {
-    padding: 100px 0 60px;
+    padding: 80px 0 40px;
     position: relative;
     overflow: hidden;
   }
@@ -198,7 +195,7 @@
     transform: translateX(-50%);
     width: 900px; height: 900px;
     background: radial-gradient(circle, var(--accent-glow) 0%, transparent 60%);
-    opacity: 0.35;
+    opacity: 0.32;
     pointer-events: none;
     z-index: 0;
   }
@@ -216,329 +213,142 @@
     margin-bottom: 24px;
   }
   .hero-stats {
-    margin-top: 40px;
+    margin-top: 32px;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 16px;
-    max-width: 900px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+    max-width: 980px;
   }
   .stat {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 18px 20px;
+    padding: 16px 18px;
   }
   .stat-val {
     font-family: 'Outfit', sans-serif;
     font-weight: 700;
-    font-size: 26px;
+    font-size: 24px;
     color: var(--accent);
     line-height: 1;
   }
   .stat-lbl {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-mute);
     text-transform: uppercase;
     letter-spacing: 1px;
-    margin-top: 8px;
+    margin-top: 7px;
   }
 
-  /* ---------- Data-Flow Diagram (scoped) ---------- */
-  .df-controls {
-    display: flex; gap: 24px; align-items: center; flex-wrap: wrap;
-    font-size: 11px; letter-spacing: 0.05em;
-    margin: 0 0 14px;
-    padding: 10px 14px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-  }
-  .df-legend { display: flex; gap: 18px; color: var(--er-text-3); text-transform: uppercase; flex-wrap: wrap; }
-  .df-legend-item { display: flex; gap: 6px; align-items: center; font-family: 'JetBrains Mono', monospace; }
-  .df-legend-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-  .df-legend-dot.source { background: rgba(139, 92, 246, 0.25); border: 1px solid #8B5CF6; }
-  .df-legend-dot.stage  { background: rgba(0, 212, 170, 0.2); border: 1px solid var(--er-primary); }
-  .df-legend-dot.gate   { background: rgba(245, 158, 11, 0.2); border: 1px solid var(--er-amber); }
-  .df-legend-dot.action { background: rgba(34, 197, 94, 0.2); border: 1px solid var(--er-green); }
-  .df-actions { margin-left: auto; display: flex; gap: 10px; }
-  .df-btn {
-    font-family: 'JetBrains Mono', monospace; font-weight: 500; font-size: 11px;
-    letter-spacing: 0.06em; padding: 7px 14px; border-radius: 4px;
-    border: 1px solid var(--er-surface-3); background: transparent;
-    color: var(--er-text-2); cursor: pointer; transition: all 0.2s;
-    text-transform: uppercase;
-  }
-  .df-btn:hover { border-color: var(--er-primary); color: var(--er-primary); background: rgba(0, 212, 170, 0.06); }
-  .df-btn.on    { border-color: var(--er-primary); color: var(--er-primary); background: rgba(0, 212, 170, 0.08); }
-
-  .df-wrap { margin: 0; padding: 0; }
-  .df-stage {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 1440 / 1000;
-    background: radial-gradient(circle at 50% 50%, rgba(0, 212, 170, 0.025), transparent 70%);
-    border: 1px solid var(--er-surface-2);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  .df-stage svg.df-rings { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-
-  .df-scan-line {
-    position: absolute;
-    left: 50%; top: 50%;
-    width: 50%; height: 2px;
-    transform-origin: 0% 50%;
-    background: linear-gradient(90deg, transparent, rgba(0, 212, 170, 0.5), transparent);
-    animation: df-sweep 8s linear infinite;
-    pointer-events: none;
-    opacity: 0.7;
-  }
-  @keyframes df-sweep {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-  }
-
-  svg.df-edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-  .df-edge { stroke: var(--er-surface-3); stroke-width: 1; fill: none; opacity: 0.5; transition: all 0.3s; }
-  .df-edge.highlight { stroke: var(--er-primary); stroke-width: 2; opacity: 1; filter: drop-shadow(0 0 4px var(--er-primary)); }
-  .df-edge.dim { opacity: 0.08; }
-  .df-packet { fill: var(--er-primary); filter: drop-shadow(0 0 6px var(--er-primary)); }
-  .df-packet.hidden { display: none; }
-
-  .df-node {
-    position: absolute;
-    transform: translate(-50%, -50%);
-    transition: all 0.25s ease;
-    cursor: pointer;
-    z-index: 2;
-  }
-  .df-node-box {
-    background: linear-gradient(135deg, #111827 0%, #0d1220 100%);
-    border: 1px solid var(--er-surface-2);
-    border-radius: 6px;
-    padding: 8px 12px;
-    min-width: 120px;
-    text-align: center;
-    position: relative;
-  }
-  .df-node-title {
-    font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 12px;
-    letter-spacing: 0.04em; color: var(--er-text-1);
-    text-transform: uppercase;
-  }
-  .df-node-meta {
-    font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--er-text-4);
-    margin-top: 3px; letter-spacing: 0.04em;
-  }
-  .df-node.source .df-node-box  { border-color: rgba(139, 92, 246, 0.4); }
-  .df-node.source .df-node-title { color: #c4b5fd; }
-  .df-node.source.hover .df-node-box { border-color: #8B5CF6; box-shadow: 0 0 16px rgba(139, 92, 246, 0.35); }
-  .df-node.stage-node .df-node-box  { border-color: rgba(0, 212, 170, 0.4); }
-  .df-node.stage-node .df-node-title { color: var(--er-primary); }
-  .df-node.stage-node.hover .df-node-box { border-color: var(--er-primary); box-shadow: 0 0 16px rgba(0, 212, 170, 0.4); }
-  .df-node.core .df-node-box {
-    border-color: var(--er-primary);
-    background: radial-gradient(circle at 50% 50%, rgba(0, 212, 170, 0.12), rgba(13, 18, 32, 0.9));
-    box-shadow: 0 0 24px rgba(0, 212, 170, 0.3);
-  }
-  .df-node.core .df-node-title { color: var(--er-primary); font-size: 13px; }
-  .df-node.gate .df-node-box  { border-color: rgba(245, 158, 11, 0.4); }
-  .df-node.gate .df-node-title { color: var(--er-amber); }
-  .df-node.gate.hover .df-node-box { border-color: var(--er-amber); box-shadow: 0 0 16px rgba(245, 158, 11, 0.35); }
-  .df-node.action .df-node-box  { border-color: rgba(34, 197, 94, 0.4); }
-  .df-node.action .df-node-title { color: var(--er-green); }
-  .df-node.action.hover .df-node-box { border-color: var(--er-green); box-shadow: 0 0 16px rgba(34, 197, 94, 0.35); }
-  .df-node.dim .df-node-box { opacity: 0.25; filter: saturate(0.3); }
-  .df-node-badge {
-    position: absolute; top: -8px; left: -8px;
-    width: 20px; height: 20px; border-radius: 50%;
-    background: var(--er-bg-deep);
-    border: 1px solid var(--er-primary);
-    color: var(--er-primary);
-    font-size: 10px; font-weight: 600;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .df-callout {
-    position: absolute;
-    transform: translate(-50%, -50%);
-    background: rgba(10, 14, 23, 0.85);
-    backdrop-filter: blur(4px);
-    border: 1px dashed rgba(0, 212, 170, 0.4);
-    border-radius: 4px;
-    padding: 5px 10px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    color: var(--er-text-2);
-    letter-spacing: 0.04em;
-    max-width: 180px;
-    text-align: center;
-    pointer-events: none;
-    z-index: 3;
-  }
-  .df-callout.amber { border-color: rgba(245, 158, 11, 0.4); color: var(--er-amber); }
-  .df-callout.green { border-color: rgba(34, 197, 94, 0.4); color: var(--er-green); }
-
-  .df-panel {
-    position: fixed;
-    bottom: 24px; right: 24px;
-    width: 340px;
-    background: linear-gradient(135deg, #111827 0%, #0d1220 100%);
-    border: 1px solid var(--er-surface-2);
-    border-radius: 8px;
-    padding: 16px 18px;
-    transform: translateY(calc(100% + 40px));
-    transition: transform 0.3s ease;
-    z-index: 40;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-  }
-  .df-panel.open { transform: translateY(0); }
-  .df-panel .df-close {
-    position: absolute; top: 10px; right: 12px;
-    background: transparent; border: none;
-    color: var(--er-text-4); cursor: pointer;
-    font-size: 16px; line-height: 1;
-  }
-  .df-panel .df-close:hover { color: var(--er-primary); }
-  .df-panel .df-kicker {
-    font-family: 'Outfit', sans-serif; font-size: 10px;
-    text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--er-text-4); margin: 0;
-  }
-  .df-panel .df-title {
-    font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 18px;
-    color: var(--er-primary); margin: 4px 0 10px 0; letter-spacing: -0.01em;
-  }
-  .df-panel .df-body {
-    font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5;
-    color: var(--er-text-2);
-  }
-  .df-panel .df-body strong { color: var(--er-text-1); }
-  .df-panel .df-files {
-    margin-top: 10px; padding-top: 10px;
-    border-top: 1px solid var(--er-surface-2);
-    font-size: 10.5px; color: var(--er-text-4);
-    letter-spacing: 0.04em;
-  }
-  .df-panel .df-files code {
-    color: var(--er-primary); background: rgba(0, 212, 170, 0.06);
-    padding: 1px 5px; border-radius: 3px; font-size: 10.5px;
-    margin-right: 4px; display: inline-block; margin-bottom: 3px;
-  }
-
-  @media (max-width: 900px) {
-    .df-panel { right: 10px; bottom: 10px; width: calc(100% - 20px); max-width: 340px; }
-    .df-node-box { min-width: 80px; padding: 5px 7px; }
-    .df-node-title { font-size: 9px; }
-    .df-node-meta { font-size: 8px; }
-    .df-callout { font-size: 8px; padding: 3px 6px; max-width: 110px; }
-  }
-
-  /* ---------- Pipeline flow ---------- */
-  .pipeline-strip {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 8px;
-    margin-bottom: 48px;
-  }
-  .flow-node {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 10px;
-    text-align: center;
-    position: relative;
-    transition: all 0.15s ease;
-  }
-  .flow-node:hover {
-    border-color: var(--accent);
-    background: var(--bg-card-hi);
-    transform: translateY(-2px);
-  }
-  .flow-node .step {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--accent);
-    letter-spacing: 1px;
-  }
-  .flow-node .name {
-    font-family: 'Outfit', sans-serif;
-    font-weight: 600;
-    font-size: 14px;
-    margin-top: 4px;
-  }
-  .flow-node:not(:last-child)::after {
-    content: '→';
-    position: absolute;
-    right: -14px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--accent);
-    font-weight: 700;
-    font-size: 16px;
-    z-index: 2;
-  }
-
-  /* ---------- Stage cards ---------- */
-  .stages { display: flex; flex-direction: column; gap: 20px; }
-  .stage {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 28px 32px;
-    display: grid;
-    grid-template-columns: 80px 1fr;
-    gap: 28px;
-    transition: border-color 0.15s ease;
-  }
-  .stage:hover { border-color: var(--border-hi); }
-  .stage-num {
-    font-family: 'Outfit', sans-serif;
-    font-weight: 800;
-    font-size: 44px;
-    color: var(--accent);
-    line-height: 1;
-    opacity: 0.7;
-  }
-  .stage-body h3 {
+  /* ---------- Streamlit CTA (big button) ---------- */
+  .cta-row {
+    margin-top: 36px;
     display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 6px;
   }
-  .stage-body .tag {
+  .cta-streamlit {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    background: linear-gradient(135deg, #00d4aa 0%, #00b894 100%);
+    color: #061018;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.3px;
+    padding: 18px 28px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: 0 10px 28px rgba(0, 212, 170, 0.30),
+                0 0 0 1px rgba(0, 212, 170, 0.55) inset;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .cta-streamlit:hover {
+    text-decoration: none;
+    color: #061018;
+    transform: translateY(-2px);
+    box-shadow: 0 14px 36px rgba(0, 212, 170, 0.42),
+                0 0 0 1px rgba(0, 212, 170, 0.8) inset;
+  }
+  .cta-streamlit .arrow {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    padding: 2px 8px;
-    background: var(--bg-alt);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    border-radius: 4px;
-    letter-spacing: 0.5px;
+    font-weight: 800;
+    font-size: 22px;
+    line-height: 1;
   }
-  .stage-details {
-    margin-top: 14px;
+  .cta-streamlit .kicker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    opacity: 0.7;
+    display: block;
+    margin-bottom: 3px;
+  }
+  .cta-streamlit .url {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: 0.2px;
+  }
+  .cta-secondary {
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.05em;
+    padding: 16px 18px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  .cta-secondary:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
+
+  /* ---------- Quick Links ---------- */
+  .quicklinks {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 14px;
   }
-  .detail {
-    background: var(--bg-alt);
-    border-left: 2px solid var(--accent);
-    padding: 10px 14px;
-    border-radius: 4px;
+  .qlink {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 16px 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    transition: all 0.15s ease;
   }
-  .detail .k {
-    font-size: 11px;
-    color: var(--text-mute);
+  .qlink:hover {
+    border-color: var(--accent);
+    background: var(--bg-card-hi);
+    transform: translateY(-2px);
+    text-decoration: none;
+  }
+  .qlink .ql-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 4px;
+    letter-spacing: 1.5px;
+    color: var(--text-mute);
   }
-  .detail .v { font-size: 13px; color: var(--text); }
+  .qlink .ql-target {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--text);
+  }
+  .qlink .ql-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
 
-  /* ---------- Tables ---------- */
+  /* ---------- Scheduler table ---------- */
   table {
     width: 100%;
     border-collapse: collapse;
@@ -555,155 +365,138 @@
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 1px;
-    padding: 14px 18px;
+    padding: 12px 14px;
     border-bottom: 1px solid var(--border);
+    white-space: nowrap;
   }
   td {
-    padding: 14px 18px;
+    padding: 12px 14px;
     border-bottom: 1px solid var(--border);
-    font-size: 14px;
+    font-size: 13.5px;
     vertical-align: top;
   }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: var(--bg-card-hi); }
+
+  .task-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 13px;
+    white-space: nowrap;
+  }
   .pill {
     display: inline-block;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    padding: 2px 8px;
+    font-size: 10.5px;
+    padding: 2px 7px;
     border-radius: 4px;
     font-weight: 600;
     letter-spacing: 0.5px;
+    white-space: nowrap;
   }
-  .pill-reject { background: var(--danger-dim); color: var(--danger); border: 1px solid var(--danger); }
-  .pill-cap { background: var(--warn-dim); color: var(--warn); border: 1px solid var(--warn); }
-  .pill-new { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
-  .pill-info { background: var(--info-dim); color: var(--info); border: 1px solid var(--info); }
+  .pill-ready { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
+  .pill-once { background: var(--info-dim); color: var(--info); border: 1px solid var(--info); }
+  .pill-daily { background: rgba(167, 139, 250, 0.15); color: var(--purple); border: 1px solid var(--purple); }
+  .pill-weekly { background: var(--warn-dim); color: var(--warn); border: 1px solid var(--warn); }
+  .pill-monthly { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid var(--danger); }
 
-  /* ---------- Grid of feature boxes ---------- */
-  .grid-3 {
+  .table-wrap { overflow-x: auto; border-radius: 10px; -webkit-overflow-scrolling: touch; }
+  .table-wrap table { min-width: 760px; }
+
+  /* ---------- Data Flow (simple horizontal strip) ---------- */
+  .flow-strip {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    margin: 20px 0 12px;
   }
-  .grid-2 {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-    gap: 18px;
-  }
-  .box {
+  .flow-step {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 22px 24px;
+    padding: 18px 12px;
+    text-align: center;
+    position: relative;
     transition: all 0.15s ease;
   }
-  .box:hover {
-    border-color: var(--border-hi);
+  .flow-step:hover {
+    border-color: var(--accent);
     background: var(--bg-card-hi);
+    transform: translateY(-2px);
   }
-  .box-ico {
-    font-size: 20px;
-    margin-bottom: 10px;
+  .flow-step .num {
     font-family: 'JetBrains Mono', monospace;
-    font-weight: 700;
+    font-size: 11px;
     color: var(--accent);
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
+    margin-bottom: 6px;
   }
-  .box h3 { font-size: 16px; }
-  .box p { font-size: 13px; margin-bottom: 0; }
-  .box ul {
-    list-style: none;
-    margin-top: 10px;
-    font-size: 13px;
-    color: var(--text-dim);
-  }
-  .box li {
-    padding: 4px 0;
-    display: flex;
-    gap: 8px;
-  }
-  .box li::before {
-    content: '▸';
-    color: var(--accent);
-    font-size: 10px;
-    margin-top: 5px;
-  }
-
-  /* ---------- Timeline ---------- */
-  .timeline {
-    position: relative;
-    padding-left: 32px;
-  }
-  .timeline::before {
-    content: '';
-    position: absolute;
-    left: 7px;
-    top: 8px;
-    bottom: 8px;
-    width: 2px;
-    background: linear-gradient(180deg, var(--accent) 0%, var(--border) 100%);
-  }
-  .t-entry {
-    position: relative;
-    padding-bottom: 28px;
-  }
-  .t-entry::before {
-    content: '';
-    position: absolute;
-    left: -32px;
-    top: 8px;
-    width: 16px; height: 16px;
-    border-radius: 50%;
-    background: var(--bg);
-    border: 3px solid var(--accent);
-    box-shadow: 0 0 10px var(--accent-glow);
-  }
-  .t-entry.old::before {
-    border-color: var(--text-mute);
-    box-shadow: none;
-  }
-  .t-date {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    color: var(--accent);
-    letter-spacing: 1px;
-    margin-bottom: 4px;
-    text-transform: uppercase;
-  }
-  .t-entry.old .t-date { color: var(--text-mute); }
-  .t-title {
+  .flow-step .name {
     font-family: 'Outfit', sans-serif;
     font-weight: 700;
-    font-size: 18px;
-    margin-bottom: 10px;
+    font-size: 15px;
+    color: var(--text);
+    margin-bottom: 4px;
   }
-  .t-items { display: flex; flex-direction: column; gap: 10px; }
-  .t-item {
+  .flow-step .sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--text-mute);
+    letter-spacing: 0.04em;
+  }
+  .flow-step:not(:last-child)::after {
+    content: '→';
+    position: absolute;
+    right: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 18px;
+    z-index: 2;
+    background: var(--bg);
+    padding: 0 2px;
+  }
+  .flow-legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-mute);
+    margin-top: 8px;
+  }
+
+  /* ---------- Disabled-tasks accordion ---------- */
+  details {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
-    border-radius: 6px;
-    padding: 12px 16px;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-top: 20px;
   }
-  .t-entry.old .t-item { border-left-color: var(--text-mute); }
-  .t-item-title {
+  details[open] { background: var(--bg-card-hi); }
+  details summary {
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
     font-weight: 600;
     font-size: 14px;
-    margin-bottom: 4px;
     color: var(--text);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
-  .t-item-title .tag {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
+  details summary::-webkit-details-marker { display: none; }
+  details summary::before {
+    content: '▸';
     color: var(--accent);
-    background: var(--accent-dim);
-    padding: 1px 6px;
-    border-radius: 3px;
-    margin-right: 8px;
-    letter-spacing: 0.5px;
+    font-size: 12px;
+    transition: transform 0.15s ease;
   }
-  .t-item-body { font-size: 13px; color: var(--text-dim); }
+  details[open] summary::before { transform: rotate(90deg); }
+  details .details-body { margin-top: 14px; }
 
   /* ---------- Footer ---------- */
   footer {
@@ -719,13 +512,35 @@
   /* ---------- Responsive ---------- */
   @media (max-width: 900px) {
     h1 { font-size: 36px; }
-    .pipeline-strip { grid-template-columns: repeat(2, 1fr); }
-    .flow-node:not(:last-child)::after { display: none; }
-    .stage { grid-template-columns: 1fr; gap: 12px; padding: 22px; }
-    .stage-num { font-size: 32px; }
+    main { padding: 0 18px 80px; }
+    section { padding: 48px 0 12px; }
+    .nav-inner { padding: 12px 18px; gap: 14px; }
     .nav-links { display: none; }
-    main { padding: 0 20px 80px; }
-    section { padding: 60px 0 12px; }
+    .hero { padding: 56px 0 28px; }
+    .cta-streamlit {
+      width: 100%;
+      justify-content: space-between;
+      padding: 16px 20px;
+    }
+    .cta-streamlit .url { font-size: 15px; }
+    .cta-secondary { width: 100%; text-align: center; }
+    .flow-strip {
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+    .flow-step:not(:last-child)::after {
+      content: '↓';
+      right: 50%;
+      top: auto;
+      bottom: -14px;
+      transform: translateX(50%);
+    }
+    .flow-step { padding: 14px 12px; }
+  }
+  @media (max-width: 600px) {
+    h1 { font-size: 30px; }
+    .hero-stats { grid-template-columns: repeat(2, 1fr); }
+    th, td { padding: 10px 10px; font-size: 12.5px; }
   }
 </style>
 </head>
@@ -735,697 +550,353 @@
   <div class="nav-inner">
     <div class="nav-brand">EDGE-RADAR</div>
     <div class="nav-links">
-      <a href="#overview">Overview</a>
+      <a href="#schedulers">Schedulers</a>
       <a href="#dataflow">Data Flow</a>
-      <a href="#pipeline">Pipeline</a>
-      <a href="#models">Edge Models</a>
-      <a href="#gates">Risk Gates</a>
-      <a href="#limits">Limits</a>
-      <a href="#updates">Recent Updates</a>
-      <a href="#calibration">Calibration</a>
+      <a href="#quicklinks">Quick Links</a>
     </div>
-    <div class="nav-meta">v2026.04.22</div>
+    <div class="nav-meta">ops · 2026.05.11</div>
   </div>
 </nav>
 
 <main>
 
 <!-- ============ HERO ============ -->
-<section class="hero" id="overview">
-  <div class="hero-eyebrow">MULTI-AGENT · KALSHI · RESEARCH-FIRST</div>
-  <h1>Automated edge detection<br>&amp; execution pipeline</h1>
+<section class="hero" id="top">
+  <div class="hero-eyebrow">PERSONAL OPS DASHBOARD</div>
+  <h1>Edge-Radar<br>command deck</h1>
   <p class="lede">
-    Edge-Radar scans thousands of open Kalshi markets, cross-references prices against
-    sportsbook consensus, crypto spot, and weather forecasts —
-    then surfaces mispriced contracts through 13 risk gates and Kelly sizing before
-    placing limit orders. Every decision is logged for post-hoc calibration.
+    Single pane of glass for the Kalshi edge-detection pipeline — what's scheduled,
+    what's running, and where to click when something needs attention.
   </p>
+
+  <div class="cta-row">
+    <a class="cta-streamlit" href="https://edge-radar.streamlit.app/" target="_blank" rel="noopener">
+      <span>
+        <span class="kicker">Open the app</span>
+        <span class="url">edge-radar.streamlit.app</span>
+      </span>
+      <span class="arrow">↗</span>
+    </a>
+    <a class="cta-secondary" href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener">
+      ↗ github / michaelschecht / Edge-Radar
+    </a>
+  </div>
+
   <div class="hero-stats">
+    <div class="stat"><div class="stat-val">17</div><div class="stat-lbl">Active schedulers</div></div>
+    <div class="stat"><div class="stat-val">13</div><div class="stat-lbl">Risk gates</div></div>
     <div class="stat"><div class="stat-val">7</div><div class="stat-lbl">Pipeline stages</div></div>
-    <div class="stat"><div class="stat-val">12</div><div class="stat-lbl">Risk gates</div></div>
-    <div class="stat"><div class="stat-val">5</div><div class="stat-lbl">Edge models</div></div>
     <div class="stat"><div class="stat-val">27</div><div class="stat-lbl">Sport filters</div></div>
-    <div class="stat"><div class="stat-val">297</div><div class="stat-lbl">Tests passing</div></div>
-  </div>
-  <p style="margin-top:28px; font-family:'JetBrains Mono', ui-monospace, monospace;
-            font-size:12px; letter-spacing:0.04em; color:var(--text-mute);">
-    ↗ <a href="https://edge-radar.streamlit.app/" target="_blank" rel="noopener"
-         style="color:var(--accent); text-decoration:none; border-bottom:1px solid var(--accent-dim);">edge-radar.streamlit.app</a>
-  </p>
-</section>
-
-<!-- ============ DATA FLOW DIAGRAM ============ -->
-<section id="dataflow">
-  <header>
-    <h2><span class="num">§1</span> Data Flow</h2>
-    <div class="section-sub">Scan → Size → Execute → Settle. Interactive diagram — hover nodes, click for detail.</div>
-  </header>
-
-  <!--
-    Diagram swapped 2026-04-24 to the "dark modern" variant from
-    docs/my-documents/HTML-Interactive-Pages/Edge-Radar-Only/index2-dark-modern.html.
-    Embedded via iframe to keep its CSS (bare body/html selectors, own :root
-    variables, IBM Plex Mono @font-face) isolated from the rest of this
-    page. The bundled artifact ships with all fonts/styles self-contained.
-  -->
-  <iframe
-    id="dataflow-frame"
-    src="dataflow.html"
-    title="Edge-Radar Data Flow diagram"
-    loading="lazy"
-    scrolling="no"
-    style="width:100%; height:1100px; border:0; border-radius:12px; background:#06070b; display:block; margin-top:16px; overflow:hidden;"
-  ></iframe>
-  <script>
-    // Auto-resize the data-flow iframe to match its content height so the
-    // diagram shows without an internal scrollbar. Same-origin (both files
-    // served from the same host) so contentDocument access is allowed.
-    (function () {
-      const iframe = document.getElementById('dataflow-frame');
-      if (!iframe) return;
-      function fit() {
-        try {
-          const doc = iframe.contentDocument;
-          if (!doc || !doc.body) return;
-          const h = Math.max(
-            doc.body.scrollHeight,
-            doc.documentElement.scrollHeight,
-            820  // diagram's own min-height floor
-          );
-          iframe.style.height = h + 'px';
-        } catch (_) { /* cross-origin or not ready yet */ }
-      }
-      iframe.addEventListener('load', function () {
-        fit();
-        // The bundler unpacks content asynchronously. Keep polling briefly
-        // so we catch the post-unpack layout.
-        let tries = 0;
-        const id = setInterval(() => { fit(); if (++tries > 40) clearInterval(id); }, 100);
-        // Re-fit if the user resizes the window (diagram uses vh units)
-        window.addEventListener('resize', fit);
-      });
-    })();
-  </script>
-</section>
-
-<!-- ============ PIPELINE ============ -->
-<section id="pipeline">
-  <header>
-    <h2><span class="num">§2</span> Pipeline</h2>
-    <div class="section-sub">Seven sequential stages. Each advances an opportunity or drops it.</div>
-  </header>
-
-  <div class="pipeline-strip">
-    <a class="flow-node" href="#stage-1"><div class="step">01</div><div class="name">Fetch</div></a>
-    <a class="flow-node" href="#stage-2"><div class="step">02</div><div class="name">Categorize</div></a>
-    <a class="flow-node" href="#stage-3"><div class="step">03</div><div class="name">Compare</div></a>
-    <a class="flow-node" href="#stage-4"><div class="step">04</div><div class="name">Cap</div></a>
-    <a class="flow-node" href="#stage-5"><div class="step">05</div><div class="name">Risk-Check</div></a>
-    <a class="flow-node" href="#stage-6"><div class="step">06</div><div class="name">Execute</div></a>
-    <a class="flow-node" href="#stage-7"><div class="step">07</div><div class="name">Monitor</div></a>
-  </div>
-
-  <div class="stages">
-
-    <div class="stage" id="stage-1">
-      <div class="stage-num">01</div>
-      <div class="stage-body">
-        <h3>Fetch <span class="tag">read · parallel</span></h3>
-        <p>Pull all open Kalshi markets via the signed REST client. In parallel, query 8-12 US sportsbooks through The Odds API, ESPN, NHL/MLB stats, CoinGecko spot, and NWS hourly forecasts.</p>
-        <div class="stage-details">
-          <div class="detail"><div class="k">Sources</div><div class="v">Kalshi, Odds API (rotating keys), ESPN, NHL/MLB Stats, CoinGecko, NWS, Yahoo</div></div>
-          <div class="detail"><div class="k">Rotation</div><div class="v">Set-based Odds API key rotation — tries every key once on 401/429 before bailing</div></div>
-          <div class="detail"><div class="k">Caching</div><div class="v">Weather fetched once per home team; shared across spread + total markets</div></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="stage" id="stage-2">
-      <div class="stage-num">02</div>
-      <div class="stage-body">
-        <h3>Categorize <span class="tag">routing</span></h3>
-        <p>Every ticker prefix is mapped to a category (moneyline, spread, total, futures, crypto, weather, S&amp;P). The category determines which edge model runs next.</p>
-        <div class="stage-details">
-          <div class="detail"><div class="k">Map</div><div class="v">30 prefix → category rules across 18 sports + prediction markets</div></div>
-          <div class="detail"><div class="k">Fallback</div><div class="v">Unmapped prefixes log once, then drop rather than pollute scoring</div></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="stage" id="stage-3">
-      <div class="stage-num">03</div>
-      <div class="stage-body">
-        <h3>Compare <span class="tag">fair value vs. ask</span></h3>
-        <p>Each opportunity is scored on four independent dimensions. The composite score gates whether it continues. Details in <a href="#models">Edge Models</a>.</p>
-        <div class="stage-details">
-          <div class="detail"><div class="k">Edge (40%)</div><div class="v">fair_value − kalshi_ask, side-picked YES vs NO</div></div>
-          <div class="detail"><div class="k">Confidence (30%)</div><div class="v">Book count + range + stats + sharp money + rest/B2B</div></div>
-          <div class="detail"><div class="k">Liquidity (20%)</div><div class="v">10 − spread × 20</div></div>
-          <div class="detail"><div class="k">Time (10%)</div><div class="v">Placeholder for time-decay weighting</div></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="stage" id="stage-4">
-      <div class="stage-num">04</div>
-      <div class="stage-body">
-        <h3>Cap <span class="tag">dedup</span></h3>
-        <p>Limit to top 3 per game/event so a single contest can't dominate the scan. Bracket dedup collapses same-outcome correlated markets on the same day.</p>
-        <div class="stage-details">
-          <div class="detail"><div class="k">Per-event</div><div class="v">Top 3 by composite score per ticker root</div></div>
-          <div class="detail"><div class="k">Bracket dedup</div><div class="v">Intra-day correlated bracket collapse (same outcome)</div></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="stage" id="stage-5">
-      <div class="stage-num">05</div>
-      <div class="stage-body">
-        <h3>Risk-Check <span class="tag">12 gates</span> <span class="pill pill-new">+Gate 3.5</span></h3>
-        <p>Seven reject gates and two sizing caps. Every gate is logged with pass/reject reason and input values. Full table in <a href="#gates">Risk Gates</a>.</p>
-        <div class="stage-details">
-          <div class="detail"><div class="k">Sizing</div><div class="v">Batch-Kelly with soft-cap above 15% edge, half-Kelly on sub-35¢ NO bets</div></div>
-          <div class="detail"><div class="k">Janitor</div><div class="v">Cancels zero-fill resting orders &gt; 24h before placing new ones</div></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="stage" id="stage-6">
-      <div class="stage-num">06</div>
-      <div class="stage-body">
-        <h3>Execute <span class="tag">signed · limit-only</span></h3>
-        <p>RSA-signed limit orders on Kalshi. A full trade journal row is written per order with ticker, side, price, size, fair value, edge, confidence, composite, and rationale.</p>
-        <div class="stage-details">
-          <div class="detail"><div class="k">Auth</div><div class="v">RSA private key loaded inline or via <code>KALSHI_PRIVATE_KEY</code> env</div></div>
-          <div class="detail"><div class="k">Dry run</div><div class="v">Default <code>DRY_RUN=true</code>; identical logging for backtest parity</div></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="stage" id="stage-7">
-      <div class="stage-num">07</div>
-      <div class="stage-body">
-        <h3>Monitor <span class="tag">settle · calibrate</span></h3>
-        <p>The settler scans for closed markets, realizes P&amp;L, and appends to the trade journal. The calibration tool groups settled trades by edge bucket, sport, side, and confidence to measure Brier score and realized ROI.</p>
-        <div class="stage-details">
-          <div class="detail"><div class="k">Settle</div><div class="v"><code>make settle</code> — realized P&amp;L + CLV tracking</div></div>
-          <div class="detail"><div class="k">Calibrate</div><div class="v"><code>model_calibration.py</code> — Brier by edge bucket, sport, confidence</div></div>
-          <div class="detail"><div class="k">Dashboard</div><div class="v">Streamlit app — scan, execute, portfolio, settle</div></div>
-        </div>
-      </div>
-    </div>
-
+    <div class="stat"><div class="stat-val">330</div><div class="stat-lbl">Tests passing</div></div>
   </div>
 </section>
 
-<!-- ============ EDGE MODELS ============ -->
-<section id="models">
+<!-- ============ QUICK LINKS ============ -->
+<section id="quicklinks">
   <header>
-    <h2><span class="num">§3</span> Edge Models</h2>
-    <div class="section-sub">Five specialized models — each outputs a fair-value probability compared against Kalshi ask.</div>
+    <h2><span class="num">§1</span> Quick Links</h2>
+    <div class="section-sub">The stuff actually clicked on a normal day.</div>
   </header>
 
-  <div class="grid-3">
-
-    <div class="box">
-      <div class="box-ico">ML</div>
-      <h3>Moneyline (2-way de-vig)</h3>
-      <p>De-vig each book's line using the multiplicative method. Take a weighted median across 8-12 books.</p>
-      <ul>
-        <li>Sharp books 3× (Pinnacle, Circa)</li>
-        <li>Recreational 0.7× (DK, FD)</li>
-        <li>Confidence from book count + range + stats</li>
-      </ul>
-    </div>
-
-    <div class="box">
-      <div class="box-ico">SP</div>
-      <h3>Spreads (Normal CDF)</h3>
-      <p>Infer expected margin from the consensus line, model the final as Normal(μ, σ), compute P(margin &gt; strike).</p>
-      <ul>
-        <li>NBA σ=13.8, NCAAB σ=12.1 (R2 bump)</li>
-        <li>NHL σ=2.5 · MLB σ=4.025</li>
-        <li>+Rest/B2B + weather stdev adjust</li>
-      </ul>
-    </div>
-
-    <div class="box">
-      <div class="box-ico">TO</div>
-      <h3>Totals (CDF + weather)</h3>
-      <p>Same CDF approach with a weather overlay for outdoor NFL/MLB. Weather shifts both fair value and stdev.</p>
-      <ul>
-        <li>Wind &gt; 15mph, rain &gt; 40%, cold</li>
-        <li>Dome = 0 adjustment (auto-detect)</li>
-        <li>Severe +0.5 · moderate +0.3 · mild +0.1</li>
-      </ul>
-    </div>
-
-    <div class="box">
-      <div class="box-ico">FU</div>
-      <h3>Futures (N-way de-vig)</h3>
-      <p>De-vig the full N-outcome market by distributing the overround proportionally across sportsbook futures odds.</p>
-      <ul>
-        <li>NFL, NBA, NHL, MLB, PGA</li>
-        <li>Weighted median across books</li>
-        <li>Higher liquidity threshold required</li>
-      </ul>
-    </div>
-
-    <div class="box">
-      <div class="box-ico">PR</div>
-      <h3>Predictions</h3>
-      <p>Model-specific: crypto uses log-normal volatility, weather uses NWS ensemble, S&amp;P uses VIX-implied vol.</p>
-      <ul>
-        <li>Crypto: BTC, ETH, XRP, DOGE, SOL</li>
-        <li>Weather: 13 US cities (NWS/NOAA)</li>
-        <li>S&amp;P: Yahoo + VIX → strike prob</li>
-      </ul>
-    </div>
-
+  <div class="quicklinks">
+    <a class="qlink" href="https://edge-radar.streamlit.app/" target="_blank" rel="noopener">
+      <div class="ql-label">Dashboard</div>
+      <div class="ql-target">Streamlit app</div>
+      <div class="ql-sub">scan · execute · settle · portfolio</div>
+    </a>
+    <a class="qlink" href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener">
+      <div class="ql-label">Source</div>
+      <div class="ql-target">GitHub repo</div>
+      <div class="ql-sub">michaelschecht / Edge-Radar</div>
+    </a>
+    <a class="qlink" href="https://github.com/michaelschecht/Edge-Radar/blob/master/docs/CHANGELOG.md" target="_blank" rel="noopener">
+      <div class="ql-label">History</div>
+      <div class="ql-target">CHANGELOG</div>
+      <div class="ql-sub">docs/CHANGELOG.md</div>
+    </a>
+    <a class="qlink" href="https://github.com/michaelschecht/Edge-Radar/blob/master/docs/my-documents/task-schedules/README.md" target="_blank" rel="noopener">
+      <div class="ql-label">Schedulers</div>
+      <div class="ql-target">Task schedules doc</div>
+      <div class="ql-sub">docs/my-documents/task-schedules/</div>
+    </a>
+    <a class="qlink" href="https://github.com/michaelschecht/Edge-Radar/blob/master/CLAUDE.md" target="_blank" rel="noopener">
+      <div class="ql-label">System</div>
+      <div class="ql-target">CLAUDE.md</div>
+      <div class="ql-sub">risk gates · limits · agents</div>
+    </a>
+    <a class="qlink" href="https://github.com/michaelschecht/Edge-Radar/tree/master/reports" target="_blank" rel="noopener">
+      <div class="ql-label">Output</div>
+      <div class="ql-target">Reports tree</div>
+      <div class="ql-sub">Performance · Calibration · backtest</div>
+    </a>
   </div>
 </section>
 
-<!-- ============ RISK GATES ============ -->
-<section id="gates">
+<!-- ============ SCHEDULERS ============ -->
+<section id="schedulers">
   <header>
-    <h2><span class="num">§4</span> Risk Gates</h2>
-    <div class="section-sub">Seven reject gates + two sizing caps. Every gate logs its pass/reject reason with inputs.</div>
+    <h2><span class="num">§2</span> Schedulers</h2>
+    <div class="section-sub">All <code>\Edge-Radar\</code> Windows Task Scheduler tasks. Times in PT (system local).</div>
   </header>
 
+  <div class="table-wrap">
   <table>
     <thead>
       <tr>
-        <th style="width:60px">#</th>
-        <th style="width:120px">Type</th>
-        <th>Gate</th>
+        <th style="width:36px">#</th>
+        <th>Task</th>
+        <th>Cadence</th>
         <th>Trigger</th>
+        <th>What it does</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td><code>1</code></td>
-        <td><span class="pill pill-reject">reject</span></td>
-        <td>Daily loss limit</td>
-        <td>Realized daily loss &gt;= <code>MAX_DAILY_LOSS</code></td>
+        <td>1</td>
+        <td><span class="task-name">Daily-Summary</span></td>
+        <td><span class="pill pill-daily">daily</span></td>
+        <td>4:50 AM</td>
+        <td>Morning P&amp;L digest — yesterday settled + open exposure + today pending + 7d rolling. Output: <code>reports/Performance/daily_summary_*.md</code></td>
       </tr>
       <tr>
-        <td><code>2</code></td>
-        <td><span class="pill pill-reject">reject</span></td>
-        <td>Open position cap</td>
-        <td>Open positions &gt;= <code>MAX_OPEN_POSITIONS</code></td>
+        <td>2</td>
+        <td><span class="task-name">Email-Daily-Summary</span></td>
+        <td><span class="pill pill-daily">daily</span></td>
+        <td>5:00 AM</td>
+        <td>Emails the daily-summary report to <code>mikeschecht@gmail.com</code>. Subject: <code>Edge-Radar | Daily Summary</code></td>
       </tr>
       <tr>
-        <td><code>3</code></td>
-        <td><span class="pill pill-reject">reject</span></td>
-        <td>Edge threshold</td>
-        <td>Edge &lt; global <code>MIN_EDGE_THRESHOLD</code> or per-sport override (NBA 12%, NCAAB 10%)</td>
+        <td>3</td>
+        <td><span class="task-name">All-Sports-SameDay-Execution</span></td>
+        <td><span class="pill pill-daily">daily</span></td>
+        <td>5:05 AM</td>
+        <td>Scans NBA/NHL/MLB/NFL for <strong>today's</strong> games and places bets. <code>--date today --budget 15% --max-bets 7 --exclude-open</code></td>
       </tr>
       <tr>
-        <td><code>3.5</code></td>
-        <td><span class="pill pill-reject">reject</span> <span class="pill pill-new">R7</span></td>
-        <td>Lottery-ticket floor</td>
-        <td>Market price &lt; <code>MIN_MARKET_PRICE</code> (default $0.10); strict less-than</td>
+        <td>4</td>
+        <td><span class="task-name">All-Sports-NoDateFilter-Execution</span></td>
+        <td><span class="pill pill-weekly">Mon · Thu</span></td>
+        <td>5:20 AM</td>
+        <td>Scans all sports across <strong>all dates</strong> for multi-day edge. <code>--budget 15% --max-bets 6 --exclude-open</code> (no <code>--date</code>)</td>
       </tr>
       <tr>
-        <td><code>4</code></td>
-        <td><span class="pill pill-reject">reject</span></td>
-        <td>Composite score</td>
-        <td>Score &lt; <code>MIN_COMPOSITE_SCORE</code> (default 6.0)</td>
+        <td>5</td>
+        <td><span class="task-name">Email-SameDay</span></td>
+        <td><span class="pill pill-daily">daily</span></td>
+        <td>5:25 AM</td>
+        <td>Emails today's same-day execution report. Empty-day emails still fire (proof-of-life pattern)</td>
       </tr>
       <tr>
-        <td><code>4.5</code></td>
-        <td><span class="pill pill-reject">reject</span> <span class="pill pill-new">R3</span></td>
-        <td>Confidence floor</td>
-        <td>Confidence rank &lt; <code>MIN_CONFIDENCE</code> (default medium). Low-confidence: 0W-3L, -105% ROI</td>
+        <td>6</td>
+        <td><span class="task-name">Email-NoDateFilter</span></td>
+        <td><span class="pill pill-weekly">Mon · Thu</span></td>
+        <td>5:40 AM</td>
+        <td>Emails the weekly-broad execution report. 20-min buffer after the 5:20 execute</td>
       </tr>
       <tr>
-        <td><code>4.6</code></td>
-        <td><span class="pill pill-reject">reject</span> <span class="pill pill-new">R1</span></td>
-        <td>NO-favorite guard</td>
-        <td>NO bets with price &lt; <code>NO_SIDE_FAVORITE_THRESHOLD</code> (0.25) need edge &gt;= <code>NO_SIDE_MIN_EDGE</code> (0.25) AND confidence=high</td>
+        <td>7</td>
+        <td><span class="task-name">NextDay-Execute</span></td>
+        <td><span class="pill pill-weekly">Sun-Thu</span></td>
+        <td>6:00 PM</td>
+        <td>Locks in early lines for <strong>tomorrow's</strong> games. <code>--date tomorrow --budget 10% --max-bets 6 --exclude-open</code></td>
       </tr>
       <tr>
-        <td><code>4.7</code></td>
-        <td><span class="pill pill-reject">reject</span> <span class="pill pill-new">R25</span></td>
-        <td>Prediction-market safety</td>
-        <td>Opportunity category in {crypto, weather, spx, mentions, companies, politics} → reject unless <code>ALLOW_PREDICTION_BETS=true</code></td>
+        <td>8</td>
+        <td><span class="task-name">Email-NextDay</span></td>
+        <td><span class="pill pill-weekly">Sun-Thu</span></td>
+        <td>6:20 PM</td>
+        <td>Emails the next-day execution report</td>
       </tr>
       <tr>
-        <td><code>5</code></td>
-        <td><span class="pill pill-reject">reject</span></td>
-        <td>Duplicate ticker</td>
-        <td>Already holding this market</td>
+        <td>9</td>
+        <td><span class="task-name">Calibration</span></td>
+        <td><span class="pill pill-weekly">Sun</span></td>
+        <td>7:00 PM</td>
+        <td>Weekly Brier-score refresh + calibration curve. <code>model_calibration.py --days 7 --save</code></td>
       </tr>
       <tr>
-        <td><code>6</code></td>
-        <td><span class="pill pill-reject">reject</span></td>
-        <td>Per-event cap</td>
-        <td>Per-event positions &gt;= <code>MAX_PER_EVENT</code> (default 3)</td>
+        <td>10</td>
+        <td><span class="task-name">Backtest</span></td>
+        <td><span class="pill pill-weekly">Sun</span></td>
+        <td>7:30 PM</td>
+        <td>Weekly equity curve, drawdown, Sharpe, strategy comparison. <code>backtester.py --simulate --save</code></td>
       </tr>
       <tr>
-        <td><code>7</code></td>
-        <td><span class="pill pill-reject">reject</span> <span class="pill pill-new">C5</span></td>
-        <td>Series dedup</td>
-        <td>Matchup (sport + team pair, date-agnostic) already bet in last <code>SERIES_DEDUP_HOURS</code> (48 global; per-sport: MLB 72, NHL 72 — R9)</td>
+        <td>11</td>
+        <td><span class="task-name">NightlySettle</span></td>
+        <td><span class="pill pill-daily">daily</span></td>
+        <td>11:00 PM</td>
+        <td>Fetches settlement data from Kalshi, updates trade log, calculates realized P&amp;L</td>
       </tr>
       <tr>
-        <td><code>8</code></td>
-        <td><span class="pill pill-cap">cap</span></td>
-        <td>Max bet size</td>
-        <td>Computed bet &gt; <code>MAX_BET_SIZE</code> → cap to limit</td>
+        <td>12</td>
+        <td><span class="task-name">Reconcile</span></td>
+        <td><span class="pill pill-daily">daily</span></td>
+        <td>11:30 PM</td>
+        <td>Diffs local trade log against Kalshi API positions; flags drift. 30-min buffer after settle</td>
       </tr>
       <tr>
-        <td><code>9</code></td>
-        <td><span class="pill pill-cap">cap</span></td>
-        <td>Bet ratio</td>
-        <td>Single bet &gt; <code>MAX_BET_RATIO</code> × batch median → cap</td>
+        <td>13</td>
+        <td><span class="task-name">Weekly-Analysis</span></td>
+        <td><span class="pill pill-weekly">Sun</span></td>
+        <td>11:45 PM</td>
+        <td>End-of-week 7-day <code>betting_analysis.py</code> — headline, by sport/category/side/edge/conf, calibration, longshots, streaks, ledger</td>
+      </tr>
+      <tr>
+        <td>14</td>
+        <td><span class="task-name">Email-Weekly-Analysis</span></td>
+        <td><span class="pill pill-weekly">Sun</span></td>
+        <td>11:55 PM</td>
+        <td>Emails the weekly performance analysis report</td>
+      </tr>
+      <tr>
+        <td>15</td>
+        <td><span class="task-name">MonthlyCalibration</span></td>
+        <td><span class="pill pill-monthly">monthly</span></td>
+        <td>1st · 2:00 AM</td>
+        <td>30-day Brier refresh. <code>model_calibration.py --days 30 --save</code>. Catches slow calibration drift</td>
+      </tr>
+      <tr>
+        <td>16</td>
+        <td><span class="task-name">U2-Review</span></td>
+        <td><span class="pill pill-once">one-shot</span></td>
+        <td>2026-05-14 7:00 AM</td>
+        <td>Post-ship review of U2 daily-summary digest (~2 weeks after 2026-04-30 ship). Firing-reliability + section coverage + code review</td>
+      </tr>
+      <tr>
+        <td>17</td>
+        <td><span class="task-name">R8-Review</span></td>
+        <td><span class="pill pill-once">one-shot</span></td>
+        <td>2026-05-29 6:00 AM</td>
+        <td>R8 cross-category dedup A/B review (~30 days post-ship). Slices ML/Total/Spread same-game cohorts; recommends per-sport <code>CROSS_CATEGORY_DEDUP_&lt;SPORT&gt;</code> flips</td>
       </tr>
     </tbody>
   </table>
-
-  <div style="margin-top:20px; display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
-    <div class="box">
-      <div class="box-ico">K</div>
-      <h3>Kelly sizing</h3>
-      <p>Batch-Kelly divides <code>KELLY_FRACTION</code> (0.25) by the batch size so concurrent opportunities share risk.</p>
-      <ul>
-        <li><b>Soft cap:</b> edge above <code>KELLY_EDGE_CAP</code> (15%) decayed by <code>KELLY_EDGE_DECAY</code> (0.5)</li>
-        <li><b>NO-side half-Kelly:</b> NO bets priced &lt; <code>NO_SIDE_KELLY_PRICE_FLOOR</code> (35¢) sized at 0.5× normal Kelly</li>
-      </ul>
-    </div>
-    <div class="box">
-      <div class="box-ico">J</div>
-      <h3>Resting-order janitor <span class="pill pill-new" style="margin-left:6px">R4</span></h3>
-      <p>Runs at the top of <code>execute_pipeline()</code> when <code>execute=true</code> AND <code>DRY_RUN=false</code>.</p>
-      <ul>
-        <li>Lists <code>status=resting</code> orders</li>
-        <li>Cancels those &gt; <code>RESTING_ORDER_MAX_HOURS</code> (24) with zero fills</li>
-        <li>Partial/full fills left for the settler</li>
-      </ul>
-    </div>
   </div>
+
+  <h3 style="margin-top:32px;">Daily fire sequence</h3>
+<pre> 2:00 AM  1st      ─ MonthlyCalibration       (30-day calibration, monthly)
+ 4:50 AM  Daily    ─ Daily-Summary            (yesterday P&amp;L + exposure)
+ 5:00 AM  Daily    ─ Email-Daily-Summary
+ 5:05 AM  Daily    ─ All-Sports-SameDay-Execution
+ 5:20 AM  Mon Thu  ─ All-Sports-NoDateFilter-Execution
+ 5:25 AM  Daily    ─ Email-SameDay
+ 5:40 AM  Mon Thu  ─ Email-NoDateFilter
+ 6:00 PM  Sun-Thu  ─ NextDay-Execute
+ 6:20 PM  Sun-Thu  ─ Email-NextDay
+ 7:00 PM  Sun      ─ Calibration
+ 7:30 PM  Sun      ─ Backtest
+11:00 PM  Daily    ─ NightlySettle
+11:30 PM  Daily    ─ Reconcile
+11:45 PM  Sun      ─ Weekly-Analysis
+11:55 PM  Sun      ─ Email-Weekly-Analysis</pre>
+
+  <details>
+    <summary>Manual trigger commands (Git Bash)</summary>
+    <div class="details-body">
+<pre># Prepend MSYS_NO_PATHCONV=1 to stop Git Bash from translating /tn
+MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Daily-Summary"
+MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-SameDay-Execution"
+MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\NextDay-Execute"
+MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\NightlySettle"
+MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Reconcile"
+MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Calibration"
+MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Weekly-Analysis"
+
+# PowerShell equivalent (no MSYS prefix)
+Start-ScheduledTask -TaskPath '\Edge-Radar\' -TaskName 'NextDay-Execute'
+
+# List + next run + last result
+Get-ScheduledTask -TaskPath '\Edge-Radar\' | ForEach-Object {
+  $info = Get-ScheduledTaskInfo -TaskName $_.TaskName -TaskPath $_.TaskPath
+  [PSCustomObject]@{
+    Name = $_.TaskName; State = $_.State
+    NextRun = $info.NextRunTime; LastRun = $info.LastRunTime
+    LastResult = $info.LastTaskResult  # 0 = success
+  }
+} | Sort-Object NextRun | Format-Table -AutoSize</pre>
+    </div>
+  </details>
+
+  <details>
+    <summary>Disabled tasks (kept for reference, not running)</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Task</th><th>Prior schedule</th><th>Why disabled</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="task-name">All-Sports-SameDay-Scan</span></td><td>Daily 4:55 AM</td><td>Preview-only; execution variant is what runs</td></tr>
+          <tr><td><span class="task-name">All-Sports-NoDateFilter-Scan</span></td><td>Daily 9:00 AM</td><td>Preview-only variant</td></tr>
+          <tr><td><span class="task-name">MLB-NextDay-Scan</span></td><td>6:00 PM</td><td>Per-sport scan; replaced by consolidated NextDay-Execute</td></tr>
+          <tr><td><span class="task-name">NBA-NextDay-Scan</span></td><td>6:05 PM</td><td>Per-sport; replaced</td></tr>
+          <tr><td><span class="task-name">NHL-NextDay-Scan</span></td><td>6:10 PM</td><td>Per-sport; replaced</td></tr>
+          <tr><td><span class="task-name">NFL-NextDay-Scan</span></td><td>6:15 PM</td><td>Per-sport; replaced</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </details>
 </section>
 
-<!-- ============ RISK LIMITS ============ -->
-<section id="limits">
+<!-- ============ DATA FLOW ============ -->
+<section id="dataflow">
   <header>
-    <h2><span class="num">§5</span> Risk Limits</h2>
-    <div class="section-sub">Defaults shipped in <code>.env.example</code>. All overridable per environment.</div>
+    <h2><span class="num">§3</span> Data Flow</h2>
+    <div class="section-sub">Seven sequential stages. Scan → Size → Execute → Settle.</div>
   </header>
 
-  <div class="grid-3">
-    <div class="box">
-      <div class="box-ico">$</div>
-      <h3>Position sizing</h3>
-      <ul>
-        <li><code>UNIT_SIZE</code> = $1.00 (Kelly floor)</li>
-        <li><code>KELLY_FRACTION</code> = 0.25</li>
-        <li><code>MAX_BET_SIZE</code> = $100</li>
-        <li><code>KELLY_EDGE_CAP</code> = 0.15</li>
-        <li><code>KELLY_EDGE_DECAY</code> = 0.5</li>
-      </ul>
+  <div class="flow-strip">
+    <div class="flow-step">
+      <div class="num">01</div>
+      <div class="name">Fetch</div>
+      <div class="sub">Kalshi + Odds API</div>
     </div>
-    <div class="box">
-      <div class="box-ico">Σ</div>
-      <h3>Portfolio caps</h3>
-      <ul>
-        <li><code>MAX_DAILY_LOSS</code> = $250</li>
-        <li><code>MAX_OPEN_POSITIONS</code> = 10</li>
-        <li><code>MAX_PER_EVENT</code> = 3</li>
-        <li><code>MAX_BET_RATIO</code> = 3.0× batch median</li>
-        <li><code>SERIES_DEDUP_HOURS</code> = 48 (MLB 72, NHL 72 via per-sport overrides — R9)</li>
-      </ul>
+    <div class="flow-step">
+      <div class="num">02</div>
+      <div class="name">Categorize</div>
+      <div class="sub">ticker → model</div>
     </div>
-    <div class="box">
-      <div class="box-ico">⌀</div>
-      <h3>Edge thresholds</h3>
-      <ul>
-        <li><code>MIN_EDGE_THRESHOLD</code> = 0.03 (global)</li>
-        <li><code>MIN_EDGE_THRESHOLD_NBA</code> = 0.12</li>
-        <li><code>MIN_EDGE_THRESHOLD_NCAAB</code> = 0.10</li>
-        <li><code>MIN_COMPOSITE_SCORE</code> = 6.0</li>
-        <li><code>MIN_CONFIDENCE</code> = medium</li>
-      </ul>
+    <div class="flow-step">
+      <div class="num">03</div>
+      <div class="name">Compare</div>
+      <div class="sub">fair vs ask</div>
     </div>
-    <div class="box">
-      <div class="box-ico">●</div>
-      <h3>Lottery-ticket floor</h3>
-      <ul>
-        <li><code>MIN_MARKET_PRICE</code> = $0.10</li>
-        <li>Strict less-than ($0.09 rejected)</li>
-        <li>Set to <code>0</code> to disable</li>
-        <li>Blocks sub-10¢ longshot cluster</li>
-      </ul>
+    <div class="flow-step">
+      <div class="num">04</div>
+      <div class="name">Cap</div>
+      <div class="sub">per-event dedup</div>
     </div>
-    <div class="box">
-      <div class="box-ico">N</div>
-      <h3>NO-side guard</h3>
-      <ul>
-        <li><code>NO_SIDE_FAVORITE_THRESHOLD</code> = 0.25</li>
-        <li><code>NO_SIDE_MIN_EDGE</code> = 0.25</li>
-        <li><code>NO_SIDE_KELLY_PRICE_FLOOR</code> = 0.35</li>
-        <li><code>NO_SIDE_KELLY_MULTIPLIER</code> = 0.5</li>
-      </ul>
+    <div class="flow-step">
+      <div class="num">05</div>
+      <div class="name">Risk</div>
+      <div class="sub">13 gates</div>
     </div>
-    <div class="box">
-      <div class="box-ico">⌁</div>
-      <h3>Order hygiene</h3>
-      <ul>
-        <li><code>RESTING_ORDER_MAX_HOURS</code> = 24</li>
-        <li>Zero-fill stale orders cancelled pre-execute</li>
-        <li><code>DRY_RUN</code> default = <code>true</code></li>
-      </ul>
+    <div class="flow-step">
+      <div class="num">06</div>
+      <div class="name">Execute</div>
+      <div class="sub">RSA-signed limit</div>
+    </div>
+    <div class="flow-step">
+      <div class="num">07</div>
+      <div class="name">Monitor</div>
+      <div class="sub">settle + calibrate</div>
     </div>
   </div>
-</section>
 
-<!-- ============ RECENT UPDATES ============ -->
-<section id="updates">
-  <header>
-    <h2><span class="num">§6</span> Recent Updates</h2>
-    <div class="section-sub">Shipped changes, most recent first.</div>
-  </header>
-
-  <div class="timeline">
-
-    <div class="t-entry">
-      <div class="t-date">2026-04-28 — R24b File-Backed Odds API Cache</div>
-      <div class="t-title">Two-tier cache for The Odds API — in-process dict in front of a new file-backed layer at <code>data/cache/odds/</code></div>
-      <div class="t-items">
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R24b</span>Cross-process cache for sportsbook odds payloads</div>
-          <div class="t-item-body">F31 documented one Odds API key dropping 175 → 0 remaining in five minutes. Root cause: each <code>scan.py</code> invocation started with empty in-process caches and refetched all 18 sport keys from scratch; back-to-back scans (scheduler bursts, dashboard re-renders) doubled quota burn for no gain. New <code>scripts/shared/odds_cache.py</code> with <code>load(sport_key, markets, ttl_seconds)</code>, <code>store()</code>, <code>clear()</code>; files at <code>data/cache/odds/&lt;sport_key&gt;__&lt;markets&gt;.json</code> (commas in markets sanitized to underscores; original markets string preserved inside JSON). Silent-on-error throughout — corrupt file = miss, never an exception.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R24b</span>Two new env knobs in <code>app/config.py</code></div>
-          <div class="t-item-body"><code>ODDS_CACHE_TTL_SECONDS=300</code> (5 min default — longer than typical filter-fiddling, shorter than meaningful pre-game line movement; 0 disables) and <code>ODDS_CACHE_ENABLED=true</code>. Validates non-negative TTL. Wired into both <code>edge_detector.fetch_odds_api()</code> and <code>futures_edge.fetch_outrights()</code>; the existing in-process dicts stay so existing <code>_odds_cache.clear()</code> test calls still work. Hits log <code>Odds API file cache hit for X (age Ns, M events)</code> so cache age is visible in scan output.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R24b</span>Distinct from R23's quota cache</div>
-          <div class="t-item-body">R23 caches per-key remaining-request counters at <code>data/cache/odds_api_quota.json</code> so fresh processes skip exhausted keys. R24b caches the actual sportsbook payloads. Both layered cleanly: a key-rotation 401 doesn't poison the response cache, and a stored response doesn't lie about quota state. +10 regression tests (320 → 330 passing). Offline round-trip smoke confirms call 2 (in-process dict cleared, file cache populated) returns identical events with 0 HTTP calls.</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="t-entry">
-      <div class="t-date">2026-04-25 — Config Centralization (PR #149)</div>
-      <div class="t-title">Phase 1 + 2 + 3 — typed config module, 65 <code>os.getenv</code> reads migrated, lint guard against regression</div>
-      <div class="t-items">
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">P1</span>New <code>app/config.py</code> — single source of truth</div>
-          <div class="t-item-body">Audit found 75 <code>os.getenv</code> calls across 14 files with type-coercion drift (<code>MIN_EDGE_THRESHOLD</code> read in 5 places, two type styles; <code>DRY_RUN</code> coerced inconsistently). Built a typed module: 10 frozen dataclasses (Kalshi/Odds/Alpaca/Telegram credentials + <code>RiskLimits</code>, <code>GateThresholds</code>, <code>KellyConfig</code>, <code>PerSportOverrides</code>, <code>System</code>) with <code>from_env()</code> coercion and <code>Config.validate()</code> for impossible combos. Memoized via <code>get_config()</code> / <code>reset_config()</code>. 32 unit tests. Pure addition — no scripts touched, no behavior change.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">P2</span>Migrated all 8 script groups to <code>get_config()</code></div>
-          <div class="t-item-body">65 <code>os.getenv</code> reads removed across <code>doctor.py</code> (9), <code>risk_check.py</code> (5), <code>kalshi_client.py</code> (8), <code>edge_detector.py</code> + <code>fetch_odds.py</code> (3), <code>kalshi_executor.py</code> (23 — the heavyweight, all 11 risk gates and per-sport overrides), 6 small modules (11), and <code>webapp/services.py</code> (6). Module-level constants kept as plain mutable globals where tests directly mutate them; only the <em>initial source</em> changed. <code>or None</code> pattern preserves <code>None</code>-on-unset semantics for credentials spliced into HTTP headers. Streamlit Cloud bug found and fixed: <code>webapp/app.py</code> puts <code>webapp/</code> on <code>sys.path[0]</code>, shadowing the <code>app/</code> package; resolved by re-inserting <code>PROJECT_ROOT</code> at <code>sys.path[0]</code> inside <code>services.py</code>. All 292 prior tests still pass.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">P3</span>Lint guard at <code>scripts/lint/check_config_centralization.py</code></div>
-          <div class="t-item-body">Walks <code>app/</code>, <code>scripts/</code>, <code>webapp/</code> for <code>os.getenv</code> / <code>os.environ</code>. Allows <code>app/config.py</code>, comment-only lines, and lines tagged <code># config-bootstrap</code> (reserved for the 4 Streamlit secrets-bootstrap lines in <code>webapp/services.py</code>). Wired into <code>make lint-config</code> and a pre-commit hook with <code>always_run: true</code> so the lint sees the whole tree, not just staged files. 5 unit tests cover codebase-clean baseline, regression detection, annotation suppression, comment-line ignore, and <code>app/config.py</code> exclusion.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">P2</span>Bonus: dropped a small dead constant + display normalization</div>
-          <div class="t-item-body"><code>MIN_EDGE</code> in <code>risk_check.py</code> was defined but never referenced; deleted. <code>doctor.py</code>'s display of <code>UNIT_SIZE</code> is now <code>:.2f</code>-formatted, so a value of <code>.50</code> in <code>.env</code> renders as <code>$0.50</code> instead of <code>$.50</code>. Numeric values reaching every gate are byte-identical.</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="t-entry">
-      <div class="t-date">2026-04-24 — 30-Day Calibration Cycle + Futures Bug Hunt + Prediction Audit</div>
-      <div class="t-title">R12–R18, R20, R21–R23, R24a, R25 — calibration unblocked, NBA floor, one-way confidence, scanner parity, 3 futures fixes, Odds API key rotation, webapp cache, scan-table Gate column, prediction safety gate</div>
-      <div class="t-items">
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R15</span><code>model_calibration.py</code> points at settlement source</div>
-          <div class="t-item-body">Script was reading <code>trade_log</code> (16 entries, 3 closed) instead of <code>kalshi_settlements.json</code> (173 entries). CLI errored with "need at least 10" despite 160 settled bets existing. Fixed by reading settlements and normalizing field names. Unblocks R12.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R12</span>First 160-trade calibration report</div>
-          <div class="t-item-body">Brier 0.2657 (worse than coin-flip). Per-sport Brier surfaces NBA 0.3306 as worst of all sports (NHL 0.2376, MLB 0.2519, NCAAB 0.2885). High-confidence WR 47% below Medium 53% portfolio-wide. 25%+ edge bucket softened from -24% (14d) to +16% (30d) — suggestive R2 is working.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R14</span>NBA floor bumped 0.08 → 0.12</div>
-          <div class="t-item-body">Raised <code>MIN_EDGE_THRESHOLD_NBA</code>. Also restored both NBA and NCAAB overrides in the live <code>.env</code> — documented in <code>.env.example</code> but missing from the actual env file, so both had been silently falling back to the 3% global floor. Scope intentionally minimal: most NBA bleed was High-confidence picks (fixed in R13) or sub-10¢ lottery tickets (already caught by R7).</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R13</span>Confidence bumps are one-way (down only)</div>
-          <div class="t-item-body"><code>_adjust_confidence_with_stats()</code> now drops a tier on <code>contradicts</code> but no-ops on <code>supports</code>. Applies to all three call sites (team stats, rest/B2B, sharp money). Upward bumps correlated with inflated claimed edge but worse realized outcomes. Base "high" tier still reachable via ≥8 sharp-books + tight-consensus rule. +4 regression tests (218 → 222 passing).</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R16</span>Monthly calibration cron</div>
-          <div class="t-item-body">New <code>calibration</code> profile runs <code>model_calibration.py --days 30 --save</code> on day 1 of each month at 02:00 (after nightly settler). Installer extended to support <code>MONTHLY</code> schedules. Narrowed <code>scripts/schedulers/</code> gitignore so the portable <code>automation/</code> folder is now tracked.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R17</span>Scanner flag parity (<code>--budget</code>, <code>--report-dir</code>)</div>
-          <div class="t-item-body">Futures and prediction scanners didn't accept <code>--budget</code> or <code>--report-dir</code>. Extracted shared <code>parse_budget_arg()</code> helper; added both flags across all scanners; wired each to <code>execute_pipeline(budget=…)</code> and <code>save_scan_report(output_dir=…)</code>.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R21</span>Dedup passes futures through unchanged</div>
-          <div class="t-item-body">A futures scan of 20 opportunities was being collapsed to 2 before risk gates ran. <code>dedup_correlated_brackets</code> was treating every team outcome in a championship as an alt-line bracket. Fix: when <code>category=="futures"</code>, use the full ticker as the dedup key. Concentration still bounded by Gate 6 (<code>MAX_PER_EVENT=2</code>).</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R22</span><code>FUTURES_MAP</code> prefix-collision + semantic fix</div>
-          <div class="t-item-body">Futures scan was surfacing "+30-75% edge" on almost every MLB team. Two bugs: (1) <code>KXMLBPLAYOFFS-26-LAD</code> matched the <code>KXMLB</code> prefix first via <code>startswith</code>; (2) playoff-qualifier and conference-winner markets pointed to championship-winner odds — fundamentally the wrong question. Fixed by switching to exact-series match and removing the 5 semantically-broken entries (KXMLBPLAYOFFS, KXNBAEAST/WEST, KXNHLEAST/WEST). Same scan now surfaces 2 real +4% edges instead of 45 bogus +30-75% "edges".</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R23</span>Odds API key rotation + persistent quota cache</div>
-          <div class="t-item-body">Live probe showed 5 of 10 configured keys exhausted; <code>fetch_outrights</code> retry loop exited after 3 attempts and never reached the healthy key at index 5. Fixed: switched to <code>tried: set[str]</code> loop, added <code>mark_exhausted()</code> on 401, persistent quota cache at <code>data/cache/odds_api_quota.json</code>. Fresh processes now skip exhausted keys instantly.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R24a</span>Webapp scan cache (<code>@st.cache_data(ttl=60)</code>)</div>
-          <div class="t-item-body">Zero <code>@st.cache</code> decorators existed anywhere in <code>webapp/</code>. Every click of SCAN MARKETS fired a fresh Odds API fetch. 60s TTL on <code>run_scan()</code>; CLEAR button wipes the cache on demand.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R18</span>Scan tables show a <strong>Gate</strong> column</div>
-          <div class="t-item-body">Scan output was silently hiding which rows the executor would reject. New <code>preflight_gate_status()</code> helper checks the 5 static per-opportunity gates; returns <code>ok</code> / <code>edge</code> / <code>price</code> / <code>score</code> / <code>conf</code> / <code>no-fav</code> / <code>pred-off</code>. Wired into all four scanner tables.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R20</span>Prediction-market audit</div>
-          <div class="t-item-body">First full eval of the 6 prediction modules since they shipped. Findings: zero prediction bets in 173 settlements; all 6 modules cache live data with no TTL; 4 of 6 have no unit tests; live scans produce garbage fair values (crypto +80% on 4¢ tails, weather $1.00 on 1°F windows); a Miami weather bet was one <code>--unit-size</code> away from executing live. Recommendation: park until rebuilt.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R25</span>New Gate 4.7 — prediction-market safety</div>
-          <div class="t-item-body">Rejects <code>crypto</code> / <code>weather</code> / <code>spx</code> / <code>mentions</code> / <code>companies</code> / <code>politics</code> categories unless <code>ALLOW_PREDICTION_BETS=true</code>. Default off until R25b (TTL caches) + R25c (rebuild one model with tests) are shipped. R18's Gate column surfaces the rejection as <code>pred-off</code> at scan time.</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="t-entry">
-      <div class="t-date">2026-04-22 — R7, Q1-Q5</div>
-      <div class="t-title">Lottery-ticket floor + repo-analysis response</div>
-      <div class="t-items">
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R7</span>New Gate 3.5 — <code>MIN_MARKET_PRICE</code> floor</div>
-          <div class="t-item-body">Rejects any bet below $0.10 ask. Built in response to F10 from the 14-day review: sub-10¢ bets were 1W-3L with the model claiming "+50% edge" on lottery tickets. Strict less-than: $0.09 rejected, $0.10 approved. No edge/confidence carve-out. Set to 0 to disable. 5 new tests (213 → 218 passing).</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">Q1</span>Web app <code>market_type</code> wired through service layer</div>
-          <div class="t-item-body">UI exposed sports/futures/prediction but everything routed into sports-only. <code>run_scan()</code> now dispatches by market type.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">Q2-Q5</span>Test contamination, doc drift, Pages branch, pandas</div>
-          <div class="t-item-body">Fixed env-leak in <code>test_approved_clean_when_no_caps_hit</code>. Collapsed count-specific "8 risk gates" refs to "all risk gates" linking to CLAUDE.md. Flipped Pages workflow from <code>main</code> to <code>master</code>. Promoted <code>pandas&gt;=2.1.4</code> to a first-class runtime dep.</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="t-entry">
-      <div class="t-date">2026-04-21 — 14-Day Review Response</div>
-      <div class="t-title">R1, R2, R3, R4 — four hardening gates</div>
-      <div class="t-items">
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R1</span>NO-favorite guard + half-Kelly dampener (Gate 4.6)</div>
-          <div class="t-item-body">All 13 high-edge losers in the 14-day window were NO bets on heavy favorites. Reject NO bets &lt; 25¢ unless edge &gt;= 25% AND confidence=high. NO bets &lt; 35¢ sized at half-Kelly.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R2</span>Per-sport stdev bump (supersedes C2)</div>
-          <div class="t-item-body">NBA margin stdev 12 → 13.8 (+15%), NCAAB 11 → 12.1 (+10%), MLB 3.5 → 4.025 (+15%). Same widening on totals. Wider distributions pull probability mass toward 50%, reducing the favorite-band overconfidence gap (+18% at 60-70% bucket).</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R3</span><code>MIN_CONFIDENCE</code> reject gate (Gate 4.5)</div>
-          <div class="t-item-body">Low-confidence bets were 0W-3L / -105% ROI across two review windows. Now rejected outright instead of warning. Default <code>medium</code>.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">R4</span>Resting-order janitor</div>
-          <div class="t-item-body">16% of new orders were resting 25-66h with zero fills. New <code>cancel_stale_resting_orders()</code> helper runs at the top of <code>execute_pipeline()</code> when live-execute. 32 new tests (181 → 213 passing).</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="t-entry">
-      <div class="t-date">2026-04-18 — First Post-Baseline Calibration</div>
-      <div class="t-title">C1, C3, C5 — calibration-driven tuning</div>
-      <div class="t-items">
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">C1</span>Kelly edge soft-cap</div>
-          <div class="t-item-body">Claimed edges &gt;=25% realized -35% ROI while 10-15% edges returned +127%. <code>trusted_edge()</code> softly caps Kelly sizing above 15%. Raw edge still flows through gates and reports.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">C3</span>Per-sport <code>MIN_EDGE_THRESHOLD</code></div>
-          <div class="t-item-body">NBA -15% ROI and NCAAB -62% ROI at the 3% global floor while NHL was +100%. Per-sport overrides: NBA 8%, NCAAB 10%.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title"><span class="tag">C5</span>Series-level dedup (Gate 7)</div>
-          <div class="t-item-body">Same-matchup bets across consecutive nights compounded losses (Angels @ Yankees 3-night, Mets @ Dodgers 2-night). New gate rejects bets whose matchup key was already bet within <code>SERIES_DEDUP_HOURS</code> (48). Per-sport overrides added in R9 (2026-04-27): MLB and NHL bumped to 72h after F12 — a NYM/LAD pair bet 49h apart slipped the global window.</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="t-entry old">
-      <div class="t-date">2026-04-08 — Coverage + Dashboard</div>
-      <div class="t-title">Full sports coverage &amp; Streamlit Cloud</div>
-      <div class="t-items">
-        <div class="t-item">
-          <div class="t-item-title">Odds API mapping: 4 → 18 sports</div>
-          <div class="t-item-body">NFL, NCAAF, soccer (EPL/UCL/La Liga/Serie A/Bundesliga/Ligue 1/MLS), UFC, boxing, F1, PGA, IPL, NCAA W-basketball added. No-filter scans went from 11 → 30 prefixes.</div>
-        </div>
-        <div class="t-item">
-          <div class="t-item-title">Multi-filter and Streamlit Cloud</div>
-          <div class="t-item-body"><code>--filter mlb,nhl</code> comma-separated multi-sport scans. Dashboard deployed to Streamlit Community Cloud with password gate; inline PEM support for cloud filesystems.</div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-</section>
-
-<!-- ============ CALIBRATION ============ -->
-<section id="calibration">
-  <header>
-    <h2><span class="num">§7</span> Calibration Snapshot</h2>
-    <div class="section-sub">14-day review window — 2026-04-07 through 2026-04-21.</div>
-  </header>
-
-  <div class="hero-stats" style="margin-top:0;">
-    <div class="stat"><div class="stat-val">76</div><div class="stat-lbl">Settled trades</div></div>
-    <div class="stat"><div class="stat-val">48.7%</div><div class="stat-lbl">Win rate (37W-39L)</div></div>
-    <div class="stat"><div class="stat-val">+31%</div><div class="stat-lbl">ROI</div></div>
-    <div class="stat"><div class="stat-val">0.2646</div><div class="stat-lbl">Brier score</div></div>
-    <div class="stat"><div class="stat-val">100</div><div class="stat-lbl">Trades → R12 re-run</div></div>
-  </div>
-
-  <div class="grid-2" style="margin-top:28px;">
-    <div class="box">
-      <h3>Findings driving recent risk changes</h3>
-      <ul>
-        <li><b>F1</b> — YES +93% ROI (n=48); NO -20% (n=28); NO at &gt;=20% edge: 31% WR (n=16) → <b>R1 Gate 4.6</b></li>
-        <li><b>F6</b> — Low-confidence 0W-3L / -105% ROI → <b>R3 Gate 4.5</b></li>
-        <li><b>F10</b> — Sub-10¢ bets 1W-3L with claimed "+50% edge" → <b>R7 Gate 3.5</b></li>
-        <li>60-70% favorite band overconfidence +18% (n=40) → <b>R2 stdev bump</b></li>
-      </ul>
-    </div>
-    <div class="box">
-      <h3>Attribution plan (R12)</h3>
-      <p>R12 re-runs <code>model_calibration.py</code> at 100 post-baseline trades (currently 66). The window between R2's ship date and that checkpoint is the cleanest place to measure whether the probability-width fix improved Brier.</p>
-    </div>
+  <div class="flow-legend">
+    <span>Risk gates · <a href="https://github.com/michaelschecht/Edge-Radar/blob/master/CLAUDE.md#execution-gates" target="_blank" rel="noopener">CLAUDE.md § Execution Gates</a></span>
+    <span>Edge models · ML · SP · TO · FU · PR</span>
+    <span>Settler · <code>make settle</code></span>
   </div>
 </section>
 
 </main>
 
 <footer>
-  EDGE-RADAR · MULTI-AGENT PIPELINE · RESEARCH-FIRST, EXECUTE-SECOND · 2026
+  EDGE-RADAR · PERSONAL OPS DASHBOARD · <a href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener">github.com/michaelschecht/Edge-Radar</a>
 </footer>
-
 
 </body>
 </html>
