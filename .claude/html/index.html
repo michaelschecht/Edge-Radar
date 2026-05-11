@@ -240,72 +240,76 @@
     margin-top: 7px;
   }
 
-  /* ---------- Streamlit CTA (big button) ---------- */
+  /* ---------- CTA tiles (equal-size, side-by-side) ---------- */
   .cta-row {
     margin-top: 36px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    max-width: 860px;
+  }
+  .cta-tile {
     display: flex;
-    flex-wrap: wrap;
-    gap: 14px;
     align-items: center;
-  }
-  .cta-streamlit {
-    display: inline-flex;
-    align-items: center;
+    justify-content: space-between;
     gap: 14px;
-    background: linear-gradient(135deg, #00d4aa 0%, #00b894 100%);
-    color: #061018;
-    font-family: 'Outfit', sans-serif;
-    font-weight: 700;
-    font-size: 18px;
-    letter-spacing: 0.3px;
-    padding: 18px 28px;
+    padding: 22px 26px;
     border-radius: 12px;
-    border: 1px solid rgba(255,255,255,0.18);
-    box-shadow: 0 10px 28px rgba(0, 212, 170, 0.30),
-                0 0 0 1px rgba(0, 212, 170, 0.55) inset;
+    border: 1px solid rgba(255,255,255,0.12);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+    min-height: 96px;
   }
-  .cta-streamlit:hover {
-    text-decoration: none;
-    color: #061018;
-    transform: translateY(-2px);
-    box-shadow: 0 14px 36px rgba(0, 212, 170, 0.42),
-                0 0 0 1px rgba(0, 212, 170, 0.8) inset;
-  }
-  .cta-streamlit .arrow {
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 800;
-    font-size: 22px;
-    line-height: 1;
-  }
-  .cta-streamlit .kicker {
+  .cta-tile .kicker {
+    display: block;
     font-family: 'JetBrains Mono', monospace;
     font-size: 10.5px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 1.5px;
     opacity: 0.7;
-    display: block;
-    margin-bottom: 3px;
+    margin-bottom: 4px;
   }
-  .cta-streamlit .url {
+  .cta-tile .url {
     display: block;
     font-family: 'JetBrains Mono', monospace;
     font-weight: 600;
     font-size: 17px;
     letter-spacing: 0.2px;
   }
-  .cta-secondary {
-    color: var(--text-dim);
+  .cta-tile .arrow {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 12.5px;
-    letter-spacing: 0.05em;
-    padding: 16px 18px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
+    font-weight: 800;
+    font-size: 22px;
+    line-height: 1;
   }
-  .cta-secondary:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
+  .cta-primary {
+    background: linear-gradient(135deg, #00d4aa 0%, #00b894 100%);
+    color: #061018;
+    box-shadow: 0 10px 28px rgba(0, 212, 170, 0.30),
+                0 0 0 1px rgba(0, 212, 170, 0.55) inset;
+  }
+  .cta-primary:hover {
+    text-decoration: none;
+    color: #061018;
+    transform: translateY(-2px);
+    box-shadow: 0 14px 36px rgba(0, 212, 170, 0.42),
+                0 0 0 1px rgba(0, 212, 170, 0.8) inset;
+  }
+  .cta-ghost {
+    background: var(--bg-card);
+    color: var(--text);
+    border: 1px solid var(--border-hi);
+  }
+  .cta-ghost:hover {
+    text-decoration: none;
+    color: var(--text);
+    transform: translateY(-2px);
+    border-color: var(--accent);
+    background: var(--bg-card-hi);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35),
+                0 0 0 1px rgba(0, 212, 170, 0.35) inset;
+  }
+  .cta-ghost .kicker { color: var(--accent); opacity: 1; }
 
   /* ---------- Quick Links ---------- */
   .quicklinks {
@@ -517,13 +521,9 @@
     .nav-inner { padding: 12px 18px; gap: 14px; }
     .nav-links { display: none; }
     .hero { padding: 56px 0 28px; }
-    .cta-streamlit {
-      width: 100%;
-      justify-content: space-between;
-      padding: 16px 20px;
-    }
-    .cta-streamlit .url { font-size: 15px; }
-    .cta-secondary { width: 100%; text-align: center; }
+    .cta-row { grid-template-columns: 1fr; gap: 12px; }
+    .cta-tile { padding: 18px 20px; min-height: 0; }
+    .cta-tile .url { font-size: 15px; }
     .flow-strip {
       grid-template-columns: 1fr;
       gap: 6px;
@@ -570,20 +570,24 @@
   </p>
 
   <div class="cta-row">
-    <a class="cta-streamlit" href="https://edge-radar.streamlit.app/" target="_blank" rel="noopener">
+    <a class="cta-tile cta-primary" href="https://edge-radar.streamlit.app/" target="_blank" rel="noopener">
       <span>
         <span class="kicker">Open the app</span>
         <span class="url">edge-radar.streamlit.app</span>
       </span>
       <span class="arrow">↗</span>
     </a>
-    <a class="cta-secondary" href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener">
-      ↗ github / michaelschecht / Edge-Radar
+    <a class="cta-tile cta-ghost" href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener">
+      <span>
+        <span class="kicker">Source</span>
+        <span class="url">github.com / Edge-Radar</span>
+      </span>
+      <span class="arrow">↗</span>
     </a>
   </div>
 
   <div class="hero-stats">
-    <div class="stat"><div class="stat-val">17</div><div class="stat-lbl">Active schedulers</div></div>
+    <div class="stat"><div class="stat-val">3</div><div class="stat-lbl">Wager schedulers</div></div>
     <div class="stat"><div class="stat-val">13</div><div class="stat-lbl">Risk gates</div></div>
     <div class="stat"><div class="stat-val">7</div><div class="stat-lbl">Pipeline stages</div></div>
     <div class="stat"><div class="stat-val">27</div><div class="stat-lbl">Sport filters</div></div>
@@ -614,11 +618,6 @@
       <div class="ql-target">CHANGELOG</div>
       <div class="ql-sub">docs/CHANGELOG.md</div>
     </a>
-    <a class="qlink" href="https://github.com/michaelschecht/Edge-Radar/blob/master/docs/my-documents/task-schedules/README.md" target="_blank" rel="noopener">
-      <div class="ql-label">Schedulers</div>
-      <div class="ql-target">Task schedules doc</div>
-      <div class="ql-sub">docs/my-documents/task-schedules/</div>
-    </a>
     <a class="qlink" href="https://github.com/michaelschecht/Edge-Radar/blob/master/CLAUDE.md" target="_blank" rel="noopener">
       <div class="ql-label">System</div>
       <div class="ql-target">CLAUDE.md</div>
@@ -635,8 +634,8 @@
 <!-- ============ SCHEDULERS ============ -->
 <section id="schedulers">
   <header>
-    <h2><span class="num">§2</span> Schedulers</h2>
-    <div class="section-sub">All <code>\Edge-Radar\</code> Windows Task Scheduler tasks. Times in PT (system local).</div>
+    <h2><span class="num">§2</span> Wager Schedulers</h2>
+    <div class="section-sub">The three <code>\Edge-Radar\</code> tasks that actually place bets. Times in PT (system local).</div>
   </header>
 
   <div class="table-wrap">
@@ -653,189 +652,44 @@
     <tbody>
       <tr>
         <td>1</td>
-        <td><span class="task-name">Daily-Summary</span></td>
-        <td><span class="pill pill-daily">daily</span></td>
-        <td>4:50 AM</td>
-        <td>Morning P&amp;L digest — yesterday settled + open exposure + today pending + 7d rolling. Output: <code>reports/Performance/daily_summary_*.md</code></td>
-      </tr>
-      <tr>
-        <td>2</td>
-        <td><span class="task-name">Email-Daily-Summary</span></td>
-        <td><span class="pill pill-daily">daily</span></td>
-        <td>5:00 AM</td>
-        <td>Emails the daily-summary report to <code>mikeschecht@gmail.com</code>. Subject: <code>Edge-Radar | Daily Summary</code></td>
-      </tr>
-      <tr>
-        <td>3</td>
         <td><span class="task-name">All-Sports-SameDay-Execution</span></td>
         <td><span class="pill pill-daily">daily</span></td>
         <td>5:05 AM</td>
         <td>Scans NBA/NHL/MLB/NFL for <strong>today's</strong> games and places bets. <code>--date today --budget 15% --max-bets 7 --exclude-open</code></td>
       </tr>
       <tr>
-        <td>4</td>
+        <td>2</td>
         <td><span class="task-name">All-Sports-NoDateFilter-Execution</span></td>
         <td><span class="pill pill-weekly">Mon · Thu</span></td>
         <td>5:20 AM</td>
         <td>Scans all sports across <strong>all dates</strong> for multi-day edge. <code>--budget 15% --max-bets 6 --exclude-open</code> (no <code>--date</code>)</td>
       </tr>
       <tr>
-        <td>5</td>
-        <td><span class="task-name">Email-SameDay</span></td>
-        <td><span class="pill pill-daily">daily</span></td>
-        <td>5:25 AM</td>
-        <td>Emails today's same-day execution report. Empty-day emails still fire (proof-of-life pattern)</td>
-      </tr>
-      <tr>
-        <td>6</td>
-        <td><span class="task-name">Email-NoDateFilter</span></td>
-        <td><span class="pill pill-weekly">Mon · Thu</span></td>
-        <td>5:40 AM</td>
-        <td>Emails the weekly-broad execution report. 20-min buffer after the 5:20 execute</td>
-      </tr>
-      <tr>
-        <td>7</td>
+        <td>3</td>
         <td><span class="task-name">NextDay-Execute</span></td>
         <td><span class="pill pill-weekly">Sun-Thu</span></td>
         <td>6:00 PM</td>
         <td>Locks in early lines for <strong>tomorrow's</strong> games. <code>--date tomorrow --budget 10% --max-bets 6 --exclude-open</code></td>
-      </tr>
-      <tr>
-        <td>8</td>
-        <td><span class="task-name">Email-NextDay</span></td>
-        <td><span class="pill pill-weekly">Sun-Thu</span></td>
-        <td>6:20 PM</td>
-        <td>Emails the next-day execution report</td>
-      </tr>
-      <tr>
-        <td>9</td>
-        <td><span class="task-name">Calibration</span></td>
-        <td><span class="pill pill-weekly">Sun</span></td>
-        <td>7:00 PM</td>
-        <td>Weekly Brier-score refresh + calibration curve. <code>model_calibration.py --days 7 --save</code></td>
-      </tr>
-      <tr>
-        <td>10</td>
-        <td><span class="task-name">Backtest</span></td>
-        <td><span class="pill pill-weekly">Sun</span></td>
-        <td>7:30 PM</td>
-        <td>Weekly equity curve, drawdown, Sharpe, strategy comparison. <code>backtester.py --simulate --save</code></td>
-      </tr>
-      <tr>
-        <td>11</td>
-        <td><span class="task-name">NightlySettle</span></td>
-        <td><span class="pill pill-daily">daily</span></td>
-        <td>11:00 PM</td>
-        <td>Fetches settlement data from Kalshi, updates trade log, calculates realized P&amp;L</td>
-      </tr>
-      <tr>
-        <td>12</td>
-        <td><span class="task-name">Reconcile</span></td>
-        <td><span class="pill pill-daily">daily</span></td>
-        <td>11:30 PM</td>
-        <td>Diffs local trade log against Kalshi API positions; flags drift. 30-min buffer after settle</td>
-      </tr>
-      <tr>
-        <td>13</td>
-        <td><span class="task-name">Weekly-Analysis</span></td>
-        <td><span class="pill pill-weekly">Sun</span></td>
-        <td>11:45 PM</td>
-        <td>End-of-week 7-day <code>betting_analysis.py</code> — headline, by sport/category/side/edge/conf, calibration, longshots, streaks, ledger</td>
-      </tr>
-      <tr>
-        <td>14</td>
-        <td><span class="task-name">Email-Weekly-Analysis</span></td>
-        <td><span class="pill pill-weekly">Sun</span></td>
-        <td>11:55 PM</td>
-        <td>Emails the weekly performance analysis report</td>
-      </tr>
-      <tr>
-        <td>15</td>
-        <td><span class="task-name">MonthlyCalibration</span></td>
-        <td><span class="pill pill-monthly">monthly</span></td>
-        <td>1st · 2:00 AM</td>
-        <td>30-day Brier refresh. <code>model_calibration.py --days 30 --save</code>. Catches slow calibration drift</td>
-      </tr>
-      <tr>
-        <td>16</td>
-        <td><span class="task-name">U2-Review</span></td>
-        <td><span class="pill pill-once">one-shot</span></td>
-        <td>2026-05-14 7:00 AM</td>
-        <td>Post-ship review of U2 daily-summary digest (~2 weeks after 2026-04-30 ship). Firing-reliability + section coverage + code review</td>
-      </tr>
-      <tr>
-        <td>17</td>
-        <td><span class="task-name">R8-Review</span></td>
-        <td><span class="pill pill-once">one-shot</span></td>
-        <td>2026-05-29 6:00 AM</td>
-        <td>R8 cross-category dedup A/B review (~30 days post-ship). Slices ML/Total/Spread same-game cohorts; recommends per-sport <code>CROSS_CATEGORY_DEDUP_&lt;SPORT&gt;</code> flips</td>
       </tr>
     </tbody>
   </table>
   </div>
 
   <h3 style="margin-top:32px;">Daily fire sequence</h3>
-<pre> 2:00 AM  1st      ─ MonthlyCalibration       (30-day calibration, monthly)
- 4:50 AM  Daily    ─ Daily-Summary            (yesterday P&amp;L + exposure)
- 5:00 AM  Daily    ─ Email-Daily-Summary
- 5:05 AM  Daily    ─ All-Sports-SameDay-Execution
- 5:20 AM  Mon Thu  ─ All-Sports-NoDateFilter-Execution
- 5:25 AM  Daily    ─ Email-SameDay
- 5:40 AM  Mon Thu  ─ Email-NoDateFilter
- 6:00 PM  Sun-Thu  ─ NextDay-Execute
- 6:20 PM  Sun-Thu  ─ Email-NextDay
- 7:00 PM  Sun      ─ Calibration
- 7:30 PM  Sun      ─ Backtest
-11:00 PM  Daily    ─ NightlySettle
-11:30 PM  Daily    ─ Reconcile
-11:45 PM  Sun      ─ Weekly-Analysis
-11:55 PM  Sun      ─ Email-Weekly-Analysis</pre>
+<pre>5:05 AM  Daily    ─ All-Sports-SameDay-Execution      (today's games)
+5:20 AM  Mon Thu  ─ All-Sports-NoDateFilter-Execution  (multi-day edge)
+6:00 PM  Sun-Thu  ─ NextDay-Execute                    (tomorrow's games)</pre>
 
   <details>
     <summary>Manual trigger commands (Git Bash)</summary>
     <div class="details-body">
 <pre># Prepend MSYS_NO_PATHCONV=1 to stop Git Bash from translating /tn
-MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Daily-Summary"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-SameDay-Execution"
+MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-NoDateFilter-Execution"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\NextDay-Execute"
-MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\NightlySettle"
-MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Reconcile"
-MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Calibration"
-MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Weekly-Analysis"
 
 # PowerShell equivalent (no MSYS prefix)
-Start-ScheduledTask -TaskPath '\Edge-Radar\' -TaskName 'NextDay-Execute'
-
-# List + next run + last result
-Get-ScheduledTask -TaskPath '\Edge-Radar\' | ForEach-Object {
-  $info = Get-ScheduledTaskInfo -TaskName $_.TaskName -TaskPath $_.TaskPath
-  [PSCustomObject]@{
-    Name = $_.TaskName; State = $_.State
-    NextRun = $info.NextRunTime; LastRun = $info.LastRunTime
-    LastResult = $info.LastTaskResult  # 0 = success
-  }
-} | Sort-Object NextRun | Format-Table -AutoSize</pre>
-    </div>
-  </details>
-
-  <details>
-    <summary>Disabled tasks (kept for reference, not running)</summary>
-    <div class="details-body">
-      <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>Task</th><th>Prior schedule</th><th>Why disabled</th></tr>
-        </thead>
-        <tbody>
-          <tr><td><span class="task-name">All-Sports-SameDay-Scan</span></td><td>Daily 4:55 AM</td><td>Preview-only; execution variant is what runs</td></tr>
-          <tr><td><span class="task-name">All-Sports-NoDateFilter-Scan</span></td><td>Daily 9:00 AM</td><td>Preview-only variant</td></tr>
-          <tr><td><span class="task-name">MLB-NextDay-Scan</span></td><td>6:00 PM</td><td>Per-sport scan; replaced by consolidated NextDay-Execute</td></tr>
-          <tr><td><span class="task-name">NBA-NextDay-Scan</span></td><td>6:05 PM</td><td>Per-sport; replaced</td></tr>
-          <tr><td><span class="task-name">NHL-NextDay-Scan</span></td><td>6:10 PM</td><td>Per-sport; replaced</td></tr>
-          <tr><td><span class="task-name">NFL-NextDay-Scan</span></td><td>6:15 PM</td><td>Per-sport; replaced</td></tr>
-        </tbody>
-      </table>
-      </div>
+Start-ScheduledTask -TaskPath '\Edge-Radar\' -TaskName 'NextDay-Execute'</pre>
     </div>
   </details>
 </section>
