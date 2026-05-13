@@ -7,7 +7,7 @@ Two surfaces:
 
 import pytest
 
-from kalshi_settler import build_settlement_record
+from kalshi_settler import _compute_fair_value_yes, build_settlement_record
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -86,6 +86,12 @@ class TestBuildSettlementRecord:
         assert rec["confidence"] == "high"
         assert rec["settled_at"] == "2026-04-05T22:30:00Z"
 
+    def test_carries_r11_perspective_fields(self, filled_trade, pnl_won):
+        """R11: YES-perspective normalized field + explicit side tag."""
+        rec = build_settlement_record(filled_trade, pnl_won, None, None)
+        assert rec["fair_value_yes"] == 0.60
+        assert rec["fair_value_side"] == "yes"
+
     def test_carries_pnl_fields(self, filled_trade, pnl_won):
         rec = build_settlement_record(filled_trade, pnl_won, None, None)
         assert rec["result"] == "yes"
@@ -107,6 +113,39 @@ class TestBuildSettlementRecord:
         assert rec["bankroll_pct"] is None
         assert rec["closing_price"] is None
         assert rec["clv"] is None
+        # R11 fields are also always present — value None when fair_value missing,
+        # side tag preserved since the bet has a known side
+        assert rec["fair_value_yes"] is None
+        assert rec["fair_value_side"] == "no"
+
+
+# ── _compute_fair_value_yes — R11 perspective normalization ──────────────────
+
+
+class TestComputeFairValueYes:
+    """R11: bet-side fair_value → unambiguous YES-perspective + side tag."""
+
+    def test_yes_bet_preserves_value(self):
+        fv_yes, side_tag = _compute_fair_value_yes({"side": "yes", "fair_value": 0.60})
+        assert fv_yes == 0.60
+        assert side_tag == "yes"
+
+    def test_no_bet_flips_to_yes_perspective(self):
+        fv_yes, side_tag = _compute_fair_value_yes({"side": "no", "fair_value": 0.60})
+        assert fv_yes == 0.40
+        assert side_tag == "no"
+
+    def test_missing_side_yields_both_none(self):
+        """Without a side, perspective is unrecoverable — refuse to guess."""
+        fv_yes, side_tag = _compute_fair_value_yes({"fair_value": 0.60})
+        assert fv_yes is None
+        assert side_tag is None
+
+    def test_missing_fair_value_keeps_side_tag(self):
+        """Side alone is still useful metadata even when the value is absent."""
+        fv_yes, side_tag = _compute_fair_value_yes({"side": "no", "fair_value": None})
+        assert fv_yes is None
+        assert side_tag == "no"
 
 
 # ── print_reconciliation — join-health report ────────────────────────────────

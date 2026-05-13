@@ -29,6 +29,8 @@ confidence, settled_at
 
 R5 (2026-04-27) extended the schema to also carry `order_id`, `title`, `category`, `edge_source`, `closing_price`, `clv`, `composite_score`, `risk_approval`, `bankroll_pct`, `unit_size`, and `fill_status`.
 
-These pre-R5 records will show as `null` for the R5-added fields in the reconciliation report. **No backfill is planned** — the missing fields don't exist anywhere on disk and synthesizing them would be fabricating data. Calibration analytics (`scripts/kalshi/model_calibration.py`) read settlement-side fields and degrade gracefully on absent ones; what's lost on this cohort is the ability to slice by composite-score bucket, risk-approval flag, or bankroll allocation.
+R11 (2026-05-13) added `fair_value_yes` (always YES-perspective probability) and `fair_value_side` (the perspective tag for the legacy `fair_value` field). The legacy `fair_value` field is bet-side perspective in post-R5 records, but pre-R5 entries written before the convention was tightened mixed YES- and NO-perspective values without a tag — making post-hoc NO-side analysis ambiguous. Use `fair_value_yes` for any cross-record probability work; use `fair_value` (still present) for calibration loaders that already assume bet-side.
+
+These pre-R5 records will show as `null` for the R5- and R11-added fields in the reconciliation report. **No backfill is planned** — the missing fields don't exist anywhere on disk and synthesizing them would be fabricating data. Calibration analytics (`scripts/kalshi/model_calibration.py`) read settlement-side fields and degrade gracefully on absent ones; what's lost on this cohort is the ability to slice by composite-score bucket, risk-approval flag, or bankroll allocation.
 
 The trade log itself was reset at some point before 2026-04-27, so 100% of pre-R5 settlements are also orphans (no matching `kalshi_trades.json` entry to join). This is expected and is what motivated R5 in the first place.

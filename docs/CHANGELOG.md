@@ -2,6 +2,30 @@
 
 ---
 
+## 2026-05-13 -- R11 Explicit Direction Fields in Settlement Schema
+
+### Why
+
+The settlement record's `fair_value` field carried bet-side perspective by convention, but pre-R5 entries written before the convention was tightened mixed YES- and NO-perspective values without a tag. Any post-hoc analysis that wanted to compare probabilities across bets had to read `side` separately and flip — easy to get wrong, impossible to audit. R11 makes the perspective explicit at write time so future analytics work isn't a guessing game.
+
+### What landed
+
+- **`scripts/kalshi/kalshi_settler.py`** — new `_compute_fair_value_yes(trade) -> (float | None, str | None)` helper. Returns YES-perspective probability and explicit side tag; refuses to guess when `side` is missing. Wired into `build_settlement_record()`. Two new keys on every settlement going forward: `fair_value_yes` (always YES-perspective) and `fair_value_side` (perspective tag for the legacy `fair_value` field). Legacy `fair_value` unchanged — `model_calibration.py`'s bet-side reader is untouched since it's been correct since R5; a YES-perspective cross-cut on the calibration loader is left for a future task when the post-R11 cohort has enough sample to warrant it.
+- **`tests/test_reconciliation.py`** — new `TestComputeFairValueYes` class with the four boundary cases: YES bet preserves value, NO bet flips to `1-fv`, missing side yields `(None, None)`, missing fair_value with side present yields `(None, side)`. New `test_carries_r11_perspective_fields` on `build_settlement_record` and an extended assertion on the missing-optional-fields shape test (verifies the new keys are always present, not just sometimes-missing). **386 tests passing** (was 381, +5).
+- **`data/history/README.md`** — documented the two new fields and the pre-R5/R11 perspective ambiguity. Reaffirmed the no-backfill stance: the underlying side resolution isn't reliably recoverable on the 178 pre-R5 orphans and synthesizing the field would be fabricating data.
+- **`docs/my-documents/enhancements/ROADMAP.md`** — removed R11 row from P2 table; new Completed entry under `2026-05-13`; header note updated.
+
+### Deliberately not in scope
+
+- **No calibration-loader change.** `model_calibration.py:127-128` already assumes bet-side perspective and that assumption is correct for the post-R5 cohort. Switching it to consume `fair_value_yes` would be its own ship; doing it now would change Brier numbers across the rolling window without a clear before/after measurement story.
+- **No backfill.** Same rationale as R5 — the missing fields don't exist anywhere on disk.
+
+### Files
+
+`scripts/kalshi/kalshi_settler.py`, `tests/test_reconciliation.py`, `data/history/README.md`, `docs/my-documents/enhancements/ROADMAP.md`, `docs/CHANGELOG.md`.
+
+---
+
 ## 2026-05-08 -- Pages Site Privacy Pass + Streamlit Cross-Link
 
 ### Why

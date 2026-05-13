@@ -82,6 +82,26 @@ def calculate_pnl(trade: dict, settlement: dict) -> dict:
     }
 
 
+def _compute_fair_value_yes(trade: dict) -> tuple[float | None, str | None]:
+    """Normalize `fair_value` to YES perspective and tag the legacy field's side.
+
+    Pre-R11 the settler stored `fair_value` as the bet-side probability without
+    tagging perspective, so post-hoc analysis of NO bets had to flip the value
+    by reading `side` separately. Returns (yes_perspective_value, side_tag).
+    Either may be None if the source data is incomplete.
+    """
+    fv = trade.get("fair_value")
+    side = trade.get("side")
+    if side not in ("yes", "no"):
+        return None, None
+    if fv is None:
+        return None, side
+    fv = float(fv)
+    if side == "yes":
+        return fv, "yes"
+    return round(1.0 - fv, 6), "no"
+
+
 def build_settlement_record(
     trade: dict,
     pnl: dict,
@@ -91,8 +111,9 @@ def build_settlement_record(
     """Construct a settlement-log record from a trade + pnl pair.
 
     Carries the full trade-side context so the settlement is self-describing
-    for calibration/analytics — see ROADMAP R5 (2026-04-27).
+    for calibration/analytics — see ROADMAP R5 (2026-04-27) and R11 (2026-05-13).
     """
+    fair_value_yes, fair_value_side = _compute_fair_value_yes(trade)
     return {
         "trade_id": trade.get("trade_id"),
         "order_id": trade.get("order_id"),
@@ -111,6 +132,8 @@ def build_settlement_record(
         "edge_estimated": trade.get("edge_estimated"),
         "edge_source": trade.get("edge_source"),
         "fair_value": trade.get("fair_value"),
+        "fair_value_yes": fair_value_yes,
+        "fair_value_side": fair_value_side,
         "market_price_at_entry": trade.get("market_price_at_entry"),
         "closing_price": closing_price,
         "clv": clv,
