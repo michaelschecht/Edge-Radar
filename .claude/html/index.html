@@ -67,22 +67,22 @@
           what's running, and where to click when something needs attention.
         </p>
 
-        <div class="relative mt-6 grid grid-cols-2 sm:flex sm:flex-wrap gap-3">
+        <div class="relative mt-6 flex flex-col sm:flex-row sm:flex-wrap gap-3">
           <a href="https://edge-radar.streamlit.app/" target="_blank" rel="noopener"
-             class="inline-flex items-center justify-between gap-3 px-4 py-2.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 hover:border-emerald-500/60 transition">
-            <span class="flex flex-col leading-tight">
+             class="flex items-center justify-between gap-3 px-4 py-2.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 hover:border-emerald-500/60 transition min-w-0">
+            <span class="flex flex-col leading-tight min-w-0">
               <span class="text-[10px] uppercase tracking-widest text-emerald-400/70">Open the app</span>
-              <span class="text-sm font-semibold">edge-radar.streamlit.app</span>
+              <span class="text-sm font-semibold truncate">edge-radar.streamlit.app</span>
             </span>
-            <span class="text-base">&rarr;</span>
+            <span class="text-base flex-shrink-0">&rarr;</span>
           </a>
           <a href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener"
-             class="inline-flex items-center justify-between gap-3 px-4 py-2.5 rounded-md border border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:bg-zinc-900 hover:text-white hover:border-zinc-700 transition">
-            <span class="flex flex-col leading-tight">
+             class="flex items-center justify-between gap-3 px-4 py-2.5 rounded-md border border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:bg-zinc-900 hover:text-white hover:border-zinc-700 transition min-w-0">
+            <span class="flex flex-col leading-tight min-w-0">
               <span class="text-[10px] uppercase tracking-widest text-zinc-500">Source</span>
-              <span class="text-sm font-semibold">github.com / Edge-Radar</span>
+              <span class="text-sm font-semibold truncate">github.com / Edge-Radar</span>
             </span>
-            <span class="text-base">&rarr;</span>
+            <span class="text-base flex-shrink-0">&rarr;</span>
           </a>
         </div>
       </div>
@@ -141,11 +141,17 @@
           <div class="text-sm font-semibold text-zinc-100 group-hover:text-white">CLAUDE.md</div>
           <div class="text-xs text-zinc-500">risk gates &middot; limits &middot; agents</div>
         </a>
-        <a href="https://github.com/michaelschecht/Edge-Radar/tree/master/reports" target="_blank" rel="noopener"
+        <a href="https://github.com/michaelschecht/Edge-Radar/blob/master/.claude/skills/edge-radar/SKILL.md" target="_blank" rel="noopener"
            class="group flex flex-col gap-1 rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
-          <div class="text-[10px] uppercase tracking-widest text-zinc-500">Output</div>
-          <div class="text-sm font-semibold text-zinc-100 group-hover:text-white">Reports tree</div>
-          <div class="text-xs text-zinc-500">Performance &middot; Calibration &middot; backtest</div>
+          <div class="text-[10px] uppercase tracking-widest text-zinc-500">Skill</div>
+          <div class="text-sm font-semibold text-zinc-100 group-hover:text-white">/edge-radar</div>
+          <div class="text-xs text-zinc-500">.claude/skills/edge-radar</div>
+        </a>
+        <a href="https://github.com/michaelschecht/Edge-Radar/blob/master/docs/SCRIPTS_REFERENCE.md" target="_blank" rel="noopener"
+           class="group flex flex-col gap-1 rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] uppercase tracking-widest text-zinc-500">Reference</div>
+          <div class="text-sm font-semibold text-zinc-100 group-hover:text-white">Scripts Reference</div>
+          <div class="text-xs text-zinc-500">docs/SCRIPTS_REFERENCE.md</div>
         </a>
       </div>
     </section>
