@@ -1,756 +1,284 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Edge-Radar &middot; Ops Dashboard</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #0a0e17;
-    --bg-alt: #0f1420;
-    --bg-card: #131a28;
-    --bg-card-hi: #182135;
-    --border: #1f2a3e;
-    --border-hi: #2a3850;
-    --text: #e6edf7;
-    --text-dim: #94a3b8;
-    --text-mute: #64748b;
-    --accent: #00d4aa;
-    --accent-dim: #00d4aa22;
-    --accent-glow: #00d4aa44;
-    --warn: #f59e0b;
-    --warn-dim: #f59e0b22;
-    --danger: #ef4444;
-    --danger-dim: #ef444422;
-    --info: #3b82f6;
-    --info-dim: #3b82f622;
-    --purple: #a78bfa;
-    --purple-dim: #a78bfa22;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 15px;
-    line-height: 1.65;
-    -webkit-font-smoothing: antialiased;
-    min-height: 100vh;
-  }
-  a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  code, .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.88em; }
-  code {
-    background: var(--bg-alt);
-    border: 1px solid var(--border);
-    padding: 1px 6px;
-    border-radius: 4px;
-    color: var(--accent);
-  }
-  pre {
-    background: var(--bg-alt);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px 18px;
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 12.5px;
-    line-height: 1.55;
-    color: var(--text-dim);
-    overflow-x: auto;
-  }
-
-  /* ---------- Nav ---------- */
-  nav {
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    background: rgba(10,14,23,0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border);
-  }
-  .nav-inner {
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 14px 32px;
-    display: flex;
-    align-items: center;
-    gap: 28px;
-  }
-  .nav-brand {
-    font-family: 'Outfit', sans-serif;
-    font-weight: 800;
-    font-size: 18px;
-    letter-spacing: 1.5px;
-    color: var(--accent);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .nav-brand::before {
-    content: '';
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 14px var(--accent-glow);
-    animation: pulse 2.4s ease-in-out infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.55; transform: scale(0.85); }
-  }
-  .nav-links {
-    display: flex;
-    gap: 4px;
-    flex: 1;
-    flex-wrap: wrap;
-  }
-  .nav-links a {
-    color: var(--text-dim);
-    font-size: 13px;
-    font-weight: 500;
-    padding: 7px 12px;
-    border-radius: 6px;
-    transition: all 0.15s ease;
-  }
-  .nav-links a:hover {
-    background: var(--bg-card);
-    color: var(--accent);
-    text-decoration: none;
-  }
-  .nav-meta {
-    font-size: 12px;
-    color: var(--text-mute);
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  /* ---------- Layout ---------- */
-  main {
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 0 32px 120px;
-  }
-  section {
-    padding: 64px 0 16px;
-    scroll-margin-top: 70px;
-  }
-  section > header {
-    margin-bottom: 28px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 14px;
-  }
-  h1 {
-    font-family: 'Outfit', sans-serif;
-    font-weight: 800;
-    font-size: 52px;
-    line-height: 1.1;
-    letter-spacing: -1px;
-    margin-bottom: 16px;
-    background: linear-gradient(135deg, #e6edf7 0%, #00d4aa 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  h2 {
-    font-family: 'Outfit', sans-serif;
-    font-weight: 700;
-    font-size: 28px;
-    letter-spacing: -0.5px;
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-  }
-  h2 .num {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 14px;
-    color: var(--accent);
-    font-weight: 600;
-    letter-spacing: 1px;
-  }
-  h3 {
-    font-family: 'Outfit', sans-serif;
-    font-weight: 600;
-    font-size: 18px;
-    margin-bottom: 8px;
-  }
-  p { color: var(--text-dim); margin-bottom: 12px; }
-  .lede { font-size: 17px; color: var(--text-dim); max-width: 820px; }
-  .section-sub { color: var(--text-mute); font-size: 14px; margin-top: 4px; }
-
-  /* ---------- Hero ---------- */
-  .hero {
-    padding: 80px 0 40px;
-    position: relative;
-    overflow: hidden;
-  }
-  .hero::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 50%;
-    transform: translateX(-50%);
-    width: 900px; height: 900px;
-    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 60%);
-    opacity: 0.32;
-    pointer-events: none;
-    z-index: 0;
-  }
-  .hero > * { position: relative; z-index: 1; }
-  .hero-eyebrow {
-    display: inline-block;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    letter-spacing: 2px;
-    color: var(--accent);
-    background: var(--accent-dim);
-    padding: 6px 14px;
-    border-radius: 20px;
-    border: 1px solid var(--accent-glow);
-    margin-bottom: 24px;
-  }
-  .hero-stats {
-    margin-top: 32px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 14px;
-    max-width: 980px;
-  }
-  .stat {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px 18px;
-  }
-  .stat-val {
-    font-family: 'Outfit', sans-serif;
-    font-weight: 700;
-    font-size: 24px;
-    color: var(--accent);
-    line-height: 1;
-  }
-  .stat-lbl {
-    font-size: 11px;
-    color: var(--text-mute);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-top: 7px;
-  }
-
-  /* ---------- CTA tiles (equal-size, side-by-side) ---------- */
-  .cta-row {
-    margin-top: 36px;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-    max-width: 860px;
-  }
-  .cta-tile {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    padding: 22px 26px;
-    border-radius: 12px;
-    border: 1px solid rgba(255,255,255,0.12);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-    min-height: 96px;
-  }
-  .cta-tile .kicker {
-    display: block;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10.5px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    opacity: 0.7;
-    margin-bottom: 4px;
-  }
-  .cta-tile .url {
-    display: block;
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 600;
-    font-size: 17px;
-    letter-spacing: 0.2px;
-  }
-  .cta-tile .arrow {
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 800;
-    font-size: 22px;
-    line-height: 1;
-  }
-  .cta-primary {
-    background: linear-gradient(135deg, #00d4aa 0%, #00b894 100%);
-    color: #061018;
-    box-shadow: 0 10px 28px rgba(0, 212, 170, 0.30),
-                0 0 0 1px rgba(0, 212, 170, 0.55) inset;
-  }
-  .cta-primary:hover {
-    text-decoration: none;
-    color: #061018;
-    transform: translateY(-2px);
-    box-shadow: 0 14px 36px rgba(0, 212, 170, 0.42),
-                0 0 0 1px rgba(0, 212, 170, 0.8) inset;
-  }
-  .cta-ghost {
-    background: var(--bg-card);
-    color: var(--text);
-    border: 1px solid var(--border-hi);
-  }
-  .cta-ghost:hover {
-    text-decoration: none;
-    color: var(--text);
-    transform: translateY(-2px);
-    border-color: var(--accent);
-    background: var(--bg-card-hi);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35),
-                0 0 0 1px rgba(0, 212, 170, 0.35) inset;
-  }
-  .cta-ghost .kicker { color: var(--accent); opacity: 1; }
-
-  /* ---------- Quick Links ---------- */
-  .quicklinks {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 14px;
-  }
-  .qlink {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 16px 18px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    transition: all 0.15s ease;
-  }
-  .qlink:hover {
-    border-color: var(--accent);
-    background: var(--bg-card-hi);
-    transform: translateY(-2px);
-    text-decoration: none;
-  }
-  .qlink .ql-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10.5px;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: var(--text-mute);
-  }
-  .qlink .ql-target {
-    font-family: 'Outfit', sans-serif;
-    font-weight: 600;
-    font-size: 15px;
-    color: var(--text);
-  }
-  .qlink .ql-sub {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11.5px;
-    color: var(--text-dim);
-  }
-
-  /* ---------- Scheduler table ---------- */
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  th {
-    text-align: left;
-    background: var(--bg-card-hi);
-    color: var(--text-dim);
-    font-weight: 600;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-  }
-  td {
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--border);
-    font-size: 13.5px;
-    vertical-align: top;
-  }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: var(--bg-card-hi); }
-
-  .task-name {
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 600;
-    color: var(--accent);
-    font-size: 13px;
-    white-space: nowrap;
-  }
-  .pill {
-    display: inline-block;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10.5px;
-    padding: 2px 7px;
-    border-radius: 4px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-  }
-  .pill-ready { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
-  .pill-once { background: var(--info-dim); color: var(--info); border: 1px solid var(--info); }
-  .pill-daily { background: rgba(167, 139, 250, 0.15); color: var(--purple); border: 1px solid var(--purple); }
-  .pill-weekly { background: var(--warn-dim); color: var(--warn); border: 1px solid var(--warn); }
-  .pill-monthly { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid var(--danger); }
-
-  .table-wrap { overflow-x: auto; border-radius: 10px; -webkit-overflow-scrolling: touch; }
-  .table-wrap table { min-width: 760px; }
-
-  /* ---------- Data Flow (simple horizontal strip) ---------- */
-  .flow-strip {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 8px;
-    margin: 20px 0 12px;
-  }
-  .flow-step {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 18px 12px;
-    text-align: center;
-    position: relative;
-    transition: all 0.15s ease;
-  }
-  .flow-step:hover {
-    border-color: var(--accent);
-    background: var(--bg-card-hi);
-    transform: translateY(-2px);
-  }
-  .flow-step .num {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--accent);
-    letter-spacing: 1.5px;
-    margin-bottom: 6px;
-  }
-  .flow-step .name {
-    font-family: 'Outfit', sans-serif;
-    font-weight: 700;
-    font-size: 15px;
-    color: var(--text);
-    margin-bottom: 4px;
-  }
-  .flow-step .sub {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10.5px;
-    color: var(--text-mute);
-    letter-spacing: 0.04em;
-  }
-  .flow-step:not(:last-child)::after {
-    content: '→';
-    position: absolute;
-    right: -10px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--accent);
-    font-weight: 700;
-    font-size: 18px;
-    z-index: 2;
-    background: var(--bg);
-    padding: 0 2px;
-  }
-  .flow-legend {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11.5px;
-    color: var(--text-mute);
-    margin-top: 8px;
-  }
-
-  /* ---------- Disabled-tasks accordion ---------- */
-  details {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 18px;
-    margin-top: 20px;
-  }
-  details[open] { background: var(--bg-card-hi); }
-  details summary {
-    cursor: pointer;
-    font-family: 'Outfit', sans-serif;
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--text);
-    list-style: none;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  details summary::-webkit-details-marker { display: none; }
-  details summary::before {
-    content: '▸';
-    color: var(--accent);
-    font-size: 12px;
-    transition: transform 0.15s ease;
-  }
-  details[open] summary::before { transform: rotate(90deg); }
-  details .details-body { margin-top: 14px; }
-
-  /* ---------- Footer ---------- */
-  footer {
-    border-top: 1px solid var(--border);
-    padding: 32px;
-    text-align: center;
-    font-size: 12px;
-    color: var(--text-mute);
-    font-family: 'JetBrains Mono', monospace;
-    letter-spacing: 0.5px;
-  }
-
-  /* ---------- Responsive ---------- */
-  @media (max-width: 900px) {
-    h1 { font-size: 36px; }
-    main { padding: 0 18px 80px; }
-    section { padding: 48px 0 12px; }
-    .nav-inner { padding: 12px 18px; gap: 14px; }
-    .nav-links { display: none; }
-    .hero { padding: 56px 0 28px; }
-    .cta-row { grid-template-columns: 1fr; gap: 12px; }
-    .cta-tile { padding: 18px 20px; min-height: 0; }
-    .cta-tile .url { font-size: 15px; }
-    .flow-strip {
-      grid-template-columns: 1fr;
-      gap: 6px;
-    }
-    .flow-step:not(:last-child)::after {
-      content: '↓';
-      right: 50%;
-      top: auto;
-      bottom: -14px;
-      transform: translateX(50%);
-    }
-    .flow-step { padding: 14px 12px; }
-  }
-  @media (max-width: 600px) {
-    h1 { font-size: 30px; }
-    .hero-stats { grid-template-columns: repeat(2, 1fr); }
-    th, td { padding: 10px 10px; font-size: 12.5px; }
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Edge-Radar &middot; Ops Dashboard</title>
+  <meta name="description" content="Personal ops dashboard for the Kalshi edge-detection pipeline." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    summary::-webkit-details-marker { display: none; }
+    summary { list-style: none; }
+    pre, code, .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+    html { scroll-behavior: smooth; }
+  </style>
 </head>
-<body>
+<body class="bg-[#060606] text-zinc-100 min-h-screen antialiased">
 
-<nav>
-  <div class="nav-inner">
-    <div class="nav-brand">EDGE-RADAR</div>
-    <div class="nav-links">
-      <a href="#schedulers">Schedulers</a>
-      <a href="#dataflow">Data Flow</a>
-      <a href="#quicklinks">Quick Links</a>
+  <!-- ============ TOPBAR ============ -->
+  <div class="fixed top-0 inset-x-0 z-40 h-12 bg-[#060606]/95 backdrop-blur border-b border-zinc-900">
+    <div class="flex items-center h-full max-w-5xl mx-auto px-4 sm:px-6 gap-3">
+      <a href="#top" class="flex items-center gap-2 text-zinc-200 hover:text-white transition">
+        <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+        <span class="text-sm font-semibold tracking-wide">Edge-Radar</span>
+      </a>
+      <nav class="ml-4 hidden sm:flex items-center gap-1 text-sm">
+        <a href="#quicklinks" class="px-2 py-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-900 transition">Quick Links</a>
+        <a href="#schedulers" class="px-2 py-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-900 transition">Schedulers</a>
+        <a href="#dataflow" class="px-2 py-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-900 transition">Data Flow</a>
+      </nav>
+      <div class="ml-auto flex items-center gap-2">
+        <a href="https://mikesailab.com" class="hidden sm:inline-flex text-xs text-zinc-500 hover:text-zinc-300 transition">mikesailab.com</a>
+        <a href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener noreferrer"
+           class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md border border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:bg-zinc-900 hover:text-white hover:border-zinc-700 transition">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          <span>Repo</span>
+        </a>
+      </div>
     </div>
-    <div class="nav-meta">ops · 2026.05.11</div>
-  </div>
-</nav>
-
-<main>
-
-<!-- ============ HERO ============ -->
-<section class="hero" id="top">
-  <div class="hero-eyebrow">PERSONAL OPS DASHBOARD</div>
-  <h1>Edge-Radar<br>command deck</h1>
-  <p class="lede">
-    Single pane of glass for the Kalshi edge-detection pipeline — what's scheduled,
-    what's running, and where to click when something needs attention.
-  </p>
-
-  <div class="cta-row">
-    <a class="cta-tile cta-primary" href="https://edge-radar.streamlit.app/" target="_blank" rel="noopener">
-      <span>
-        <span class="kicker">Open the app</span>
-        <span class="url">edge-radar.streamlit.app</span>
-      </span>
-      <span class="arrow">↗</span>
-    </a>
-    <a class="cta-tile cta-ghost" href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener">
-      <span>
-        <span class="kicker">Source</span>
-        <span class="url">github.com / Edge-Radar</span>
-      </span>
-      <span class="arrow">↗</span>
-    </a>
   </div>
 
-  <div class="hero-stats">
-    <div class="stat"><div class="stat-val">3</div><div class="stat-lbl">Wager schedulers</div></div>
-    <div class="stat"><div class="stat-val">13</div><div class="stat-lbl">Risk gates</div></div>
-    <div class="stat"><div class="stat-val">7</div><div class="stat-lbl">Pipeline stages</div></div>
-    <div class="stat"><div class="stat-val">27</div><div class="stat-lbl">Sport filters</div></div>
-    <div class="stat"><div class="stat-val">330</div><div class="stat-lbl">Tests passing</div></div>
-  </div>
-</section>
+  <main class="flex-1 max-w-5xl w-full mx-auto px-6 pt-24 pb-24 sm:pt-28">
 
-<!-- ============ QUICK LINKS ============ -->
-<section id="quicklinks">
-  <header>
-    <h2><span class="num">§1</span> Quick Links</h2>
-    <div class="section-sub">The stuff actually clicked on a normal day.</div>
-  </header>
+    <!-- ============ HERO ============ -->
+    <section id="top" class="mb-16">
+      <div class="flex items-center gap-1.5 text-xs uppercase tracking-wider text-sky-400 mb-3">
+        <span class="h-1.5 w-1.5 rounded-full bg-sky-400"></span>
+        <span>Live &middot; Personal Ops Dashboard</span>
+      </div>
+      <div class="relative overflow-hidden rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-8 sm:p-10">
+        <svg class="absolute -right-12 -bottom-12 h-56 w-56 text-emerald-500/20 pointer-events-none" viewBox="0 0 100 100" fill="none" stroke="currentColor" aria-hidden="true">
+          <circle cx="50" cy="50" r="48" stroke-width="0.6" />
+          <circle cx="50" cy="50" r="34" stroke-width="0.6" />
+          <circle cx="50" cy="50" r="20" stroke-width="0.6" />
+          <line x1="50" y1="0" x2="50" y2="100" stroke-width="0.4" stroke-dasharray="1 2.5" />
+          <line x1="0" y1="50" x2="100" y2="50" stroke-width="0.4" stroke-dasharray="1 2.5" />
+          <line x1="50" y1="50" x2="82" y2="18" stroke-width="1" stroke-linecap="round" />
+          <circle cx="78" cy="22" r="2" fill="currentColor" stroke="none" />
+        </svg>
+        <h1 class="relative text-3xl sm:text-4xl font-semibold tracking-tight text-zinc-100">Edge-Radar command deck</h1>
+        <p class="relative mt-3 max-w-2xl text-zinc-400">
+          Single pane of glass for the Kalshi edge-detection pipeline &mdash; what's scheduled,
+          what's running, and where to click when something needs attention.
+        </p>
 
-  <div class="quicklinks">
-    <a class="qlink" href="https://edge-radar.streamlit.app/" target="_blank" rel="noopener">
-      <div class="ql-label">Dashboard</div>
-      <div class="ql-target">Streamlit app</div>
-      <div class="ql-sub">scan · execute · settle · portfolio</div>
-    </a>
-    <a class="qlink" href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener">
-      <div class="ql-label">Source</div>
-      <div class="ql-target">GitHub repo</div>
-      <div class="ql-sub">michaelschecht / Edge-Radar</div>
-    </a>
-    <a class="qlink" href="https://github.com/michaelschecht/Edge-Radar/blob/master/docs/CHANGELOG.md" target="_blank" rel="noopener">
-      <div class="ql-label">History</div>
-      <div class="ql-target">CHANGELOG</div>
-      <div class="ql-sub">docs/CHANGELOG.md</div>
-    </a>
-    <a class="qlink" href="https://github.com/michaelschecht/Edge-Radar/blob/master/CLAUDE.md" target="_blank" rel="noopener">
-      <div class="ql-label">System</div>
-      <div class="ql-target">CLAUDE.md</div>
-      <div class="ql-sub">risk gates · limits · agents</div>
-    </a>
-    <a class="qlink" href="https://github.com/michaelschecht/Edge-Radar/tree/master/reports" target="_blank" rel="noopener">
-      <div class="ql-label">Output</div>
-      <div class="ql-target">Reports tree</div>
-      <div class="ql-sub">Performance · Calibration · backtest</div>
-    </a>
-  </div>
-</section>
+        <div class="relative mt-6 grid grid-cols-2 sm:flex sm:flex-wrap gap-3">
+          <a href="https://edge-radar.streamlit.app/" target="_blank" rel="noopener"
+             class="inline-flex items-center justify-between gap-3 px-4 py-2.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 hover:border-emerald-500/60 transition">
+            <span class="flex flex-col leading-tight">
+              <span class="text-[10px] uppercase tracking-widest text-emerald-400/70">Open the app</span>
+              <span class="text-sm font-semibold">edge-radar.streamlit.app</span>
+            </span>
+            <span class="text-base">&rarr;</span>
+          </a>
+          <a href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener"
+             class="inline-flex items-center justify-between gap-3 px-4 py-2.5 rounded-md border border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:bg-zinc-900 hover:text-white hover:border-zinc-700 transition">
+            <span class="flex flex-col leading-tight">
+              <span class="text-[10px] uppercase tracking-widest text-zinc-500">Source</span>
+              <span class="text-sm font-semibold">github.com / Edge-Radar</span>
+            </span>
+            <span class="text-base">&rarr;</span>
+          </a>
+        </div>
+      </div>
 
-<!-- ============ SCHEDULERS ============ -->
-<section id="schedulers">
-  <header>
-    <h2><span class="num">§2</span> Wager Schedulers</h2>
-    <div class="section-sub">The three <code>\Edge-Radar\</code> tasks that actually place bets. Times in PT (system local).</div>
-  </header>
+      <div class="mt-5 grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4">
+          <div class="text-2xl font-semibold text-zinc-100">3</div>
+          <div class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Wager schedulers</div>
+        </div>
+        <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4">
+          <div class="text-2xl font-semibold text-zinc-100">13</div>
+          <div class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Risk gates</div>
+        </div>
+        <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4">
+          <div class="text-2xl font-semibold text-zinc-100">7</div>
+          <div class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Pipeline stages</div>
+        </div>
+        <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4">
+          <div class="text-2xl font-semibold text-zinc-100">27</div>
+          <div class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Sport filters</div>
+        </div>
+        <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4 col-span-2 sm:col-span-1">
+          <div class="text-2xl font-semibold text-zinc-100">330</div>
+          <div class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Tests passing</div>
+        </div>
+      </div>
+    </section>
 
-  <div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th style="width:36px">#</th>
-        <th>Task</th>
-        <th>Cadence</th>
-        <th>Trigger</th>
-        <th>What it does</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>1</td>
-        <td><span class="task-name">All-Sports-SameDay-Execution</span></td>
-        <td><span class="pill pill-daily">daily</span></td>
-        <td>5:05 AM</td>
-        <td>Scans NBA/NHL/MLB/NFL for <strong>today's</strong> games and places bets. <code>--date today --budget 15% --max-bets 7 --exclude-open</code></td>
-      </tr>
-      <tr>
-        <td>2</td>
-        <td><span class="task-name">All-Sports-NoDateFilter-Execution</span></td>
-        <td><span class="pill pill-weekly">Mon · Thu</span></td>
-        <td>5:20 AM</td>
-        <td>Scans all sports across <strong>all dates</strong> for multi-day edge. <code>--budget 15% --max-bets 6 --exclude-open</code> (no <code>--date</code>)</td>
-      </tr>
-      <tr>
-        <td>3</td>
-        <td><span class="task-name">NextDay-Execute</span></td>
-        <td><span class="pill pill-weekly">Sun · Mon · Tue · Wed · Thu</span></td>
-        <td>6:00 PM</td>
-        <td>Locks in early lines for <strong>tomorrow's</strong> games. <code>--date tomorrow --budget 10% --max-bets 6 --exclude-open</code></td>
-      </tr>
-    </tbody>
-  </table>
-  </div>
+    <!-- ============ QUICK LINKS ============ -->
+    <section id="quicklinks" class="mb-14 scroll-mt-20">
+      <h2 class="text-xs uppercase tracking-wider text-zinc-500 mb-1">Quick Links</h2>
+      <p class="text-sm text-zinc-600 mb-4">The stuff actually clicked on a normal day.</p>
 
-  <h3 style="margin-top:32px;">Daily fire sequence</h3>
-<pre>5:05 AM  Sun Mon Tue Wed Thu Fri Sat  ─ All-Sports-SameDay-Execution      (today's games)
-5:20 AM  Mon Thu                      ─ All-Sports-NoDateFilter-Execution  (multi-day edge)
-6:00 PM  Sun Mon Tue Wed Thu          ─ NextDay-Execute                    (tomorrow's games)</pre>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <a href="https://edge-radar.streamlit.app/" target="_blank" rel="noopener"
+           class="group flex flex-col gap-1 rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] uppercase tracking-widest text-zinc-500">Dashboard</div>
+          <div class="text-sm font-semibold text-zinc-100 group-hover:text-white">Streamlit app</div>
+          <div class="text-xs text-zinc-500">scan &middot; execute &middot; settle &middot; portfolio</div>
+        </a>
+        <a href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener"
+           class="group flex flex-col gap-1 rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] uppercase tracking-widest text-zinc-500">Source</div>
+          <div class="text-sm font-semibold text-zinc-100 group-hover:text-white">GitHub repo</div>
+          <div class="text-xs text-zinc-500">michaelschecht / Edge-Radar</div>
+        </a>
+        <a href="https://github.com/michaelschecht/Edge-Radar/blob/master/docs/CHANGELOG.md" target="_blank" rel="noopener"
+           class="group flex flex-col gap-1 rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] uppercase tracking-widest text-zinc-500">History</div>
+          <div class="text-sm font-semibold text-zinc-100 group-hover:text-white">CHANGELOG</div>
+          <div class="text-xs text-zinc-500">docs/CHANGELOG.md</div>
+        </a>
+        <a href="https://github.com/michaelschecht/Edge-Radar/blob/master/CLAUDE.md" target="_blank" rel="noopener"
+           class="group flex flex-col gap-1 rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] uppercase tracking-widest text-zinc-500">System</div>
+          <div class="text-sm font-semibold text-zinc-100 group-hover:text-white">CLAUDE.md</div>
+          <div class="text-xs text-zinc-500">risk gates &middot; limits &middot; agents</div>
+        </a>
+        <a href="https://github.com/michaelschecht/Edge-Radar/tree/master/reports" target="_blank" rel="noopener"
+           class="group flex flex-col gap-1 rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] uppercase tracking-widest text-zinc-500">Output</div>
+          <div class="text-sm font-semibold text-zinc-100 group-hover:text-white">Reports tree</div>
+          <div class="text-xs text-zinc-500">Performance &middot; Calibration &middot; backtest</div>
+        </a>
+      </div>
+    </section>
 
-  <details>
-    <summary>Manual trigger commands (Git Bash)</summary>
-    <div class="details-body">
-<pre># Prepend MSYS_NO_PATHCONV=1 to stop Git Bash from translating /tn
+    <!-- ============ SCHEDULERS ============ -->
+    <section id="schedulers" class="mb-14 scroll-mt-20">
+      <h2 class="text-xs uppercase tracking-wider text-zinc-500 mb-1">Wager Schedulers</h2>
+      <p class="text-sm text-zinc-600 mb-4">
+        The three <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">\Edge-Radar\</code>
+        tasks that actually place bets. Times in PT (system local).
+      </p>
+
+      <div class="overflow-x-auto rounded-sm border border-zinc-800/60 bg-zinc-900/40">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left">
+              <th class="w-10 px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium border-b border-zinc-800/60">#</th>
+              <th class="px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium border-b border-zinc-800/60">Task</th>
+              <th class="px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium border-b border-zinc-800/60">Cadence</th>
+              <th class="px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium border-b border-zinc-800/60 whitespace-nowrap">Trigger</th>
+              <th class="px-4 py-3 text-[10px] uppercase tracking-wider text-zinc-500 font-medium border-b border-zinc-800/60">What it does</th>
+            </tr>
+          </thead>
+          <tbody class="text-zinc-300">
+            <tr class="hover:bg-zinc-900/60 transition">
+              <td class="px-4 py-3 border-b border-zinc-800/60 text-zinc-500">1</td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 mono text-emerald-300 whitespace-nowrap text-[13px]">All-Sports-SameDay-Execution</td>
+              <td class="px-4 py-3 border-b border-zinc-800/60"><span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">daily</span></td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 whitespace-nowrap text-zinc-400">5:05 AM</td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 text-zinc-400">Scans NBA/NHL/MLB/NFL for <span class="text-zinc-200">today's</span> games and places bets. <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">--date today --budget 15% --max-bets 7 --exclude-open</code></td>
+            </tr>
+            <tr class="hover:bg-zinc-900/60 transition">
+              <td class="px-4 py-3 border-b border-zinc-800/60 text-zinc-500">2</td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 mono text-emerald-300 whitespace-nowrap text-[13px]">All-Sports-NoDateFilter-Execution</td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 whitespace-nowrap"><span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-amber-500/10 text-amber-300 border border-amber-500/30">Mon &middot; Thu</span></td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 whitespace-nowrap text-zinc-400">5:20 AM</td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 text-zinc-400">Scans all sports across <span class="text-zinc-200">all dates</span> for multi-day edge. <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">--budget 15% --max-bets 6 --exclude-open</code> (no <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">--date</code>)</td>
+            </tr>
+            <tr class="hover:bg-zinc-900/60 transition">
+              <td class="px-4 py-3 text-zinc-500">3</td>
+              <td class="px-4 py-3 mono text-emerald-300 whitespace-nowrap text-[13px]">NextDay-Execute</td>
+              <td class="px-4 py-3 whitespace-nowrap"><span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-amber-500/10 text-amber-300 border border-amber-500/30">Sun&ndash;Thu</span></td>
+              <td class="px-4 py-3 whitespace-nowrap text-zinc-400">6:00 PM</td>
+              <td class="px-4 py-3 text-zinc-400">Locks in early lines for <span class="text-zinc-200">tomorrow's</span> games. <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">--date tomorrow --budget 10% --max-bets 6 --exclude-open</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="mt-8 text-[11px] uppercase tracking-widest text-zinc-500 mb-2">Daily fire sequence</h3>
+      <pre class="overflow-x-auto rounded-sm border border-zinc-800/60 bg-zinc-950/60 p-4 text-[12px] leading-relaxed text-zinc-400">5:05 AM  Sun Mon Tue Wed Thu Fri Sat  &mdash; All-Sports-SameDay-Execution      (today's games)
+5:20 AM  Mon Thu                      &mdash; All-Sports-NoDateFilter-Execution  (multi-day edge)
+6:00 PM  Sun Mon Tue Wed Thu          &mdash; NextDay-Execute                    (tomorrow's games)</pre>
+
+      <details class="mt-4 rounded-sm border border-zinc-800/60 bg-zinc-900/40 open:bg-zinc-900/60 transition">
+        <summary class="flex items-center gap-2 cursor-pointer px-4 py-3 text-sm text-zinc-300 hover:text-white">
+          <svg class="h-3 w-3 text-zinc-500 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+          <span>Manual trigger commands (Git Bash)</span>
+        </summary>
+        <div class="px-4 pb-4">
+<pre class="overflow-x-auto rounded-sm border border-zinc-800/60 bg-zinc-950/60 p-4 text-[12px] leading-relaxed text-zinc-400"># Prepend MSYS_NO_PATHCONV=1 to stop Git Bash from translating /tn
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-SameDay-Execution"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-NoDateFilter-Execution"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\NextDay-Execute"
 
 # PowerShell equivalent (no MSYS prefix)
 Start-ScheduledTask -TaskPath '\Edge-Radar\' -TaskName 'NextDay-Execute'</pre>
-    </div>
-  </details>
-</section>
+        </div>
+      </details>
+      <style>details[open] summary svg { transform: rotate(90deg); }</style>
+    </section>
 
-<!-- ============ DATA FLOW ============ -->
-<section id="dataflow">
-  <header>
-    <h2><span class="num">§3</span> Data Flow</h2>
-    <div class="section-sub">Seven sequential stages. Scan → Size → Execute → Settle.</div>
-  </header>
+    <!-- ============ DATA FLOW ============ -->
+    <section id="dataflow" class="mb-14 scroll-mt-20">
+      <h2 class="text-xs uppercase tracking-wider text-zinc-500 mb-1">Data Flow</h2>
+      <p class="text-sm text-zinc-600 mb-4">Seven sequential stages. Scan &rarr; Size &rarr; Execute &rarr; Settle.</p>
 
-  <div class="flow-strip">
-    <div class="flow-step">
-      <div class="num">01</div>
-      <div class="name">Fetch</div>
-      <div class="sub">Kalshi + Odds API</div>
-    </div>
-    <div class="flow-step">
-      <div class="num">02</div>
-      <div class="name">Categorize</div>
-      <div class="sub">ticker → model</div>
-    </div>
-    <div class="flow-step">
-      <div class="num">03</div>
-      <div class="name">Compare</div>
-      <div class="sub">fair vs ask</div>
-    </div>
-    <div class="flow-step">
-      <div class="num">04</div>
-      <div class="name">Cap</div>
-      <div class="sub">per-event dedup</div>
-    </div>
-    <div class="flow-step">
-      <div class="num">05</div>
-      <div class="name">Risk</div>
-      <div class="sub">13 gates</div>
-    </div>
-    <div class="flow-step">
-      <div class="num">06</div>
-      <div class="name">Execute</div>
-      <div class="sub">RSA-signed limit</div>
-    </div>
-    <div class="flow-step">
-      <div class="num">07</div>
-      <div class="name">Monitor</div>
-      <div class="sub">settle + calibrate</div>
-    </div>
-  </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-3 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] mono text-emerald-400/80">01</div>
+          <div class="mt-1 text-sm font-semibold text-zinc-100">Fetch</div>
+          <div class="text-[11px] text-zinc-500">Kalshi + Odds API</div>
+        </div>
+        <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-3 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] mono text-emerald-400/80">02</div>
+          <div class="mt-1 text-sm font-semibold text-zinc-100">Categorize</div>
+          <div class="text-[11px] text-zinc-500">ticker &rarr; model</div>
+        </div>
+        <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-3 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] mono text-emerald-400/80">03</div>
+          <div class="mt-1 text-sm font-semibold text-zinc-100">Compare</div>
+          <div class="text-[11px] text-zinc-500">fair vs ask</div>
+        </div>
+        <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-3 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] mono text-emerald-400/80">04</div>
+          <div class="mt-1 text-sm font-semibold text-zinc-100">Cap</div>
+          <div class="text-[11px] text-zinc-500">per-event dedup</div>
+        </div>
+        <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-3 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] mono text-emerald-400/80">05</div>
+          <div class="mt-1 text-sm font-semibold text-zinc-100">Risk</div>
+          <div class="text-[11px] text-zinc-500">13 gates</div>
+        </div>
+        <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-3 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] mono text-emerald-400/80">06</div>
+          <div class="mt-1 text-sm font-semibold text-zinc-100">Execute</div>
+          <div class="text-[11px] text-zinc-500">RSA-signed limit</div>
+        </div>
+        <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-3 hover:border-zinc-600 hover:bg-zinc-900/70 transition">
+          <div class="text-[10px] mono text-emerald-400/80">07</div>
+          <div class="mt-1 text-sm font-semibold text-zinc-100">Monitor</div>
+          <div class="text-[11px] text-zinc-500">settle + calibrate</div>
+        </div>
+      </div>
 
-  <div class="flow-legend">
-    <span>Risk gates · <a href="https://github.com/michaelschecht/Edge-Radar/blob/master/CLAUDE.md#execution-gates" target="_blank" rel="noopener">CLAUDE.md § Execution Gates</a></span>
-    <span>Edge models · ML · SP · TO · FU · PR</span>
-    <span>Settler · <code>make settle</code></span>
-  </div>
-</section>
+      <div class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-zinc-500">
+        <span>Risk gates &middot; <a class="text-zinc-400 hover:text-emerald-300 transition" href="https://github.com/michaelschecht/Edge-Radar/blob/master/CLAUDE.md#execution-gates" target="_blank" rel="noopener">CLAUDE.md &sect; Execution Gates</a></span>
+        <span>Edge models &middot; ML &middot; SP &middot; TO &middot; FU &middot; PR</span>
+        <span>Settler &middot; <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">make settle</code></span>
+      </div>
+    </section>
 
-</main>
+  </main>
 
-<footer>
-  EDGE-RADAR · PERSONAL OPS DASHBOARD · <a href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener">github.com/michaelschecht/Edge-Radar</a>
-</footer>
+  <footer class="border-t border-zinc-900 py-8">
+    <div class="max-w-5xl mx-auto px-6 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
+      <div>Edge-Radar &middot; Personal Ops Dashboard</div>
+      <div class="flex items-center gap-4">
+        <a href="https://github.com/michaelschecht/Edge-Radar" target="_blank" rel="noopener" class="hover:text-zinc-300 transition">github.com/michaelschecht/Edge-Radar</a>
+        <a href="https://mikesailab.com" class="hover:text-zinc-300 transition">mikesailab.com</a>
+      </div>
+    </div>
+  </footer>
 
 </body>
 </html>
