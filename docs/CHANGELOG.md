@@ -2,6 +2,34 @@
 
 ---
 
+## 2026-05-15 -- Pages Site Theme Alignment with mikesailab.com
+
+### Why
+
+The Pages site at `edge-radar.mikesailab.com` was visually disconnected from the parent `mikesailab.com` site — neon-teal accents, gradient hero, pulsing dot, three custom fonts (Outfit + Inter + JetBrains Mono), 545 lines of bespoke CSS. The parent site is the opposite: Tailwind, Inter, zinc/black, flat surfaces, no glow. Two sibling sites should look like siblings, especially because `mikesailab.com` already has an Edge-Radar "Live Sites" tile rendered with the parent palette + emerald accent. The Pages site now matches that vocabulary so a visitor jumping from one to the other doesn't get whiplash.
+
+### What landed
+
+- **`.claude/html/index.html`** — full rewrite. Replaced 545 lines of custom CSS with Tailwind CDN + Inter (single font; `ui-monospace` for `<pre>` blocks). Palette: `bg-[#060606]` background, `zinc-100/400/500/600` text, `zinc-900/40` surfaces with `border-zinc-800/60`. **Emerald** (low opacity) as Edge-Radar's accent — same color the parent site already uses on its Edge-Radar radar tile, and matches the favicon's `#10b981`. **Sky-400** small `● Live` pill in the eyebrow, matching the parent site's "Live Sites" convention. Hero gradient text + 900px radial glow gone; pulsing dot gone; multi-color pill palette (purple/orange/red) gone. 978 lines → 253 lines.
+- **Mobile CTA fix** (`3736f67`) — the original 2-column grid clipped the `edge-radar.streamlit.app` label inside the emerald primary tile on narrow viewports. Switched to `flex-col sm:flex-row` so each CTA gets full width on mobile, with `min-w-0` + `truncate` as a safety net.
+- **Quick Links refresh** — dropped `Reports tree` (the `reports/` directory is gitignored, so the GitHub link 404s for anyone who isn't me). Added two: `/edge-radar` skill link (`.claude/skills/edge-radar/SKILL.md`) and `Scripts Reference` (`docs/SCRIPTS_REFERENCE.md`). Now 6 tiles total — fits cleanly as 2×3 on desktop, 3×2 on tablet, 6 stacked on mobile.
+- **`.claude/backup/index.html.backup-2026-05-15`** — snapshot of the prior teal-themed dashboard, captured per the documented backup convention (memory line 53 of `reference_mikesailab_domain.md`). `.claude/backup/README.md` updated with the new row.
+- **Memory** — `reference_mikesailab_domain.md` got a new "Theme alignment with mikesailab.com (2026-05-15)" section documenting the palette + framework decision, plus the Quick Links count updated from 5 to 6 in the page-contents section.
+
+### Where the deploy actually lives (unchanged)
+
+Still GitHub Pages via `.github/workflows/deploy.yml`, fed from `.claude/html/` on `master`. Both commits sit on `mike_win-desktop` ahead of `master`; the deploy workflow's path filter (`.claude/html/**`) will fire automatically when the user merges to master.
+
+### Files
+
+`.claude/html/index.html`, `.claude/backup/index.html.backup-2026-05-15`, `.claude/backup/README.md`, `docs/CHANGELOG.md`, `memory/reference_mikesailab_domain.md`.
+
+### Commits
+
+`e20c739` (theme rewrite) and `3736f67` (mobile CTA fix + quick link refresh) on `mike_win-desktop`. This entry is the third commit in the trio (the docs/memory propagation).
+
+---
+
 ## 2026-05-13 -- R11 Explicit Direction Fields in Settlement Schema
 
 ### Why
