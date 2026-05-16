@@ -30,6 +30,7 @@
       <nav class="ml-4 hidden sm:flex items-center gap-1 text-sm">
         <a href="#quicklinks" class="px-2 py-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-900 transition">Quick Links</a>
         <a href="#schedulers" class="px-2 py-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-900 transition">Schedulers</a>
+        <a href="#how-it-works" class="px-2 py-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-900 transition">How It Works</a>
         <a href="#dataflow" class="px-2 py-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-900 transition">Data Flow</a>
       </nav>
       <div class="ml-auto flex items-center gap-2">
@@ -222,6 +223,186 @@ Start-ScheduledTask -TaskPath '\Edge-Radar\' -TaskName 'NextDay-Execute'</pre>
         </div>
       </details>
       <style>details[open] summary svg { transform: rotate(90deg); }</style>
+    </section>
+
+    <!-- ============ HOW IT WORKS (DIAGRAM) ============ -->
+    <section id="how-it-works" class="mb-14 scroll-mt-20">
+      <h2 class="text-xs uppercase tracking-wider text-zinc-500 mb-1">How It Works</h2>
+      <p class="text-sm text-zinc-600 mb-4">
+        Pull Kalshi's market price. Pull an independent fair value from sportsbooks / data feeds.
+        If the gap clears 13 risk gates, a Kelly-sized bet fires through the Kalshi trade API.
+      </p>
+
+      <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-5 sm:p-7">
+
+        <!-- Core premise equation -->
+        <div class="mb-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
+          <span class="mono text-sm text-sky-300">fair_value</span>
+          <span class="text-zinc-600">&minus;</span>
+          <span class="mono text-sm text-amber-300">market_ask</span>
+          <span class="text-zinc-600">=</span>
+          <span class="mono text-sm text-emerald-300 font-semibold">edge</span>
+          <span class="text-zinc-700">&middot;</span>
+          <span class="text-xs text-zinc-500">when <span class="mono text-emerald-300/80">edge</span> &ge; threshold &amp; gates pass &rarr; bet</span>
+        </div>
+
+        <!-- Three column diagram -->
+        <div class="grid lg:grid-cols-[1fr_auto_1.1fr_auto_1fr] gap-3 lg:gap-2 items-stretch">
+
+          <!-- ========== COLUMN 1: REFERENCE PRICE ========== -->
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="h-1.5 w-1.5 rounded-full bg-sky-400"></span>
+              <span class="text-[10px] uppercase tracking-widest text-sky-400">Reference Price</span>
+            </div>
+            <div class="text-[11px] text-zinc-500 mb-1">independent fair values, pulled from public APIs</div>
+
+            <div class="rounded-sm border border-sky-500/20 bg-sky-500/[0.04] p-3">
+              <div class="flex items-center justify-between gap-2">
+                <div class="text-xs font-semibold text-zinc-100">The Odds API</div>
+                <span class="text-[9px] uppercase tracking-wider text-sky-400/80 mono">GET</span>
+              </div>
+              <div class="text-[10px] mono text-zinc-500 mt-0.5 truncate">api.the-odds-api.com /v4/sports/&hellip;/odds</div>
+              <div class="text-[10px] text-zinc-500 mt-1">8&ndash;20 sportsbook lines &rarr; no-vig consensus</div>
+            </div>
+
+            <div class="rounded-sm border border-sky-500/20 bg-sky-500/[0.04] p-3">
+              <div class="text-xs font-semibold text-zinc-100">Sports stats</div>
+              <div class="text-[10px] mono text-zinc-500 mt-0.5">statsapi.mlb.com</div>
+              <div class="text-[10px] mono text-zinc-500">api-web.nhle.com</div>
+              <div class="text-[10px] mono text-zinc-500">site.api.espn.com</div>
+            </div>
+
+            <div class="rounded-sm border border-sky-500/20 bg-sky-500/[0.04] p-3">
+              <div class="text-xs font-semibold text-zinc-100">Crypto / weather / equity</div>
+              <div class="text-[10px] mono text-zinc-500 mt-0.5">api.coingecko.com</div>
+              <div class="text-[10px] mono text-zinc-500">api.weather.gov</div>
+              <div class="text-[10px] mono text-zinc-500">query1.finance.yahoo.com</div>
+            </div>
+          </div>
+
+          <!-- ARROW 1 -->
+          <div class="hidden lg:flex items-center justify-center text-zinc-700">
+            <svg class="h-5 w-10" viewBox="0 0 40 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M2 10 L32 10" stroke-linecap="round"/>
+              <path d="M26 4 L32 10 L26 16" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="lg:hidden flex justify-center py-1 text-zinc-700" aria-hidden="true">
+            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 14l-4-4h8l-4 4z"/></svg>
+          </div>
+
+          <!-- ========== COLUMN 2: EDGE ENGINE ========== -->
+          <div class="flex flex-col gap-2 lg:-mx-1">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+              <span class="text-[10px] uppercase tracking-widest text-emerald-400">Edge Engine</span>
+            </div>
+            <div class="text-[11px] text-zinc-500 mb-1">the seven-stage pipeline that finds &amp; sizes the bet</div>
+
+            <div class="rounded-sm border border-emerald-500/30 bg-emerald-500/[0.05] p-3">
+              <div class="flex items-center justify-between gap-2">
+                <div class="text-xs font-semibold text-zinc-100">Kalshi market data</div>
+                <span class="text-[9px] uppercase tracking-wider text-emerald-400/80 mono">GET</span>
+              </div>
+              <div class="text-[10px] mono text-zinc-500 mt-0.5 truncate">api.elections.kalshi.com /markets, /orderbook</div>
+              <div class="text-[10px] text-zinc-500 mt-1">live ask, bid, volume, expiry</div>
+            </div>
+
+            <div class="rounded-sm border border-emerald-500/30 bg-emerald-500/[0.05] p-3">
+              <div class="text-xs font-semibold text-zinc-100">Fair-value model</div>
+              <div class="text-[10px] text-zinc-500 mt-0.5">ticker &rarr; ML &middot; SP &middot; TO &middot; FU &middot; PR</div>
+              <div class="text-[10px] text-zinc-500">de-vig, Poisson totals, Elo, hold-out</div>
+            </div>
+
+            <div class="rounded-sm border border-emerald-500/40 bg-emerald-500/[0.08] p-3">
+              <div class="text-xs font-semibold text-emerald-200">Edge calculation</div>
+              <div class="text-[10px] text-zinc-400 mt-0.5">fair &minus; ask, with confidence tier</div>
+              <div class="text-[10px] mono text-emerald-300/80 mt-1">edge &ge; 3% (12% NBA)</div>
+            </div>
+
+            <div class="rounded-sm border border-emerald-500/30 bg-emerald-500/[0.05] p-3">
+              <div class="text-xs font-semibold text-zinc-100">13 risk gates</div>
+              <div class="text-[10px] text-zinc-500 mt-0.5">daily loss &middot; per-event cap &middot; series dedup</div>
+              <div class="text-[10px] text-zinc-500">NO-favorite floor &middot; min price &middot; confidence</div>
+            </div>
+
+            <div class="rounded-sm border border-emerald-500/30 bg-emerald-500/[0.05] p-3">
+              <div class="text-xs font-semibold text-zinc-100">Kelly sizing</div>
+              <div class="text-[10px] text-zinc-500 mt-0.5">&frac14;-Kelly &middot; capped at MAX_BET_SIZE</div>
+              <div class="text-[10px] text-zinc-500">half-Kelly on cheap NO bets</div>
+            </div>
+          </div>
+
+          <!-- ARROW 2 -->
+          <div class="hidden lg:flex items-center justify-center text-zinc-700">
+            <svg class="h-5 w-10" viewBox="0 0 40 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M2 10 L32 10" stroke-linecap="round"/>
+              <path d="M26 4 L32 10 L26 16" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="lg:hidden flex justify-center py-1 text-zinc-700" aria-hidden="true">
+            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 14l-4-4h8l-4 4z"/></svg>
+          </div>
+
+          <!-- ========== COLUMN 3: EXECUTE & TRACK ========== -->
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+              <span class="text-[10px] uppercase tracking-widest text-amber-400">Execute &amp; Track</span>
+            </div>
+            <div class="text-[11px] text-zinc-500 mb-1">wagers, settlement, calibration loop</div>
+
+            <div class="rounded-sm border border-amber-500/25 bg-amber-500/[0.05] p-3">
+              <div class="flex items-center justify-between gap-2">
+                <div class="text-xs font-semibold text-zinc-100">Kalshi trade API</div>
+                <span class="text-[9px] uppercase tracking-wider text-amber-400/80 mono">POST</span>
+              </div>
+              <div class="text-[10px] mono text-zinc-500 mt-0.5 truncate">api.elections.kalshi.com /portfolio/orders</div>
+              <div class="text-[10px] text-zinc-500 mt-1">RSA-PSS signed limit order</div>
+            </div>
+
+            <div class="rounded-sm border border-amber-500/25 bg-amber-500/[0.05] p-3">
+              <div class="flex items-center justify-between gap-2">
+                <div class="text-xs font-semibold text-zinc-100">Position &amp; fills</div>
+                <span class="text-[9px] uppercase tracking-wider text-amber-400/80 mono">GET</span>
+              </div>
+              <div class="text-[10px] mono text-zinc-500 mt-0.5 truncate">/portfolio/positions &middot; /fills</div>
+              <div class="text-[10px] text-zinc-500 mt-1">track exposure &middot; trim stale orders</div>
+            </div>
+
+            <div class="rounded-sm border border-amber-500/25 bg-amber-500/[0.05] p-3">
+              <div class="text-xs font-semibold text-zinc-100">Settle &amp; calibrate</div>
+              <div class="text-[10px] text-zinc-500 mt-0.5">27-field settlement record</div>
+              <div class="text-[10px] text-zinc-500">Brier score feeds back into thresholds</div>
+            </div>
+
+            <div class="rounded-sm border border-amber-500/25 bg-amber-500/[0.05] p-3">
+              <div class="text-xs font-semibold text-zinc-100">Notify</div>
+              <div class="text-[10px] text-zinc-500 mt-0.5">SMTP &middot; daily digest 5:00 AM PT</div>
+              <div class="text-[10px] text-zinc-500">Slack webhook on anomaly</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Footer note: feedback loop -->
+        <div class="mt-6 pt-4 border-t border-zinc-800/60 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] text-zinc-500">
+          <div class="flex items-center gap-2">
+            <svg class="h-3.5 w-3.5 text-emerald-400/70" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M2 8a6 6 0 0 1 10.5-4M14 8a6 6 0 0 1-10.5 4" stroke-linecap="round"/>
+              <path d="M11 1.5L12.5 4L10 4.5M5 14.5L3.5 12L6 11.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Outcomes loop back: settled results re-calibrate thresholds &amp; confidence tiers</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span><span class="text-emerald-300/90 mono">DRY_RUN=true</span> default</span>
+            <span>&middot;</span>
+            <span>13 gates &middot; <a class="hover:text-emerald-300 transition" href="https://github.com/michaelschecht/Edge-Radar/blob/master/CLAUDE.md#execution-gates" target="_blank" rel="noopener">spec</a></span>
+          </div>
+        </div>
+
+      </div>
     </section>
 
     <!-- ============ DATA FLOW ============ -->
