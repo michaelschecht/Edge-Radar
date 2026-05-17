@@ -193,7 +193,7 @@
             </tr>
             <tr class="hover:bg-zinc-900/60 transition">
               <td class="px-4 py-3 border-b border-zinc-800/60 text-zinc-500">3</td>
-              <td class="px-4 py-3 border-b border-zinc-800/60 mono text-emerald-300 whitespace-nowrap text-[13px]">All-Sports-SameDay-Late-Execute</td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 mono text-emerald-300 whitespace-nowrap text-[13px]">All-Sports-SameDay-Late-Execution</td>
               <td class="px-4 py-3 border-b border-zinc-800/60"><span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">daily</span></td>
               <td class="px-4 py-3 border-b border-zinc-800/60 whitespace-nowrap text-zinc-400">2:00 PM</td>
               <td class="px-4 py-3 border-b border-zinc-800/60 text-zinc-400">Late catch-up on <span class="text-zinc-200">tonight's</span> games &mdash; scratches, goalie confirmations, sharp-money moves. <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">--date today --budget 5% --max-bets 4 --exclude-open</code></td>
@@ -212,7 +212,7 @@
       <h3 class="mt-8 text-[11px] uppercase tracking-widest text-zinc-500 mb-2">Daily fire sequence</h3>
       <pre class="overflow-x-auto rounded-sm border border-zinc-800/60 bg-zinc-950/60 p-4 text-[12px] leading-relaxed text-zinc-400"> 5:05 AM  Sun Mon Tue Wed Thu Fri Sat  &mdash; All-Sports-SameDay-Execution              (today's games)
 11:00 AM  Sun Mon Tue Wed Thu Fri Sat  &mdash; All-Sports-NoDateFilter-Midday-Execution  (multi-day wide-net)
- 2:00 PM  Sun Mon Tue Wed Thu Fri Sat  &mdash; All-Sports-SameDay-Late-Execute           (late catch-up)
+ 2:00 PM  Sun Mon Tue Wed Thu Fri Sat  &mdash; All-Sports-SameDay-Late-Execution         (late catch-up)
  8:30 PM  Sun Mon Tue Wed Thu          &mdash; All-Sports-NextDay-Execution              (tomorrow's games)</pre>
 
       <details class="mt-4 rounded-sm border border-zinc-800/60 bg-zinc-900/40 open:bg-zinc-900/60 transition">
@@ -224,7 +224,7 @@
 <pre class="overflow-x-auto rounded-sm border border-zinc-800/60 bg-zinc-950/60 p-4 text-[12px] leading-relaxed text-zinc-400"># Prepend MSYS_NO_PATHCONV=1 to stop Git Bash from translating /tn
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-SameDay-Execution"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-NoDateFilter-Midday-Execution"
-MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-SameDay-Late-Execute"
+MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-SameDay-Late-Execution"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-NextDay-Execution"
 
 # PowerShell equivalent (no MSYS prefix)
