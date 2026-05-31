@@ -385,7 +385,7 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 
 ### Scheduler options
 
-- **Windows** — Task Scheduler (`taskschd.msc`). See [AUTOMATION_GUIDE.md](./AUTOMATION_GUIDE.md) for the installer helper.
+- **Windows** — Task Scheduler (`taskschd.msc`). See [AUTOMATION_GUIDE.md](./AUTOMATION_GUIDE.md) for the installer helper, or [task-schedules.md](./task-schedules.md) for the full 17-task pipeline (emails, midday/late runs, weekly analytics) with copy-paste templates.
 - **Linux** — cron or systemd timers
 - **macOS** — launchd
 
@@ -481,6 +481,7 @@ Every configured key is either invalid or has hit its monthly quota (free tier =
 ### Internal docs
 
 - **[Automation Guide](./AUTOMATION_GUIDE.md)** — Windows Task Scheduler setup walkthrough
+- **[Task-Schedule Reference](./task-schedules.md)** — full 17-task pipeline roster with `.bat`/`.sh` templates and `schtasks` setup
 - **[Scripts Reference](../SCRIPTS_REFERENCE.md)** — Full CLI reference for every script and flag
 - **[Sports Guide](../kalshi-sports-betting/SPORTS_GUIDE.md)** — 27 sport filters, edge detection methodology
 - **[Architecture](../ARCHITECTURE.md)** — How scoring, confidence, and risk gates work together
