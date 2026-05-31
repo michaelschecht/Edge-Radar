@@ -66,6 +66,10 @@ notebooks/analysis/*.html
 .claude/memory/
 .claude/agents/
 docs/my-documents/
+# Published account-growth graph: lives on master, refreshed weekly by the gh API
+# push in scripts/schedulers/automation/refresh_account_graph.py. Kept out of branch
+# PRs so the out-of-band master commits never conflict.
+.claude/html/account-*.html
 
 
 # === My Scripts ===

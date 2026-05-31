@@ -69,6 +69,15 @@ TASK_PROFILES = {
         "args": f'"{PROJECT_ROOT / "scripts" / "kalshi" / "model_calibration.py"}" --days 30 --save',
         "description": "Monthly 30-day calibration report (R16, day 1 at 2 AM)",
     },
+    "account-graph": {
+        "task_name": "Edge-Radar\\WeeklyAccountGraph",
+        "time": "09:00",
+        "schedule": "WEEKLY",
+        "day": "SUN",
+        "script": PROJECT_ROOT / ".venv" / "Scripts" / "python.exe",
+        "args": f'"{PROJECT_ROOT / "scripts" / "schedulers" / "automation" / "refresh_account_graph.py"}"',
+        "description": "Weekly account-graph refresh + publish to GitHub Pages (Sun 9 AM)",
+    },
 }
 
 
@@ -95,11 +104,14 @@ def install(profile_name: str):
     else:
         tr = f'"{script}"'
 
-    # Schedule — default is DAILY. MONTHLY profiles supply /D for the day of month.
+    # Schedule — default is DAILY. MONTHLY supplies /D for the day of month;
+    # WEEKLY supplies /D for the weekday (e.g. SUN).
     schedule = profile.get("schedule", "DAILY")
     sc_args = ["/SC", schedule]
     if schedule == "MONTHLY":
         sc_args += ["/D", profile.get("day", "1")]
+    elif schedule == "WEEKLY":
+        sc_args += ["/D", profile.get("day", "SUN")]
     sc_args += ["/ST", profile["time"]]
 
     # Remove existing task if present (update)
@@ -114,10 +126,12 @@ def install(profile_name: str):
     ], check=False)
 
     if result.returncode == 0:
-        cadence = (
-            f"{profile['time']} daily" if schedule == "DAILY"
-            else f"{profile['time']} monthly (day {profile.get('day', '1')})"
-        )
+        if schedule == "DAILY":
+            cadence = f"{profile['time']} daily"
+        elif schedule == "WEEKLY":
+            cadence = f"{profile['time']} weekly ({profile.get('day', 'SUN')})"
+        else:
+            cadence = f"{profile['time']} monthly (day {profile.get('day', '1')})"
         print(f"  [OK] {profile_name}: {profile['description']}")
         print(f"       Task:   {task_name}")
         print(f"       Time:   {cadence}")

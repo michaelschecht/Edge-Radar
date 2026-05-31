@@ -2,6 +2,26 @@
 
 ---
 
+## 2026-05-31 -- Account-Growth Graph on the Pages Site (+ weekly auto-refresh)
+
+### Why
+
+The Kalshi account-growth graph (`/update-account-graph`) only existed locally under the gitignored `docs/my-documents/account-graph/latest/`, so it never reached the public dashboard at `edge-radar.mikesailab.com`. Wanted it one click away from the homepage, kept current automatically.
+
+### What landed
+
+- **Orange "Live P&L" button** in the `index.html` hero, next to the emerald *Open the app* and blue *Source* CTAs. Links to the graph with `rel="nofollow noopener"`.
+- **Publish path** — the deploy workflow serves only `.claude/html/`, so the graph is copied there as `account-40c3eb1d3d3cb9c4e07fee61.html` (unguessable name). The site is public + unauthenticated, so this is *lightly hidden, not protected*: real dollar figures are visible to anyone with the link. A `<meta name="robots" content="noindex, nofollow">` tag (added to the generator's `render_html()`) keeps it out of search indexes.
+- **Weekly auto-refresh** — `scripts/schedulers/automation/refresh_account_graph.py` pulls the live Kalshi snapshot, regenerates HTML + PNG, copies the HTML into `.claude/html/`, then pushes **only that one file** to `master` via the `gh` contents API (which fires the Pages deploy). Generation must run locally because it needs the `.env` Kalshi keys and the gitignored local settlements ledger. The push is best-effort and logs to `logs/account_graph_refresh.log`; it never touches the `mike_win-desktop` working branch.
+- **Scheduler** — new `account-graph` profile in `install_windows_task.py` (Sundays 9 AM PT), plus `WEEKLY` schedule support added to the installer. Install with `python scripts/schedulers/automation/install_windows_task.py install account-graph`.
+- **`.gitignore`** — `.claude/html/account-*.html` is ignored so the weekly out-of-band master commit is the file's sole manager and never collides with branch PRs.
+
+### Files
+
+`.claude/html/index.html`, `scripts/schedulers/automation/refresh_account_graph.py`, `scripts/schedulers/automation/install_windows_task.py`, `.gitignore`, `docs/CHANGELOG.md`. Local-only (gitignored): `docs/my-documents/account-graph/Script/build_account_graph.py` (noindex tag), `docs/my-documents/account-graph/README.md`, `docs/my-documents/task-schedules/README.md`.
+
+---
+
 ## 2026-05-15 -- Pages Site Theme Alignment with mikesailab.com
 
 ### Why
