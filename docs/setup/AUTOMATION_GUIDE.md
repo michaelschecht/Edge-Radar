@@ -34,8 +34,10 @@ Before setting up automation, make sure:
 
 The installer script creates Windows Scheduled Tasks for you:
 
+> Throughout this guide, `<REPO_ROOT>` stands for the absolute path to your Edge-Radar checkout (e.g. `C:\Users\you\Edge-Radar`). Substitute your own path.
+
 ```powershell
-cd D:\AI_Agents\Specialized_Agents\Edge_Radar
+cd <REPO_ROOT>
 
 # Install all four tasks at once
 python scripts/schedulers/automation/install_windows_task.py install all
@@ -97,19 +99,19 @@ If you prefer to create tasks manually via `schtasks`:
 ### Morning Execution (8 AM)
 
 ```powershell
-schtasks /Create /TN "Edge-Radar\MorningExecute" /TR "D:\AI_Agents\Specialized_Agents\Edge_Radar\scripts\schedulers\same_day_executions\same_day_execute.bat" /SC DAILY /ST 08:00
+schtasks /Create /TN "Edge-Radar\MorningExecute" /TR "<REPO_ROOT>\scripts\schedulers\same_day_executions\same_day_execute.bat" /SC DAILY /ST 08:00
 ```
 
 ### Nightly Settlement (11 PM)
 
 ```powershell
-schtasks /Create /TN "Edge-Radar\NightlySettle" /TR "D:\AI_Agents\Specialized_Agents\Edge_Radar\.venv\Scripts\python.exe D:\AI_Agents\Specialized_Agents\Edge_Radar\scripts\kalshi\kalshi_settler.py settle" /SC DAILY /ST 23:00
+schtasks /Create /TN "Edge-Radar\NightlySettle" /TR "<REPO_ROOT>\.venv\Scripts\python.exe <REPO_ROOT>\scripts\kalshi\kalshi_settler.py settle" /SC DAILY /ST 23:00
 ```
 
 ### Next-Day Execution (9 PM, optional)
 
 ```powershell
-schtasks /Create /TN "Edge-Radar\NextDayExecute" /TR "D:\AI_Agents\Specialized_Agents\Edge_Radar\scripts\schedulers\next_day_executions\next_day_execute.bat" /SC DAILY /ST 21:00
+schtasks /Create /TN "Edge-Radar\NextDayExecute" /TR "<REPO_ROOT>\scripts\schedulers\next_day_executions\next_day_execute.bat" /SC DAILY /ST 21:00
 ```
 
 ---
