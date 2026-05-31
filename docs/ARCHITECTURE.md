@@ -345,6 +345,50 @@ For the full enhancement roadmap (completed and pending items), see [ROADMAP.md]
 
 ---
 
+## 📁 Project Structure
+
+```
+Edge-Radar/
+├── .claude/                           # Claude Code config (skills, commands, settings)
+│   ├── commands/                      # Slash-command definitions
+│   ├── html/                          # Rendered interactive data-flow diagram
+│   ├── images/                        # Logos and README assets
+│   └── skills/                        # /edge-radar, /edge-radar-analysis
+├── .devcontainer/                     # VS Code dev container spec
+├── .github/
+│   └── workflows/                     # CI/CD + Streamlit Cloud deploy
+├── app/
+│   └── domain/                        # Typed domain objects (Opportunity, RiskDecision, Execution*)
+├── docs/                              # All public documentation
+│   ├── kalshi-futures-betting/        # Championship futures guide
+│   ├── kalshi-prediction-betting/     # Crypto, weather, S&P guides
+│   ├── kalshi-sports-betting/         # 27 sport filters, MLB filtering, sports guide
+│   ├── mcp-config/                    # MCP server reference
+│   ├── scripts/                       # Per-script detailed docs
+│   ├── setup/                         # SETUP_GUIDE.md, AUTOMATION_GUIDE.md
+│   └── web-app/                       # LOCAL.md, CLOUD.md
+├── prompts/                           # LLM prompts for analysis agents
+│   ├── futures/
+│   ├── portfolio/
+│   ├── predictions/
+│   └── sports-betting/
+├── scripts/
+│   ├── backtest/                      # Equity curve, calibration, strategy simulation
+│   ├── kalshi/                        # Scan → Size → Execute → Settle pipeline
+│   ├── prediction/                    # Crypto, weather, S&P 500 scanners
+│   ├── shared/                        # Team stats, weather, tickers, logging, odds API
+│   ├── scan.py                        # Unified entry point (routes to each scanner)
+│   ├── doctor.py                      # Environment & credentials validator
+│   └── bootstrap.py                   # Import-path setup for the venv .pth file
+├── tests/                             # 150+ pytest tests (domain, edge detection, fills, risk)
+└── webapp/                            # Streamlit dashboard
+    └── views/                         # scan_page, portfolio_page, settle_page, backtest_page
+```
+
+<sub>Gitignored at the root (auto-created where needed): <code>data/</code> (trade history), <code>logs/</code>, <code>reports/</code> (scan + P&L reports), <code>keys/</code> (RSA private keys), <code>.venv/</code>, <code>repos/</code>.</sub>
+
+---
+
 <p align="center">
 
 **[← Back to README](../README.md)** · **[Scripts Reference →](SCRIPTS_REFERENCE.md)** · **[Setup Guide →](setup/SETUP_GUIDE.md)**

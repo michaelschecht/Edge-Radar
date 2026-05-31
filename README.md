@@ -8,11 +8,8 @@
 
 [![Kalshi Live Trading](https://img.shields.io/badge/Kalshi-Live%20Trading-e74c3c?style=flat-square)](https://kalshi.com)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-2ea44f?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![Normal CDF](https://img.shields.io/badge/Edge%20Model-Normal%20CDF-8B5CF6?style=flat-square)](docs/ARCHITECTURE.md)
-[![Markets](https://img.shields.io/badge/Markets-27%20Sports-0078D4?style=flat-square)](#-supported-markets)
-[![Edge Detection](https://img.shields.io/badge/Edge-9%20Signals-8B5CF6?style=flat-square)](#-edge-detection-pipeline)
+[![Markets](https://img.shields.io/badge/Markets-27%20Sports-0078D4?style=flat-square)](#-markets)
 [![Risk Gates](https://img.shields.io/badge/Risk-13%20Gates%20%2B%20Kelly-e74c3c?style=flat-square)](#-risk--position-sizing)
-[![Docs](https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square)](#-documentation)
 [![APIs](https://img.shields.io/badge/APIs-9%20Free%20%2B%20Kalshi-F97316?style=flat-square)](#-data-sources)
 
 </div>
@@ -21,49 +18,13 @@
 
 ---
 
-## 📊 Supported Markets
+## 📊 Markets
 
-<table>
-<tr>
-<td width="33%" valign="top">
-
-#### 🏟️ Sports Betting
-
-🏈 NFL · 🏀 NBA · ⚾ MLB · 🏒 NHL
-🎓 NCAAB · NCAAF · 🥊 UFC · Boxing
-⚽ Soccer · MLS · 🏎️ F1 · NASCAR
-⛳ PGA · 🏏 IPL · 🎮 Esports
-
-<sub><b>27 filters</b> · 18 sports with Odds API edge detection</sub>
-
-</td>
-<td width="33%" valign="top">
-
-#### 🏆 Championship Futures
-
-🏈 Super Bowl
-🏀 NBA Finals
-🏒 Stanley Cup
-⚾ World Series
-⛳ PGA Tour
-
-<sub><b>N-way de-vig</b> · cross-referenced against sportsbook outrights</sub>
-
-</td>
-<td width="33%" valign="top">
-
-#### 📈 Prediction Markets
-
-₿ Crypto (BTC, ETH, XRP, SOL, DOGE)
-📊 S&P 500 + VIX
-🌡️ Weather (13 cities)
-🗳️ Politics
-
-<sub><b>4 categories</b> · CoinGecko, Yahoo Finance, NWS</sub>
-
-</td>
-</tr>
-</table>
+| Category | Coverage | Data sources |
+|:---------|:---------|:-------------|
+| 🏟️ **Sports betting** | NFL, NBA, MLB, NHL, NCAAB/NCAAF, UFC, soccer/MLS, F1, NASCAR, PGA, IPL, esports — 27 filters across 18 sports | The Odds API (12 sportsbooks), ESPN, NHL/MLB Stats, NWS |
+| 🏆 **Championship futures** | Super Bowl, NBA Finals, Stanley Cup, World Series, PGA Tour — priced with N-way de-vig | Sportsbook outright odds |
+| 📈 **Prediction markets** | Crypto (BTC, ETH, XRP, SOL, DOGE), S&P 500 + VIX, weather (13 cities), politics | CoinGecko, Yahoo Finance, NWS |
 
 ---
 
@@ -130,7 +91,12 @@ Every order must clear gates 1-7 (including 3.5, 4.5, 4.6, 4.7). Gates 8-9 cap s
 
 <br>
 
-Gate 3.5 (<code>MIN_MARKET_PRICE</code>, R7) added 2026-04-22 — F10 from the 14-day review showed sub-10¢ bets at 1W-3L with the model claiming "+50% edge" on 8-10¢ longshots. Gate 4.5 (<code>MIN_CONFIDENCE</code>) and Gate 4.6 (<code>NO_SIDE_*</code>) added 2026-04-21 after low-confidence bets at -105% ROI and all 13 high-edge losers being NO-side on heavy favorites. NO bets below <code>NO_SIDE_KELLY_PRICE_FLOOR</code> (default 35¢) are additionally sized at half-Kelly. NBA floor bumped 0.08 → 0.12 in R14 (2026-04-24) after the 30-day calibration showed NBA Brier 0.3306 (worst of all sports). Confidence bumps now one-way (R13, 2026-04-24) — team stats, rest/B2B, and sharp-money signals can drop a tier but no longer bump up; upward bumps correlated with inflated claimed edge rather than better outcomes. Gate 4.7 (<code>ALLOW_PREDICTION_BETS</code>, R25) added 2026-04-24 after a prediction-market audit found all 6 modules (crypto/weather/spx/mentions/companies/politics) cache stale data with no TTL and produce nonsense fair values; the gate blocks those categories by default until the models are rebuilt. R8 (2026-04-29) adds an optional cross-category dedup that runs <em>before</em> the gates: when <code>CROSS_CATEGORY_DEDUP_&lt;SPORT&gt;=true</code>, ML+Total+Spread on the same game collapse to the highest-composite row instead of being treated as 3 independent bets — addresses F11 (12 matchups bet ≥2× in 14d, several same-day cross-category). Default off because cross-category correlation varies by sport.
+- **Gate 3.5 — `MIN_MARKET_PRICE` (R7, 2026-04-22):** sub-10¢ bets ran 1W-3L while the model claimed "+50% edge" on 8-10¢ longshots.
+- **Gates 4.5 / 4.6 — `MIN_CONFIDENCE`, `NO_SIDE_*` (2026-04-21):** low-confidence bets hit -105% ROI and all 13 high-edge losers were NO-side on heavy favorites. NO bets below `NO_SIDE_KELLY_PRICE_FLOOR` (35¢) are additionally sized at half-Kelly.
+- **NBA edge floor 0.08 → 0.12 (R14, 2026-04-24):** the 30-day calibration showed NBA Brier 0.3306 — worst of all sports.
+- **One-way confidence bumps (R13, 2026-04-24):** team-stats, rest/B2B, and sharp-money signals can *drop* a tier but no longer raise one — upward bumps tracked inflated claimed edge, not better outcomes.
+- **Gate 4.7 — `ALLOW_PREDICTION_BETS` (R25, 2026-04-24):** an audit found all 6 prediction modules (crypto/weather/spx/mentions/companies/politics) cached stale data with no TTL and produced nonsense fair values; blocked by default until rebuilt.
+- **Cross-category dedup (R8, 2026-04-29):** opt-in `CROSS_CATEGORY_DEDUP_<SPORT>=true` collapses ML+Total+Spread on the same game to the highest-composite row *before* gating. Default off — cross-category correlation varies by sport.
 
 </details>
 
@@ -249,6 +215,8 @@ python scripts/backtest/backtester.py
 python scripts/backtest/backtester.py --simulate --save
 python scripts/backtest/backtester.py --sport mlb --confidence high --min-edge 0.10
 ```
+
+Analyzes settled trades for win rate, ROI, profit factor, Sharpe ratio, equity curves, max drawdown, and calibration — broken down by sport, category, confidence level, and edge bucket. The `--simulate` flag runs what-if scenarios across edge thresholds, confidence tiers, and categories; `--save` exports reports.
 </details>
 
 ## 🤖 Claude Code Integration
@@ -301,68 +269,6 @@ Want the **complete** pipeline — emails, midday/late runs, weekly calibration/
 
 ---
 
-## 📁 Architecture
-
-```
-Edge-Radar/
-├── .claude/                           # Claude Code config (skills, commands, settings)
-│   ├── commands/                      # Slash-command definitions
-│   ├── html/                          # Rendered interactive data-flow diagram
-│   ├── images/                        # Logos and README assets
-│   └── skills/                        # /edge-radar, /edge-radar-analysis
-├── .devcontainer/                     # VS Code dev container spec
-├── .github/
-│   └── workflows/                     # CI/CD + Streamlit Cloud deploy
-├── app/
-│   └── domain/                        # Typed domain objects (Opportunity, RiskDecision, Execution*)
-├── docs/                              # All public documentation
-│   ├── kalshi-futures-betting/        # Championship futures guide
-│   ├── kalshi-prediction-betting/     # Crypto, weather, S&P guides
-│   ├── kalshi-sports-betting/         # 27 sport filters, MLB filtering, sports guide
-│   ├── mcp-config/                    # MCP server reference
-│   ├── scripts/                       # Per-script detailed docs
-│   ├── setup/                         # SETUP_GUIDE.md, AUTOMATION_GUIDE.md
-│   └── web-app/                       # LOCAL.md, CLOUD.md
-├── prompts/                           # LLM prompts for analysis agents
-│   ├── futures/
-│   ├── portfolio/
-│   ├── predictions/
-│   └── sports-betting/
-├── scripts/
-│   ├── backtest/                      # Equity curve, calibration, strategy simulation
-│   ├── kalshi/                        # Scan → Size → Execute → Settle pipeline
-│   ├── prediction/                    # Crypto, weather, S&P 500 scanners
-│   ├── shared/                        # Team stats, weather, tickers, logging, odds API
-│   ├── scan.py                        # Unified entry point (routes to each scanner)
-│   ├── doctor.py                      # Environment & credentials validator
-│   └── bootstrap.py                   # Import-path setup for the venv .pth file
-├── tests/                             # 150+ pytest tests (domain, edge detection, fills, risk)
-└── webapp/                            # Streamlit dashboard
-    └── views/                         # scan_page, portfolio_page, settle_page, backtest_page
-```
-
-<sub>Gitignored at the root (auto-created where needed): <code>data/</code> (trade history), <code>logs/</code>, <code>reports/</code> (scan + P&L reports), <code>keys/</code> (RSA private keys), <code>.venv/</code>, <code>repos/</code>.</sub>
-
-<details>
-<summary><b>Backtesting Framework</b></summary>
-
-Analyze settled trades for win rate, ROI, profit factor, Sharpe ratio, equity curves, max drawdown, and calibration data — broken down by sport, category, confidence level, and edge bucket.
-
-| Metric | Description |
-|:-------|:------------|
-| **Win Rate** | Settled trades that won |
-| **ROI** | Net P&L / total wagered |
-| **Profit Factor** | Total wins / total losses |
-| **Sharpe Ratio** | Risk-adjusted daily P&L return |
-| **Max Drawdown** | Largest peak-to-trough decline |
-| **Calibration** | Predicted vs. actual win rate by bucket |
-
-The `--simulate` flag runs what-if scenarios across edge thresholds, confidence tiers, and categories. Use `--save` to export reports.
-
-</details>
-
----
-
 ## 📖 Documentation
 
 | Guide | Description |
@@ -374,7 +280,7 @@ The `--simulate` flag runs what-if scenarios across edge thresholds, confidence 
 | **[Sports Guide](docs/kalshi-sports-betting/SPORTS_GUIDE.md)** | 27 filters, edge detection, daily workflow |
 | **[Futures Guide](docs/kalshi-futures-betting/FUTURES_GUIDE.md)** | NFL, NBA, NHL, MLB, golf championships |
 | **[Prediction Markets](docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** | Crypto, weather, S&P 500, politics |
-| **[Architecture](docs/ARCHITECTURE.md)** | Pipeline, risk gates, data flow |
+| **[Architecture](docs/ARCHITECTURE.md)** | Pipeline, edge models, risk gates, data flow, and project structure |
 | **[MLB Filtering](docs/kalshi-sports-betting/MLB_FILTERING_GUIDE.md)** | 10 filter categories for MLB picks |
 | **[Roadmap](docs/enhancements/ROADMAP.md)** | All enhancements — completed & pending |
 | **[Changelog](docs/CHANGELOG.md)** | Full project history |
