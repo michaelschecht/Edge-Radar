@@ -1,27 +1,27 @@
+<div align="center">
+
+<img src=".claude/images/logos/logo.png" alt="Edge-Radar" width="520">
+
 # Edge-Radar
 
-**Automated Edge Detection & Execution for Prediction Markets**
+**Automated edge detection &amp; execution for prediction markets**
 
 [![Kalshi Live Trading](https://img.shields.io/badge/Kalshi-Live%20Trading-e74c3c?style=flat-square)](https://kalshi.com)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-2ea44f?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![Normal CDF](https://img.shields.io/badge/Edge%20Model-Normal%20CDF-8B5CF6?style=flat-square)](docs/ARCHITECTURE.md)
 [![Markets](https://img.shields.io/badge/Markets-27%20Sports-0078D4?style=flat-square)](#-supported-markets)
-[![Edge Detection](https://img.shields.io/badge/Edge-9%20Signals-8B5CF6?style=flat-square)](#-edge-detection)
-[![Risk Gates](https://img.shields.io/badge/Risk-13%20Gates%20%2B%20Kelly-e74c3c?style=flat-square)](#%EF%B8%8F-risk--position-sizing)
+[![Edge Detection](https://img.shields.io/badge/Edge-9%20Signals-8B5CF6?style=flat-square)](#-edge-detection-pipeline)
+[![Risk Gates](https://img.shields.io/badge/Risk-13%20Gates%20%2B%20Kelly-e74c3c?style=flat-square)](#-risk--position-sizing)
 [![Docs](https://img.shields.io/badge/Docs-8%20Guides-6B7280?style=flat-square)](#-documentation)
 [![APIs](https://img.shields.io/badge/APIs-9%20Free%20%2B%20Kalshi-F97316?style=flat-square)](#-data-sources)
 
-<p align="center">
-  <img src=".claude/images/logos/logo.png" alt="Edge-Radar Banner" width="600">
-</p>
+</div>
 
-> Scans thousands of Kalshi markets, cross-references 12 sportsbooks + free APIs (including MLB pitcher stats and ESPN rest data), identifies mispriced contracts with a normal CDF probability model, sizes bets with Kelly criterion (soft-capped above 15% edge per calibration), enforces 13 risk gates including per-sport edge floors, a $0.10 lottery-ticket price floor, NO-side favorite guard, a prediction-market safety gate, and per-sport series dedup (MLB/NHL 72h, others 48h), and executes limit orders — logging every decision with fill-accurate accounting for closing line value tracking.
+> **Scans thousands of Kalshi markets, cross-references 12 sportsbooks and free data APIs, prices fair value with a normal-CDF model, and executes Kelly-sized limit orders** — every bet cleared through 13 risk gates and logged with fill-accurate accounting for closing-line-value tracking.
 
 ---
 
-<br>
-
-## Supported Markets
+## 📊 Supported Markets
 
 <table>
 <tr>
@@ -67,7 +67,7 @@
 
 ---
 
-## Edge Detection Pipeline
+## 🎯 Edge Detection Pipeline
 
 ```mermaid
 graph LR
@@ -101,7 +101,7 @@ graph LR
 
 ---
 
-## Risk & Position Sizing
+## 🚦 Risk & Position Sizing
 
 ### 13 Risk Gates
 
@@ -123,7 +123,16 @@ Every order must clear gates 1-7 (including 3.5, 4.5, 4.6, 4.7). Gates 8-9 cap s
 | 8 | Bet size cap | Cap at $100 |
 | 9 | Bet ratio cap | Cap at 3x batch median |
 
-<sub>All limits configurable via <code>.env</code>. Gate 3.5 (<code>MIN_MARKET_PRICE</code>, R7) added 2026-04-22 — F10 from the 14-day review showed sub-10¢ bets at 1W-3L with the model claiming "+50% edge" on 8-10¢ longshots. Gate 4.5 (<code>MIN_CONFIDENCE</code>) and Gate 4.6 (<code>NO_SIDE_*</code>) added 2026-04-21 after low-confidence bets at -105% ROI and all 13 high-edge losers being NO-side on heavy favorites. NO bets below <code>NO_SIDE_KELLY_PRICE_FLOOR</code> (default 35¢) are additionally sized at half-Kelly. NBA floor bumped 0.08 → 0.12 in R14 (2026-04-24) after the 30-day calibration showed NBA Brier 0.3306 (worst of all sports). Confidence bumps now one-way (R13, 2026-04-24) — team stats, rest/B2B, and sharp-money signals can drop a tier but no longer bump up; upward bumps correlated with inflated claimed edge rather than better outcomes. Gate 4.7 (<code>ALLOW_PREDICTION_BETS</code>, R25) added 2026-04-24 after a prediction-market audit found all 6 modules (crypto/weather/spx/mentions/companies/politics) cache stale data with no TTL and produce nonsense fair values; the gate blocks those categories by default until the models are rebuilt. R8 (2026-04-29) adds an optional cross-category dedup that runs <em>before</em> the gates: when <code>CROSS_CATEGORY_DEDUP_&lt;SPORT&gt;=true</code>, ML+Total+Spread on the same game collapse to the highest-composite row instead of being treated as 3 independent bets — addresses F11 (12 matchups bet ≥2× in 14d, several same-day cross-category). Default off because cross-category correlation varies by sport. See <a href="docs/ARCHITECTURE.md">Architecture</a></sub>
+<sub>All limits configurable via <code>.env</code>. See <a href="docs/ARCHITECTURE.md">Architecture</a> for the full pipeline.</sub>
+
+<details>
+<summary><b>Why these gates exist</b> — calibration history behind each rule</summary>
+
+<br>
+
+Gate 3.5 (<code>MIN_MARKET_PRICE</code>, R7) added 2026-04-22 — F10 from the 14-day review showed sub-10¢ bets at 1W-3L with the model claiming "+50% edge" on 8-10¢ longshots. Gate 4.5 (<code>MIN_CONFIDENCE</code>) and Gate 4.6 (<code>NO_SIDE_*</code>) added 2026-04-21 after low-confidence bets at -105% ROI and all 13 high-edge losers being NO-side on heavy favorites. NO bets below <code>NO_SIDE_KELLY_PRICE_FLOOR</code> (default 35¢) are additionally sized at half-Kelly. NBA floor bumped 0.08 → 0.12 in R14 (2026-04-24) after the 30-day calibration showed NBA Brier 0.3306 (worst of all sports). Confidence bumps now one-way (R13, 2026-04-24) — team stats, rest/B2B, and sharp-money signals can drop a tier but no longer bump up; upward bumps correlated with inflated claimed edge rather than better outcomes. Gate 4.7 (<code>ALLOW_PREDICTION_BETS</code>, R25) added 2026-04-24 after a prediction-market audit found all 6 modules (crypto/weather/spx/mentions/companies/politics) cache stale data with no TTL and produce nonsense fair values; the gate blocks those categories by default until the models are rebuilt. R8 (2026-04-29) adds an optional cross-category dedup that runs <em>before</em> the gates: when <code>CROSS_CATEGORY_DEDUP_&lt;SPORT&gt;=true</code>, ML+Total+Spread on the same game collapse to the highest-composite row instead of being treated as 3 independent bets — addresses F11 (12 matchups bet ≥2× in 14d, several same-day cross-category). Default off because cross-category correlation varies by sport.
+
+</details>
 
 ### Batch-Aware Kelly Sizing
 
@@ -145,7 +154,7 @@ bet = max(unit, (kelly_frac / batch) * trusted_edge(edge) * bankroll)
 
 ---
 
-## Quick Start
+## ⚡ Quick Start
 
 ```bash
 # 0. Clone repo and enter project
@@ -242,7 +251,7 @@ python scripts/backtest/backtester.py --sport mlb --confidence high --min-edge 0
 ```
 </details>
 
-## Claude Code Integration
+## 🤖 Claude Code Integration
 
 Edge-Radar ships with two slash commands for [Claude Code](https://claude.ai/claude-code):
 
@@ -268,7 +277,7 @@ Routes natural language to the correct scanner, enforces all risk gates, always 
 
 ---
 
-## Automated Daily Execution
+## ⏰ Automated Daily Execution
 
 Pre-built scripts scan all sports, rank by composite score, and execute with Kelly sizing. See the **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)**.
 
@@ -292,7 +301,7 @@ Want the **complete** pipeline — emails, midday/late runs, weekly calibration/
 
 ---
 
-## Architecture
+## 📁 Architecture
 
 ```
 Edge-Radar/
@@ -354,7 +363,7 @@ The `--simulate` flag runs what-if scenarios across edge thresholds, confidence 
 
 ---
 
-## Documentation
+## 📖 Documentation
 
 | Guide | Description |
 |:------|:------------|
@@ -372,7 +381,7 @@ The `--simulate` flag runs what-if scenarios across edge thresholds, confidence 
 
 ---
 
-## Data Sources
+## 🔌 Data Sources
 
 All external data is **free**. Only Kalshi requires a funded account.
 
