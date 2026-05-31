@@ -288,6 +288,8 @@ python scripts/schedulers/automation/install_windows_task.py install all
 
 <sub>Reports save to <code>reports/Sports/schedulers/</code> with full execution details.</sub>
 
+Want the **complete** pipeline — emails, midday/late runs, weekly calibration/backtest/analysis — beyond the installer's core tasks? See **[Task-Schedule Reference & Setup](docs/setup/task-schedules.md)** for the full 17-task roster with copy-paste `.bat`/`.sh` templates and `schtasks` registration.
+
 ---
 
 ## Architecture
@@ -357,7 +359,8 @@ The `--simulate` flag runs what-if scenarios across edge thresholds, confidence 
 | Guide | Description |
 |:------|:------------|
 | **[Setup Guide](docs/setup/SETUP_GUIDE.md)** | Install, API keys, `.env`, safe rollout, automation, and monitoring — the single end-to-end operator guide |
-| **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** | Windows Task Scheduler for daily betting |
+| **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** | Windows Task Scheduler for daily betting — one-command installer for the core tasks |
+| **[Task-Schedule Reference](docs/setup/task-schedules.md)** | Full 17-task pipeline roster with `.bat`/`.sh` templates and `schtasks` setup |
 | **[Scripts Reference](docs/SCRIPTS_REFERENCE.md)** | Every script, flag, and example |
 | **[Sports Guide](docs/kalshi-sports-betting/SPORTS_GUIDE.md)** | 27 filters, edge detection, daily workflow |
 | **[Futures Guide](docs/kalshi-futures-betting/FUTURES_GUIDE.md)** | NFL, NBA, NHL, MLB, golf championships |
