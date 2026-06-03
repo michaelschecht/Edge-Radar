@@ -23,7 +23,7 @@ import sys
 import json
 import logging
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from dataclasses import asdict
 from scipy.stats import norm
@@ -344,17 +344,23 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
     fair_probs = []
     book_keys = []
     book_details = {}
+    matched_event_ids = set()
 
-    for event in events:
+    for ev_idx, event in enumerate(events):
         for bookmaker in event.get("bookmakers", []):
             for market in bookmaker.get("markets", []):
                 if market["key"] != "h2h":
                     continue
                 outcomes = market.get("outcomes", [])
-                if len(outcomes) != 2:
+                # 2-way (most sports) or 3-way (soccer: home/draw/away). For a
+                # 3-way market the Kalshi "team to win?" binary resolves YES only
+                # on a win, so the fair YES probability is the team's devigged
+                # win share — draw and opponent-win both fall to the NO side.
+                if len(outcomes) not in (2, 3):
                     continue
 
-                # Find if this team matches
+                # Find if this team matches (the "Draw" outcome never matches a
+                # team name, so a 3-way market resolves to the right side).
                 matched_idx = None
                 for i, o in enumerate(outcomes):
                     if _team_match(o["name"], team_name):
@@ -364,10 +370,15 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
                 if matched_idx is None:
                     continue
 
-                other_idx = 1 - matched_idx
-                prob_team = implied_prob(outcomes[matched_idx]["price"])
-                prob_other = implied_prob(outcomes[other_idx]["price"])
-                fair_team, _ = devig_two_way(prob_team, prob_other)
+                matched_event_ids.add(ev_idx)
+                # Proportional devig across all outcomes (identical to
+                # devig_two_way for the 2-way case; extends to 3-way).
+                implieds = [implied_prob(o["price"]) for o in outcomes]
+                total = sum(implieds)
+                if total <= 0:
+                    continue
+                prob_team = implieds[matched_idx]
+                fair_team = prob_team / total
                 fair_probs.append(fair_team)
                 book_keys.append(bookmaker["key"])
                 book_details[bookmaker["key"]] = {
@@ -377,6 +388,16 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
                 }
 
     if not fair_probs:
+        return None
+
+    # Fix B (belt-and-suspenders): never pool a team across multiple games.
+    # Callers should pre-scope via find_market_event; if a team still matched
+    # in >1 event, refuse rather than blend two games' odds.
+    if len(matched_event_ids) > 1:
+        log.warning(
+            "consensus_fair_value: '%s' matched %d distinct events — refusing "
+            "to pool across games", team_name, len(matched_event_ids),
+        )
         return None
 
     # Weighted median — sharp books (Pinnacle, Circa) count more than recreational
@@ -452,14 +473,16 @@ def consensus_spread_prob(events: list, team_name: str, strike: float,
     a large spread drops off following the bell curve, not linearly.
     """
     spread_data = []
+    matched_event_ids = set()
 
-    for event in events:
+    for ev_idx, event in enumerate(events):
         for bookmaker in event.get("bookmakers", []):
             for market in bookmaker.get("markets", []):
                 if market["key"] != "spreads":
                     continue
                 for o in market.get("outcomes", []):
                     if _team_match(o["name"], team_name):
+                        matched_event_ids.add(ev_idx)
                         book_spread = o.get("point", 0)
                         book_odds = o.get("price", 2.0)
                         spread_data.append({
@@ -470,6 +493,14 @@ def consensus_spread_prob(events: list, team_name: str, strike: float,
                         })
 
     if not spread_data:
+        return None
+
+    # Fix B: refuse to pool one team's spread across multiple games.
+    if len(matched_event_ids) > 1:
+        log.warning(
+            "consensus_spread_prob: '%s' matched %d distinct events — refusing "
+            "to pool across games", team_name, len(matched_event_ids),
+        )
         return None
 
     # Weighted median using sharp book weights
@@ -552,14 +583,16 @@ def consensus_total_prob(events: list, strike: float,
     3. Calculate P(total > strike) using normal CDF
     """
     total_data = []
+    matched_event_ids = set()
 
-    for event in events:
+    for ev_idx, event in enumerate(events):
         for bookmaker in event.get("bookmakers", []):
             for market in bookmaker.get("markets", []):
                 if market["key"] != "totals":
                     continue
                 for o in market.get("outcomes", []):
                     if o["name"] == "Over":
+                        matched_event_ids.add(ev_idx)
                         total_data.append({
                             "book": bookmaker["key"],
                             "line": o.get("point", 0),
@@ -568,6 +601,15 @@ def consensus_total_prob(events: list, strike: float,
                         })
 
     if not total_data:
+        return None
+
+    # Fix B: this function keys only on "Over" (no team match), so an unscoped
+    # multi-event list silently blends totals from different games. Refuse.
+    if len(matched_event_ids) > 1:
+        log.warning(
+            "consensus_total_prob: totals matched %d distinct events — refusing "
+            "to pool across games", len(matched_event_ids),
+        )
         return None
 
     # Weighted median using sharp book weights
@@ -675,6 +717,20 @@ def extract_team_from_market(market: dict) -> str | None:
     return None
 
 
+def _clean_team(name: str) -> str:
+    """Strip filler the rules-regex sometimes captures.
+
+    Totals rules read "If the teams in the New York at San Antonio ..." so the
+    first capture group picks up a "teams in the " prefix. Drop it so the name
+    matches cleanly against odds-feed team names.
+    """
+    name = name.strip()
+    name = re.sub(r"^(?:the\s+)?teams\s+in\s+the\s+", "", name, flags=re.IGNORECASE)
+    # Playoff-series rules read "... the Game 4: San Antonio at New York ..."
+    name = re.sub(r"^game\s+\d+:\s*", "", name, flags=re.IGNORECASE)
+    return name.strip()
+
+
 def extract_event_teams(market: dict) -> tuple[str, str] | None:
     """Extract both team names from the event ticker or rules."""
     rules = market.get("rules_primary", "")
@@ -684,11 +740,11 @@ def extract_event_teams(market: dict) -> tuple[str, str] | None:
         rules, re.IGNORECASE,
     )
     if match:
-        return match.group(1).strip(), match.group(2).strip()
+        return _clean_team(match.group(1)), _clean_team(match.group(2))
     # Fallback: simpler pattern
     match = re.search(r"in the (.+?) (?:vs\.?|at) (.+?) (?:game|match)", rules, re.IGNORECASE)
     if match:
-        return match.group(1).strip(), match.group(2).strip()
+        return _clean_team(match.group(1)), _clean_team(match.group(2))
     return None
 
 
@@ -911,6 +967,14 @@ def detect_edge_game(market: dict, odds_events: list,
     if yes_ask <= 0 or yes_ask >= 1.0:
         return None
 
+    # Fix A: pin to the one odds event for THIS game (both teams, right day).
+    # Without this, a team name matches any event it appears in — pairing the
+    # market against the wrong opponent and fabricating edge.
+    matched_event = find_market_event(market, odds_events)
+    if matched_event is None:
+        return None
+    odds_events = [matched_event]
+
     result = consensus_fair_value(odds_events, team)
     if result is None:
         return None
@@ -1018,6 +1082,12 @@ def detect_edge_spread(market: dict, odds_events: list,
     yes_ask = float(market.get("yes_ask_dollars", "0"))
     if yes_ask <= 0 or yes_ask >= 1.0:
         return None
+
+    # Fix A: scope to the one odds event for this exact game (see detect_edge_game).
+    matched_event = find_market_event(market, odds_events)
+    if matched_event is None:
+        return None
+    odds_events = [matched_event]
 
     # Build compound stdev adjustment from rest + weather
     stdev_adj = 0.0
@@ -1134,6 +1204,16 @@ def _extract_home_team_abbr(ticker: str) -> str | None:
     return None
 
 
+_MONTHS = {"JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
+           "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12}
+
+# Eastern Time is UTC-4 (EDT) through the bulk of the sports calendar. This
+# offset is used ONLY to disambiguate which odds event a Kalshi market refers
+# to (matching scheduled start times); a 1-hour EST/EDT slip is immaterial
+# against the multi-hour matching window, so we skip the tzdata dependency.
+_ET_UTC_OFFSET_HOURS = 4
+
+
 def _extract_game_date(ticker: str) -> str | None:
     """Extract game date from ticker as YYYY-MM-DD.
 
@@ -1143,13 +1223,141 @@ def _extract_game_date(ticker: str) -> str | None:
     if not match:
         return None
     year_short, mon_str, day = match.groups()
-    months = {"JAN": "01", "FEB": "02", "MAR": "03", "APR": "04", "MAY": "05",
-              "JUN": "06", "JUL": "07", "AUG": "08", "SEP": "09", "OCT": "10",
-              "NOV": "11", "DEC": "12"}
-    month = months.get(mon_str)
+    month = _MONTHS.get(mon_str)
     if not month:
         return None
-    return f"20{year_short}-{month}-{day}"
+    return f"20{year_short}-{month:02d}-{day}"
+
+
+def _ticker_scheduled_utc(ticker: str) -> datetime | None:
+    """Parse a game ticker's scheduled start (YYMMMDD + HHMM, ET) as UTC.
+
+    Only moneyline (GAME) tickers embed the HHMM time, e.g.
+    ``KXMLBGAME-26JUN052140WSHAZ-WSH`` -> Jun 5 2026 21:40 ET. Returns None
+    when no time is embedded (spread/total tickers carry date only).
+    """
+    m = re.search(r"(\d{2})([A-Z]{3})(\d{2})(\d{4})", ticker)
+    if not m:
+        return None
+    yy, mon_str, dd, hhmm = m.groups()
+    month = _MONTHS.get(mon_str)
+    if not month:
+        return None
+    try:
+        # Treat the ET wall-clock numerals as UTC, then shift by the ET offset
+        # to land on the true UTC instant (good enough for event matching).
+        et_as_utc = datetime(2000 + int(yy), month, int(dd),
+                             int(hhmm[:2]), int(hhmm[2:]), tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    return et_as_utc + timedelta(hours=_ET_UTC_OFFSET_HOURS)
+
+
+def _parse_iso_utc(value: str) -> datetime | None:
+    """Parse an Odds API commence_time (ISO-8601, possibly 'Z') to aware UTC."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def _commence_et_date(event: dict) -> str | None:
+    """ET calendar date (YYYY-MM-DD) of an odds event's commence_time."""
+    dt = _parse_iso_utc(event.get("commence_time", ""))
+    if dt is None:
+        return None
+    return (dt - timedelta(hours=_ET_UTC_OFFSET_HOURS)).date().isoformat()
+
+
+def _event_has_matchup(event: dict, team_a: str, team_b: str) -> bool:
+    """True if the event's two sides correspond to {team_a, team_b}.
+
+    Requires each Kalshi team to match a *different* side of the event, so a
+    single shared city/word can't satisfy both.
+    """
+    home = event.get("home_team", "") or ""
+    away = event.get("away_team", "") or ""
+    return (
+        (_team_match(home, team_a) and _team_match(away, team_b))
+        or (_team_match(away, team_a) and _team_match(home, team_b))
+    )
+
+
+def find_market_event(market: dict, events: list) -> dict | None:
+    """Return the single odds event for this market's specific game, or None.
+
+    Opponent-validated matching (fix A): both teams in the Kalshi market must
+    appear on opposite sides of the odds event. This prevents the contamination
+    bug where a team name matched *any* event it appeared in — pairing a market
+    against the wrong opponent (e.g. a different day's game) and fabricating a
+    huge edge. When the real game is simply absent from the odds feed, this
+    returns None so the caller emits no edge instead of guessing.
+
+    A team in a series / doubleheader matches multiple events, so matching
+    BOTH teams is not enough on its own — the date must also agree. A playoff
+    series (e.g. NBA Finals SAS vs NYK, Games 1-4) puts the same two teams in
+    the feed repeatedly with home/away alternating; pairing a Game-4 market
+    against the only Game-1 event in the feed flips the favorite and fabricates
+    a large edge. So the matched event must line up with the ticker's scheduled
+    time (moneyline tickers embed HHMM) or, failing that, its ET game date.
+    When the specific game is absent or ambiguous, return None (refuse).
+    """
+    teams = extract_event_teams(market)
+    if not teams:
+        return None
+    team_a, team_b = teams
+    candidates = [e for e in events if _event_has_matchup(e, team_a, team_b)]
+    if not candidates:
+        return None
+
+    ticker = market.get("ticker", "")
+
+    # Moneyline (GAME) tickers embed the start time — match it precisely. This
+    # is authoritative: if the exact game isn't within the window, the specific
+    # game is absent from the feed, so refuse rather than fall back to a looser
+    # same-day match (which could grab the other half of a doubleheader).
+    sched = _ticker_scheduled_utc(ticker)
+    if sched is not None:
+        best, best_diff = None, None
+        for e in candidates:
+            cdt = _parse_iso_utc(e.get("commence_time", ""))
+            if cdt is None:
+                continue
+            diff = abs((cdt - sched).total_seconds())
+            if best_diff is None or diff < best_diff:
+                best, best_diff = e, diff
+        if best is not None and best_diff <= 6 * 3600:
+            return best
+        log.warning(
+            "find_market_event: no odds event within 6h of %s scheduled start "
+            "— specific game absent, emitting no edge", ticker)
+        return None
+
+    # Spread/total and NBA/NHL game tickers carry the date but no time. Require
+    # exactly one candidate on the ticker's ET date; 0 means absent, >1 means
+    # an unresolvable same-day clash. Either way, refuse.
+    gdate = _extract_game_date(ticker)
+    if gdate:
+        same_day = [e for e in candidates if _commence_et_date(e) == gdate]
+        if len(same_day) == 1:
+            return same_day[0]
+        log.warning(
+            "find_market_event: %d candidate events on %s for %s — series/"
+            "absent/ambiguous, emitting no edge", len(same_day), gdate, ticker)
+        return None
+
+    # No date signal at all (unexpected for game tickers): only safe to match
+    # when there is exactly one candidate.
+    if len(candidates) == 1:
+        return candidates[0]
+
+    log.warning(
+        "find_market_event: %d candidate events for %s (%s vs %s) — ambiguous, "
+        "emitting no edge", len(candidates), ticker, team_a, team_b,
+    )
+    return None
 
 
 def detect_edge_total(market: dict, odds_events: list,
@@ -1166,6 +1374,14 @@ def detect_edge_total(market: dict, odds_events: list,
     yes_ask = float(market.get("yes_ask_dollars", "0"))
     if yes_ask <= 0 or yes_ask >= 1.0:
         return None
+
+    # Fix A: scope to the one odds event for this exact game. Totals are the
+    # worst offender — consensus_total_prob pools every "Over" outcome across
+    # all events with no team match at all, so an unscoped list blends games.
+    matched_event = find_market_event(market, odds_events)
+    if matched_event is None:
+        return None
+    odds_events = [matched_event]
 
     # Compound stdev adjustment from pitcher + rest + weather
     stdev_adj = pitcher_data.get("stdev_adjustment", 0.0) if pitcher_data else 0.0
@@ -1771,7 +1987,20 @@ def print_detail(client: KalshiClient, ticker: str):
         events = fetch_odds_api(sport_key, markets="h2h,spreads,totals")
         rprint(f"\n  Odds API: {len(events)} events for {sport_key}")
 
-        if cat == "game" and team:
+        # Scope to this game's event (fix A) so the detail view matches the
+        # scanner and never blends a team's odds across multiple games.
+        matched_event = find_market_event(market, events)
+        if matched_event is None:
+            rprint("  [yellow]No single odds event matches this game "
+                   "(absent from feed or ambiguous) — no edge computed[/yellow]")
+            events = []
+        else:
+            teams = extract_event_teams(market)
+            rprint(f"  Matched event: {matched_event.get('away_team')} @ "
+                   f"{matched_event.get('home_team')}  (market teams: {teams})")
+            events = [matched_event]
+
+        if cat == "game" and team and events:
             result = consensus_fair_value(events, team)
             if result:
                 fair, details = result

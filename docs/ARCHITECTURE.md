@@ -40,6 +40,8 @@ Each market type has a specialized edge model. All models produce the same outpu
 
 Fetch head-to-head odds from 8-12 US sportsbooks. De-vig each book's line using the multiplicative method to extract true implied probability. Take the **weighted median** across all books — sharp books (Pinnacle, Circa) weighted 3x, recreational books (DraftKings, FanDuel) weighted 0.7x. Confidence factors in book count, estimate spread, and team stats signal.
 
+The odds event is **opponent- and date-validated** before pricing: it must contain both of the market's teams on opposite sides *and* agree with the ticker's schedule (moneyline = embedded start time; date-only tickers = ET game date). If the specific game is absent or ambiguous, no edge is emitted. This prevents pricing a market against a different game (wrong opponent, or the wrong game of a playoff series). Soccer h2h is 3-way (home/draw/away): the "team to win?" binary uses the team's devigged win share, with draws falling to the NO side.
+
 ### Spreads (Normal CDF Model)
 
 Fetch spread lines from sportsbooks and compute weighted median spread and implied probability. Infer expected score margin using the book's line, then model the final margin as **Normal(mean, stdev)** with sport-specific standard deviations. Calculate `P(margin > strike)` via normal CDF.
@@ -191,9 +193,9 @@ How much to trust the fair value estimate. Derived from **data quality**, not ed
 | Spread | < 3 books OR range > 4pts | 3+ books AND range ≤ 4pts | 6+ books AND range ≤ 2pts |
 | Total | < 3 books | 3+ books | (via adjustments only) |
 
-**Adjustments** (each can bump confidence up or down one level):
-- **Team stats** — win%, L10, home/away from ESPN/NHL/MLB APIs
-- **Sharp money / line movement** — ESPN open-vs-close odds; reverse line movement that agrees with our bet bumps up
+**Adjustments** — since R13 (2026-04-24) these are **one-way**: a contradicting signal drops one tier, but a supporting signal is a no-op (upward bumps tracked inflated claimed edge, not better outcomes):
+- **Team stats** — win%, L10, home/away from ESPN/NHL/MLB APIs; contradicting stats drop a tier
+- **Sharp money / line movement** — ESPN open-vs-close odds; reverse line movement *against* our bet drops a tier
 
 ### Score (Composite)
 

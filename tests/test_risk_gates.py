@@ -161,13 +161,20 @@ class TestSizeOrderRiskGates:
         import kalshi_executor
         orig_max = kalshi_executor.MAX_BET_SIZE
         orig_kelly = kalshi_executor.KELLY_FRACTION
+        orig_edge = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
         try:
             kalshi_executor.MAX_BET_SIZE = 100.0
             kalshi_executor.KELLY_FRACTION = 0.25
+            # Clear per-sport floors too: edge=0.05 is above the global 3% floor
+            # but below MLB's .env override (0.08), and this test asserts a clean
+            # approval under documented defaults — not whatever .env sets.
+            kalshi_executor._PER_SPORT_MIN_EDGE.clear()
             opp = self._make_opp(price=0.50, edge=0.05, score=8.0)
             result = size_order(opp, bankroll=500.0, open_positions=0, daily_pnl=0.0, unit_size=1.00)
             assert result.risk_approval == "APPROVED"
         finally:
+            kalshi_executor._PER_SPORT_MIN_EDGE.clear()
+            kalshi_executor._PER_SPORT_MIN_EDGE.update(orig_edge)
             kalshi_executor.MAX_BET_SIZE = orig_max
             kalshi_executor.KELLY_FRACTION = orig_kelly
 
@@ -407,14 +414,16 @@ class TestNoSideFavoriteGate:
         assert result.risk_approval.startswith("APPROVED")
 
     def test_no_above_threshold_not_affected(self):
-        # NO at 30¢ (above 25¢) is not a "heavy favorite" — gate doesn't apply
-        opp = self._opp(side="no", price=0.30, edge=0.05, confidence="medium")
+        # NO at 30¢ (above 25¢) is not a "heavy favorite" — gate doesn't apply.
+        # Edge 0.10 clears the MLB per-sport floor (0.08) so this isolates 4.6.
+        opp = self._opp(side="no", price=0.30, edge=0.10, confidence="medium")
         result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
         assert result.risk_approval.startswith("APPROVED")
 
     def test_yes_side_not_affected(self):
-        # YES at 20¢ (longshot) with low edge — gate 4.6 is NO-only
-        opp = self._opp(side="yes", price=0.20, edge=0.05, confidence="medium")
+        # YES at 20¢ (longshot) — gate 4.6 is NO-only. Edge 0.10 clears the
+        # MLB per-sport floor (0.08) so the bet isn't rejected for edge first.
+        opp = self._opp(side="yes", price=0.20, edge=0.10, confidence="medium")
         result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
         assert result.risk_approval.startswith("APPROVED")
 
@@ -601,6 +610,9 @@ class TestPerSportMinEdge:
         import kalshi_executor
         orig = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
         try:
+            # Control the full dict so the fallback case is independent of
+            # whatever per-sport floors .env happens to define.
+            kalshi_executor._PER_SPORT_MIN_EDGE.clear()
             kalshi_executor._PER_SPORT_MIN_EDGE["nba"] = 0.08
             nba_opp = self._opp("KXNBAGAME-26APR02SASLAC-SAS")
             mlb_opp = self._opp("KXMLBGAME-26APR171900NYYKAC-NYY")
@@ -629,6 +641,9 @@ class TestPerSportMinEdge:
         import kalshi_executor
         orig = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
         try:
+            # Only NBA overridden here; clear first so MLB's real .env floor
+            # doesn't bleed in and reject the bet for the wrong reason.
+            kalshi_executor._PER_SPORT_MIN_EDGE.clear()
             kalshi_executor._PER_SPORT_MIN_EDGE["nba"] = 0.08
             # MLB bet at 5% edge: above global 3% → approved (no MLB override)
             mlb_opp = self._opp("KXMLBGAME-26APR171900NYYKAC-NYY", edge=0.05)

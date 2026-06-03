@@ -323,6 +323,24 @@ python scripts/kalshi/fetch_market_data.py [flags]
 </details>
 
 <details>
+<summary><b>recover_trade_log.py — Trade-Log Recovery</b></summary>
+
+**Location:** `scripts/kalshi/recover_trade_log.py`
+
+One-shot recovery: rebuild `data/history/kalshi_trades.json` from **live Kalshi positions** when the working trade log is lost or corrupted. Reconstructs accounting (ticker, side from `position_fp` sign, filled contracts/cost, fees, avg entry price); model fields that lived only in the log (`edge_estimated`, `fair_value`, `confidence`, `composite_score`) are set null/"unknown" — they are not needed for settlement P&L. Settled trades are not re-added (they already live in `kalshi_settlements.json`). Backs up the current log and previews before writing.
+
+```bash
+python scripts/kalshi/recover_trade_log.py            # preview only
+python scripts/kalshi/recover_trade_log.py --write    # back up + rewrite
+```
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--write` | off | Back up the current log (`*.clobbered-<ts>.bak`) and write the rebuilt one |
+
+</details>
+
+<details>
 <summary><b>daily_sports_scan.py — Daily Morning Report</b></summary>
 
 **Location:** `scripts/schedulers/automation/daily_sports_scan.py`

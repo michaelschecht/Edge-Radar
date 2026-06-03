@@ -2,6 +2,36 @@
 
 ---
 
+## 2026-06-03 -- Edge-Matching Contamination Fix, Soccer 3-Way, Test-Isolation Guard
+
+### Why
+
+A user spot-check after seeing implausible MLB edges (e.g. "+34.7% Minnesota lose") exposed a cross-game contamination bug in edge detection: `consensus_fair_value`/`consensus_spread_prob`/`consensus_total_prob` matched a Kalshi market against **any** odds event a single team appeared in. When a team played a series, or its game was simply absent from the feed (e.g. scanning two days out before books post lines), the detector priced the market against the **wrong game** — wrong opponent, or the wrong game of a playoff series with home/away flipped — fabricating large edges. Two NBA Finals open positions had been sized off this.
+
+### What landed
+
+- **Opponent + date validated matching (`find_market_event`)** — a market is priced only against the odds event that contains **both** its teams on opposite sides **and** agrees on schedule: moneyline (GAME) tickers match the embedded start time (within 6h); spread/total and NBA/NHL date-only tickers require exactly one candidate on the ticker's ET game date. Absent or ambiguous ⇒ **no edge** (never guess). Fixes both variants — wrong-opponent and the playoff-series single-event home/away flip (the old `len(candidates)==1` shortcut skipped date validation). `extract_event_teams` also strips the "Game N:" playoff prefix and the "teams in the" totals filler.
+- **Belt-and-suspenders** — the three `consensus_*` functions now refuse (return None + warn) if their subject matched >1 distinct event, so a team is never pooled across games even if a caller forgets to pre-scope.
+- **Soccer 3-way support** — `consensus_fair_value` skipped any market without exactly 2 outcomes, so soccer h2h (home/draw/away) silently produced **no** edges. Now uses proportional devig over 2- or 3-outcome markets; the Kalshi "team to win?" binary takes the team's devigged win share (draw → NO side). 2-way behavior unchanged.
+- **MLB edge floor + threshold-drift correction** — added `MIN_EDGE_THRESHOLD_MLB=0.08` (MLB: 40% WR, -12% ROI, model over-claims ~15% edge). Corrected long-standing doc drift: R14's NBA 0.12 was **proposed but never adopted** — production runs 0.08. NBA/NCAAB/MLB now consistently documented at the 0.08 peer floor across `.env.example`, `CLAUDE.md`, and the edge-radar skill.
+- **Calibration recommendation refresh** — `model_calibration.py`'s top "Confidence Signals" recommendation kept re-recommending one-way confidence bumps that already shipped as R13 (2026-04-24). Rewritten to say R13 shipped and point at the real remaining suspect: the base ">=8 sharp-books + tight-consensus" high-tier rule.
+- **Test-isolation incident + guard** — `log_trade()` persists via `save_trade_log()` as a side effect, and `test_fill_accounting` calls it with an ad-hoc list, so a full `pytest` run overwrote the live `data/history/kalshi_trades.json` with a test record. Added an autouse `conftest.py` fixture redirecting the trade/settlement log paths to a per-test tmp dir (the suite now leaves both real logs byte-identical). New `scripts/kalshi/recover_trade_log.py` rebuilt the log from live Kalshi positions (15 positions, $22.03 restored; model fields like `edge_estimated` unrecoverable, set null — not needed for settlement P&L).
+- **Tests** — +17 regression tests (contamination scenario, series disambiguation, wrong-date refuse, the consensus refuse-guards, 3-way soccer devig). 386 → **403 passing**.
+
+### Caveat
+
+The contamination likely inflated some **historical** claimed edges (MLB and consecutive-day/playoff series). Re-run calibration after ~2 weeks of clean post-fix settlements before drawing edge-bucket conclusions.
+
+### Files
+
+`scripts/kalshi/edge_detector.py`, `scripts/kalshi/model_calibration.py`, `scripts/kalshi/kalshi_executor.py` (docstring), `scripts/kalshi/recover_trade_log.py` (new), `tests/conftest.py`, `tests/test_edge_detection.py`, `tests/test_risk_gates.py`, `.env.example`, `CLAUDE.md`, `docs/scripts/edge_detector.md`, `docs/ARCHITECTURE.md`, `docs/SCRIPTS_REFERENCE.md`, `docs/kalshi-sports-betting/SPORTS_GUIDE.md`, `.claude/skills/edge-radar/SKILL.md`, `docs/CHANGELOG.md`, plus memory. Live `.env` (gitignored) carries the MLB override; rebuilt `data/` files are gitignored.
+
+### Commits
+
+`e28d157` (matching A+B), `40c3711` (test guard + recovery tool), `c066c03` (MLB floor + drift + calibration rec), `ca1d124` (series-flip date validation), `e1960ec` (soccer 3-way) on `mike_win-desktop`. This entry is the docs/memory propagation.
+
+---
+
 ## 2026-05-31 -- Account-Growth Graph on the Pages Site (+ weekly auto-refresh)
 
 ### Why
