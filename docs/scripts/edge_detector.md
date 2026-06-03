@@ -75,10 +75,11 @@ python scripts/kalshi/edge_detector.py detail KXNBAGAME-26MAR25LALBOS-LAL
 
 1. **Fetch Kalshi markets** -- pulls all open markets for the filtered sport(s)
 2. **Fetch sportsbook odds** -- The Odds API with key rotation across all configured `ODDS_API_KEYS`. Each key is tried at most once per request; 401/429 responses trigger rotation to the next key, and all keys exhausted produces a loud warning (rather than a silent empty result).
-3. **Match markets to odds events** -- team name fuzzy matching
-4. **Calculate fair value** -- de-vig each book, then take the weighted median:
+3. **Match markets to odds events** -- opponent- and date-validated (`find_market_event`). The odds event must contain **both** of the market's teams on opposite sides (fuzzy name match), **and** agree on schedule: moneyline (GAME) tickers match on their embedded start time; spread/total and NBA/NHL game tickers (date-only) require exactly one candidate on the ticker's ET game date. If the specific game is absent from the feed or the match stays ambiguous, the market emits **no edge** rather than pairing against the wrong game. This closed a contamination bug where a lone team-name match priced a market against a different game (wrong opponent, or the wrong game of a playoff series with home/away flipped), fabricating large edges.
+4. **Calculate fair value** -- de-vig each book (proportional method), then take the weighted median:
    - Sharp books (Pinnacle, LowVig) weighted 3x
    - Standard books weighted 1x
+   - Soccer h2h is 3-way (home/draw/away); the "team to win?" binary takes the team's devigged win share, so a draw falls to the NO side. The three `consensus_*` functions also refuse to pool a subject across more than one event (belt-and-suspenders against the matching bug above).
 5. **Team stats adjustment** -- ESPN/NHL/MLB APIs for win%, recent form. Supports NBA, NHL, MLB, NFL, NCAA, MLS
 6. **Weather adjustment** -- NWS forecasts for NFL/MLB outdoor venues affect totals
 7. **Sharp money signal** -- ESPN line movement detection

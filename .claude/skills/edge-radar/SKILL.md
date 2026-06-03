@@ -39,7 +39,7 @@ Parse the user's intent from the arguments. The skill supports natural language 
 |------|---------|-------------|
 | `--unit-size N` or `$N` (dollar amount) | `$1.00` | Dollar amount per bet |
 | `--max-bets N` | `5` | Maximum bets to place |
-| `--min-edge N` | `0.03` global; `0.12` NBA; `0.10` NCAAB | Minimum edge. Per-sport overrides via `MIN_EDGE_THRESHOLD_<SPORT>` env. NBA raised 0.08 → 0.12 in R14 (2026-04-24) after 30-day review showed NBA Brier 0.3306 — worst of all sports. NCAAB kept at 0.10 from 2026-04-18 calibration. |
+| `--min-edge N` | `0.03` global; `0.08` NBA/NCAAB/MLB | Minimum edge. Per-sport overrides via `MIN_EDGE_THRESHOLD_<SPORT>` env. NBA/NCAAB/MLB run a `0.08` peer floor. R14 (2026-04-24) flagged NBA as worst-calibrated (Brier 0.3306) and proposed 0.12, but production settled on 0.08 — treat 0.12 as never-adopted. MLB joined the 0.08 floor 2026-06-03 (40% WR, -12% ROI, model over-claims ~15% edge). |
 | `--execute`, `--go`, `--send-it` | off | Skip preview, execute immediately |
 | `--dry-run`, `--preview` | on (default) | Preview only, no orders |
 | `--save` | off | Save results as markdown report to `reports/` |

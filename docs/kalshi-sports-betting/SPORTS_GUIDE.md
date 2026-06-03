@@ -179,8 +179,8 @@ Dome stadiums are automatically excluded. Weather data is stored in opportunity 
 Confidence (low/medium/high) is set by four factors:
 - **Book count + agreement** -- 8+ books with tight consensus = high
 - **Book spread range** -- if books disagree by >4 points, confidence drops (signals injury/news)
-- **Team stats** -- ESPN/NHL/MLB win% data. Stats that support the bet boost confidence; stats that contradict reduce it
-- **Sharp money** -- ESPN open vs close odds detect reverse line movement. When sharps are on our side, confidence goes up
+- **Team stats** -- ESPN/NHL/MLB win% data. Since R13 (2026-04-24) these bumps are **one-way**: stats that *contradict* the bet drop a tier; stats that *support* it are a no-op (upward bumps correlated with inflated claimed edge, not better outcomes)
+- **Sharp money** -- ESPN open vs close odds detect reverse line movement. Sharps *against* our bet drop confidence; sharps on our side are a no-op (same R13 one-way rule)
 
 ### Odds API Sport Mapping
 
@@ -207,6 +207,8 @@ The system cross-references Kalshi prices against these Odds API sport keys:
 | KXBOXING | `boxing_boxing` | Moneyline (h2h) |
 | KXPGATOUR | -- (outrights-only; handled by `futures_edge.py`) | Tournament winner |
 | KXIPL | `cricket_ipl` | Moneyline (h2h) |
+
+> **Soccer is 3-way.** Soccer h2h returns home/draw/away. The Kalshi "team to win?" market is binary, so fair value is the team's devigged **win** share and a draw resolves to the NO side. (Before the 2026-06-03 fix, 3-outcome markets were silently skipped, so soccer produced no edges.)
 
 ---
 
