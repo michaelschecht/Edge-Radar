@@ -233,13 +233,21 @@ def _generate_recommendations(
                 "finding": (
                     f"High confidence ({hi['wr']:.0%} WR, ${hi['pnl']:+.2f}) "
                     f"underperforms medium ({med['wr']:.0%} WR, ${med['pnl']:+.2f}). "
-                    f"Team stats and sharp money bumps are hurting, not helping."
+                    f"R13 (2026-04-24) already made the team-stats/rest/sharp-money "
+                    f"bumps one-way (drop on contradicts, no-op on supports), so the "
+                    f"bolt-on bumps are no longer inflating this tier — the base "
+                    f"'high' rule itself is the remaining suspect."
                 ),
                 "action": (
-                    "Weaken or remove confidence bumps from _adjust_confidence_with_stats(). "
-                    "Option A: Remove team stats bump entirely (set signal to 'neutral' always). "
-                    "Option B: Only allow bumps DOWN (contradicts), never UP (supports). "
-                    "Option C: Reduce bump to half-level (medium stays medium, low->medium only if strong signal)."
+                    "Bump removal already shipped as R13 — do NOT re-recommend it. "
+                    "The base 'high' tier is now set directly by the >=8 sharp-books + "
+                    "tight-consensus rule in edge_detector.py. Investigate that rule: "
+                    "Option A: tighten it (require more sharp books or a tighter "
+                    "consensus band before granting 'high'). "
+                    "Option B: down-rank base-'high' to 'medium' for Kelly sizing so "
+                    "the inflated tier no longer draws larger stakes. "
+                    "Option C: confirm the gap persists across two more 30-day windows "
+                    "before changing anything (small-sample inversions are common)."
                 ),
             })
 
