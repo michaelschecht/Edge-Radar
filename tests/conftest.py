@@ -5,7 +5,25 @@ pyproject.toml.  This file only provides shared fixtures.
 """
 
 import pytest
+import trade_log
 from opportunity import Opportunity
+
+
+@pytest.fixture(autouse=True)
+def _isolate_data_logs(tmp_path, monkeypatch):
+    """Defense-in-depth: never let a test read or write the real trade /
+    settlement logs under data/history/.
+
+    ``log_trade()`` persists via ``save_trade_log()`` as a side effect, so a
+    test that calls it with an ad-hoc list (e.g. test_fill_accounting) would
+    otherwise overwrite the live ``kalshi_trades.json`` with test records.
+    Redirecting the module-level path constants to a per-test tmp dir makes
+    every test hermetic regardless of how it exercises the I/O helpers.
+    """
+    monkeypatch.setattr(trade_log, "TRADE_LOG_PATH",
+                        tmp_path / "kalshi_trades.json")
+    monkeypatch.setattr(trade_log, "SETTLEMENT_LOG_PATH",
+                        tmp_path / "kalshi_settlements.json")
 
 
 @pytest.fixture
