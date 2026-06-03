@@ -469,6 +469,15 @@ class TestExtractEventTeams:
             "market resolves to Yes.")}
         assert extract_event_teams(m) == ("Washington", "Arizona")
 
+    def test_strips_playoff_game_prefix(self):
+        # Playoff-series rules carry a "Game N:" prefix that leaked into the
+        # team name and broke clean matching.
+        m = {"rules_primary": (
+            "If San Antonio wins the Game 3: San Antonio at New York "
+            "professional basketball game originally scheduled for "
+            "Jun 8, 2026, then the market resolves to Yes.")}
+        assert extract_event_teams(m) == ("San Antonio", "New York")
+
 
 class TestFindMarketEvent:
     """Fix A: a market may only be priced against the odds event that holds
@@ -522,6 +531,39 @@ class TestFindMarketEvent:
         b = _h2h_event("Carolina Hurricanes", "Vegas Golden Knights",
                        2.0, 1.8, "2026-06-09T20:00:00Z")
         assert find_market_event(market, [a, b]) is None
+
+    def test_series_single_event_wrong_date_refuses(self):
+        # The 2nd contamination variant: a no-time (NBA-style) ticker with a
+        # single same-matchup event in the feed on a DIFFERENT date. Matching
+        # both teams is not enough — a Game-4 market must not price off the
+        # only Game-1 event (home/away flips, favorite inverts).
+        game4 = {
+            "ticker": "KXNBAGAME-26JUN10SASNYK-SAS",
+            "yes_sub_title": "San Antonio",
+            "rules_primary": ("If San Antonio wins the Game 4: San Antonio at "
+                              "New York professional basketball game originally "
+                              "scheduled for Jun 10, 2026, then the market "
+                              "resolves to Yes."),
+        }
+        # Only Game 1 (Jun 3, 20:30 ET -> 2026-06-04T00:30Z) is in the feed.
+        game1 = _h2h_event("New York Knicks", "San Antonio Spurs",
+                           2.4, 1.6, "2026-06-04T00:30:00Z")
+        assert find_market_event(game4, [game1]) is None
+
+    def test_no_time_ticker_matches_same_date(self):
+        # The legitimate counterpart: a no-time ticker DOES match when the
+        # single candidate falls on the ticker's ET date.
+        game1 = {
+            "ticker": "KXNBAGAME-26JUN03NYKSAS-NYK",
+            "yes_sub_title": "New York",
+            "rules_primary": ("If New York wins the Game 1: New York at San "
+                              "Antonio professional basketball game originally "
+                              "scheduled for Jun 3, 2026, then the market "
+                              "resolves to Yes."),
+        }
+        ev = _h2h_event("New York Knicks", "San Antonio Spurs",
+                        2.4, 1.6, "2026-06-04T00:30:00Z")  # Jun 3 20:30 ET
+        assert find_market_event(game1, [ev]) is ev
 
 
 class TestDetectEdgeGameContamination:

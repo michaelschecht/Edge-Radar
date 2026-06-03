@@ -717,6 +717,8 @@ def _clean_team(name: str) -> str:
     """
     name = name.strip()
     name = re.sub(r"^(?:the\s+)?teams\s+in\s+the\s+", "", name, flags=re.IGNORECASE)
+    # Playoff-series rules read "... the Game 4: San Antonio at New York ..."
+    name = re.sub(r"^game\s+\d+:\s*", "", name, flags=re.IGNORECASE)
     return name.strip()
 
 
@@ -1284,9 +1286,14 @@ def find_market_event(market: dict, events: list) -> dict | None:
     huge edge. When the real game is simply absent from the odds feed, this
     returns None so the caller emits no edge instead of guessing.
 
-    A team in a series / doubleheader matches multiple events; we disambiguate
-    by scheduled start time (moneyline tickers) then by ET game date. If it
-    stays ambiguous, return None (refuse) rather than pick arbitrarily.
+    A team in a series / doubleheader matches multiple events, so matching
+    BOTH teams is not enough on its own — the date must also agree. A playoff
+    series (e.g. NBA Finals SAS vs NYK, Games 1-4) puts the same two teams in
+    the feed repeatedly with home/away alternating; pairing a Game-4 market
+    against the only Game-1 event in the feed flips the favorite and fabricates
+    a large edge. So the matched event must line up with the ticker's scheduled
+    time (moneyline tickers embed HHMM) or, failing that, its ET game date.
+    When the specific game is absent or ambiguous, return None (refuse).
     """
     teams = extract_event_teams(market)
     if not teams:
@@ -1295,10 +1302,13 @@ def find_market_event(market: dict, events: list) -> dict | None:
     candidates = [e for e in events if _event_has_matchup(e, team_a, team_b)]
     if not candidates:
         return None
-    if len(candidates) == 1:
-        return candidates[0]
 
     ticker = market.get("ticker", "")
+
+    # Moneyline (GAME) tickers embed the start time — match it precisely. This
+    # is authoritative: if the exact game isn't within the window, the specific
+    # game is absent from the feed, so refuse rather than fall back to a looser
+    # same-day match (which could grab the other half of a doubleheader).
     sched = _ticker_scheduled_utc(ticker)
     if sched is not None:
         best, best_diff = None, None
@@ -1311,12 +1321,28 @@ def find_market_event(market: dict, events: list) -> dict | None:
                 best, best_diff = e, diff
         if best is not None and best_diff <= 6 * 3600:
             return best
+        log.warning(
+            "find_market_event: no odds event within 6h of %s scheduled start "
+            "— specific game absent, emitting no edge", ticker)
+        return None
 
+    # Spread/total and NBA/NHL game tickers carry the date but no time. Require
+    # exactly one candidate on the ticker's ET date; 0 means absent, >1 means
+    # an unresolvable same-day clash. Either way, refuse.
     gdate = _extract_game_date(ticker)
     if gdate:
         same_day = [e for e in candidates if _commence_et_date(e) == gdate]
         if len(same_day) == 1:
             return same_day[0]
+        log.warning(
+            "find_market_event: %d candidate events on %s for %s — series/"
+            "absent/ambiguous, emitting no edge", len(same_day), gdate, ticker)
+        return None
+
+    # No date signal at all (unexpected for game tickers): only safe to match
+    # when there is exactly one candidate.
+    if len(candidates) == 1:
+        return candidates[0]
 
     log.warning(
         "find_market_event: %d candidate events for %s (%s vs %s) — ambiguous, "
