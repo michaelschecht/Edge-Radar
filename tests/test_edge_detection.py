@@ -11,6 +11,11 @@ from edge_detector import (
     _adjust_confidence_with_stats,
     _get_margin_stdev,
     _get_total_stdev,
+    consensus_fair_value,
+    consensus_total_prob,
+    detect_edge_game,
+    extract_event_teams,
+    find_market_event,
 )
 from futures_edge import devig_nway, FUTURES_MAP
 
@@ -382,3 +387,198 @@ class TestFetchOddsApiKeyRotation:
         assert result == []
         # Tried exactly once — no infinite loop on single-key rotation
         assert mock_get.call_count == 1
+
+
+# ── Opponent-validated event matching (fix A + B) ─────────────────────────────
+
+def _h2h_event(away, home, away_price, home_price, commence,
+               books=("pinnacle", "draftkings")):
+    """Build a minimal Odds API h2h event with N identical bookmakers."""
+    return {
+        "away_team": away,
+        "home_team": home,
+        "commence_time": commence,
+        "bookmakers": [
+            {
+                "key": b,
+                "markets": [{
+                    "key": "h2h",
+                    "outcomes": [
+                        {"name": away, "price": away_price},
+                        {"name": home, "price": home_price},
+                    ],
+                }],
+            }
+            for b in books
+        ],
+    }
+
+
+def _totals_event(away, home, line, over_price, commence, books=("pinnacle",)):
+    return {
+        "away_team": away,
+        "home_team": home,
+        "commence_time": commence,
+        "bookmakers": [
+            {
+                "key": b,
+                "markets": [{
+                    "key": "totals",
+                    "outcomes": [
+                        {"name": "Over", "point": line, "price": over_price},
+                        {"name": "Under", "point": line, "price": over_price},
+                    ],
+                }],
+            }
+            for b in books
+        ],
+    }
+
+
+def _mlb_game_market(away, home, yes_team, ticker, yes_ask="0.54",
+                     no_ask="0.48", yes_bid="0.52"):
+    return {
+        "ticker": ticker,
+        "title": f"{away} vs {home} Winner?",
+        "yes_sub_title": yes_team,
+        "no_sub_title": yes_team,
+        "rules_primary": (
+            f"If {yes_team} wins the {away} vs {home} professional baseball "
+            f"game originally scheduled for Jun 5, 2026, then the market "
+            f"resolves to Yes."
+        ),
+        "yes_ask_dollars": yes_ask,
+        "no_ask_dollars": no_ask,
+        "yes_bid_dollars": yes_bid,
+    }
+
+
+class TestExtractEventTeams:
+    def test_strips_totals_filler_prefix(self):
+        # Totals rules read "the teams in the New York at San Antonio ..."
+        m = {"rules_primary": (
+            "If the teams in the New York at San Antonio professional "
+            "basketball game originally scheduled for Jun 3, 2026 collectively "
+            "score more than 232.5 points, then the market resolves to Yes.")}
+        assert extract_event_teams(m) == ("New York", "San Antonio")
+
+    def test_plain_vs_matchup(self):
+        m = {"rules_primary": (
+            "If Washington wins the Washington vs Arizona professional "
+            "baseball game originally scheduled for Jun 5, 2026, then the "
+            "market resolves to Yes.")}
+        assert extract_event_teams(m) == ("Washington", "Arizona")
+
+
+class TestFindMarketEvent:
+    """Fix A: a market may only be priced against the odds event that holds
+    BOTH its teams. The contamination bug paired a market against any event a
+    single team appeared in."""
+
+    def test_absent_game_returns_none(self):
+        # Kalshi market is Washington @ Arizona, but the only Arizona event in
+        # the feed is Dodgers @ Arizona — must NOT match (the old bug).
+        market = _mlb_game_market("Washington", "Arizona", "Arizona",
+                                  "KXMLBGAME-26JUN052140WSHAZ-AZ")
+        feed = [_h2h_event("Los Angeles Dodgers", "Arizona Diamondbacks",
+                           1.6, 2.5, "2026-06-05T01:41:00Z")]
+        assert find_market_event(market, feed) is None
+
+    def test_matches_correct_event(self):
+        market = _mlb_game_market("Washington", "Arizona", "Arizona",
+                                  "KXMLBGAME-26JUN052140WSHAZ-AZ")
+        wsh_az = _h2h_event("Washington Nationals", "Arizona Diamondbacks",
+                            2.0, 1.85, "2026-06-06T01:40:00Z")
+        feed = [
+            _h2h_event("Los Angeles Dodgers", "Arizona Diamondbacks",
+                       1.6, 2.5, "2026-06-05T01:41:00Z"),
+            wsh_az,
+        ]
+        assert find_market_event(market, feed) is wsh_az
+
+    def test_series_disambiguated_by_scheduled_time(self):
+        # Same matchup on consecutive days; ticker time (26JUN05 21:40 ET ->
+        # 2026-06-06T01:40Z) must select the Jun-5 game, not the Jun-4 one.
+        market = _mlb_game_market("Washington", "Arizona", "Arizona",
+                                  "KXMLBGAME-26JUN052140WSHAZ-AZ")
+        jun4 = _h2h_event("Washington Nationals", "Arizona Diamondbacks",
+                          2.0, 1.85, "2026-06-05T01:40:00Z")
+        jun5 = _h2h_event("Washington Nationals", "Arizona Diamondbacks",
+                          1.95, 1.9, "2026-06-06T01:40:00Z")
+        assert find_market_event(market, [jun4, jun5]) is jun5
+
+    def test_ambiguous_without_time_refuses(self):
+        # Spread/total tickers carry no HHMM; two same-day same-matchup events
+        # can't be disambiguated -> refuse (return None) rather than guess.
+        market = {
+            "ticker": "KXNHLSPREAD-26JUN09CARVGK-VGK2",
+            "rules_primary": ("If Vegas wins by over 2.5 goals in the Carolina "
+                              "at Vegas professional hockey game originally "
+                              "scheduled for Jun 9, 2026, then the market "
+                              "resolves to Yes."),
+        }
+        a = _h2h_event("Carolina Hurricanes", "Vegas Golden Knights",
+                       2.1, 1.7, "2026-06-09T23:00:00Z")
+        b = _h2h_event("Carolina Hurricanes", "Vegas Golden Knights",
+                       2.0, 1.8, "2026-06-09T20:00:00Z")
+        assert find_market_event(market, [a, b]) is None
+
+
+class TestDetectEdgeGameContamination:
+    """End-to-end regression: the scenario that produced the bogus +15% /
+    +34.7% MLB edges must now yield no edge."""
+
+    def test_wrong_opponent_game_yields_no_edge(self):
+        market = _mlb_game_market("Washington", "Arizona", "Arizona",
+                                  "KXMLBGAME-26JUN052140WSHAZ-AZ")
+        # Feed only has Arizona-vs-Dodgers (Arizona a heavy dog) — exactly the
+        # data that fabricated a huge NO-Arizona edge before the fix.
+        feed = [_h2h_event("Los Angeles Dodgers", "Arizona Diamondbacks",
+                           1.6, 2.5, "2026-06-05T01:41:00Z")]
+        assert detect_edge_game(market, feed) is None
+
+    def test_correct_game_still_produces_opportunity(self):
+        market = _mlb_game_market("Washington", "Arizona", "Arizona",
+                                  "KXMLBGAME-26JUN052140WSHAZ-AZ",
+                                  yes_ask="0.40", no_ask="0.62")
+        # Arizona ~54% fair (home favorite vs Washington); yes_ask 0.40 -> real
+        # positive YES edge against the CORRECT opponent.
+        feed = [_h2h_event("Washington Nationals", "Arizona Diamondbacks",
+                           2.0, 1.85, "2026-06-06T01:40:00Z")]
+        opp = detect_edge_game(market, feed)
+        assert opp is not None
+        assert 0.45 < opp.fair_value < 0.65   # sane, not a fabricated extreme
+        assert opp.edge > 0
+
+
+class TestConsensusBeltAndSuspenders:
+    """Fix B: consensus_* must refuse to pool one subject across >1 event,
+    even if a caller forgets to pre-scope via find_market_event."""
+
+    def test_fair_value_refuses_multi_event(self):
+        feed = [
+            _h2h_event("Los Angeles Dodgers", "Arizona Diamondbacks",
+                       1.6, 2.5, "2026-06-05T01:41:00Z"),
+            _h2h_event("Washington Nationals", "Arizona Diamondbacks",
+                       2.0, 1.85, "2026-06-06T01:40:00Z"),
+        ]
+        # "Arizona" matches both events -> refuse.
+        assert consensus_fair_value(feed, "Arizona") is None
+
+    def test_fair_value_single_event_ok(self):
+        feed = [_h2h_event("Washington Nationals", "Arizona Diamondbacks",
+                           2.0, 1.85, "2026-06-06T01:40:00Z")]
+        result = consensus_fair_value(feed, "Arizona")
+        assert result is not None
+        fair, details = result
+        assert details["n_books"] == 2
+        assert 0.4 < fair < 0.7
+
+    def test_totals_refuses_multi_event(self):
+        # consensus_total_prob keys only on "Over" (no team match), so two
+        # events would silently blend without the guard.
+        feed = [
+            _totals_event("A", "B", 8.5, 1.9, "2026-06-05T01:41:00Z"),
+            _totals_event("C", "D", 9.5, 1.9, "2026-06-06T01:40:00Z"),
+        ]
+        assert consensus_total_prob(feed, 9.0, ticker="KXMLBTOTAL-x") is None
