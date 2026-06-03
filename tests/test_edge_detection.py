@@ -624,3 +624,54 @@ class TestConsensusBeltAndSuspenders:
             _totals_event("C", "D", 9.5, 1.9, "2026-06-06T01:40:00Z"),
         ]
         assert consensus_total_prob(feed, 9.0, ticker="KXMLBTOTAL-x") is None
+
+
+class TestThreeWayDevig:
+    """Soccer h2h is 3-way (home/draw/away). consensus_fair_value must treat a
+    Kalshi 'team to win?' binary as the team's devigged WIN share — draw and
+    opponent-win both belong to the NO side. Previously 3-outcome markets were
+    skipped entirely (len != 2), so soccer produced no edges at all."""
+
+    def _soccer_event(self, home, away, home_p, draw_p, away_p,
+                      commence="2026-08-16T14:00:00Z"):
+        return {
+            "home_team": home,
+            "away_team": away,
+            "commence_time": commence,
+            "bookmakers": [{
+                "key": "pinnacle",
+                "markets": [{
+                    "key": "h2h",
+                    "outcomes": [
+                        {"name": home, "price": home_p},
+                        {"name": away, "price": away_p},
+                        {"name": "Draw", "price": draw_p},
+                    ],
+                }],
+            }],
+        }
+
+    def test_three_way_uses_win_share(self):
+        # implied: Chelsea 1/2.5=.4000, Arsenal 1/3.0=.3333, Draw 1/3.2=.3125
+        # total .8458... wait -> sum=1.0458; Arsenal share = .3333/1.0458=.3187
+        ev = self._soccer_event("Chelsea", "Arsenal", 2.5, 3.2, 3.0)
+        result = consensus_fair_value([ev], "Arsenal")
+        assert result is not None
+        fair, details = result
+        assert fair == pytest.approx(0.3187, abs=0.002)
+        assert details["n_books"] == 1
+        # Draw must not be mistaken for the team.
+        assert 0.0 < fair < 0.5
+
+    def test_three_way_draw_not_matched_as_team(self):
+        # A team that doesn't appear returns None, not the Draw outcome.
+        ev = self._soccer_event("Chelsea", "Arsenal", 2.5, 3.2, 3.0)
+        assert consensus_fair_value([ev], "Liverpool") is None
+
+    def test_two_way_share_unchanged(self):
+        # Regression: the proportional devig must match the old 2-way result.
+        # implied: AZ 1/1.85=.5405, WSH 1/2.0=.5000; total 1.0405; AZ=.5195
+        ev = _h2h_event("Washington Nationals", "Arizona Diamondbacks",
+                        2.0, 1.85, "2026-06-06T01:40:00Z")
+        fair, _ = consensus_fair_value([ev], "Arizona")
+        assert fair == pytest.approx(0.5195, abs=0.002)

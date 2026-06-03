@@ -352,10 +352,15 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
                 if market["key"] != "h2h":
                     continue
                 outcomes = market.get("outcomes", [])
-                if len(outcomes) != 2:
+                # 2-way (most sports) or 3-way (soccer: home/draw/away). For a
+                # 3-way market the Kalshi "team to win?" binary resolves YES only
+                # on a win, so the fair YES probability is the team's devigged
+                # win share — draw and opponent-win both fall to the NO side.
+                if len(outcomes) not in (2, 3):
                     continue
 
-                # Find if this team matches
+                # Find if this team matches (the "Draw" outcome never matches a
+                # team name, so a 3-way market resolves to the right side).
                 matched_idx = None
                 for i, o in enumerate(outcomes):
                     if _team_match(o["name"], team_name):
@@ -366,10 +371,14 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
                     continue
 
                 matched_event_ids.add(ev_idx)
-                other_idx = 1 - matched_idx
-                prob_team = implied_prob(outcomes[matched_idx]["price"])
-                prob_other = implied_prob(outcomes[other_idx]["price"])
-                fair_team, _ = devig_two_way(prob_team, prob_other)
+                # Proportional devig across all outcomes (identical to
+                # devig_two_way for the 2-way case; extends to 3-way).
+                implieds = [implied_prob(o["price"]) for o in outcomes]
+                total = sum(implieds)
+                if total <= 0:
+                    continue
+                prob_team = implieds[matched_idx]
+                fair_team = prob_team / total
                 fair_probs.append(fair_team)
                 book_keys.append(bookmaker["key"])
                 book_details[bookmaker["key"]] = {
