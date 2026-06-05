@@ -11,6 +11,8 @@ from edge_detector import (
     _adjust_confidence_with_stats,
     _get_margin_stdev,
     _get_total_stdev,
+    _match_team_outcome,
+    _team_match_strength,
     consensus_fair_value,
     consensus_total_prob,
     detect_edge_game,
@@ -591,6 +593,66 @@ class TestDetectEdgeGameContamination:
         assert opp is not None
         assert 0.45 < opp.fair_value < 0.65   # sane, not a fabricated extreme
         assert opp.edge > 0
+
+
+class TestSameCityDisambiguation:
+    """2026-06-05: Kalshi truncates sub-titles, so a Dodgers market reads
+    "Los Angeles D". The old first-match-wins loop + the weak city-word
+    fallback (kalshi_words[0] == "los") matched BOTH LA teams, so the market
+    silently took whichever team the odds feed listed first (the away Angels) —
+    inverting the favorite and fabricating a +27.9% phantom edge on the
+    Dodgers-lose side. Matching now ranks by strength and refuses on a tie."""
+
+    def test_strength_substring_outranks_city_word(self):
+        # "Los Angeles D" is a prefix of "...Dodgers" (tier 3) but only shares
+        # the city word with "...Angels" (tier 1).
+        assert _team_match_strength("Los Angeles Dodgers", "Los Angeles D") == 3
+        assert _team_match_strength("Los Angeles Angels", "Los Angeles D") == 1
+        assert _team_match_strength("Los Angeles Angels", "Los Angeles A") == 3
+        assert _team_match_strength("Los Angeles Dodgers", "Los Angeles A") == 1
+
+    def test_match_outcome_picks_unique_best(self):
+        outcomes = [
+            {"name": "Los Angeles Angels"},   # listed first (away)
+            {"name": "Los Angeles Dodgers"},
+        ]
+        idx, ambiguous = _match_team_outcome(outcomes, "Los Angeles D")
+        assert (idx, ambiguous) == (1, False)   # Dodgers, not the first-listed
+        idx, ambiguous = _match_team_outcome(outcomes, "Los Angeles A")
+        assert (idx, ambiguous) == (0, False)
+
+    def test_match_outcome_city_only_is_ambiguous(self):
+        # A bare city reference matches both LA teams equally -> refuse.
+        outcomes = [
+            {"name": "Los Angeles Angels"},
+            {"name": "Los Angeles Dodgers"},
+        ]
+        idx, ambiguous = _match_team_outcome(outcomes, "Los Angeles")
+        assert idx is None and ambiguous is True
+
+    def test_consensus_resolves_correct_la_team(self):
+        # Angels @ Dodgers: away dog 2.64, home favorite 1.51.
+        ev = _h2h_event("Los Angeles Angels", "Los Angeles Dodgers",
+                        2.64, 1.51, "2026-06-06T02:11:00Z")
+        fair_dodgers, _ = consensus_fair_value([ev], "Los Angeles D")
+        fair_angels, _ = consensus_fair_value([ev], "Los Angeles A")
+        assert fair_dodgers > 0.6          # the favorite, not the dog
+        assert fair_angels < 0.4
+        assert fair_dodgers + fair_angels == pytest.approx(1.0, abs=0.001)
+
+    def test_detect_edge_no_phantom_on_truncated_favorite(self):
+        # Dodgers-win market (YES priced 0.65) against the real same-city game.
+        # Before the fix this produced a bogus +27.9% NO ("Dodgers lose") edge.
+        market = _mlb_game_market(
+            "Los Angeles Angels", "Los Angeles Dodgers", "Los Angeles D",
+            "KXMLBGAME-26JUN052210LAALAD-LAD", yes_ask="0.65", no_ask="0.36")
+        feed = [_h2h_event("Los Angeles Angels", "Los Angeles Dodgers",
+                           2.64, 1.51, "2026-06-06T02:11:00Z")]
+        opp = detect_edge_game(market, feed)
+        assert opp is not None
+        # Fair must reflect the Dodgers' ~0.64 win prob, so neither side shows a
+        # large edge against an efficiently-priced market.
+        assert abs(opp.edge) < 0.05
 
 
 class TestConsensusBeltAndSuspenders:

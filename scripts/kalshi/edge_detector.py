@@ -359,14 +359,19 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
                 if len(outcomes) not in (2, 3):
                     continue
 
-                # Find if this team matches (the "Draw" outcome never matches a
-                # team name, so a 3-way market resolves to the right side).
-                matched_idx = None
-                for i, o in enumerate(outcomes):
-                    if _team_match(o["name"], team_name):
-                        matched_idx = i
-                        break
-
+                # Pick the unique best-matching outcome (the "Draw" outcome
+                # never matches a team name, so a 3-way market resolves to the
+                # right side). Ranking by match strength + tie-refusal stops a
+                # truncated same-city name ("Los Angeles D") from resolving to
+                # whichever team the feed lists first.
+                matched_idx, ambiguous = _match_team_outcome(outcomes, team_name)
+                if ambiguous:
+                    log.warning(
+                        "consensus_fair_value: '%s' matches multiple outcomes "
+                        "%s — ambiguous side, emitting no edge",
+                        team_name, [o.get("name") for o in outcomes],
+                    )
+                    return None
                 if matched_idx is None:
                     continue
 
@@ -480,17 +485,29 @@ def consensus_spread_prob(events: list, team_name: str, strike: float,
             for market in bookmaker.get("markets", []):
                 if market["key"] != "spreads":
                     continue
-                for o in market.get("outcomes", []):
-                    if _team_match(o["name"], team_name):
-                        matched_event_ids.add(ev_idx)
-                        book_spread = o.get("point", 0)
-                        book_odds = o.get("price", 2.0)
-                        spread_data.append({
-                            "book": bookmaker["key"],
-                            "spread": book_spread,
-                            "odds": book_odds,
-                            "implied": round(implied_prob(book_odds), 4),
-                        })
+                # Unique best-matching outcome only — never pool both teams'
+                # spreads when a truncated same-city name matches both sides.
+                outcomes = market.get("outcomes", [])
+                idx, ambiguous = _match_team_outcome(outcomes, team_name)
+                if ambiguous:
+                    log.warning(
+                        "consensus_spread_prob: '%s' matches multiple outcomes "
+                        "%s — ambiguous side, emitting no edge",
+                        team_name, [o.get("name") for o in outcomes],
+                    )
+                    return None
+                if idx is None:
+                    continue
+                o = outcomes[idx]
+                matched_event_ids.add(ev_idx)
+                book_spread = o.get("point", 0)
+                book_odds = o.get("price", 2.0)
+                spread_data.append({
+                    "book": bookmaker["key"],
+                    "spread": book_spread,
+                    "odds": book_odds,
+                    "implied": round(implied_prob(book_odds), 4),
+                })
 
     if not spread_data:
         return None
@@ -673,29 +690,70 @@ TEAM_ALIASES = {
 }
 
 
-def _team_match(odds_api_name: str, kalshi_name: str) -> bool:
-    """Fuzzy match between Odds API team name and Kalshi team reference."""
+def _team_match_strength(odds_api_name: str, kalshi_name: str) -> int:
+    """Score how strongly a Kalshi team reference matches an Odds API name.
+
+    0 = no match; higher = stronger. The ranking lets callers disambiguate when
+    a *truncated* Kalshi name loosely matches both teams in a same-city game.
+    Kalshi truncates its sub-titles, so a Dodgers market reads "Los Angeles D";
+    the weak city-word fallback (tier 1) then matches BOTH "Los Angeles Dodgers"
+    and "Los Angeles Angels". Because substring (tier 3) outranks the city-word
+    fallback, the correct team wins, and _match_team_outcome refuses on a tie.
+    """
     odds_lower = odds_api_name.lower().strip()
     kalshi_lower = kalshi_name.lower().strip()
 
-    # Direct substring match
+    # Tier 3 — one name contains the other. Covers truncated nicknames:
+    # "los angeles d" is a prefix of "los angeles dodgers".
     if kalshi_lower in odds_lower or odds_lower in kalshi_lower:
-        return True
+        return 3
 
-    # Check aliases
+    # Tier 2 — alias table (e.g. "ny yankees" <-> "new york yankees").
     for alias_key, alias_list in TEAM_ALIASES.items():
         if kalshi_lower.startswith(alias_key) or alias_key.startswith(kalshi_lower):
             if any(a in odds_lower or odds_lower in a for a in alias_list):
-                return True
+                return 2
 
-    # Last-word match (city name to full name)
     kalshi_words = kalshi_lower.split()
     odds_words = odds_lower.split()
     if kalshi_words and odds_words:
-        if kalshi_words[0] in odds_words or kalshi_words[-1] in odds_words:
-            return True
+        # Tier 2 — nickname (last word) shared: "dodgers" in "los angeles dodgers".
+        if kalshi_words[-1] in odds_words:
+            return 2
+        # Tier 1 — only the city/first word matches. Ambiguous for same-city
+        # matchups (both LA teams share "los"); kept as a last resort so a
+        # full-city reference still hits, but ranked below real nickname matches.
+        if kalshi_words[0] in odds_words:
+            return 1
 
-    return False
+    return 0
+
+
+def _team_match(odds_api_name: str, kalshi_name: str) -> bool:
+    """Fuzzy match between Odds API team name and Kalshi team reference."""
+    return _team_match_strength(odds_api_name, kalshi_name) > 0
+
+
+def _match_team_outcome(outcomes: list, team_name: str) -> tuple[int | None, bool]:
+    """Pick the single outcome that best matches team_name.
+
+    Returns (index, ambiguous). index is None when nothing matches; ambiguous
+    is True when >=2 outcomes tie at the top match strength. On a tie the caller
+    emits no edge rather than guess which side — this is what stops a truncated
+    "Los Angeles D" reference from silently resolving to whichever LA team the
+    odds feed happened to list first (which inverted the favorite and
+    fabricated a large phantom edge).
+    """
+    scored = [(_team_match_strength(o.get("name", ""), team_name), i)
+              for i, o in enumerate(outcomes)]
+    scored = [(s, i) for s, i in scored if s > 0]
+    if not scored:
+        return None, False
+    best = max(s for s, _ in scored)
+    top = [i for s, i in scored if s == best]
+    if len(top) > 1:
+        return None, True
+    return top[0], False
 
 
 # ── Extract Info from Kalshi Market ───────────────────────────────────────────
