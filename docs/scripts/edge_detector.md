@@ -80,6 +80,7 @@ python scripts/kalshi/edge_detector.py detail KXNBAGAME-26MAR25LALBOS-LAL
    - Sharp books (Pinnacle, LowVig) weighted 3x
    - Standard books weighted 1x
    - Soccer h2h is 3-way (home/draw/away); the "team to win?" binary takes the team's devigged win share, so a draw falls to the NO side. The three `consensus_*` functions also refuse to pool a subject across more than one event (belt-and-suspenders against the matching bug above).
+   - **Within-event side selection is strength-ranked and tie-refused** (2026-06-05). Kalshi truncates sub-titles, so a Dodgers market reads `"Los Angeles D"`. The old first-match-wins loop plus a weak city-word fallback matched **both** teams in a same-city game, so the market silently took whichever side the odds feed listed first — inverting the favorite and fabricating a +27.9% phantom edge on the "Dodgers lose" side. `_team_match_strength` now ranks candidates (substring/alias > nickname > bare-city), and `_match_team_outcome` picks the unique strongest match, refusing (no edge) on a genuine tie. Applied to both `consensus_fair_value` (moneyline) and `consensus_spread_prob` (which previously *pooled* both teams' spreads when ambiguous).
 5. **Team stats adjustment** -- ESPN/NHL/MLB APIs for win%, recent form. Supports NBA, NHL, MLB, NFL, NCAA, MLS
 6. **Weather adjustment** -- NWS forecasts for NFL/MLB outdoor venues affect totals
 7. **Sharp money signal** -- ESPN line movement detection

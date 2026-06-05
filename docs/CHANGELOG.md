@@ -2,6 +2,35 @@
 
 ---
 
+## 2026-06-05 -- Same-City Team-Match Inversion Fix (phantom NO-side edge)
+
+### Why
+
+A spot-check of why zero wagers had been placed for several days (Jun 2–5) confirmed the quiet stretch was *correct* — a thin early-June calendar (MLB plus two Finals series whose future games aren't priced yet) combined with the per-sport 0.08 edge floors and the `--min-bets 3` batch gate legitimately produces no qualifying batches. **But** the check surfaced the day's top-ranked opportunity (composite 8.3): a **+27.9% edge on "LA Dodgers lose"** in the Jun 5 Angels @ Dodgers game. That edge was entirely fabricated.
+
+### Root cause
+
+Kalshi truncates its market sub-titles, so the Dodgers-win market's subject reads `"Los Angeles D"` (not "Dodgers"). `_team_match` matched that against the odds event's two outcomes via a **first-match-wins** loop, and its weakest fallback rule (`kalshi_words[0]` — the city word "los") matched **both** "Los Angeles Angels" and "Los Angeles Dodgers". The loop took whichever outcome the odds feed listed first — the away Angels — so the Dodgers market was priced with the **Angels'** win probability (0.36), inverting the favorite. The "Dodgers lose" NO side (market $0.36) was then compared against `1 − 0.36 = 0.64`, manufacturing a +27.9% edge where the true edge is ~0%. Any same-city matchup where the nickname truncates was exposed; the team listed **second** in the feed was the one corrupted.
+
+This is **not** the 2026-06-03 contamination bug — the correct game and date matched fine. It is wrong *side selection within the right event*, which that fix didn't cover.
+
+### What landed
+
+- **Strength-ranked, tie-refused team matching** (`scripts/kalshi/edge_detector.py`). New `_team_match_strength()` scores candidates: substring/alias (tier 3/2) > shared nickname (tier 2) > bare city word (tier 1). New `_match_team_outcome()` picks the **unique** strongest outcome and returns "ambiguous → no edge" on a genuine tie (e.g. a bare-city reference). `_team_match()` is preserved as `strength > 0`, so all other callers are byte-for-byte unchanged.
+- **Applied to both team-keyed consensus functions** — `consensus_fair_value` (moneyline) and `consensus_spread_prob` (which was *worse*: it pooled **both** teams' spreads into one median when ambiguous). `consensus_total_prob` takes no team and was already safe.
+- **Verified live** — the Dodgers market now prices at fair 0.639 (the actual favorite), edge collapses from +27.9% to ~0%; the phantom pick is gone from the scan.
+- **Tests** — +5 regression tests (`TestSameCityDisambiguation`): strength ordering, unique-pick, city-only ambiguity refusal, correct LA-team resolution, and the end-to-end no-phantom-edge assertion. 403 → **408 passing**.
+
+### Separate finding (not changed — flagged for decision)
+
+The same spot-check found a **stale-offshore-line** weakness, unrelated to the matching bug: in Jun 5 Tampa Bay @ Miami, five sharp books had Miami devigged at ~0.20–0.28 while four offshore books (betonlineag, lowvig, mybookieag, betus) carried stale ~0.46 lines. The weighted median landed on the high cluster (fair 0.46, range 0.20→0.47), producing a +24.7% edge driven by book disagreement rather than value. Moneyline consensus has no disagreement penalty beyond withholding the "high" tier. Candidate future work: reject or down-weight when `max_fair − min_fair` is large.
+
+### Files
+
+`scripts/kalshi/edge_detector.py`, `tests/test_edge_detection.py`, `docs/scripts/edge_detector.md`, `docs/CHANGELOG.md`, plus memory (`project_edge_matching_validation.md`).
+
+---
+
 ## 2026-06-03 -- Edge-Matching Contamination Fix, Soccer 3-Way, Test-Isolation Guard
 
 ### Why
