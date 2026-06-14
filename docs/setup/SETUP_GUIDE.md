@@ -249,8 +249,9 @@ MAX_OPEN_POSITIONS=10           # Max 10 concurrent positions
 MAX_PER_EVENT=2                 # Max 2 positions per game
 MAX_BET_RATIO=3.0               # Max single bet as multiple of batch median
 MIN_EDGE_THRESHOLD=0.03         # Global minimum edge (fallback)
-MIN_EDGE_THRESHOLD_NBA=0.12     # Per-sport override (R14, 2026-04-24 — worst Brier)
-MIN_EDGE_THRESHOLD_NCAAB=0.10   # Per-sport override
+MIN_EDGE_THRESHOLD_MLB=0.04     # Per-sport override (2026-06-14, lowered from 0.06)
+MIN_EDGE_THRESHOLD_NBA=0.04     # Per-sport override (2026-06-14, lowered from 0.06)
+MIN_EDGE_THRESHOLD_NCAAB=0.04   # Per-sport override (2026-06-14, lowered from 0.06)
 MIN_COMPOSITE_SCORE=6.0         # Minimum opportunity score (0-10)
 KELLY_EDGE_CAP=0.15             # Soft-cap edge for Kelly sizing
 KELLY_EDGE_DECAY=0.5            # Decay factor above the cap
@@ -460,7 +461,7 @@ Every configured key is either invalid or has hit its monthly quota (free tier =
 
 - Check `--date` — if no games today, try `--date tomorrow`
 - Check `--filter` — some sports are seasonal
-- Minimum edge is 3% global, 12% for NBA, 10% for NCAAB (per-sport floors set 2026-04-18 from calibration; NBA raised 0.08 → 0.12 in R14 on 2026-04-24 after NBA Brier 0.3306 — worst-calibrated sport). Low-edge days happen.
+- Minimum edge is 3% global, 4% for MLB/NBA/NCAAB (per-sport floors; lowered 0.06 → 0.04 on 2026-06-14 after the 06-03/06-05 edge-matching fixes de-inflated edges — the higher floor had been double-correcting the model's over-claim). Low-edge days still happen.
 - Gate 7 rejects same-matchup bets within the per-sport window (MLB/NHL 72h via R9, others 48h global). Set `SERIES_DEDUP_HOURS=0` (and any per-sport `SERIES_DEDUP_HOURS_<SPORT>=0`) to disable, or wait the window out.
 
 ---

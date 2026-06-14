@@ -72,8 +72,8 @@ Every order must clear gates 1-7 (including 3.5, 4.5, 4.6, 4.7). Gates 8-9 cap s
 |:-:|:-----|:-------|
 | 1 | Daily loss limit | Reject at -$250 |
 | 2 | Position count | Reject at 50 open |
-| 3 | Edge threshold | Reject below floor (3% global; 12% NBA; 10% NCAAB) |
-| 3.5 | Market price floor | Reject bets priced below `MIN_MARKET_PRICE` (default $0.10 — lottery-ticket filter) |
+| 3 | Edge threshold | Reject below floor (3% global; 4% MLB/NBA/NCAAB) |
+| 3.5 | Market price floor | Reject bets priced below `MIN_MARKET_PRICE` (default $0.06 — lottery-ticket filter) |
 | 4 | Composite score | Reject below 6.0/10 |
 | 4.5 | Min confidence | Reject below `MIN_CONFIDENCE` (default medium) |
 | 4.6 | NO-side favorite | Reject NO bets <25¢ unless edge ≥25% AND confidence=high |
@@ -93,7 +93,7 @@ Every order must clear gates 1-7 (including 3.5, 4.5, 4.6, 4.7). Gates 8-9 cap s
 
 - **Gate 3.5 — `MIN_MARKET_PRICE` (R7, 2026-04-22):** sub-10¢ bets ran 1W-3L while the model claimed "+50% edge" on 8-10¢ longshots.
 - **Gates 4.5 / 4.6 — `MIN_CONFIDENCE`, `NO_SIDE_*` (2026-04-21):** low-confidence bets hit -105% ROI and all 13 high-edge losers were NO-side on heavy favorites. NO bets below `NO_SIDE_KELLY_PRICE_FLOOR` (35¢) are additionally sized at half-Kelly.
-- **NBA edge floor 0.08 → 0.12 (R14, 2026-04-24):** the 30-day calibration showed NBA Brier 0.3306 — worst of all sports.
+- **Per-sport edge floors → 0.04 (2026-06-14):** MLB/NBA/NCAAB ran a higher floor (NBA Brier 0.3306 was worst-of-sport) to offset a model that over-claimed ~15% edge. The 06-03/06-05 edge-matching fixes removed that over-claim at the source, so the floor was lowered 0.06 → 0.04 to stop double-correcting and re-admit honest 3-6% edges.
 - **One-way confidence bumps (R13, 2026-04-24):** team-stats, rest/B2B, and sharp-money signals can *drop* a tier but no longer raise one — upward bumps tracked inflated claimed edge, not better outcomes.
 - **Gate 4.7 — `ALLOW_PREDICTION_BETS` (R25, 2026-04-24):** an audit found all 6 prediction modules (crypto/weather/spx/mentions/companies/politics) cached stale data with no TTL and produced nonsense fair values; blocked by default until rebuilt.
 - **Cross-category dedup (R8, 2026-04-29):** opt-in `CROSS_CATEGORY_DEDUP_<SPORT>=true` collapses ML+Total+Spread on the same game to the highest-composite row *before* gating. Default off — cross-category correlation varies by sport.
