@@ -238,7 +238,7 @@ Every order must pass gates 1-7 (including 4.5 and 4.6) before execution. Gates 
 | 1 | **Daily loss limit** | Sum of realized losses today | **Reject** if losses ≥ `MAX_DAILY_LOSS` |
 | 2 | **Position count** | Number of open positions | **Reject** if count ≥ `MAX_OPEN_POSITIONS` |
 | 3 | **Edge threshold** | Calculated edge for this opportunity | **Reject** if edge < per-sport floor (or `MIN_EDGE_THRESHOLD` global fallback) |
-| 3.5 | **Market price floor (R7)** | Contract ask price for this opportunity | **Reject** if price < `MIN_MARKET_PRICE` (default $0.10 — lottery-ticket filter, no edge/confidence exception) |
+| 3.5 | **Market price floor (R7)** | Contract ask price for this opportunity | **Reject** if price < `MIN_MARKET_PRICE` (default $0.06 — lottery-ticket filter, no edge/confidence exception) |
 | 4 | **Composite score** | Weighted score (edge + confidence + liquidity + time) | **Reject** if score < `MIN_COMPOSITE_SCORE` |
 | 4.5 | **Min confidence (R3)** | Opportunity confidence label (low/medium/high) | **Reject** if confidence below `MIN_CONFIDENCE` |
 | 4.6 | **NO-side favorite guard (R1)** | NO bet on a heavy favorite (price < `NO_SIDE_FAVORITE_THRESHOLD`) | **Reject** unless edge ≥ `NO_SIDE_MIN_EDGE` AND confidence=high |
@@ -268,8 +268,8 @@ In addition, NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` (default $0.35) ar
 | `MAX_OPEN_POSITIONS` | 10 | Maximum concurrent open positions |
 | `MAX_PER_EVENT` | 3 | Maximum positions on the same game/event |
 | `MIN_EDGE_THRESHOLD` | 3% | Global minimum edge required to consider a bet |
-| `MIN_EDGE_THRESHOLD_<SPORT>` | (optional) | Per-sport override of the global floor (e.g., `MIN_EDGE_THRESHOLD_NBA=0.12`). Supported: MLB, NBA, NHL, NFL, NCAAB, NCAAF, MLS, SOCCER |
-| `MIN_MARKET_PRICE` | $0.10 | Gate 3.5 (R7): reject bets priced below this. Hard floor with no edge/confidence exception. Set to 0 to disable and keep all longshots. |
+| `MIN_EDGE_THRESHOLD_<SPORT>` | (optional) | Per-sport override of the global floor (e.g., `MIN_EDGE_THRESHOLD_MLB=0.04`). Live: MLB/NBA/NCAAB=0.04 (2026-06-14). Supported: MLB, NBA, NHL, NFL, NCAAB, NCAAF, MLS, SOCCER |
+| `MIN_MARKET_PRICE` | $0.06 | Gate 3.5 (R7): reject bets priced below this. Hard floor with no edge/confidence exception. Set to 0 to disable and keep all longshots. |
 | `MIN_COMPOSITE_SCORE` | 6.0 | Minimum composite opportunity score |
 | `MIN_CONFIDENCE` | medium | Reject below this confidence label (low/medium/high) — Gate 4.5 |
 | `NO_SIDE_FAVORITE_THRESHOLD` | 0.25 | Gate 4.6: NO bets below this price need elevated edge + confidence |

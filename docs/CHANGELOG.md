@@ -2,6 +2,31 @@
 
 ---
 
+## 2026-06-14 -- Per-Sport Edge Floors Lowered 0.06 → 0.04 + Doc-Drift Sweep
+
+### Why
+
+User reported MLB wagers had dried up to ~0/day across the schedulers since the 06-03 fixes. June is almost entirely an MLB slate (NBA/NHL seasons winding down), so a throttled MLB made the whole pipeline look dead. Diagnosis confirmed MLB games are still found and matched correctly — the binding constraint is the **edge gate**, not confidence or score.
+
+### Root cause — a double-correction
+
+Two changes landed together on 2026-06-03/06-05 and stacked:
+
+1. **Edge-matching correctness fixes** (opponent+date validation, strength-rank team matching) **de-inflated** MLB edges. The 06-03 report had phantom edges of +15% and +31%; honest post-fix edges now cluster at **3–6%** (live repro on 06-14 showed real MLB edges of 4.0%, 4.3%, 5.3%, ~8%).
+2. **The per-sport edge floor** was set high *because* "the model over-claims ~15% edge" — but that over-claim **was** the matching bug, now fixed upstream. The floor was correcting the same error a second time, rejecting the honest 3–6% edges that remained.
+
+### What landed
+
+- **Lowered `MIN_EDGE_THRESHOLD_MLB`, `_NBA`, `_NCAAB` from 0.06 → 0.04** (live `.env`). Re-admits honest 4–5% edges. Running as a **2–4 week experiment** — recalibrate on fresh post-fix data (weekly `Calibration` + monthly run accumulate it) and tune from there. If 4% loses money, tighten back up on real evidence rather than the contaminated pre-fix numbers.
+- **Doc-drift sweep.** Discovered the docs had been citing values that were never even the live 0.06: CLAUDE.md said NBA/NCAAB/MLB **0.08** and `MIN_MARKET_PRICE` **$0.10**; ARCHITECTURE.md / SETUP_GUIDE.md / CLOUD.md / kalshi_executor.md / the edge-radar skill variously cited NBA **0.12**, NCAAB **0.10**. Production had quietly been running 0.06. Standardized every current-state reference to the live values: **per-sport 0.04**, **`MIN_MARKET_PRICE` $0.06**. Historical CHANGELOG entries (R14, R7) left intact as record.
+- **Webapp** — `scan_page.py` Min Edge help tooltip corrected (it hardcoded "NBA/NCAAB/MLB 8%" + "$0.10 floor"; the rest of the webapp reads floors dynamically from `.env` via `app.config`, so no logic change was needed).
+
+### Files
+
+`.env` (live floors, gitignored), `CLAUDE.md` (commit `3cf78b8`), `webapp/views/scan_page.py` (commit `1335267`), `docs/ARCHITECTURE.md`, `docs/setup/SETUP_GUIDE.md`, `docs/web-app/CLOUD.md`, `docs/scripts/kalshi_executor.md`, `.claude/skills/edge-radar/SKILL.md`, `docs/CHANGELOG.md`, plus memory (`project_edge_matching_validation.md`).
+
+---
+
 ## 2026-06-05 -- Same-City Team-Match Inversion Fix (phantom NO-side edge)
 
 ### Why
