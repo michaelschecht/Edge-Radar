@@ -1378,3 +1378,84 @@ class TestPreflightGateStatus:
         assert result.risk_approval.startswith("REJECTED")
         assert "prediction_market_disabled" in result.risk_approval
         assert "crypto" in result.risk_approval
+
+
+class TestReloadRiskConfig:
+    """Config-reload seam (2026-06-14): a long-running host (the Streamlit
+    webapp) snapshots the risk-gate globals at import and would keep stale
+    gates after a `.env`/Secrets edit until restarted — silently approving
+    sub-floor bets. `reload_risk_config()` re-reads config into the module
+    globals on demand. The CLI (fresh process per run) and the monkey-patch
+    seam used by every other test here are deliberately untouched.
+    """
+
+    # Every config-derived module global reload_risk_config() refreshes.
+    _NAMES = (
+        "MAX_BET_SIZE", "UNIT_SIZE", "MAX_DAILY_LOSS", "MAX_OPEN_POSITIONS",
+        "MIN_EDGE_THRESHOLD", "KELLY_FRACTION", "MAX_PER_EVENT", "MAX_BET_RATIO",
+        "MIN_COMPOSITE_SCORE", "KELLY_EDGE_CAP", "KELLY_EDGE_DECAY",
+        "SERIES_DEDUP_HOURS", "MIN_MARKET_PRICE", "RESTING_ORDER_MAX_HOURS",
+        "MIN_CONFIDENCE", "NO_SIDE_FAVORITE_THRESHOLD", "NO_SIDE_MIN_EDGE",
+        "NO_SIDE_KELLY_PRICE_FLOOR", "NO_SIDE_KELLY_MULTIPLIER",
+        "ALLOW_PREDICTION_BETS", "CROSS_CATEGORY_DEDUP",
+        "_PER_SPORT_MIN_EDGE", "_PER_SPORT_SERIES_DEDUP",
+        "_PER_SPORT_CROSS_CATEGORY_DEDUP",
+    )
+
+    def _snapshot(self, ke):
+        snap = {n: getattr(ke, n) for n in self._NAMES}
+        # Copy the mutable per-sport dicts so restore is independent.
+        for n in ("_PER_SPORT_MIN_EDGE", "_PER_SPORT_SERIES_DEDUP",
+                  "_PER_SPORT_CROSS_CATEGORY_DEDUP"):
+            snap[n] = dict(snap[n])
+        return snap
+
+    def _restore(self, ke, snap):
+        from app.config import reset_config
+        for name, value in snap.items():
+            setattr(ke, name, value)
+        reset_config()  # drop the memoized Config primed from the simulated env
+
+    def test_reload_picks_up_env_edits(self, monkeypatch):
+        import kalshi_executor as ke
+        # Don't let the real .env file override the simulated edits.
+        monkeypatch.setattr(ke, "load_dotenv", lambda *a, **k: None)
+        snap = self._snapshot(ke)
+        try:
+            monkeypatch.setenv("MIN_MARKET_PRICE", "0.20")
+            monkeypatch.setenv("MIN_EDGE_THRESHOLD_MLB", "0.09")
+            monkeypatch.setenv("MIN_CONFIDENCE", "high")
+            ke.reload_risk_config()
+            assert ke.MIN_MARKET_PRICE == 0.20
+            assert ke._PER_SPORT_MIN_EDGE.get("mlb") == 0.09
+            assert ke.MIN_CONFIDENCE == "high"
+        finally:
+            self._restore(ke, snap)
+
+    def test_reload_idempotent_without_edits(self, monkeypatch):
+        import kalshi_executor as ke
+        monkeypatch.setattr(ke, "load_dotenv", lambda *a, **k: None)
+        snap = self._snapshot(ke)
+        try:
+            before = ke.MIN_MARKET_PRICE
+            ke.reload_risk_config()
+            assert ke.MIN_MARKET_PRICE == before
+        finally:
+            self._restore(ke, snap)
+
+    def test_reload_raised_floor_rejects_cheap_bet(self, monkeypatch):
+        # End-to-end: the bug we fixed. A $0.05 bet that would clear a low floor
+        # is rejected by size_order once reload picks up a raised MIN_MARKET_PRICE.
+        import kalshi_executor as ke
+        monkeypatch.setattr(ke, "load_dotenv", lambda *a, **k: None)
+        snap = self._snapshot(ke)
+        try:
+            monkeypatch.setenv("MIN_MARKET_PRICE", "0.25")
+            ke.reload_risk_config()
+            opp = _opp(price=0.05, edge=0.50, confidence="high", score=9.0)
+            result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+            assert result.risk_approval.startswith("REJECTED")
+            assert "price_below_floor" in result.risk_approval
+            assert result.contracts == 0
+        finally:
+            self._restore(ke, snap)

@@ -188,6 +188,8 @@ SCAN_CACHE_TTL_SECONDS=600      # R26: cache last preview's row→ticker mapping
 SCAN_CACHE_ENABLED=true         # R26: false forces every --execute call to rescan
 ```
 
+> **⚠️ Config changes require a restart of any running web app.** `kalshi_executor.py` snapshots every gate threshold into module-level globals **at import time** — a long-running process never re-reads `.env`. The CLI re-imports on each invocation (always fresh), but the **local Streamlit app must be restarted** (`Ctrl+C` → `streamlit run webapp/app.py`) after editing `.env`, and the **Streamlit Cloud app uses Secrets, not `.env`** — update *Settings → Secrets* (saving auto-reboots) or hit *Reboot* at [share.streamlit.io](https://share.streamlit.io). Full procedure: `docs/web-app/LOCAL.md` and `docs/web-app/CLOUD.md`.
+
 ---
 
 ## MCP Servers
