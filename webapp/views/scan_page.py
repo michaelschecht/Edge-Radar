@@ -119,7 +119,7 @@ def render():
     with col5:
         min_edge = st.slider(
             "Min Edge %", 1, 20, defaults["min_edge"],
-            help="Scan-level minimum edge. The executor additionally enforces per-sport floors at gate 3 (NBA/NCAAB/MLB 8%), a $0.10 market-price floor at gate 3.5 (lottery-ticket filter), a medium-confidence floor at gate 4.5, a NO-side favorite guard at gate 4.6, a prediction-market safety gate at 4.7 (crypto/weather/spx/mentions/companies/politics blocked unless ALLOW_PREDICTION_BETS=true), and a series-dedup at gate 7 (48h default, 72h MLB/NHL) — bets may be rejected on execute even if they pass this scan filter. Each scan row's Gate column previews which gate (if any) will reject it.",
+            help="Scan-level minimum edge. The executor additionally enforces per-sport floors at gate 3 (NBA/NCAAB/MLB 4%), a $0.06 market-price floor at gate 3.5 (lottery-ticket filter), a medium-confidence floor at gate 4.5, a NO-side favorite guard at gate 4.6, a prediction-market safety gate at 4.7 (crypto/weather/spx/mentions/companies/politics blocked unless ALLOW_PREDICTION_BETS=true), and a series-dedup at gate 7 (48h default, 72h MLB/NHL) — bets may be rejected on execute even if they pass this scan filter. Each scan row's Gate column previews which gate (if any) will reject it.",
         ) / 100
     with col6:
         top_n = st.number_input("Top N", min_value=1, max_value=50, value=defaults["top_n"])
