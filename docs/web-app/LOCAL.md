@@ -18,6 +18,28 @@ Opens at `http://localhost:8501`. Stop with `Ctrl+C` or `taskkill /F /IM streaml
 
 ---
 
+## Changing `.env` (Restart Required)
+
+**A running Streamlit app does not pick up `.env` edits.** The risk-gate thresholds (`MIN_MARKET_PRICE`, `MIN_EDGE_THRESHOLD_*`, `MIN_COMPOSITE_SCORE`, `MIN_CONFIDENCE`, the NO-side gates, etc.) are snapshotted into module-level globals in `kalshi_executor.py` **at import time** — once, when the process starts. The CLI re-imports on every invocation so it's always fresh, but the long-running webapp keeps its startup values until you restart it.
+
+> **Symptom this prevents:** the dashboard approving a bet the current config should reject — e.g. a `$0.05` longshot showing "APPROVED" while `MIN_MARKET_PRICE=0.06`. That means the app is still running on a pre-edit config snapshot.
+
+**After any `.env` change:**
+
+```bash
+# In the terminal running Streamlit:
+Ctrl+C                      # stop the server
+streamlit run webapp/app.py # restart — re-reads .env on import
+```
+
+Or force-kill and relaunch: `taskkill /F /IM streamlit.exe` then `streamlit run webapp/app.py`.
+
+**Verify:** re-run the same scan/preview — bets that violate the new floor should now drop out, or show the expected reject reason in the scan log (**Show scan log**).
+
+> Editing `.env` only affects the **local** app. The Streamlit **Cloud** app reads Secrets, not `.env` — see [CLOUD.md](CLOUD.md#changing-risk-parameters-or-secrets-reboot-required).
+
+---
+
 ## Prerequisites
 
 - Python 3.11+ with project venv active
