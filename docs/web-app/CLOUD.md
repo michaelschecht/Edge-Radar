@@ -173,6 +173,39 @@ Mapped via `st.secrets["KALSHI_API_KEY"]` -> `os.environ["KALSHI_API_KEY"]`
 
 ---
 
+## Changing Risk Parameters or Secrets (Reboot Required)
+
+**There is no `.env` on Cloud.** Every risk knob you would set in `.env` locally lives in **Settings → Secrets** here. Editing your local `.env` has zero effect on the Cloud app — and vice versa.
+
+### Why a reboot is needed
+
+The risk-gate thresholds (`MIN_MARKET_PRICE`, `MIN_EDGE_THRESHOLD_*`, `MIN_COMPOSITE_SCORE`, `MIN_CONFIDENCE`, the NO-side gates, etc.) are snapshotted into **module-level globals in `kalshi_executor.py` at import time** — i.e. once, when the app process starts. A running app will keep using its startup values until the process restarts, no matter what you change in Secrets.
+
+> **Symptom this prevents:** the dashboard approving bets that should be rejected — e.g. a `$0.05` longshot getting "APPROVED" even though the current floor is `MIN_MARKET_PRICE = 0.06`. That happens when the app is still running on a *pre-edit* config snapshot.
+
+### How to apply a config change
+
+| Method | When to use | Reboots? |
+|--------|-------------|----------|
+| **Edit Secrets** (Settings → Secrets → Save) | Changing any risk parameter or credential | ✅ Auto-reboots on save |
+| **Reboot app** (manage menu → ⋮ → Reboot app) | Force a clean restart without changing anything | ✅ Yes |
+| **Push to the deploy branch** | Code changes (also picks up new config) | ✅ Full redeploy |
+
+**Steps to update a risk parameter:**
+
+1. Go to [share.streamlit.io](https://share.streamlit.io) and open your app's workspace.
+2. Open the app menu (**⋮** next to the app, or **Manage app** from the running app's bottom-right).
+3. Click **Settings → Secrets**.
+4. Edit the flat TOML key (e.g. `MIN_MARKET_PRICE = "0.06"`) and click **Save**.
+5. Streamlit Cloud **automatically reboots** the app to load the new value. Wait ~30–60s for the cold start.
+6. **Verify:** re-run the same scan/preview — bets that violate the new floor should now drop out (or show the expected reject reason in the scan log).
+
+If a change doesn't seem to take effect, use **⋮ → Reboot app** to force a fresh process start.
+
+> **Keep Cloud and local in sync:** if you change a risk gate in `.env` locally, mirror it in Cloud Secrets (and vice versa) — they are independent configs. See the [Secrets Bridge Mapping](#secrets-bridge-mapping) table for the full key list.
+
+---
+
 ## Inline PEM (Cloud Private Key)
 
 Streamlit Cloud has no filesystem for `.pem` files. `KalshiClient` supports inline PEM: the full key content is passed as a string from `st.secrets["kalshi"]["private_key"]`.
