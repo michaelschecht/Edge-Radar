@@ -51,8 +51,12 @@ Edge-Radar/
 │   │   ├── RISK_MANAGER.md         # Risk gating & portfolio limits
 │   │   ├── DATA_ANALYST.md          # Quant analysis, models, backtesting
 │   │   └── PORTFOLIO_MONITOR.md     # P&L tracking, alerts, reporting
-│   └── skills/
-│       └── edge-radar/SKILL.md      # /edge-radar slash command
+│   └── skills/                      # Claude Code skills; edge-radar* are junctions → /skills (canonical, below)
+│       ├── edge-radar/              # junction → /skills/edge-radar (git-ignored)
+│       └── edge-radar-analysis/     # junction → /skills/edge-radar-analysis (git-ignored)
+├── skills/                          # Canonical source for the relocated edge-radar skills (tracked here once)
+│   ├── edge-radar/SKILL.md          # /edge-radar — unified scan/bet/status/settle/risk command center
+│   └── edge-radar-analysis/SKILL.md # /edge-radar-analysis — post-hoc performance report
 ├── docs/
 │   ├── CHANGELOG.md                 # Project history
 │   ├── SCRIPTS_REFERENCE.md         # Complete CLI reference
@@ -82,10 +86,13 @@ Edge-Radar/
     ├── backtest/backtester.py       # Strategy analysis & equity curves
     ├── kalshi/                      # Core: client, executor, settler, edge, risk
     ├── shared/                      # Shared modules (stats, weather, logging, etc.)
-    └── schedulers/                  # Automation (batch, Task Scheduler)
+    ├── schedulers/                  # Automation (batch, Task Scheduler)
+    └── setup/link_skills.ps1        # Recreate the .claude/skills junctions after a clone
 ```
 
 **Runtime directories** (gitignored, auto-created): `data/`, `logs/`, `reports/`, `.env`
+
+**Skills location:** The `/edge-radar` and `/edge-radar-analysis` skills live canonically at the repo root in **`skills/`** (tracked there once). Claude Code loads them from `.claude/skills/`, which are Windows directory **junctions** to `skills/` — git-ignored, because real symlinks can't be committed (`core.symlinks=false`). **Edit the `skills/` copies, never the `.claude/skills/` junctions.** After a fresh clone, recreate the junctions with `pwsh -File scripts/setup/link_skills.ps1`.
 
 ---
 

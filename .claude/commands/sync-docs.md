@@ -15,8 +15,8 @@ Update the following surfaces with the information provided in $ARGUMENTS. Touch
 4. **`README.md`** — only if the change affects user-visible features, commands, or setup.
 5. **Memory** (`C:\Users\mikes\.claude\projects\D--AI-Agents-Specialized-Agents-Edge-Radar\memory\`) — update or add a memory file when the information represents durable project state, a new preference, or a non-obvious decision. Update `MEMORY.md` index (including the one-line hook if it quotes a now-changed value). Skip if the information is ephemeral.
 6. **`docs/CHANGELOG.md`** — add a dated entry summarizing the change. Leave prior dated entries intact as historical record — never rewrite history; add a new entry instead.
-7. **Edge-Radar skill** (`.claude/skills/edge-radar/SKILL.md`) — update if the change affects the unified `/edge-radar` workflow, scripts, filters, or env vars exposed via the skill.
-8. **Edge-Radar Analysis skill** (locate via `Glob` for `edge-radar-analysis*` under `.claude/skills/` or user skills dir) — update if the change affects analysis workflows, calibration, snapshot charts, or backtesting.
+7. **Edge-Radar skill** (`skills/edge-radar/SKILL.md` — canonical source; `.claude/skills/edge-radar/` is a git-ignored junction to it) — update if the change affects the unified `/edge-radar` workflow, scripts, filters, or env vars exposed via the skill.
+8. **Edge-Radar Analysis skill** (`skills/edge-radar-analysis/SKILL.md` — canonical source; edit there, not the `.claude/skills/` junction) — update if the change affects analysis workflows, calibration, snapshot charts, or backtesting.
 9. **Web-app** (`webapp/`) — update if the change affects user-facing dashboard behavior (services, views, theme, or `docs/web-app/LOCAL.md`) **or** any hardcoded help text, tooltips, labels, or captions that quote a config value/default (most webapp threshold logic reads from `.env` via `app.config`, so these strings are usually the only thing that drifts).
 10. **Public site** (`.claude/html/`) — update only if the change is reflected in user-facing copy on the published Pages site. The account-graph data file is generated — never hand-edit it.
 

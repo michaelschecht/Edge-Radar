@@ -66,6 +66,13 @@ notebooks/analysis/*.html
 .claude/images/screenshots/
 .claude/memory/
 .claude/agents/
+# Edge-Radar skills: canonical source lives in /Skills. These two .claude/skills
+# entries are local Windows junctions pointing there (git core.symlinks=false, so
+# real symlinks can't be tracked). Ignore them so the content is tracked exactly
+# once under /Skills. Recreate the junctions after a fresh clone with:
+#   pwsh -File scripts/setup/link_skills.ps1
+.claude/skills/edge-radar/
+.claude/skills/edge-radar-analysis/
 docs/my-documents/
 # Published account-growth graph: lives on master, refreshed weekly by the gh API
 # push in scripts/schedulers/automation/refresh_account_graph.py. Kept out of branch
