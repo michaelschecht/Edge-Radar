@@ -1,5 +1,6 @@
 # === Secrets & Credentials (NEVER COMMIT) ===
 .env
+.env_sreamlitio
 *.env
 .env.*
 keys/
