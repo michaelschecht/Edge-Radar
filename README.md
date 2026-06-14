@@ -225,8 +225,10 @@ Edge-Radar ships with two slash commands for [Claude Code](https://claude.ai/cla
 
 | Skill | Definition | Description |
 |:------|:-----------|:------------|
-| [`/edge-radar`](.claude/skills/edge-radar/SKILL.md) | `.claude/skills/edge-radar/SKILL.md` | Unified command center — scan, bet, status, settle, risk, detail, backtest across Kalshi sports, futures, and prediction markets. |
-| [`/edge-radar-analysis`](.claude/skills/edge-radar-analysis/SKILL.md) | `.claude/skills/edge-radar-analysis/SKILL.md` | Post-hoc performance report — trade ledger + slices by sport, category, side, edge bucket, confidence, price, calibration, longshots, streaks, daily P&L. |
+| [`/edge-radar`](Skills/edge-radar/SKILL.md) | `Skills/edge-radar/SKILL.md` | Unified command center — scan, bet, status, settle, risk, detail, backtest across Kalshi sports, futures, and prediction markets. |
+| [`/edge-radar-analysis`](Skills/edge-radar-analysis/SKILL.md) | `Skills/edge-radar-analysis/SKILL.md` | Post-hoc performance report — trade ledger + slices by sport, category, side, edge bucket, confidence, price, calibration, longshots, streaks, daily P&L. |
+
+> The skill source of truth lives in [`Skills/`](Skills/). Claude Code loads them from `.claude/skills/`, which on Windows are directory junctions to `Skills/` (git-ignored, since `core.symlinks=false`). After a fresh clone, recreate the junctions once: `pwsh -File scripts/setup/link_skills.ps1`.
 
 ```
 /edge-radar status                        # Balance, positions, P&L
