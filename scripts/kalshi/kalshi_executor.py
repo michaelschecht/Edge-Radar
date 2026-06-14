@@ -42,7 +42,7 @@ from rich import print as rprint
 from kalshi_client import KalshiClient, KalshiAPIError, make_prod_client
 from edge_detector import scan_all_markets
 from ticker_display import _detect_sport
-from app.config import get_config
+from app.config import get_config, reset_config
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -56,6 +56,13 @@ TRADE_LOG_PATH = paths.TRADE_LOG_PATH
 # Module-level constants sourced from `app.config` at import time. Tests mutate
 # these directly (e.g. `kalshi_executor.MAX_OPEN_POSITIONS = 10`), so they
 # remain plain mutable globals — only the *source* is centralized.
+#
+# These are a snapshot taken once, at import. The CLI re-imports on every run so
+# it always reads current config; a long-running host (the Streamlit webapp)
+# does not, and would keep stale gates after a `.env` edit until restarted. Such
+# hosts should call `reload_risk_config()` (defined below) before a scan/execute
+# to re-read `.env`/Secrets without a restart. **If you add a config-derived
+# global here, add it to `reload_risk_config()` too** — the two must stay in sync.
 
 _cfg = get_config()
 MAX_BET_SIZE = _cfg.risk.max_bet_size
@@ -152,6 +159,67 @@ def _cross_category_sports() -> set[str]:
         if _PER_SPORT_CROSS_CATEGORY_DEDUP.get(sport, CROSS_CATEGORY_DEDUP):
             enabled.add(sport)
     return enabled
+
+
+def reload_risk_config() -> None:
+    """Re-read every risk-gate global from the environment.
+
+    The risk constants above are snapshotted from `app.config` at import time.
+    That's correct for the CLI (fresh process per run) and the test suite (which
+    monkey-patches the globals directly), but a long-running host — the Streamlit
+    webapp — keeps its *startup* values even after the operator edits `.env`,
+    which silently approved sub-floor bets (a $0.05 wager cleared a since-raised
+    `MIN_MARKET_PRICE` because the running process never re-read it).
+
+    Call this from such a host before a scan/execute to pick up config edits
+    without a restart: it re-loads `.env` over the process environment
+    (`override=True`), drops the memoized `Config`, and re-assigns every
+    module-level risk global from a fresh `get_config()`. On Streamlit Cloud
+    there is no `.env`, so the `load_dotenv` step is a no-op and the rebuild
+    simply re-reads the injected Secrets already in the environment.
+
+    Deliberately NOT called by `size_order` / `execute_pipeline` — those stay
+    pure so the test monkey-patch seam (e.g. `kalshi_executor.MIN_MARKET_PRICE
+    = 0`) is never clobbered mid-run. Keep the assignment list below in sync with
+    the import-time block above.
+    """
+    global MAX_BET_SIZE, UNIT_SIZE, MAX_DAILY_LOSS, MAX_OPEN_POSITIONS
+    global MIN_EDGE_THRESHOLD, KELLY_FRACTION, MAX_PER_EVENT, MAX_BET_RATIO
+    global MIN_COMPOSITE_SCORE, KELLY_EDGE_CAP, KELLY_EDGE_DECAY, SERIES_DEDUP_HOURS
+    global MIN_MARKET_PRICE, RESTING_ORDER_MAX_HOURS, MIN_CONFIDENCE
+    global NO_SIDE_FAVORITE_THRESHOLD, NO_SIDE_MIN_EDGE
+    global NO_SIDE_KELLY_PRICE_FLOOR, NO_SIDE_KELLY_MULTIPLIER, ALLOW_PREDICTION_BETS
+    global CROSS_CATEGORY_DEDUP
+    global _PER_SPORT_MIN_EDGE, _PER_SPORT_SERIES_DEDUP, _PER_SPORT_CROSS_CATEGORY_DEDUP
+
+    load_dotenv(override=True)
+    reset_config()
+    cfg = get_config()
+
+    MAX_BET_SIZE = cfg.risk.max_bet_size
+    UNIT_SIZE = cfg.risk.unit_size
+    MAX_DAILY_LOSS = cfg.risk.max_daily_loss
+    MAX_OPEN_POSITIONS = cfg.risk.max_open_positions
+    MIN_EDGE_THRESHOLD = cfg.gates.min_edge_threshold
+    KELLY_FRACTION = cfg.kelly.kelly_fraction
+    MAX_PER_EVENT = cfg.risk.max_per_event
+    MAX_BET_RATIO = cfg.risk.max_bet_ratio
+    MIN_COMPOSITE_SCORE = cfg.gates.min_composite_score
+    KELLY_EDGE_CAP = cfg.kelly.kelly_edge_cap
+    KELLY_EDGE_DECAY = cfg.kelly.kelly_edge_decay
+    SERIES_DEDUP_HOURS = cfg.gates.series_dedup_hours
+    MIN_MARKET_PRICE = cfg.gates.min_market_price
+    RESTING_ORDER_MAX_HOURS = cfg.gates.resting_order_max_hours
+    MIN_CONFIDENCE = cfg.gates.min_confidence
+    NO_SIDE_FAVORITE_THRESHOLD = cfg.gates.no_side_favorite_threshold
+    NO_SIDE_MIN_EDGE = cfg.gates.no_side_min_edge
+    NO_SIDE_KELLY_PRICE_FLOOR = cfg.kelly.no_side_kelly_price_floor
+    NO_SIDE_KELLY_MULTIPLIER = cfg.kelly.no_side_kelly_multiplier
+    ALLOW_PREDICTION_BETS = cfg.gates.allow_prediction_bets
+    CROSS_CATEGORY_DEDUP = cfg.gates.cross_category_dedup
+    _PER_SPORT_MIN_EDGE = dict(cfg.per_sport.min_edge)
+    _PER_SPORT_SERIES_DEDUP = dict(cfg.per_sport.series_dedup_hours)
+    _PER_SPORT_CROSS_CATEGORY_DEDUP = dict(cfg.per_sport.cross_category_dedup)
 
 
 def parse_budget_arg(raw: str | None) -> float | None:

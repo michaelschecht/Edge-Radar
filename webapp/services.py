@@ -100,7 +100,7 @@ from kalshi_client import KalshiClient
 from edge_detector import scan_all_markets, FILTER_SHORTCUTS
 from futures_edge import scan_futures_markets
 from prediction_scanner import scan_prediction_markets
-from kalshi_executor import execute_pipeline, UNIT_SIZE
+from kalshi_executor import execute_pipeline, reload_risk_config, UNIT_SIZE
 from kalshi_settler import settle_trades, generate_report
 from risk_check import (
     fetch_balance, fetch_positions, fetch_resting_orders,
@@ -218,6 +218,11 @@ def run_scan(
             f"Must be one of {SUPPORTED_MARKET_TYPES}."
         )
 
+    # Re-read risk-gate config so the scan's Gate-preview column reflects any
+    # `.env`/Secrets edits since this long-running server started. See
+    # `kalshi_executor.reload_risk_config`.
+    reload_risk_config()
+
     resolved_date = None
     if date_filter and date_filter != "all dates":
         resolved_date = resolve_date_arg(date_filter)
@@ -277,6 +282,13 @@ def run_execute(
 
     pick_indices: 0-based indices into the opportunities list to execute.
     """
+    # Re-read risk-gate config before sizing/gating so the long-running webapp
+    # honors `.env`/Secrets edits without a restart. Without this, a server
+    # started before a floor change keeps approving sub-floor bets (e.g. a $0.05
+    # wager while the live MIN_MARKET_PRICE is 0.06). See
+    # `kalshi_executor.reload_risk_config`.
+    reload_risk_config()
+
     if pick_indices is not None:
         opportunities = [opportunities[i] for i in pick_indices if i < len(opportunities)]
 
