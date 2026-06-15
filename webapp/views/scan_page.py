@@ -281,6 +281,7 @@ def render():
             "#": st.column_config.NumberColumn(width="small"),
             "Sport": st.column_config.TextColumn(width="small"),
             "Type": st.column_config.TextColumn(width="small"),
+            "Started": st.column_config.TextColumn(width="small"),
             "Price": st.column_config.TextColumn(width="small"),
             "Fair": st.column_config.TextColumn(width="small"),
             "Edge": st.column_config.TextColumn(width="small"),

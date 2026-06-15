@@ -1757,7 +1757,10 @@ def scan_all_markets(
                     break
         rprint(f"  Found {len(all_markets)} markets across {len(all_sport_prefixes)} sport prefixes")
 
-    # Remove markets past their expected expiration (game already started/ended)
+    # Remove markets past their expected expiration. NOTE: expected_expiration_time
+    # is the market CLOSE (after the game ends), so this does NOT drop in-progress
+    # games — those keep producing edges (stale pre-game odds vs live Kalshi price)
+    # until the market expires. The scan views flag them via is_game_started (R27/F44).
     now = datetime.now(timezone.utc).isoformat()
     before = len(all_markets)
     all_markets = [m for m in all_markets
@@ -1970,6 +1973,7 @@ def print_opportunities(opportunities: list[Opportunity]):
 
     from ticker_display import (
         parse_game_datetime, format_bet_label, format_pick_label, sport_from_ticker,
+        is_game_started,
     )
 
     CATEGORY_LABELS = {
@@ -1988,6 +1992,7 @@ def print_opportunities(opportunities: list[Opportunity]):
     table.add_column("Type", style="magenta")
     table.add_column("Pick", style="bold white", max_width=22)
     table.add_column("When", style="dim")
+    table.add_column("Started")  # R27: flag in-progress games (live price vs stale pre-game odds, F44)
     table.add_column("Mkt", justify="right")
     table.add_column("Fair", justify="right", style="green")
     table.add_column("Edge", justify="right", style="bold green")
@@ -2005,6 +2010,7 @@ def print_opportunities(opportunities: list[Opportunity]):
             CATEGORY_LABELS.get(o.category, o.category.title()),
             format_pick_label(o.ticker, o.title, o.side, o.category),
             parse_game_datetime(o.ticker),
+            "[red]LIVE[/red]" if is_game_started(o.ticker) else "",
             f"${o.market_price:.2f}",
             f"${o.fair_value:.2f}",
             f"[{edge_color}]+{o.edge:.1%}[/{edge_color}]",
