@@ -6,6 +6,7 @@ Used by all display/report functions across the project.
 """
 
 import re
+from datetime import datetime, timedelta, timezone
 
 # ── Team abbreviation lookup ──────────────────────────────────────────────────
 
@@ -439,3 +440,53 @@ def filter_exclude_tickers(opportunities: list, exclude_tickers: set[str]) -> li
         if event_key not in exclude_events:
             result.append(opp)
     return result
+
+
+# ── Game-start detection (R27 / F44) ───────────────────────────────────────────
+
+# Kalshi embeds the game's ET wall-clock start in the ticker. We don't ship a
+# tzdata dependency, so we treat the numerals as UTC and shift by a fixed ET
+# offset — a 1-hour EST/EDT slip is immaterial for "has this game started?".
+# Mirrors edge_detector._ticker_scheduled_utc (the hardened event-matching path);
+# kept here too so display/report code can import without pulling in the scanner.
+_ET_UTC_OFFSET_HOURS = 4
+
+
+def ticker_scheduled_utc(ticker: str, et_utc_offset_hours: int = _ET_UTC_OFFSET_HOURS) -> datetime | None:
+    """Parse a game ticker's scheduled start (YYMMMDD + HHMM, ET) as aware UTC.
+
+    Only moneyline (GAME) tickers embed the HHMM time, e.g.
+    ``KXMLBGAME-26JUN052140WSHAZ-WSH`` -> Jun 5 2026 21:40 ET. Returns None for
+    spread/total and NBA/NHL tickers (date only, no time) and unparseable input.
+    """
+    m = re.search(r"(\d{2})([A-Z]{3})(\d{2})(\d{4})", ticker)
+    if not m:
+        return None
+    yy, mon_str, dd, hhmm = m.groups()
+    month = _MONTH_NUM.get(mon_str)
+    if not month:
+        return None
+    try:
+        et_as_utc = datetime(2000 + int(yy), month, int(dd),
+                             int(hhmm[:2]), int(hhmm[2:]), tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    return et_as_utc + timedelta(hours=et_utc_offset_hours)
+
+
+def is_game_started(ticker: str, now: datetime | None = None) -> bool:
+    """True if the game's scheduled start is at/before ``now`` (default: UTC now).
+
+    Surfaces in-progress games on scan views so the operator sees that a row's
+    edge compares *live* Kalshi pricing against *stale* pre-game odds (F44).
+
+    Only meaningful for tickers that embed a start time (moneyline). Date-only
+    tickers (spreads/totals, NBA/NHL) return False — the exact start is unknown,
+    so we don't guess rather than risk false "started" flags.
+    """
+    sched = ticker_scheduled_utc(ticker)
+    if sched is None:
+        return False
+    if now is None:
+        now = datetime.now(timezone.utc)
+    return sched <= now
