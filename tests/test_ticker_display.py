@@ -5,6 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
+from datetime import datetime, timezone
+
 from ticker_display import (
     _split_team_codes,
     parse_game_datetime,
@@ -15,6 +17,8 @@ from ticker_display import (
     resolve_date_arg,
     filter_by_date,
     filter_exclude_tickers,
+    ticker_scheduled_utc,
+    is_game_started,
     TEAM_NAMES,
 )
 from opportunity import Opportunity
@@ -225,3 +229,56 @@ class TestFilterExcludeTickers:
         exclude = {"KXMLBGAME-26MAR301840CWSMIA-MIA"}
         result = filter_exclude_tickers(opps, exclude)
         assert len(result) == 1
+
+
+# ── ticker_scheduled_utc (R27 / F44) ──────────────────────────────────────────
+
+class TestTickerScheduledUTC:
+    def test_moneyline_ticker_parsed_as_et_shifted_to_utc(self):
+        # 18:40 ET + 4h offset -> 22:40 UTC on the same calendar day
+        dt = ticker_scheduled_utc("KXMLBGAME-26MAR301840CWSMIA-MIA")
+        assert dt == datetime(2026, 3, 30, 22, 40, tzinfo=timezone.utc)
+
+    def test_offset_can_cross_midnight(self):
+        # 21:40 ET + 4h -> 01:40 UTC next day
+        dt = ticker_scheduled_utc("KXMLBGAME-26JUN052140WSHAZ-WSH")
+        assert dt == datetime(2026, 6, 6, 1, 40, tzinfo=timezone.utc)
+
+    def test_spread_ticker_has_time(self):
+        # spread/total tickers also embed HHMM
+        dt = ticker_scheduled_utc("KXNCAAMBSPREAD-26MAR221900UCLACONN-5")
+        assert dt == datetime(2026, 3, 22, 23, 0, tzinfo=timezone.utc)
+
+    def test_date_only_ticker_returns_none(self):
+        # prediction/futures tickers carry no HHMM
+        assert ticker_scheduled_utc("KXBTC-26MAR28-T88000") is None
+
+    def test_unparseable_returns_none(self):
+        assert ticker_scheduled_utc("RANDOM-TICKER") is None
+
+
+# ── is_game_started (R27 / F44) ───────────────────────────────────────────────
+
+class TestIsGameStarted:
+    # Game scheduled 2026-03-30 22:40 UTC (18:40 ET).
+    TICKER = "KXMLBGAME-26MAR301840CWSMIA-MIA"
+
+    def test_started_when_now_after_start(self):
+        now = datetime(2026, 3, 30, 23, 0, tzinfo=timezone.utc)
+        assert is_game_started(self.TICKER, now=now) is True
+
+    def test_started_exactly_at_start(self):
+        now = datetime(2026, 3, 30, 22, 40, tzinfo=timezone.utc)
+        assert is_game_started(self.TICKER, now=now) is True
+
+    def test_not_started_before_start(self):
+        now = datetime(2026, 3, 30, 22, 0, tzinfo=timezone.utc)
+        assert is_game_started(self.TICKER, now=now) is False
+
+    def test_date_only_ticker_never_started(self):
+        # No embedded time -> can't determine -> don't guess (returns False)
+        now = datetime(2030, 1, 1, tzinfo=timezone.utc)
+        assert is_game_started("KXBTC-26MAR28-T88000", now=now) is False
+
+    def test_unparseable_ticker_not_started(self):
+        assert is_game_started("RANDOM-TICKER") is False

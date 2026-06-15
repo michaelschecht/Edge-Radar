@@ -2,6 +2,29 @@
 
 ---
 
+## 2026-06-15 -- R27: "Started" Column Flags In-Progress Games on Scan Views
+
+### Why
+
+F44 (2026-06-14): a web-UI scan CSV advertised phantom edges — +50.6% on a $0.04 "Washington lose" longshot, +34.8% on HOU@KC — while the post-start CLI priced the same games at +8–10%. Root cause: a game that has already started keeps producing edges (its market is still open) because the only "skip in-progress" filter in `edge_detector.py` keys on `expected_expiration_time`, which is the market **close** (after the game *ends*), not the start. So the scan view compares **live** Kalshi pricing against **stale** pre-game odds. Execution gates already protect real bets; the raw research/CSV surface did not.
+
+### What landed
+
+- **New `Started` column** on every sports scan view, showing `LIVE` for games already underway. **Tag, not exclude** — games stay visible (operator's call) so the edge is shown *with* the caveat rather than silently dropped.
+- **New canonical helpers** in `scripts/shared/ticker_display.py`: `ticker_scheduled_utc(ticker)` and `is_game_started(ticker, now=None)`. They mirror the hardened `edge_detector._ticker_scheduled_utc` event-matching logic (ET wall-clock → UTC via a fixed 4h offset; a 1h EST/EDT slip is immaterial for "has it started?"). **HHMM-only** — only moneyline (GAME) tickers embed a start time (the F44 case); spread/total and NBA/NHL tickers carry date only, so `is_game_started` returns `False` rather than risk a false flag. The edge_detector matching path was left untouched to avoid regression risk.
+- **Wired into four surfaces:** CLI Rich table (`edge_detector.print_opportunities`), webapp dataframe + CSV (`services.opportunities_to_rows` + `scan_page` column config), saved markdown scan report (`report_writer`), and the emailed `daily_sports_scan` table. No CLI flag and no change to `scan_all_markets` — tagging is a pure display concern, so CLI and webapp inherit it for free.
+- **Tightened the misleading comment** at `edge_detector.py:1760` that called the expiration filter a "started/ended" filter — the source of the F44 confusion.
+
+### Verification
+
++13 tests in `tests/test_ticker_display.py` (`TestTickerScheduledUTC` + `TestIsGameStarted`) → **424 passing** (was 411). Live smoke confirmed past/future/date-only tickers flag correctly.
+
+### Files
+
+`scripts/shared/ticker_display.py`, `scripts/kalshi/edge_detector.py`, `webapp/services.py`, `webapp/views/scan_page.py`, `scripts/shared/report_writer.py`, `scripts/schedulers/automation/daily_sports_scan.py`, `tests/test_ticker_display.py`, `docs/my-documents/enhancements/ROADMAP.md`, `docs/CHANGELOG.md`.
+
+---
+
 ## 2026-06-14 -- Per-Sport Edge Floors Lowered 0.06 → 0.04 + Doc-Drift Sweep
 
 ### Why

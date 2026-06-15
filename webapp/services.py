@@ -110,7 +110,7 @@ from trade_log import load_trade_log, get_today_pnl
 from ticker_display import (
     filter_by_date, resolve_date_arg, filter_exclude_tickers,
     parse_game_datetime, format_bet_label, format_pick_label,
-    sport_from_ticker, bet_type_from_ticker,
+    sport_from_ticker, bet_type_from_ticker, is_game_started,
 )
 
 # Module-level constants imported by `views/scan_page.py` and
@@ -424,6 +424,7 @@ def opportunities_to_rows(opportunities: list) -> list[dict]:
                      "player_prop": "Prop", "esports": "Esports"}.get(opp.category, opp.category.title()),
             "Pick": format_pick_label(opp.ticker, opp.title, opp.side, opp.category),
             "When": parse_game_datetime(opp.ticker),
+            "Started": "LIVE" if is_game_started(opp.ticker) else "",  # R27/F44
             "Price": f"${opp.market_price:.2f}",
             "Fair": f"${opp.fair_value:.2f}",
             "Edge": f"+{opp.edge:.1%}",

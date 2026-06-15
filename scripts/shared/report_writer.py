@@ -8,7 +8,7 @@ Used by all scanners when --save is passed.
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ticker_display import parse_game_datetime, format_bet_label, format_pick_label, sport_from_ticker
+from ticker_display import parse_game_datetime, format_bet_label, format_pick_label, sport_from_ticker, is_game_started
 
 # Report directories (relative to project root)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -103,8 +103,8 @@ def save_scan_report(
             "game": "ML", "spread": "Spread", "total": "Total",
             "player_prop": "Prop", "esports": "Esports",
         }
-        lines.append("| # | Sport | Bet | Type | Pick | When | Mkt | Fair | Edge | Conf | Score |")
-        lines.append("|--:|:------|:----|:-----|:-----|:-----|----:|-----:|-----:|:-----|------:|")
+        lines.append("| # | Sport | Bet | Type | Pick | When | Started | Mkt | Fair | Edge | Conf | Score |")
+        lines.append("|--:|:------|:----|:-----|:-----|:-----|:--------|----:|-----:|-----:|:-----|------:|")
         for i, o in enumerate(opportunities, 1):
             ticker = _get_attr(o, "ticker", "")
             title = _get_attr(o, "title", "")
@@ -119,6 +119,7 @@ def save_scan_report(
                 f"| {cat_labels.get(cat, cat.title())} "
                 f"| {pick} "
                 f"| {parse_game_datetime(ticker)} "
+                f"| {'LIVE' if is_game_started(ticker) else ''} "
                 f"| ${_get_attr(o, 'market_price', 0):.2f} "
                 f"| ${_get_attr(o, 'fair_value', 0):.2f} "
                 f"| {_get_attr(o, 'edge', 0):+.1%} "
