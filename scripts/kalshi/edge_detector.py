@@ -2232,17 +2232,24 @@ def main():
             )
         else:
             print_opportunities(opportunities)
-        if args.save and opportunities:
+        if args.save:
+            from report_writer import save_execution_report, save_scan_report
             if sized_orders is not None:
-                from report_writer import save_execution_report
                 rpt = save_execution_report(sized_orders, report_type="sports",
                                             filter_label=args.ticker_filter or "", min_edge=args.min_edge,
                                             output_dir=args.report_dir)
-            else:
-                from report_writer import save_scan_report
+            elif opportunities:
                 rpt = save_scan_report(opportunities, report_type="sports",
                                        filter_label=args.ticker_filter or "", min_edge=args.min_edge,
                                        output_dir=args.report_dir)
+            else:
+                # No opportunities cleared the edge threshold. Still emit a
+                # proof-of-life report (empty "0 orders" execution report) so the
+                # paired email task has something to send on empty days, rather
+                # than silently skipping (feedback_sameday_empty_emails).
+                rpt = save_execution_report([], report_type="sports",
+                                            filter_label=args.ticker_filter or "", min_edge=args.min_edge,
+                                            output_dir=args.report_dir)
             if rpt:
                 rprint(f"[dim]Report saved to {rpt}[/dim]")
 
