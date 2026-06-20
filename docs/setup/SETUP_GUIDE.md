@@ -484,7 +484,7 @@ Every configured key is either invalid or has hit its monthly quota (free tier =
 - **[Automation Guide](./AUTOMATION_GUIDE.md)** — Windows Task Scheduler setup walkthrough
 - **[Task-Schedule Reference](./task-schedules.md)** — full 17-task pipeline roster with `.bat`/`.sh` templates and `schtasks` setup
 - **[Scripts Reference](../SCRIPTS_REFERENCE.md)** — Full CLI reference for every script and flag
-- **[Sports Guide](../kalshi-sports-betting/SPORTS_GUIDE.md)** — 27 sport filters, edge detection methodology
+- **[Sports Guide](../kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** — 27 sport filters, edge detection methodology
 - **[Architecture](../ARCHITECTURE.md)** — How scoring, confidence, and risk gates work together
 - **[Local Dashboard](../web-app/LOCAL.md)** — Run the Streamlit dashboard locally
 - **[Cloud Dashboard](../web-app/CLOUD.md)** — Deploy your own to Streamlit Community Cloud

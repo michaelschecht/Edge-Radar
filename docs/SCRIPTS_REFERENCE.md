@@ -7,7 +7,7 @@
 [![Utilities](https://img.shields.io/badge/Utilities-4%20Scripts-F97316?style=flat-square)](#-utility-scripts)
 [![Automation](https://img.shields.io/badge/Automation-Task%20Scheduler-0078D4?style=flat-square)](#-automated-execution)
 
-For domain-specific guides: **[Sports](kalshi-sports-betting/SPORTS_GUIDE.md)** · **[Futures](kalshi-futures-betting/FUTURES_GUIDE.md)** · **[Predictions](kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** · **[Architecture](ARCHITECTURE.md)** · **[Roadmap](enhancements/ROADMAP.md)**
+For domain-specific guides: **[Sports](kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** · **[Futures](kalshi/kalshi-futures-betting/FUTURES_GUIDE.md)** · **[Predictions](kalshi/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** · **[Architecture](ARCHITECTURE.md)** · **[Roadmap](enhancements/ROADMAP.md)**
 
 ---
 

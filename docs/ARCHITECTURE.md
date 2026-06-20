@@ -362,9 +362,11 @@ Edge-Radar/
 ├── app/
 │   └── domain/                        # Typed domain objects (Opportunity, RiskDecision, Execution*)
 ├── docs/                              # All public documentation
-│   ├── kalshi-futures-betting/        # Championship futures guide
-│   ├── kalshi-prediction-betting/     # Crypto, weather, S&P guides
-│   ├── kalshi-sports-betting/         # 27 sport filters, MLB filtering, sports guide
+│   ├── kalshi/                        # Kalshi domain guides (grouped)
+│   │   ├── kalshi-futures-betting/    # Championship futures guide
+│   │   ├── kalshi-prediction-betting/ # Crypto, weather, S&P guides
+│   │   └── kalshi-sports-betting/     # 27 sport filters, MLB filtering, sports guide
+│   ├── enhancements/                  # ROADMAP.md — enhancement roadmap
 │   ├── mcp-config/                    # MCP server reference
 │   ├── scripts/                       # Per-script detailed docs
 │   ├── setup/                         # SETUP_GUIDE.md, AUTOMATION_GUIDE.md

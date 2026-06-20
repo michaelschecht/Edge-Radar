@@ -1,0 +1,566 @@
+# Edge-Radar Enhancement Roadmap
+
+*Last updated: 2026-06-15 (R27 shipped — sports scan views now carry a **"Started"** column that flags in-progress games (`LIVE`), so the operator can see when a row's edge compares *live* Kalshi pricing against *stale* pre-game odds (F44). New canonical `ticker_scheduled_utc()` / `is_game_started()` helpers in `ticker_display.py` (mirror the hardened `_ticker_scheduled_utc` event-matching logic; ET→UTC, HHMM-only — moneyline tickers, the F44 case). Tag, not exclude — games stay visible. Wired into the CLI table (`edge_detector.print_opportunities`), webapp rows/CSV (`services.opportunities_to_rows` + `scan_page` column config), saved markdown scan report (`report_writer`), and the emailed `daily_sports_scan` table. Also tightened the misleading `edge_detector.py:1760` comment — `expected_expiration_time` is the market *close*, not the game start, which is why in-progress games were never dropped. +13 tests, 424 passing.) // Prior: 2026-06-14 (H9 shipped — `reload_risk_config()` lets a long-running host re-read `.env`/Secrets gate config without a restart; fixes stale-gate approvals where the webapp OK'd a $0.05 bet against a since-raised MIN_MARKET_PRICE because the running process never re-read it. Wired into `webapp/services.py` run_scan/run_execute; CLI + test monkey-patch seam untouched; +3 tests, 411 passing. Restart/reboot procedure also documented in `docs/web-app/LOCAL.md` + `CLOUD.md` + a CLAUDE.md callout.) // Prior same day: R27 added to Priority 1 — filter/flag already-started games in scans; the raw scan view + CSV export surface phantom edges from live Kalshi price vs stale pre-game odds while execution gates already protect real bets. Finding F44.) // Prior: 2026-05-13 (R11 shipped — settlement records now carry `fair_value_yes` (always YES-perspective) and `fair_value_side` (explicit perspective tag for the legacy `fair_value` field) so post-hoc NO-side analysis is unambiguous. Legacy `fair_value` unchanged, calibration loader untouched — that's a separate future cross-cut. +5 tests, no backfill of the pre-R5 cohort. Earlier same day: third-party codebase analysis from `docs/my-documents/enhancements/analysis-5_2_26.md` reviewed — 4 items adopted: C8 (auto-recalibrate stdevs, P2), R23b (Odds API 401 vs 429 split, P2), H7 (externalize `BOOK_WEIGHTS`, P3), H8 (Kalshi RSA rotation runbook, P3). Findings F40-F43 added. Reviewer's other suggestions — Cache manager class, generic refactors, `match` statements — deliberately skipped as cosmetic.) // Prior: 2026-05-01 (Account Snapshot Chart shipped — interactive Plotly account-growth chart at `docs/my-documents/account-graph/Script/build_account_graph.py` with output to date-stamped sibling folders. Snapshot mode added to `edge-radar-analysis` skill; trigger phrases route via natural language. Local-only/gitignored — reads settlements, parses sport/bet-type from ticker prefix, anchors the final point to live cash + portfolio total, surfaces open-position drift. U2 shipped 2026-04-30 — new `daily_summary.py` produces a morning P&L digest combining yesterday's settlements, open exposure, today's pending positions, optional live Kalshi balance, and a 7-day rolling context. Two new scheduled tasks: `Daily-Summary` 4:50 AM PST + `Email-Daily-Summary` 5:00 AM PST. Empty-day proof-of-life. 381 tests passing (+26). R8 shipped 2026-04-29 — `dedup_correlated_brackets` now optionally collapses ML+Total+Spread on the same game per-sport via `CROSS_CATEGORY_DEDUP[_<SPORT>]`. R26 shipped earlier same day — file-backed scan cache at `data/cache/last_scan.json`. R24b shipped 2026-04-28 — file-backed odds cache. R5 + R9 shipped 2026-04-27 — self-describing settlement record + `--report reconciliation` + per-sport `SERIES_DEDUP_HOURS`. H6 config centralization 2026-04-25. 30-day review: 160 bets, +37.4% ROI, Brier 0.2657; R12–R18 + R20 + R21–R23 + R24a + R25 all shipped.)*
+
+All pending improvements for Edge-Radar in a single prioritized action list, plus findings/context behind them and an index of completed work.
+
+Priority framing (from 2026-04-02 assessment):
+
+> Edge-Radar does not primarily need more features right now. It needs tighter execution truth, stronger measurement, and a simpler operating surface.
+
+Priority order: **execution correctness → calibration → risk controls → data quality → UX → features.**
+
+Source context: 3rd-party assessments (`edge_radar_assessment_2026-04-02.md`, `edge_radar_assessment_2026-04-04.md`, `edge-radar-web-app-recommendations_2026-04-04.md`), 2026-04-18 calibration report, 2026-04-21 14-day review, 2026-04-22 repository analysis (`edge_radar_repository_analysis_2026-04-22.md`), 2026-04-24 30-day review (`reports/Performance/betting_analysis_2026-04-24_30d.md`).
+
+---
+
+## Current Performance
+
+| Metric | At Launch (03-22) | Interim (04-02) | Post-Baseline (04-18) | 14-Day (04-21) | 30-Day (04-24) |
+|--------|-------------------|-----------------|------------------------|-----------------|-----------------|
+| Sample | 12 bets | 54 bets | 70 bets (since 04-03 baseline) | 76 settled (last 14d) | **160 settled (last 30d)** |
+| Win rate | 8% (1/12) | 46% (25-29) | 51% (36-34) | 48.7% (37-39) | **50.0% (80-80)** |
+| ROI | -88% | +29.3% | +20.3% | +31.2% ($19.55 P&L) | **+37.4% ($43.48 P&L)** |
+| Brier score | n/a | n/a | 0.2561 | 0.2646 | **0.2657** (still > 0.2500) |
+| CLV | not tracked | tracking | tracking | tracking | tracking |
+
+Aggregate ROI looks healthy but remains concentrated: NHL +72% (n=43), NCAAB +71% (n=43), and a single 7¢ MLS fill (+$14.80) carry most of the P&L. NBA continues to underperform (-14.8%, n=17). Brier ticked up slightly (0.2646 → 0.2657) — post-R2 bets are still settling in, so R12 (formal calibration re-run) is now the gating measurement. See Findings for detail.
+
+---
+
+## Action Items (Consolidated)
+
+One unified list. Items from retired sections (C1a, R-series, S/H/M/U/D/A/T tiers) have been merged, deduplicated against each other, and re-sorted by priority. Old IDs preserved so existing commits / comments still resolve.
+
+### Priority 1 — Ship Now (P&L or Correctness)
+
+*No active Priority 1 items — R27 shipped 2026-06-15 (see Completed). Next measurement gate is the monthly R12 calibration re-run (R16 cron).*
+
+*Also: R12–R18, R20, R21–R23, R24a, R25 all shipped 2026-04-24. Monthly R12 re-run (R16 cron) is the next measurement gate. Post-R13/R14 cohort needs ~30 days of live settlements before attribution is meaningful.*
+
+### Priority 2 — Near Term (Weeks)
+
+Items that improve measurement, close known gaps, or remove operator friction.
+
+| ID | Item | Impact | Effort | Notes |
+|----|------|--------|--------|-------|
+| R10 | **Category-weighted composite score** | Medium | Medium | Pull back on ML (30d: +11% ROI on 61 bets). Favor Total (30d: +32% ROI on 76 bets) and Spread (+145% but still one-fill dependent — watch, don't re-weight up). |
+| C6 | **Totals bias audit** | Medium | Small | 2026-04-18 report showed Totals -14% ROI; 14-day +33%; 30-day +32%. Stability confirming — may deprioritize if R10 subsumes. |
+| C8 | **Auto-recalibrate per-sport stdevs from settlement data** | Medium | Medium | F40 (2026-05-13 analysis). R2 (04-21) and R14 (04-24) tuned `SPORT_MARGIN_STDEV` / `SPORT_TOTAL_STDEV` by hand from review windows. With R16 monthly calibration now running, the loop should close: emit recommended per-sport stdevs in the monthly calibration report and (optionally) auto-write them to a versioned JSON the edge detector reads. Removes hand-tuning lag and decouples the values from source. Natural pair with H7. |
+| R23b | **Distinguish 401 vs 429 in Odds API key rotation** | Low | Small | F41 (2026-05-13 analysis). R23 rotates on both 401 and 429 and calls `mark_exhausted()` on 401. If the Odds API ever sends a 429 for transient per-second/per-minute rate limits (vs. quota exhaustion), a healthy key gets permanently dumped. Fix: only `mark_exhausted` on 401; on 429, short back-off then retry the same key. Inspect `X-Requests-Remaining` / `X-Requests-Last` headers when present. Low-urgency — no observed 429s today — but tightens the rotation contract before quota pressure increases. |
+| R24c | **Audit `install_windows_task.py` vs live scheduler** | Low | Small | **Discovered during R24 investigation.** User has 13 tasks installed under `\Edge-Radar\` but `install_windows_task.py status` only knows about 5 profiles (scan, execute, settle, next-day, calibration). The 8 others (`All-Sports-SameDay-Execution`, `All-Sports-NoDateFilter-Execution`, `NextDay-Execute`, `Backtest`, `Calibration`, `Reconcile`, and 4 `Email-*` jobs) were created manually. Add the missing profiles so the installer has an honest view of what's running. Cosmetic but prevents future "where did this task come from?" confusion. **Note (2026-04-30):** U2 added 2 more (`Daily-Summary`, `Email-Daily-Summary`) — also installed manually. R24c scope grows by 2. |
+| U1 | **Automated settlement cron** | Medium | Small | Run `kalshi_settler.py` hourly on market-close times. Standalone; also a building block for A6. |
+
+### Priority 3 — Background (Data Quality, UX, Hygiene)
+
+Items that compound over months but don't block anything today.
+
+**Sports data (Tier 2 origin)**
+
+| ID | Item | Impact | Effort | Notes |
+|----|------|--------|--------|-------|
+| S3 | Bullpen availability tracker | Medium | Medium | IPs over last 2-3 days per reliever; tired bullpen → overs in late innings. Depends on S1 (done). |
+| S4 | Injury impact scoring | Medium | Medium | Star-player status from ESPN injury report; adjust fair-value confidence -10-20% when key player questionable. |
+| S6 | Wind direction classification | Low | Small | NWS wind bearing vs stadium orientation — blowing out (overs) vs blowing in (unders). |
+| S7 | Umpire tendencies | Low | Medium | Strike-zone size by umpire, small edge on MLB totals. |
+| S8 | Platoon splits | Low | Medium | Batter vs LHP/RHP via MLB Stats API. |
+
+**Prediction market models (Tier 4 origin)**
+
+| ID | Item | Impact | Effort | Notes |
+|----|------|--------|--------|-------|
+| R25b | **TTL caches for prediction-market modules** | Medium | Medium | F34 (2026-04-24) — all 6 modules have module-scoped caches that never invalidate. Crypto 7-day history cached at first scan of the day, used all day. Weather NWS forecast cached until process restart. SPX price cached for hours. Replace raw cache dicts with `(timestamp, value)` tuples and check age on read. Suggested TTLs: crypto 1h · weather 6h · spx 5min · mentions/companies 24h · politics never. Blocks M1-M4 — rebuilding models on top of stale-cache infra is wasted work. |
+| R25c | **Rebuild one prediction model with tests, then port the pattern** | Medium | Large | Pick crypto (cleanest data source, most familiar). Write `test_crypto_edge.py` with frozen fixtures + calibration checks. Fix the obvious bugs uncovered in the audit: hardcoded vol fallbacks, one-sided-liquidity YES-picking bias, sub-10¢ tail markets producing 80% "fair values". Once the pattern works, clone to spx/weather/mentions. **Blocks M1-M4.** |
+| M1 | Ensemble crypto fair value | Medium | Large | Current is CoinGecko price + trend only. Add implied vol, funding rates, on-chain, momentum. **Gated on R25c** — don't expand a broken foundation. |
+| M2 | SPX volatility model | Medium | Small | Use VIX to build a price-target distribution; current model uses moving average. **Gated on R25b + R25c.** |
+| M3 | Weather-model calibration | Low | Medium | Calibrate hand-coded impact % against historical NWS forecast vs actual. **Gated on R25b + R25c.** |
+| M4 | Mentions seasonality | Low | Small | Election / event seasonality in TV-mention predictions. **Gated on R25b + R25c.** |
+
+**UX & automation (Tier 5 origin)**
+
+| ID | Item | Impact | Effort | Notes |
+|----|------|--------|--------|-------|
+| U3 | Interactive pick mode | Low | Medium | Pick rows directly from preview instead of rerunning with `--pick`. **Note (2026-04-29):** R26 (scan cache + replay) made the two-call `--pick` workflow safe by locking row order across invocations, so the original motivation here is mostly resolved. Still nice-to-have for one-fewer-command ergonomics, but not load-bearing. |
+| U4 | Single-command session | Low | Medium | `scan.py session` = status + settle + scan + preview. |
+
+**Futures market coverage (2026-04-24 audit, Phase 3)**
+
+| ID | Item | Impact | Effort | Notes |
+|----|------|--------|--------|-------|
+| R19 | **Expand futures coverage & name matching** | Low | Medium | Scanner audit (2026-04-24) surfaced four gaps in `futures_edge.py`: (a) `FUTURES_ALIASES` only covers a subset of teams — many Kalshi candidates silently fail name-match against Odds API outcomes. Complete team-name coverage for NBA/NHL/MLB. (b) Golf majors (Masters, US Open, The Open) not configured in `FUTURES_MAP` — only the generic `golf_pga_championship_winner` is (and PGA Tour Winner returns 0 matches from 137 outcomes, suggesting name-match failure). (c) **Re-add the 5 entries R22 removed once proper data sources exist**: `KXMLBPLAYOFFS` (needs "make MLB playoffs" outrights), `KXNBAEAST`/`KXNBAWEST` (need conference-winner outrights), `KXNHLEAST`/`KXNHLWEST` (same). Free Odds API tier doesn't appear to have these. (d) Evaluate whether NCAAB Tournament outright is worth adding. Wait until off-season MLB/NBA when futures betting becomes primary focus. |
+
+**Dashboard (Tier 5a origin — completed items in Completed index)**
+
+| ID | Item | Impact | Effort | Notes |
+|----|------|--------|--------|-------|
+| D3 | Site icon / favicon | Low | Small | |
+| D6 | Scan-result caching | Low | Small | TTL cache to avoid refetch on re-render. |
+| D10 | Mobile-responsive tweaks | Low | Medium | Fewer columns on small screens. |
+| D12 | Scan-comparison view | Low | Medium | Side-by-side results from different times/filters. |
+| D13 | Risk dashboard page | Medium | Medium | Concentration heatmap, daily-loss trend, per-sport exposure. |
+| D15 | Watchlist page | Low | Medium | View and manage saved watchlist opportunities. |
+| D18 | Tailscale / Cloudflare setup guide | Low | Small | Remote-access guide in `docs/web-app/`. |
+| D19 | `/healthz` endpoint | Low | Small | For monitoring. |
+
+**Simplification & hygiene (Tier 3 origin)**
+
+| ID | Item | Impact | Effort | Notes |
+|----|------|--------|--------|-------|
+| H2 | Split `requirements.txt` into core / dev / research | Low | Small | Alpaca, Playwright, SQLAlchemy etc. aren't in the live path. |
+| H3 | Separate runtime state from source tree | Low | Small | Consistent gitignore for `data/`, `logs/`, `reports/`, `__pycache__`; consider dedicated `runtime/`. |
+| H7 | **Externalize `BOOK_WEIGHTS` into config** | Low | Small | F42 (2026-05-13 analysis). Sharpbook weights (Pinnacle/Circa 3×, etc.) are hardcoded in `edge_detector.py`. Books change tier occasionally and the values are inherently empirical. Move to a JSON/YAML file alongside other tunables; load through `app/config.py`. Natural pair with C8 — both are "empirical knobs that live in source today." |
+| H8 | **RSA key rotation documentation** | Low | Small | F43 (2026-05-13 analysis). `keys/` is gitignored and never logged, but there's no operator runbook for *rotating* the Kalshi RSA keypair (generation cadence, Kalshi-side update, local key swap, verification). Add a short section to `docs/setup/SETUP_GUIDE.md` or a new `docs/SECURITY.md`. Pure docs. |
+| Q6 | **Package `scripts/` or retire `sys.path` hacks** | Medium | Large | `pyproject.toml:13` packages only `app*`/`webapp*`, so `scripts/` (where most logic lives) relies on pytest `pythonpath` + `.pth` + manual `sys.path.insert()` in `webapp/services.py:14-19` and `app/domain/opportunity.py`. Blocks clean editable installs, CI portability, and eventual PyPI/Docker packaging. Low urgency (working today), high cleanup value. Natural pair with A2. |
+
+**Testing (Tier 7 origin)**
+
+| ID | Item | Impact | Effort | Notes |
+|----|------|--------|--------|-------|
+| T1 | Integration tests (mocked workflows) | Medium | Medium | scan→risk→preview, scan→save→execute, settle→report→CLV, API-failure paths. |
+| T2 | API mocking | Medium | Small | Deterministic Kalshi / Odds API / ESPN fixtures. Prereq for T1. |
+| T3 | CI/CD pipeline | Medium | Small | GitHub Actions: pytest on PR, import-smoke job, lint, detect-secrets. **Re-flagged in 2026-04-22 analysis** — only `deploy.yml` exists today; no automated guardrail against test regressions, import breakage, or packaging drift. Impact upgraded from Low to Medium. |
+
+### Priority 4 — Web App Evolution (Tier 6 origin)
+
+Multi-quarter track. Build order: A2 → A3 → A4+A5 → A6+A7+A8 → A9. Assumes R5 completes first so DB migration doesn't inherit the trade-log/settlement gap.
+
+| ID | Item | Impact | Effort | Notes |
+|----|------|--------|--------|-------|
+| A2 | Extract service layer | Critical | Large | Isolate edge calc, risk sizing/gating, fill accounting, Kalshi client from CLI concerns. New `app/services/`. |
+| A3 | Replace JSON state with database | High | Medium | Postgres (prod) / SQLite (dev). Tables: `scan_runs`, `opportunities`, `risk_decisions`, `orders`, `fills`, `positions`, `settlements`, `bankroll_snapshots`, `audit_events`. **Supersedes T4.** |
+| A4 | FastAPI backend | High | Large | REST layer: `POST /api/scans`, `GET /api/opportunities`, `POST /api/opportunities/{id}/execute`, `GET /api/positions`, `GET /api/settlements`, `GET /api/portfolio/summary`, etc. |
+| A5 | Idempotent execution | High | Small | Client-generated idempotency key + server-side pre-submission record + market/order locks. |
+| A6 | Background job runner | Medium | Medium | Scheduled scans, order-status refresh, fill sync, settlement ingestion, daily rollups. APScheduler (MVP) → Celery/Redis if needed. U1 is a smaller standalone version of this. |
+| A7 | Concurrency controls | Medium | Medium | Locks around scan-triggered execution, order submission, position refresh. |
+| A8 | Web secrets handling | Medium | Small | Encrypted secret storage; no raw key-path assumptions in request handlers. |
+| A9 | React / Next.js dashboard | High | Large | Overview, Scan Runner, Opportunity Review, Trade Ticket, Orders & Fills, Positions, Settlements & Performance, Settings. Depends on A4. |
+
+### Deferred / Blocked / Superseded
+
+| ID | Item | Reason |
+|----|------|--------|
+| R6 | Audit Gate 2 batch-counter | **Dropped 2026-04-21.** Original evidence ("16 open vs MAX_OPEN_POSITIONS=10") read the code default, not the live `.env` (which is 50). At 16/50 there is no over-limit bleed. The latent batch-counter question is real but low-value without an actual exposure issue — revisit only if a future run shows approvals compounding past the cap. |
+| C4 | Review "high confidence" bump | Deferred. High-confidence bucket is flat (+$13.50 / 21 trades). Revisit at 50+ high-confidence trades. |
+| C2 | Bump per-sport stdev 10-20% | **Merged into R2** (more specific sport-by-sport prescription). |
+| C7 | Re-run calibration monthly | **Merged into R12** (same action, concrete trigger at 100 trades). |
+| D17 | Fix sidebar toggle | Blocked — Material icon font renders broken in dark theme. |
+| T4 | SQLite trade DB | **Superseded by A3.** |
+| U5 | Persistent odds cache | **Subsumed by R24b** (2026-04-24) — tracked as P2 with live motivation. |
+| R20 | Prediction-model audit | **Shipped 2026-04-24.** See Completed index + F34-F39. M1-M4 gated on R25b/R25c. |
+| H1 | Centralize config into typed settings | **Resolved by H6** (2026-04-25). H5 did knob reduction; H6 built `app/config.py` as the single source of truth. |
+
+---
+
+## Findings & Context
+
+### 2026-06-14 — Scan view surfaces in-progress phantom edges
+
+Triggered by a user report: the no-date scan `.bat` returned no results while a web-UI scan exported 20 MLB rows (`docs/my-documents/temp/edge_radar_scan.csv`). Investigation reproduced the engine as healthy — the CLI raw scan showed clean +8–10% edges at 11:25am and **zero** by 12:10pm as the games started and dropped from the odds feed. The discrepancy was two-fold: (1) the web-UI CSV is the **raw pre-gate opportunity list** (no Cost/Qty/Gate columns) while the `.bat` runs the full execution pipeline (exclude-open → dedup → edge floor → price floor → score → sizing), so the count gap is largely by design; (2) **timing** — the CSV was generated near first pitch when in-progress games still carried stale pre-game odds.
+
+| ID | Finding | Evidence | → Action |
+|----|---------|----------|----------|
+| F44 | **No started-game filter in `scan.py`** — in-progress games keep producing edges until the odds feed drops them, comparing stale pre-game fair values against live Kalshi prices. | CSV showed +50.6% on $0.04 "Washington lose", +34.8% on HOU@KC (CLI: +8–10% pre-start), sub-$0.06 rows. `grep` for started/in_progress/game-time filtering in `scan.py` returned no matches. Cosmetic side-note: "Arizona vs Cincinnati vs Cincinnati" is a `format_bet_label` title-fallback artifact (`ticker_display.py:334`), not contamination. | R27 (shipped 2026-06-15) |
+
+### 2026-05-13 — Third-party codebase analysis
+
+Source: `docs/my-documents/enhancements/analysis-5_2_26.md`. Reviewer's framing matched the 04-22 read — concept and core logic strong, recommendations are minor refactoring or architecture improvements. Most items were either generic style advice or already addressed (file caching = R24b; webapp duplication = pending Q6/A2). Four concrete items adopted.
+
+| ID | Finding | Evidence | → Action |
+|----|---------|----------|----------|
+| F40 | **Empirical stdev values still hand-tuned** — `SPORT_MARGIN_STDEV` / `SPORT_TOTAL_STDEV` in `edge_detector.py` are updated only when a human reads a calibration report and decides to bump them (R2 04-21, R14 04-24). The values are inherently empirical; with R16 monthly calibration cron now live, the loop should close. | Reviewer's #1. R2 and R14 both required manual `.env` + source edits after the calibration report surfaced the gap. | C8 |
+| F41 | **Odds API rotation doesn't distinguish 401 from 429** — `mark_exhausted()` fires on 401 but rotation handles both 401/429 the same way. A transient 429 (per-second/per-minute rate limit) would permanently dump a healthy key. No observed 429s today, but the contract is fragile. | Reviewer's #3. `scripts/shared/odds_api.py` + `edge_detector.fetch_odds_api()` retry on both status codes; `mark_exhausted` is called inside the 401 branch but the rotation step doesn't differentiate semantics. | R23b |
+| F42 | **`BOOK_WEIGHTS` hardcoded in source** — 21-book weighted-median map (Pinnacle/Circa 3×, DK/FD/MGM 0.7×) lives in `edge_detector.py`. Books occasionally re-tier (or get acquired / shut down) and the values are empirical, same character as the stdevs. | Reviewer's #1 (second half). | H7 |
+| F43 | **No Kalshi RSA key rotation runbook** — `.env` and `keys/` are gitignored and never logged, but the operator has no documented procedure for rotating the keypair on Kalshi's side and swapping in locally. | Reviewer's #6. | H8 |
+
+**Deliberately not acted on:**
+- "Convert `_odds_cache` from module dict to Cache manager class" — the two-tier dict + file design (R24a + R24b) works, is tested, and the class wrapper is pure cosmetic. Skip.
+- "Code duplication across `detect_edge_game/spread/total`" — generic refactor advice without specific evidence the duplication has caused bugs. Touch it when one of those functions next changes; not standalone work.
+- "Use `match` statements for condition chains" — pure style preference. Skip.
+
+### 2026-04-24 — 30-day rolling review (160 settled trades)
+
+Full report: `reports/Performance/betting_analysis_2026-04-24_30d.md`. Window 2026-03-25 → 2026-04-24.
+
+Sample: 160 trades, 80W-80L (50.0%), +37.4% ROI ($43.48 P&L), Brier 0.2657. Aggregate healthy but concentration risk: without the single MLS 7¢ fill (04-20, +$14.80) P&L drops to ~$29 (~+25% ROI).
+
+| ID | Finding | Evidence | → Action |
+|----|---------|----------|----------|
+| F14 | **Confidence tier inverted** — High WR < Medium WR | High: 47.4% WR (n=57). Medium: 53.0% WR (n=100). High ROI (+61%) wins via bet-size, not pick quality. | R13 |
+| F15 | **NBA still negative across 3 consecutive review windows** | 30d: -14.8% (n=17). 14d: -26%. Post-baseline: -15%. R2 stdev bump (04-21) too recent to attribute. | R14 (gated on R12) |
+| F16 | **Edge-bucket inversion softening** — suggestive R2 is working | ≥25% edge bucket: 14d -24% → 30d **+16%** ROI. Claimed edge and realized ROI no longer monotonically inverted. Needs formal R12 attribution. | R12 |
+| F17 | **Calibration overconfidence persists across all favorite bands** | 50-60%: -14.7pp gap (n=46) · 60-70%: -14.2pp (n=62, largest) · 70-80%: -15.0pp · 80-90%: -13.3pp · 90-100%: -21.5pp. Systematic ~15pp overstatement on every non-longshot bucket. | R12 (measurement), R2 (already shipped — attribution pending) |
+| F18 | **NO-side still losing on wider sample** — pre- and post-R1 mixed | YES: +77.7% ROI (n=102, 52.9% WR). NO: -10.4% (n=58, 44.8% WR). Most losing NO bets pre-date R1 ship (04-21); re-measure post-R1-only cohort via R12. | — (R1 watch) |
+| F19 | **R7 floor ($0.10) appears effective** — only 5 sub-10¢ bets in window, all 03-26 to 04-12 (pre-R7) | Post-R7 longshots cap at 10¢. 5-10¢ bucket ROI (+248%) is carried by one pre-R7 MLS 7¢ fill. | — (R7 watch) |
+| F20 | **Low confidence (3 bets, 0-3, -105% ROI)** confirms R3 gate value | Small sample but consistent with 04-18 and 04-21 windows. `MIN_CONFIDENCE=medium` doing its job. | — (R3 confirmation) |
+| F21 | **`model_calibration.py` blind to real sample** — reads wrong source | `trade_log`: 16 entries / 3 closed. `kalshi_settlements.json`: 173 entries. Calibration CLI errors out with "need at least 10" despite 160 settled bets existing. Makes R12 impossible to run on the post-baseline cohort until source is fixed. Discovered while attempting `/edge-radar-analysis` follow-up today. | R15 (shipped) |
+| F22 | **Live `.env` was missing both `MIN_EDGE_THRESHOLD_NBA` and `MIN_EDGE_THRESHOLD_NCAAB`** — silent fallback to global 3% floor | Only `.env.example` had them. For the entire post-baseline window, NBA and NCAAB ran at the 3% global floor, not 8% / 10%. R2 attribution needs a caveat: the stdev bump's effect was measured against a weaker edge gate than the docs implied. Does not invalidate R2 but means R12 re-run after R14 is now a true test of both changes compounding. | R14 (shipped — both thresholds added to live `.env`) |
+
+### 2026-04-24 — Scanner parity audit (futures / prediction / polymarket)
+
+Triggered by "`python scripts/kalshi/futures_edge.py scan --exclude-open` only found one edge — and `--budget 5%` isn't available". Audit compared all four scanner CLIs + execution paths.
+
+| ID | Finding | Evidence | → Action |
+|----|---------|----------|----------|
+| F23 | **Futures scan shows opportunities the executor will reject** | Without `--exclude-open`, futures scan at 3% edge surfaces 45 opportunities (NBA 8, NHL 10, MLB 27, PGA 0). Most are NO-side on heavy favorites at +30–75% "claimed edge" — exactly what Gate 4.6 (R1) was built to filter. Futures typically report `medium` confidence (only 4-5 books in the outrights market), so the carve-out (`confidence=high` AND edge≥25%) rejects most of them. Scanner output doesn't reflect what will actually execute. | R18 (new P2) |
+| F24 | ~~"Only 1 edge found" was `--exclude-open` working correctly~~ **INCORRECT — retracted 2026-04-24**. User had zero futures positions, all 20 holdings were regular sports games. `--exclude-open` was actually a no-op (different event-key namespace). Real cause surfaced as F27. | see F27 |
+| F27 | **`dedup_correlated_brackets()` was collapsing all futures outcomes into one** | `_event_key()` does `ticker.rsplit("-", 1)[0]`; for championship futures `KXNBA-26-LAL`, `KXNBA-26-BOS`, `KXNBA-26-OKC` all produce the same event key `KXNBA-26`. With `category="futures"` identical for all, dedup saw 16+ teams as one "bracket" and kept only the highest-composite-score row. 20 futures opps → 2 after dedup, then risk gates trimmed to 1. Design was correct for alt-line brackets on the same game (Over 221.5 / 224.5 / 228.5 are genuinely correlated) but wrong for futures where each team outcome is a distinct independent bet. Concentration is already bounded by Gate 6 (`MAX_PER_EVENT=2`). | R21 (shipped) |
+| F28 | **`FUTURES_MAP` prefix-collision + semantic-mismatch double bug** | Two separate issues compounding: (1) **Prefix collision** — iteration broke on first `ticker.startswith(prefix)` match, so `KXMLBPLAYOFFS-26-LAD` matched the `KXMLB` entry first (because `KXMLB` came earlier in the dict). Same pattern silently affected `KXNBAEAST`/`KXNBAWEST`/`KXNHLEAST`/`KXNHLWEST` → all got labeled "Finals/Cup Champion." (2) **Semantic mismatch** — even with prefix ordering fixed, those 5 derivative entries pointed to championship-winner Odds API markets while representing playoff-qualification or conference-winner questions. LAD's probability to MAKE PLAYOFFS (~95%) is fundamentally different from LAD's probability to WIN THE WORLD SERIES (~28%) — pricing Kalshi playoff-qualifier YES against championship-winner odds produced systematic "+60-75% edge on NO" garbage. Live impact: user saw 20 futures scan rows, 19 of which were bogus. Observed in the 2026-04-24 session while debugging futures output. | R22 (shipped) |
+| F29 | **`futures_edge.fetch_outrights` only retried 3 keys**, silently returning `[]` when more than 3 keys in a row were exhausted | User has 10 Odds API keys configured; live probe showed keys 0-4 exhausted (all 500/500 used), key 5 with 174 remaining, keys 6/7/9 fresh at 500, key 8 invalid (401). Because `fetch_outrights` used `for attempt in range(3)`, the retry loop exited after keys 0, 1, 2 all 401'd and never reached the healthy key at index 5. The parallel function in `edge_detector.py` had already been fixed to use a `tried: set[str]` loop that cycles through every key, but `futures_edge.py` was missed. Scanner printed "No outright data" but the real cause was swallowed HTTP errors. | R23 (shipped) |
+| F30 | **`_remaining` quota map was process-local — every fresh invocation rediscovered exhaustion** | Without persistence, every new Python process burned 3+ HTTP retries hitting dead keys before finding a healthy one. For a nightly task scheduler job running 5-10 scan.py invocations, that's 15-30 wasted 401 requests per run. Combined with F29 it meant filtered single-sport scans (which don't get the all-sports "warmup" rotation) could 401 out entirely. | R23 (shipped) |
+| F31 | **Quota burn rate is unexpectedly high** | Key 0 went from 175 remaining (observed in a scan at 13:32) to 0 remaining (observed 5 minutes later at ~13:37). That's ~175 requests consumed in a very short window. | R24a (shipped — webapp cache), R24b (shipped 2026-04-28 — file-backed odds cache) |
+| F32 | **Webapp had no `@st.cache_data` anywhere** | `grep -rn "@st.cache" webapp/` returned 0 hits. Every click-to-scan fired a fresh Odds API fetch. A 1-minute exploratory poking session on the dashboard could burn 50-100 requests re-running the same scan with minor filter tweaks. Found while investigating F31. Unlikely to explain the full 175-in-5-min burn on its own but a meaningful contributor. | R24a (shipped) |
+| F33 | **13 scheduled tasks installed, only 5 managed by `install_windows_task.py`** | `Get-ScheduledTask -TaskPath "\Edge-Radar\*"` shows 13 tasks. The installer's `status` command only knows about the 5 profiles defined in `TASK_PROFILES`. The other 8 (`All-Sports-SameDay-Execution`, `All-Sports-NoDateFilter-Execution`, `NextDay-Execute`, `Backtest`, `Calibration`, `Reconcile`, `Email-NextDay`, `Email-NoDateFilter`, `Email-SameDay`, `Email-Weekly-Analysis`) were created manually via `schtasks`. Not broken — just invisible to the installer's management UX. | R24c (new P3) |
+| F35 | **Scan tables silently hid which rows the executor would reject** | User ran `scan --filter mlb-futures --unit-size .5` and got "No opportunities passed risk checks" (LAD rejected on composite score 4.6 < 6.0). Same command without `--unit-size` happily showed LAD as a +4.3% edge row with no indication it would fail the executor. Scan table promised an opportunity the system would never take. Directly motivated shipping R18 as the fix. | R18 (shipped) |
+
+### 2026-04-24 — Prediction-market audit (R20)
+
+First full evaluation of `prediction_scanner.py` since it shipped ~2 weeks ago. Audit covered the 6 edge-detection modules (crypto / weather / spx / mentions / companies / politics) plus live scan output and historical settlements. Verdict: all 6 modules should be parked until properly rebuilt.
+
+| ID | Finding | Evidence | → Action |
+|----|---------|----------|----------|
+| F34 | **All 6 prediction-market modules cache live data with zero TTL** | Module-scoped `_price_cache` / `_history_cache` / `_forecast_cache` / `_historical_cache` dicts never invalidate. Weather forecast cached at first scan, reused all day. Crypto 7-day history cached from module load, never refreshed — multi-day scanning uses day-1 data on day 5. SPX price cached for hours. FRED bankruptcy data persisted for the full process lifetime. Silent staleness — no log, no warning. | R25b (new P3) |
+| F36 | **Live prediction scans produce obvious garbage fair values** | Crypto BTC/ETH range bets priced at $0.04-$0.07 show fair values of $0.77-$0.91 (+70-86% "edge"). Miami weather "83-84°F" bet showed $0.42 market / **$1.00 fair** / HIGH confidence / 9.7 composite — would have executed live if user had passed `--unit-size`. Mentions markets show +45% edge NO-side on sub-10¢ tails. All patterns consistent with broken fair-value models, not mispriced markets. | R25 (shipped) blocks execution; R25c rebuilds |
+| F37 | **Zero prediction-market bets in 173 historical settlements** | Every settlement is a sports game (MLB / NHL / NCAAB / NBA / MLS). Prediction scanner has been running daily for weeks but has never produced a bet that cleared the gates. Result: we have **no calibration data at all** on whether any of the 6 models work. Can't attribute anything; can't A/B. Rebuilding from scratch is cheaper than debugging a model we've never measured. | R20 (shipped as audit), R25c |
+| F38 | **4 of 6 prediction modules have no unit tests** | Only `test_weather.py` exists, and it actually tests `sports_weather.weather_scoring_adjustment()` — not `weather_edge.detect_edge_weather()`. No tests for crypto, spx, mentions, companies, or politics. No way to catch a regression if someone touched the files. | R25c |
+| F39 | **`DEMO_KEY` hardcoded as FRED API key in `companies_edge.py`** | Line 54: `api_key = os.getenv("FRED_API_KEY", "DEMO_KEY")`. `DEMO_KEY` is FRED's public demo credential with low rate limits shared across all users. If the shared rate limit hits, companies_edge silently falls back to a hardcoded 2020-2025 bankruptcy baseline. Low-severity (this module has never placed a bet) but sloppy. | R25c |
+| F25 | **Scanner flag parity gap** | `--budget` and `--report-dir` were sports-only. Futures / prediction / polymarket CLIs didn't accept them, and even if they had, `execute_pipeline(budget=…)` wasn't threaded through. Risk-gate logic itself was uniform (all four scanners share `execute_pipeline`). | R17 (shipped) |
+| F26 | **Odds API outright coverage is seasonal/partial** | NBA/NHL/MLB/PGA had live outrights at audit time; NFL Super Bowl was empty (off-season), NCAAB MOP empty (post-tournament). Golf majors (Masters, US Open, The Open) not configured as separate series. UCL/EPL/European soccer leagues not on free tier. Expected — documenting so we don't re-investigate. | R19 (new P3) |
+
+**Watch list (do not act on yet):**
+- MLS: still a single-fill artifact (6 bets, one +$14.80 win carries it). Do not re-weight.
+- Spread +145% ROI — same caveat as MLS; 23-bet sample includes the MLS fill.
+
+### 2026-04-22 — Independent repository analysis (integration truth, packaging, CI)
+
+Full report: `docs/my-documents/repo-analysis/edge_radar_repository_analysis_2026-04-22.md`.
+
+Framing: reviewer assessed concept quality as strong and core logic as moderate-to-strong, but flagged that **documentation quality is running ahead of integration quality**. The P&L/calibration side of the repo is healthy; the product-truth, packaging, and CI sides have visible drift. None of the findings are strategic — all are hardening work.
+
+| ID | Finding | Evidence | → Action |
+|----|---------|----------|----------|
+| G1 | UI exposes 4 market types; service layer supports 1 | `webapp/views/scan_page.py:19` lists sports/futures/prediction/polymarket; `webapp/services.py` only imports & calls `scan_all_markets` (sports path) | Q1 |
+| G2 | One test fails in clean venv run | `tests/test_risk_gates.py:141 test_approved_clean_when_no_caps_hit` — expects `APPROVED`, analysis claims `APPROVED_CAPPED_MAX_BET` | Q2 |
+| G3 | "8 risk gates" doc claim obsolete | 3 docs still say 8 gates; live system has 11 since R1/R3 shipped 04-21 | Q3 |
+| G4 | Pages deploy workflow targets wrong branch | `.github/workflows/deploy.yml:5` → `main`; repo default is `master` | Q4 |
+| G5 | Undeclared runtime dep on pandas | `webapp/views/scan_page.py:5` imports pandas; `requirements.txt:21` still marks it "planned" | Q5 |
+| G6 | Package boundary vs real logic location mismatch | `pyproject.toml:13` includes only `app*`/`webapp*`; `scripts/` is the real codebase, pulled in via `sys.path` mutation | Q6 |
+| G7 | No automated CI guardrail | Only deploy workflow exists; no pytest/lint/import-smoke job | T3 (impact raised) |
+
+**Deliberately not acted on:**
+- "Clone-configure-run outsider experience" / PowerShell bootstrap / no-credentials demo mode — reviewer framed these as major gaps; for a solo-operator tool they're nice-to-haves. Not added to roadmap unless the tool's audience changes.
+- "Reduce import-path magic gradually" as a standalone item — folded into Q6.
+- "Reproducible calibration artifacts" — partially addressed by existing calibration reports in `reports/Calibration/`; revisit only if R12 (100-trade re-run) surfaces a specific artifact gap.
+
+### 2026-04-21 — 14-day post-C1/C3/C5 review
+
+Sample: 76 settled trades (2026-04-07 → 2026-04-21). 37W-39L (48.7%), +31% ROI ($19.55 P&L), Brier 0.2646. Aggregate looks good but is carried by NHL and one outlier.
+
+| ID | Finding | Evidence | → Action |
+|----|---------|----------|----------|
+| F1 | NO-side systematically loses on high edge | YES +93% ROI (n=48). NO -20% ROI (n=28). NO at ≥20% edge: 31% WR, -33% ROI (n=16). **All 13 high-edge losers are NO-side.** | R1 |
+| F2 | Brier 0.2646 — probability estimates still adding noise | C1 dampens sizing on fake-high edges but doesn't touch the probabilities. | R2 |
+| F3 | Edge-bucket inversion intact post-C1 | 5-10%: +140% · 10-15%: +111% · 15-20%: +1% · 20-25%: +3% · **25%+: -24%** (n=11). | R2, R10 |
+| F4 | Overconfident in favorite band | 50-60%: +14% gap · 60-70%: +18% gap (n=40, largest bucket) · 70-80%: +14% gap. | R2 |
+| F5 | NBA -26% / MLB -10% persist | C3 floor applied to new bets only; history keeps settling. | R2 |
+| F6 | "Low" confidence 0W-3L, -105% ROI | Consistent across 2026-04-18 and 2026-04-21 windows. | R3 |
+| F7 | 16% of recent orders orphaned resting | 4/25 resting 25-66h, 1 partial (2/5). No follow-up. | R4 |
+| F8 | Trade log ↔ settlement disconnect | Only 10/76 14-day settlements match a trade log entry; 158 historical settlements unmatched. | R5, R11 |
+| F10 | Extreme-price bets (<10¢) are lottery tickets | 4 bets: 1W-3L. One win masks systemic pattern of model claiming "+50% edge" on 8-10¢ longshots. | R7 |
+| F11 | Within-day same-matchup dedup gap | 12 matchups bet ≥2× in 14d; several same-day on different categories. | R8 |
+| F12 | 48h series-dedup window too tight | MLB_NYMLAD bet Apr 14 + Apr 16 (~49h), both landed, both lost. | R9 |
+| F13 | Spread +200% ROI is an outlier | n=7 driven by one 7¢ MLS fill. Remove it: -$1.71 over 6 bets. Don't re-weight on this window. | — (watch) |
+
+**Watch list (do not act on yet):**
+- MLS +169% ROI (n=6) — single-fill artifact.
+- NHL +87% ROI (n=40) — consistent; **do not stdev-bump NHL**.
+
+### 2026-04-18 — First post-baseline calibration (66 trades since 04-03 baseline)
+
+Full report: `reports/Calibration/2026-04-18_calibration_report.md`.
+
+- **Brier 0.2561** — worse than coin-flip. Probability estimates add noise.
+- **Calibration curve:** 60-70% predicted → 50% realized (n=34, +15% gap); 70-80% → 58% (n=12, +14% gap). Favorites band systematically overstated.
+- **Edge bucket inverted:** 10-15% edges → +127% ROI; ≥25% → -35% ROI (n=10).
+- **Confidence:** High n=21 (-$0.81, avg claimed edge 22.4%), Low n=3 (0W, -$4.91), Medium n=46 (+$18.39, avg claimed edge 14.3%). Medium is carrying the model.
+- **Category:** Totals +33%, ML -8%, Spread -25% ROI.
+- **Sport (edge-metadata only):** NHL +100% (n=35), NBA -15%, MLB -20%, MLS -54%.
+- **Series-correlation leak** observed: same matchup bet across consecutive nights — motivated C5.
+
+### C1 details — what shipped 2026-04-18
+
+`trusted_edge()` in `scripts/kalshi/kalshi_executor.py` soft-caps edge inside the Kelly sizing expression only. Raw edge still flows through the edge-threshold gate, composite score, trade rationale, reports, and trade journal.
+
+```
+trusted_edge(edge) = edge                            if edge ≤ cap
+                   = cap + (edge - cap) × decay      if edge > cap
+```
+
+Defaults `KELLY_EDGE_CAP=0.15`, `KELLY_EDGE_DECAY=0.5`:
+
+| Raw edge | Trusted edge | Kelly reduction |
+|---|---|---|
+| ≤15% | unchanged | 0% |
+| 20% | 17.5% | 12.5% |
+| 25% | 20.0% | 20.0% |
+| 30% | 22.5% | 25.0% |
+| 35% | 25.0% | 28.6% |
+| 50% | 32.5% | 35.0% |
+
+Re-measure at 4 weeks. If ≥25% bucket is still negative, tighten to a harder cap (decay=0) or add a composite-score penalty.
+
+---
+
+## Completed
+
+Index only — detailed notes are in the collapsed section below.
+
+### 2026-06-15 — R27 "Started" Column on Scan Views (In-Progress Phantom-Edge Flag)
+
+| ID | Item |
+|----|------|
+| R27 | **Sports scan views now flag in-progress games with a `Started`/`LIVE` column** so the operator can see when a row's edge compares *live* Kalshi pricing against *stale* pre-game odds. Motivated by F44 (2026-06-14): a web-UI scan CSV showed +50.6% on a $0.04 "Washington lose" longshot and +34.8% on HOU@KC (the post-start CLI priced the same games at +8–10%), because a started game keeps producing edges until the Odds API drops it. The root confusion was a misleading comment at `edge_detector.py:1760` — the filter there keys on `expected_expiration_time`, which is the market **close** (after the game *ends*), so it never dropped in-progress games. **Design decision (tag, not exclude):** games stay visible in the scan/CSV with a `LIVE` marker rather than being filtered out — the operator chose visibility over silent removal, and execution gates already protect *real* bets. **Implementation:** new canonical `ticker_scheduled_utc(ticker)` + `is_game_started(ticker, now=None)` in `scripts/shared/ticker_display.py`. These mirror the hardened `edge_detector._ticker_scheduled_utc` event-matching logic (ET wall-clock numerals treated as UTC then shifted by a fixed 4h ET offset — a 1h EST/EDT slip is immaterial for "has it started?"). Both are **HHMM-only**: only moneyline (GAME) tickers embed a start time, which is exactly the F44 case; spread/total and NBA/NHL tickers carry date only, so `is_game_started` returns `False` (don't guess) rather than risk false-positive flags. The edge_detector matching path was left untouched to avoid any regression risk on the recently-hardened find_market_event code. **Wired into four scan surfaces:** the CLI Rich table (`edge_detector.print_opportunities` — `[red]LIVE[/red]`), the webapp dataframe + CSV export (`services.opportunities_to_rows` + a `scan_page` column-config width hint), the saved markdown scan report (`report_writer.save_scan_report`, sports branch), and the emailed automation report (`daily_sports_scan`). No CLI flag and no change to `scan_all_markets` — tagging is a pure display concern, so both CLI and webapp inherit it for free. Also tightened the misleading expiration-filter comment. **Verification:** +13 tests in `tests/test_ticker_display.py` (`TestTickerScheduledUTC`: ET→UTC shift, midnight crossover, spread ticker, date-only→None, unparseable→None; `TestIsGameStarted`: after/at/before start, date-only never-started, unparseable→False) → **424 passing** (was 411). Live smoke confirmed past/future/date-only tickers flag correctly. Files: `scripts/shared/ticker_display.py`, `scripts/kalshi/edge_detector.py`, `webapp/services.py`, `webapp/views/scan_page.py`, `scripts/shared/report_writer.py`, `scripts/schedulers/automation/daily_sports_scan.py`, `tests/test_ticker_display.py`. |
+
+### 2026-06-14 — H9 Runtime Risk-Config Reload (Stale-Gate Fix)
+
+| ID | Item |
+|----|------|
+| H9 | **`reload_risk_config()` — a long-running host can re-read risk-gate config without a restart.** Motivated by a user report: the webapp's execute *preview* showed `$0.05` MLB bets as **APPROVED** while a CLI scan run moments later returned nothing. Root cause: `kalshi_executor.py` snapshots all ~24 risk-gate globals (`MIN_MARKET_PRICE`, `MIN_EDGE_THRESHOLD_*`, `MIN_COMPOSITE_SCORE`, `MIN_CONFIDENCE`, the R1 NO-side gates, `CROSS_CATEGORY_DEDUP`, per-sport dicts, etc.) from `app.config` **at import time**. The CLI re-imports per run so it's always fresh; the Streamlit server imports once at startup and kept its pre-edit gates after the operator changed `.env` at 11:36 — so at 12:43 it approved bets the live `MIN_MARKET_PRICE=0.06` floor forbids ($0.05 < $0.06, Gate 3.5). H6 (config centralization) deliberately kept these as mutable module globals so the test monkey-patch seam works; that same design is what goes stale in a long-running process. **Fix:** new `reload_risk_config()` in `kalshi_executor.py` — `load_dotenv(override=True)` (re-read the `.env` file over the process env) → `reset_config()` → re-assign every risk global from a fresh `get_config()`. Wired into `webapp/services.py` at the top of `run_scan()` (refreshes the scan's R18 Gate-preview column) and `run_execute()` (refreshes before sizing/gating — the path that approved the sub-floor bet). **Deliberately NOT called by `size_order`/`execute_pipeline`** so the test seam (`kalshi_executor.MIN_MARKET_PRICE = 0`) is never clobbered mid-run; the CLI is untouched (already fresh per invocation). On Streamlit Cloud there's no `.env`, so `load_dotenv` is a no-op and the rebuild re-reads the injected Secrets already in the env — and a Secrets save there auto-reboots anyway, so the staleness window is local-only. **Import-time block and `reload_risk_config()` carry reciprocal "keep in sync" comments** since both assign the same globals. **Verification:** +3 tests (`TestReloadRiskConfig`: env-edit propagation, idempotent-without-edits, end-to-end `size_order` rejects a $0.05 bet after a raised floor) → **411 passing** (was 408). Live file-edit smoke confirmed: editing `.env` MIN_MARKET_PRICE 0.06→0.30 while the process runs, then `reload_risk_config()`, updates the global without restart. **Operator docs:** `docs/web-app/LOCAL.md` (restart-after-`.env`), `docs/web-app/CLOUD.md` (Secrets→reboot), CLAUDE.md callout after Risk Limits. Files: `scripts/kalshi/kalshi_executor.py`, `webapp/services.py`, `tests/test_risk_gates.py`, `CLAUDE.md`, `docs/web-app/LOCAL.md`, `docs/web-app/CLOUD.md`. |
+
+### 2026-05-13 — R11 Explicit Direction Fields in Settlement Schema
+
+| ID | Item |
+|----|------|
+| R11 | **Settlement records now carry `fair_value_yes` (always YES-perspective) and `fair_value_side` (perspective tag for the legacy `fair_value` field).** Motivated by the F8 note that the legacy `fair_value` field flipped perspective between bets in the pre-R5 cohort — post-hoc NO-side analysis required reading `side` separately and flipping, which was easy to get wrong and impossible to audit. **Fix:** new `_compute_fair_value_yes(trade) -> (float \| None, str \| None)` helper in `kalshi_settler.py` returns the YES-perspective probability and the explicit side tag. Wired into `build_settlement_record()`; legacy `fair_value` unchanged so `model_calibration.py`'s bet-side reader (which has been correct since R5) is not disturbed. Missing-side returns `(None, None)` — refusing to guess perspective is safer than fabricating one; missing fair_value with side present returns `(None, side)` to preserve the partial metadata. **Verification:** +5 regression tests in `test_reconciliation.py` — dedicated `TestComputeFairValueYes` class (YES preserves, NO flips to 1-fv, missing side yields both None, missing fair_value keeps side tag) plus `test_carries_r11_perspective_fields` on `build_settlement_record` and an extended assertion on the missing-optional-fields shape test. **No code changes to the calibration loader** — that's a separate cross-cut that should land when we want YES-perspective slicing across the full cohort; today's bet-side reader is correct for post-R5 records. **No backfill** of the 178 pre-R5 orphans — the underlying side resolution isn't reliably recoverable and synthesizing the field would be fabricating data; `data/history/README.md` updated to spell out the lifecycle. Files: `scripts/kalshi/kalshi_settler.py`, `tests/test_reconciliation.py`, `data/history/README.md`. |
+
+### 2026-04-30 — U2 Daily P&L Email Digest
+
+| ID | Item |
+|----|------|
+| U2 | **Morning P&L email digest — `daily_summary.py` + `Daily-Summary` (4:50 AM PST) + `Email-Daily-Summary` (5:00 AM PST).** First proactive measurement-and-visibility ship since the R12-R26 P1 wave; the digest gives a daily wake-up signal between the monthly R12 calibration runs while the post-R13/R14 cohort is still settling. **What it covers:** (a) **Yesterday** — rolling 24h settlements with W/L/$ summary, per-sport breakdown table, top winner + top loser. (b) **Open Exposure** — current filled positions from `kalshi_trades.json` (excludes `closed_at`, `fill_status=resting`, `status=error`, zero-fill), $ at risk total + per-sport split. (c) **Pending Today** — open positions whose game datetime falls on today's PST calendar day, parsed from ticker via `parse_game_datetime()`. (d) **Context** — live Kalshi balance fetched via `KalshiClient.get_balance_dollars()` (best-effort, falls back gracefully on API failure) plus a 7-day rolling line (WR, P&L, ROI, Brier — Brier flips probability for NO-side bets so it's directly comparable to the calibration report's reading). **Empty-day proof-of-life:** matches the SameDay email policy from `feedback_sameday_empty_emails`. The report still produces all four sections with `_No settlements in window._` / `_No open positions._` placeholders, and the email task still fires — empty digest = "the system ran" signal. **Architecture:** pure-functions split (`load_recent_settlements`, `load_open_positions`, `aggregate_yesterday`, `aggregate_exposure`, `filter_pending_today`, `rolling_7d_context`, `render_report`) with `build_report()` as the test-friendly composition entry. I/O isolated to `_fetch_balance()` (live Kalshi call, swallowed on failure) and the `--save` filesystem write. **Window choice:** rolling 24h instead of "yesterday in PST" — robust to DST, captures everything from yesterday's slate plus last night's late settlements (the 11 PM PST settler writes `settled_at` UTC timestamps that span ~07:00 UTC → 07:00 UTC the next day for PST 11PM-11PM games). **Timing choice:** 4:50 AM PST gives the digest a slot before `All-Sports-SameDay-Execution` (5:05 AM) so "Open Exposure" reflects overnight carry rather than mixing in today's new fills. The 10-min email buffer matches the `Weekly-Analysis` precedent. **Wrappers:** `scripts/schedulers/maintenance/daily_summary.bat` (cd + venv python + `--save`) and `scripts/custom/Shell-Scripts/Run-Reports/Daily-Summary-Report.sh` (mirrors the existing email pattern: `claude --dangerously-skip-permissions -p` + `agentmail` skill, dark-themed HTML, skip-on-missing-report). **Verification:** +26 regression tests in `tests/test_daily_summary.py` covering window-boundary inclusion, malformed-timestamp skip, sort order, open-position filtering (closed/resting/error/zero-fill), per-sport aggregation math, pending-today PST filtering, 7-day rolling minimum-sample threshold, balance present/missing rendering, full empty-day report renders all four sections. **381 tests passing** (was 355). End-to-end .bat smoke confirmed: live Kalshi balance fetched, report written to `reports/Performance/daily_summary_YYYY-MM-DD.md`. Files: `scripts/kalshi/daily_summary.py` (new), `scripts/schedulers/maintenance/daily_summary.bat` (new), `scripts/custom/Shell-Scripts/Run-Reports/Daily-Summary-Report.sh` (new), `tests/test_daily_summary.py` (new), `docs/my-documents/task-schedules/README.md` (added 0a/0b sections + install snippet). |
+
+### 2026-04-29 — R8 Cross-Category Same-Event Dedup (Optional, Per-Sport)
+
+| ID | Item |
+|----|------|
+| R8 | **`dedup_correlated_brackets()` now optionally collapses ML + Total + Spread on the same game to one bet, configurable per sport.** Motivated by F11 — 14-day review showed 12 matchups bet ≥2× in 14d, several same-day on different categories. The existing `(event_key, category)` dedup catches alt-line brackets within a category (3× Over lines on the same NBA game) but treats ML + Total + Spread on the same game as 3 distinct bets, which adds correlated exposure with no diversification benefit when the game's narrative drives all three (NBA blowouts, NFL routs). **Implementation:** added `cross_category_sports: set[str] | None` parameter to `dedup_correlated_brackets()` in `kalshi_executor.py`. When an opportunity's sport (via `_detect_sport`) is in the set, the dedup key becomes `(_event_key, "_xcat")` instead of `(_event_key, category)`, so all categories on the same game collapse to the highest-composite-score row. Futures pass-through (R21) is preserved — checked first, immune to the new branch. **Config:** new `GateThresholds.cross_category_dedup: bool` (env `CROSS_CATEGORY_DEDUP`, default `false`) and `PerSportOverrides.cross_category_dedup: dict[str, bool]` (env `CROSS_CATEGORY_DEDUP_<SPORT>=true|false`, mirrors R9 pattern). New `Config.cross_category_dedup_for(sport)` helper resolves per-sport→global fallback. Per-sport `false` overrides a global `true` in either direction. **Wiring:** module-level `CROSS_CATEGORY_DEDUP` and `_PER_SPORT_CROSS_CATEGORY_DEDUP` constants in `kalshi_executor.py` (test patchable, mirrors `_PER_SPORT_SERIES_DEDUP`); `_cross_category_sports()` helper builds the active set on each call. `execute_pipeline` passes the resolved set to dedup and surfaces the active sports in the dedup banner (`Deduped correlated brackets: 12 -> 8 opportunities (cross-category: ['nba', 'nfl'])`) when any are enabled. **Why default OFF:** cross-category correlation is sport-dependent (NHL low-scoring → ML and Total are weakly correlated; NBA → all three move together on blowouts). Opt-in lets the user A/B test per sport against live calibration data. Existing per-event cap (Gate 6, `MAX_PER_EVENT=2`) already provides a soft ceiling. **Verification:** +4 regression tests in `TestDedupCorrelatedBrackets` (off-default preserves pre-R8 behavior; on collapses 3 categories to highest-composite; per-sport scope — NBA collapses but MLB on same scan stays uncollapsed; futures pass-through preserved even when their sport is opted in). +4 config tests in `TestPerSportOverrides` (default off; global on cascades to all sports; per-sport-only override; per-sport false overrides global true). **355 tests passing** (was 347). Files: `app/config.py`, `scripts/kalshi/kalshi_executor.py`, `tests/test_risk_gates.py`, `tests/test_config.py`, `.env.example`, `CLAUDE.md`. |
+
+### 2026-04-29 — R26 File-Backed Scan Cache (Row-Order Lock for `--pick`)
+
+| ID | Item |
+|----|------|
+| R26 | **File-backed cache of the last preview's row→ticker mapping at `data/cache/last_scan.json` — `--pick … --execute` now replays the cached preview instead of rescanning live.** Motivated by a 2026-04-29 user-reported bug: ran `python scripts/scan.py sports --unit-size .5 --max-bets 10 --min-bets 3 --budget 15% --exclude-open` and got 5 games. Then ran with `--pick '1,3,4,5' --execute` (without `--exclude-open`); the second call did a fresh live scan, the row order shifted on price/score drift, and the wrong bets were placed against rows 1/3/4/5 of a different ranking. Two underlying causes: (a) every `scan.py` invocation runs `scan_all_markets()` fresh — Kalshi prices, Odds API consensus, and composite scores all refresh between calls, and the final sort is by `composite_score` (`edge_detector.py:1686`); (b) the second invocation dropped `--exclude-open`, which alone changes the row universe. **Fix:** new `scripts/shared/scan_cache.py` with `store(fingerprint, sized_orders, bankroll)`, `load() -> {fingerprint, saved_at, age_seconds, bankroll_at_scan, rows}`, `clear()`, `fingerprints_match(saved, current) -> (ok, diffs)`. Single file, latest preview only. Silent-on-error throughout — corrupt file = miss, never an exception. Mirrors `odds_cache.py` precedent. New `ScanCacheConfig` in `app/config.py` exposes `SCAN_CACHE_TTL_SECONDS=600` (10 min — long enough to read the table and pick rows, short enough that a user returning hours later gets a fresh scan) and `SCAN_CACHE_ENABLED=true`. `validate()` rejects negative TTL. **Wiring in `execute_pipeline`:** added `fingerprint`, `cached_rows`, `cache_age_seconds` params. The dedup / sizing / bet-ratio-cap / budget-cap block is now wrapped in `if cached_rows is None:` so the replay path bypasses it entirely (those decisions are locked from the original preview). On the fresh-scan path, the rendered preview rows are persisted right after `console.print(table)`. **Wiring in `edge_detector.py main()`:** new `--rescan` CLI flag for opt-out. When `args.execute` AND (`args.pick` OR `args.ticker`) AND not `args.rescan`, attempt cache load before scanning. Fingerprint = `{scanner, filter, category, date, exclude_open, min_edge, top}` — the args that determine row identity. `--unit-size`, `--max-bets`, `--budget`, `--min-bets` deliberately excluded since they reshape sizing/caps but the rows already in `cached_rows` were sized under the original args. On fingerprint mismatch, prints the differing keys and rescans. Banner on hit: `Replaying cached preview (N rows, age Xs)` + `Pass --rescan to force a fresh scan instead.` **Verification:** +17 regression tests in `tests/test_scan_cache.py` (round-trip preserves SizedOrder + Opportunity fields; age-is-recent; miss-after-TTL; disabled-via-zero-ttl; disabled-via-env-flag; corrupted-file-silently-misses; missing-file; wrong-version; missing-required-fields; store-disabled-does-not-write; creates-parent-dir; clear-removes-file; clear-when-missing; fingerprints identical-match / value-mismatch / extra-key / exclude-open-change-mismatch — the last specifically reproduces the user's bug case). **347 tests passing** (was 330). Lint clean. Live offline round-trip smoke (mocked SizedOrder + Opportunity): `store()` writes valid JSON, `load()` rehydrates with `age_seconds=0`, `fingerprints_match` returns `(True, [])`. Files: `app/config.py`, `scripts/shared/scan_cache.py` (new), `scripts/kalshi/kalshi_executor.py`, `scripts/kalshi/edge_detector.py`, `tests/test_scan_cache.py` (new), `.env.example`, `CLAUDE.md`. |
+
+### 2026-04-28 — R24b File-Backed Odds API Cache
+
+| ID | Item |
+|----|------|
+| R24b | **Two-tier cache for Odds API responses — in-process dict in front of a new file-backed layer at `data/cache/odds/<sport_key>__<markets>.json`.** Motivated by F31 (one key dropped 175 → 0 remaining in 5 minutes during a normal session): every fresh `scan.py` invocation started with empty caches and refetched all 18 sport keys from scratch, so back-to-back scans (scheduler bursts, dashboard re-renders) doubled quota burn unnecessarily. R23 fixed the persistent quota counter; R24a fixed the dashboard's lack of `@st.cache_data`; R24b is the structural piece — persist the actual response payloads across processes. **Implementation:** new `scripts/shared/odds_cache.py` with `load(sport_key, markets, ttl_seconds) -> (events, age_seconds) \| (None, None)`, `store()`, `clear()`. Comma-sanitized filenames (`h2h,spreads,totals` → `h2h_spreads_totals`); the original markets string is preserved inside the JSON for round-trip clarity. Silent-on-error throughout — corrupt file = miss, never an exception. New `OddsCacheConfig` in `app/config.py` exposes `ODDS_CACHE_TTL_SECONDS=300` (5 min default — longer than typical filter-fiddling, shorter than meaningful pre-game line movement) and `ODDS_CACHE_ENABLED=true`. `validate()` rejects negative TTL. Wired into both `edge_detector.fetch_odds_api()` and `futures_edge.fetch_outrights()`; the existing in-process dicts stay so existing `_odds_cache.clear()` test calls still work, the file layer survives across processes. Hits log `Odds API file cache hit for X (age Ns, M events)` so cache age is visible in scan output. **Verification:** +10 regression tests in `tests/test_odds_cache.py` (hit-within-TTL, miss-after-TTL, disabled-via-zero-ttl, corrupted-file-silently-misses, missing-file, missing-required-fields, store round-trip, store-creates-parent-dir, clear-removes-all, clear-when-dir-missing). Updated the autouse fixture in `TestFetchOddsApiKeyRotation` to redirect `odds_cache._CACHE_DIR` to a tmpdir alongside the existing quota-cache redirect — otherwise the rotation tests sharing one process would pick up each other's stored responses. **330 tests passing** (was 320). Offline round-trip smoke (mocked HTTP, fake key): call 1 hits HTTP and writes `baseball_mlb__h2h_spreads_totals.json`; clearing only the in-process dict and calling again returns identical events with 0 HTTP calls. Files: `app/config.py`, `scripts/shared/odds_cache.py` (new), `scripts/kalshi/edge_detector.py`, `scripts/kalshi/futures_edge.py`, `tests/test_odds_cache.py` (new), `tests/test_edge_detection.py`, `.env.example`. |
+
+### 2026-04-27 — R5 Settlement-Schema Fix + Reconciliation Report + R9 Per-Sport Series Dedup
+
+| ID | Item |
+|----|------|
+| R9 | **`SERIES_DEDUP_HOURS` is now per-sport.** F12 (14-day review): a NYM/LAD MLB pair was bet on Apr 14 and again on Apr 16 (~49h apart), both bets landed and both lost. The single 48h global window was tight enough to leak adjacent-day series repeats. **Fix:** added `series_dedup_hours: dict[str, int]` to `PerSportOverrides` in `app/config.py`, populated from `SERIES_DEDUP_HOURS_<SPORT>` env vars (same pattern as `MIN_EDGE_THRESHOLD_<SPORT>`). Extended `recent_matchups_from_log()` with a `per_sport_hours` keyword arg so each sport's recent-matchup keys are gated on its own cutoff (sports without an override fall back to the global). Updated Gate 7 in `size_order()` to look up the per-sport window for the candidate's matchup and report the actual sport-specific window in the rejection message ("series_dedup (matchup NYMLAD bet within 72h)" vs the old "within 48h"). A per-sport `0` opts that sport out of the gate even when the global is non-zero, and a global `0` with a per-sport override re-enables the gate just for that sport — both directions tested. **Live `.env` updated with `SERIES_DEDUP_HOURS_MLB=72` and `SERIES_DEDUP_HOURS_NHL=72`** (NHL series cycle on consecutive days the same way MLB does; 72h covers any 3-game series start-to-finish). NBA leaves the global default — same opponent twice within 48h is rare outside playoffs. **Verification:** +9 regression tests in `test_risk_gates.py` (6 set-construction edge cases including the exact F12 scenario at 49h, plus 3 gate-rejection-message cases) + 4 config-layer tests in `test_config.py`. Existing `test_disabled_when_hours_zero` updated to also clear `_PER_SPORT_SERIES_DEDUP` since per-sport overrides can re-enable the gate independently of the global. **320 tests passing** (was 307). Live config smoke test confirms `_PER_SPORT_SERIES_DEDUP={'mlb': 72, 'nhl': 72}` loads correctly. Files: `app/config.py`, `scripts/kalshi/kalshi_executor.py`, `tests/test_risk_gates.py`, `tests/test_config.py`, `.env`, `.env.example`, `CLAUDE.md`. |
+| R5 | **Settler now writes a self-describing settlement record + new reconciliation report makes the trade-log/settlement join visible.** Original F8 finding said "10/76 14-day settlements match a trade-log entry"; investigation revealed worse state — production trade log was wiped at some point, leaving 178 orphan settlements (0/178 trade_id overlap) plus 1 test stub. **Fix:** (a) extracted `build_settlement_record()` helper in `kalshi_settler.py` and extended the schema to carry `order_id`, `title`, `category`, `edge_source`, `closing_price`, `clv`, `composite_score`, `risk_approval`, `bankroll_pct`, `unit_size`, `fill_status` alongside the existing legacy fields. After this, every future settlement is fully self-describing for calibration without joining to the trade log. (b) Added `print_reconciliation()` to `risk_check.py` (`--report reconciliation`) showing trade-log/settlement counts, `trade_id` overlap, orphan-window dates, and field-coverage matrix per R5-added field. Surfaces the gap at every session start. (c) Wrote `data/history/README.md` documenting the schema lifecycle + pre-R5 historical-orphan rationale (no backfill — fields don't exist on disk and synthesis would be lying); added a `.gitignore` exception so the README ships with the repo while runtime state stays gitignored. **Verification:** +10 regression tests in `tests/test_reconciliation.py` (5 schema-coverage + 5 report-rendering across empty/all-orphan/clean-join/mixed cases) → **307 tests passing.** Live `--report reconciliation` against the user's data renders cleanly: 178 orphans, 0% R5-field coverage, oldest 2026-03-22, newest 2026-04-27 — the expected pre-R5 baseline. Does NOT solve the historical 178 orphan settlements; it stops the bleed and makes the gap measurable. A3 (DB migration) can now import a clean schema. Files: `scripts/kalshi/kalshi_settler.py`, `scripts/kalshi/risk_check.py`, `tests/test_reconciliation.py`, `data/history/README.md`, `.gitignore`. |
+
+### 2026-04-25 — H6 Config Centralization (Phases 1–3 all shipped same day)
+
+| ID | Item |
+|----|------|
+| H6 | **`app/config.py` is the single source of truth for every runtime knob.** Refactor only — no behavior changes, no new knobs. **Phase 1:** built `app/config.py` with 10 frozen dataclasses grouped by concern (`KalshiCredentials`, `KalshiProdCredentials`, `OddsApiCredentials`, `AlpacaCredentials`, `TelegramCredentials`, `RiskLimits`, `GateThresholds`, `KellyConfig`, `PerSportOverrides`, `System`). Each has `from_env()` for one-shot coercion; aggregate `Config.from_env()` runs `validate()` (catches `MAX_BET_SIZE < UNIT_SIZE`, `MIN_CONFIDENCE` not in {low,medium,high}, `KELLY_FRACTION` outside [0,1], etc.). `get_config()` / `reset_config()` memoized accessor + tests-and-Streamlit-friendly reset. `Config.edge_threshold_for_sport(sport)` replaces the per-sport-edge lookup idiom. +32 tests in `tests/test_config.py`. **Phase 2:** migrated 8 script groups (`doctor.py` → `risk_check.py` → `kalshi_client.py` → `edge_detector.py` + `fetch_odds.py` → `kalshi_executor.py` (23 calls — the largest, including all 21 module-level risk constants and the per-sport edge override loop) → 6 small modules (`prediction_scanner.py`, `backtester.py`, `logging_setup.py`, `odds_api.py`, `fetch_market_data.py`, `telegram_bot.py`) → `webapp/services.py`). **65 reads removed across 16 files.** Module-level constants stay mutable globals so existing `tests/test_risk_gates.py` monkey-patching pattern continues to work. Sys-path side-fix added to `scripts/shared/paths.py` and `.venv/Lib/site-packages/edge_radar.pth` to prepend `PROJECT_ROOT` so `from app.config import …` resolves in scripts that import `paths`. **Phase 3:** lint guard `scripts/lint/check_config_centralization.py` walks `app/`/`scripts/`/`webapp/`, excludes `app/config.py` + `scripts/custom/` + `scripts/lint/`, skips comment-only lines and lines tagged `# config-bootstrap`. Wired into `make lint-config` + `.pre-commit-config.yaml` (`pass_filenames: false` + `always_run: true` so it sees the whole tree). +5 tests (`tests/test_lint_config_centralization.py`). **Final:** **297 tests passing. Production-code `os.getenv` reads outside `app/config.py`: 0.** The 4 `os.environ` writes in `webapp/services.py` are the deliberately retained Streamlit secrets bootstrap, annotated `# config-bootstrap` and lint-recognized. Doc: `docs/my-documents/enhancements/CONFIG_CENTRALIZATION.md`. Replaces and supersedes the partial H1/H5 fix. |
+
+### 2026-04-24 — R12–R18 + R20 + R21–R23 + R24a + R25 Shipped (30-day cycle + automation + scanner parity + 3 futures fixes + Odds API key rotation + webapp scan cache + scan-table gate column + prediction audit + prediction safety gate)
+
+| ID | Item |
+|----|------|
+| R15 | **`model_calibration.py` now reads `data/history/kalshi_settlements.json`** instead of `trade_log`. `trade_log` only captured 16 entries (3 closed) because most bets predated its introduction; settlements file has 173. Added `_load_settled_trades()` normalizer that maps `cost` → `cost_dollars`, `won` → `settlement_won`, `settled_at` → `closed_at`, and derives `category` from ticker via `bet_type_from_ticker()`. Replaced string-based ISO cutoff comparison with `datetime` parsing that tolerates trailing `Z`. All existing downstream helpers (`_brier_score`, `_calibration_buckets`, `_edge_bucket_stats`, `_dimension_stats`, cross-tab, recommendations) unchanged — only the loader swapped. Files: `scripts/kalshi/model_calibration.py`. |
+| R12 | **First R12 calibration run against full 160-trade cohort.** Report: `reports/Calibration/2026-04-24_calibration_report.md`. Produced 10 prioritized recommendations (2 HIGH, 8 MEDIUM). Headline: Brier 0.2657 (worse than coin-flip, confirming F17 persistence). Per-sport Brier surfaces NBA = 0.3306 as the worst-calibrated sport, motivated R14 floor bump. High-confidence WR < Medium confirms F14 → R13. Edge-bucket inversion softened to 25%+ @ +16% ROI vs -24% at 14-day window — evidence R2 is working, but Brier hasn't moved. |
+| R14 | **`MIN_EDGE_THRESHOLD_NBA` bumped 0.08 → 0.12.** Scope deliberately minimal: one env bump after slicing the 17-bet NBA cohort showed the real damage was concentrated in High-confidence picks (1-6, -71% ROI), not a sport-wide probability-model problem. NBA Totals (n=13) is near coin-flip at +5% ROI, Brier 0.3308; NBA ML (n=3) was -106% ROI but 2/3 of the losers were sub-10¢ lottery tickets already caught by R7. Playoff-specific stdev and "NBA Totals-only" filter explicitly rejected — not enough sample to justify either. Real fix for High-confidence NBA bleed moves to R13. **Also fixed**: live `.env` was missing both NBA and NCAAB overrides entirely (silently falling back to the 3% global floor). Added both. Files: `.env`, `.env.example`, `CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/setup/SETUP_GUIDE.md`, `docs/web-app/CLOUD.md`, `scripts/kalshi/kalshi_executor.py` (docstring), `.claude/html/index.html`. |
+| R13 | **Confidence bumps now one-way (down only).** Changed `_adjust_confidence_with_stats()` in `edge_detector.py`: `contradicts` still drops a tier, `supports` is now a no-op (previously bumped up a tier). Applies to all three call sites (team stats, rest/B2B, sharp money) since they share the function. Rationale: 30-day data showed High-confidence WR 47% < Medium 53% overall, and NBA High = 1-6 / -71% ROI. Upward bumps were correlated with inflated claimed edge, not better outcomes — the calibration report's HIGH-priority recommendation matched this directly. Base "high" tier is still reachable via the book-count rule (≥8 sharp books + tight consensus <5%), just the bolt-on bumps don't push you there anymore. Rare R1 (NO-favorite guard requires `confidence=high`) naturally tightens as a side-effect — correct direction. +4 regression tests (`TestConfidenceBumpsOneWay`) → 222 tests passing. Files: `scripts/kalshi/edge_detector.py`, `tests/test_edge_detection.py`. |
+| R16 | **Monthly R12 calibration cron.** Added `calibration` profile to `install_windows_task.py` — schedules `model_calibration.py --days 30 --save` on day 1 of each month at 02:00 (after nightly settler). Required extending the installer to support `MONTHLY` + `day` keys; daily profiles unchanged. Updated `docs/setup/AUTOMATION_GUIDE.md` profile table and recommended-setup block. Ship-to-user is one command: `python scripts/schedulers/automation/install_windows_task.py install calibration`. Files: `scripts/schedulers/automation/install_windows_task.py`, `docs/setup/AUTOMATION_GUIDE.md`. |
+| R17 | **Scanner flag parity — `--budget` + `--report-dir` across all four scanners.** Futures / prediction / polymarket didn't accept `--budget` or `--report-dir`, and even if they had, `execute_pipeline(budget=…)` wasn't threaded through. Triggered by "`scan --exclude-open --budget 5%` isn't available" + scanner audit that found the gap uniform across three scanners. Extracted `parse_budget_arg()` into `kalshi_executor.py` so all four scanners share the same "10%" / "15" / "0.15" / "150" parsing contract. Added `--budget` + `--report-dir` to futures / prediction / polymarket argparse; wired each to `execute_pipeline(budget=…)` and `save_scan_report(output_dir=…)`. Sports scanner's inline 7-line budget block replaced with the shared helper. Files: `scripts/kalshi/kalshi_executor.py`, `scripts/kalshi/edge_detector.py`, `scripts/kalshi/futures_edge.py`, `scripts/prediction/prediction_scanner.py`, `scripts/polymarket/polymarket_edge.py`. |
+| R21 | **`dedup_correlated_brackets()` now passes futures through unchanged.** Bug discovered when debugging "only 1 edge in futures scan". Dedup's `(event_key, category)` grouping collapsed all 16+ team outcomes in a championship (`KXNBA-26-LAL`, `KXNBA-26-BOS`, …) to one entry because `_event_key()` stripped the team suffix. Correct for alt-line brackets ("Over 221.5" / "Over 224.5" on same game), wrong for futures where each team is a distinct independent bet. Fix: when `opp.category == "futures"`, use the full ticker as the dedup key so each outcome survives. Concentration on championship still bounded by Gate 6 (`MAX_PER_EVENT=2`) — verified against live data: 15 MLB WS opps now correctly flow to Gate 6 (caps at 2) rather than getting pre-killed. Also retracts F24 (my earlier hand-waved explanation blaming `--exclude-open`). +5 regression tests (`TestDedupCorrelatedBrackets`) → 227 tests passing. Files: `scripts/kalshi/kalshi_executor.py`, `tests/test_risk_gates.py`. |
+| R22 | **`FUTURES_MAP` prefix-collision + semantic-mismatch fix.** User noticed futures scan surfacing "+30-75% edge" on basically every MLB team — too good to be true, and it was. Two bugs compounding (F28): (1) prefix matching used `startswith` so `KXMLBPLAYOFFS-26-LAD` matched the `KXMLB` entry and got priced against World Series winner odds; (2) even if ordering was fixed, the `KXMLBPLAYOFFS` entry itself pointed to championship-winner odds, which fundamentally misrepresents playoff-qualification probability. Same issue silently affected NBA/NHL conference tickers. **Fix:** (a) switched matching from `ticker.startswith(prefix)` to exact series extraction (`ticker.split("-", 1)[0]` lookup) — surgical, can't collide; (b) removed the 5 semantically-broken entries from `FUTURES_MAP` (`KXMLBPLAYOFFS`, `KXNBAEAST`, `KXNBAWEST`, `KXNHLEAST`, `KXNHLWEST`) with a comment explaining why each needs a proper data source before being re-added (tracked in R19); (c) updated `FUTURES_FILTER_SHORTCUTS` to match. Live verification: same scan went from 45 bogus opportunities at +30-75% edge → 2 real opportunities at +4% edge (OKC NBA Finals, LAD World Series). +7 regression tests (`TestFuturesSeriesMatch`) → 234 tests passing. Files: `scripts/kalshi/futures_edge.py`, `tests/test_edge_detection.py`. |
+| R23 | **Odds API key rotation + persistent quota cache.** Discovered when `--filter mlb-futures` returned "No outright data" despite the unfiltered scan working 5 minutes earlier. Live probe showed first 5 of 10 keys exhausted; `futures_edge.fetch_outrights` used `for attempt in range(3)` so the retry loop exited before cycling to a healthy key (F29). Compounded by F30: `_remaining` was process-local, so every fresh invocation rediscovered exhaustion the hard way. **Fix:** (a) replaced `range(3)` in `fetch_outrights` with the same `tried: set[str]` loop `edge_detector.fetch_odds_api` already uses (cycles through every configured key); (b) added `mark_exhausted()` to `odds_api.py` — called on 401 responses to immediately flag the key as dead; (c) added persistent quota cache at `data/cache/odds_api_quota.json` — `_remaining` dict is loaded at `_load_keys()` time and saved on every `report_remaining()` / `mark_exhausted()` call; (d) `get_current_key()` now auto-advances past keys with cached `remaining == 0` so fresh processes skip exhausted keys instantly. Fallback: if every key is cached exhausted, return the current slot anyway so a monthly quota reset can be re-discovered. Same `mark_exhausted` call added to `edge_detector.fetch_odds_api` for parity. +13 regression tests (`tests/test_odds_api.py` + autouse fixture on `TestFetchOddsApiKeyRotation` to prevent cache pollution) → 247 tests passing. Files: `scripts/shared/odds_api.py`, `scripts/kalshi/futures_edge.py`, `scripts/kalshi/edge_detector.py`, `tests/test_odds_api.py`, `tests/test_edge_detection.py`. |
+| R24a | **Webapp `run_scan()` now cached with `@st.cache_data(ttl=60)`.** Zero `@st.cache` decorators existed anywhere in `webapp/` before this (F32) — every scan-button click fired a fresh Odds API fetch, and exploratory "try a filter, scan, change filter, scan again" sessions burned requests fast. Added a 60s TTL cache keyed on all scan parameters (market_type, ticker_filter, category, date, min_edge, top_n, exclude_open, cross_ref). Client param renamed `client` → `_client` per Streamlit convention for unhashable args. CLEAR button now also calls `run_scan.clear()` so the user can force a refresh on demand. Rationale for 60s: Kalshi prices can move within a minute; absorbs the typical rapid-click loop without serving stale data long enough for anyone to act on. Investigation under R24 also surfaced F33 (8 manually-installed scheduler tasks not tracked by the installer) → R24c, and motivated R24b (file-backed odds cache across CLI invocations). Files: `webapp/services.py`, `webapp/views/scan_page.py`. |
+| R18 | **Scan tables now show a "Gate" column previewing which rows will survive the risk gates.** User noticed `scan --filter mlb-futures --unit-size .5` rejected the only opportunity (LAD at 4.6 composite score) while `scan --filter mlb-futures` (scan-only, no unit-size) happily listed it with no indication that the executor would reject. F23 / F35 flagged this pattern — scan shows edges the executor won't take. **Fix:** Added `preflight_gate_status(opp)` helper in `kalshi_executor.py` that checks the 5 static per-opportunity gates (Gate 3 edge floor, Gate 3.5 price floor, Gate 4 composite, Gate 4.5 confidence, Gate 4.6 NO-favorite) and returns a short label (`"ok"` / `"edge"` / `"price"` / `"score"` / `"conf"` / `"no-fav"`). Wired into the scan-table render path of all four scanners (`edge_detector.print_opportunities`, `futures_edge` inline table, `prediction_scanner.print_opportunities`, `polymarket_edge` inline table). Color-coded: green "ok" for pass, red label for the failing gate. Runtime gates (daily loss, position count, duplicate ticker, per-event cap, series dedup) still require live portfolio state — docstring is explicit that "ok" is a necessary-but-not-sufficient signal. +9 regression tests (`TestPreflightGateStatus`) covering each gate and the first-failing-wins ordering → 256 tests passing. Files: `scripts/kalshi/kalshi_executor.py`, `scripts/kalshi/edge_detector.py`, `scripts/kalshi/futures_edge.py`, `scripts/prediction/prediction_scanner.py`, `scripts/polymarket/polymarket_edge.py`, `tests/test_risk_gates.py`. |
+| R20 | **Prediction-market audit complete — 6 modules parked until rebuilt.** First full evaluation of `prediction_scanner.py` since it shipped. Covered the 6 edge-detection modules (crypto / weather / spx / mentions / companies / politics) plus live scan output and historical settlements. Surfaced F34-F39: all 6 modules cache live data without TTL, zero prediction-market bets in 173 historical settlements (no calibration data at all), live scans produce garbage fair values (crypto +80% on 4¢ tails; a Miami weather bet was one `--unit-size` away from executing at $1.00 fair value with HIGH confidence / 9.7 composite), 4 of 6 modules have no unit tests, `DEMO_KEY` hardcoded as FRED API credential. Audit artifact: the Explore-agent report is in the conversation transcript; structural conclusions captured in F34-F39. Prescription: R25 ships the safety gate to block execution; R25b (TTL caches) and R25c (rebuild with tests) are the prerequisites for M1-M4. |
+| R25 | **Gate 4.7 — prediction-market safety gate.** New reject gate in `size_order()`: rejects opportunities where `opp.category in {"crypto", "weather", "spx", "mentions", "companies", "politics"}` unless `ALLOW_PREDICTION_BETS=true`. Default: false. Placed between Gate 4.6 (NO-favorite) and Gate 5 (duplicate ticker). `preflight_gate_status()` extended to return `"pred-off"` so the R18 scan-table Gate column surfaces the rejection at scan time — users see it before running `--unit-size`. Directly prevents the Miami weather bet (F36) from ever executing. `ALLOW_PREDICTION_BETS` plumbed through `.env.example` and CLAUDE.md (Execution Gates table + Risk Limits block). Sports / futures / polymarket paths unchanged — verified live. Users can opt back in per-session with the env flag once R25b+R25c are shipped. +4 regression tests covering: all 6 categories blocked by default, env flag opens the gate, sports categories untouched, end-to-end `size_order` integration on a crypto opportunity. 260 tests passing. Files: `scripts/kalshi/kalshi_executor.py`, `.env.example`, `CLAUDE.md`, `tests/test_risk_gates.py`. |
+
+### 2026-04-22 — R7 Shipped (Gate 3.5 lottery-ticket floor)
+
+| ID | Item |
+|----|------|
+| R7 | **Gate 3.5 — minimum market-price floor.** New reject gate in `size_order()` rejects any bet priced below `MIN_MARKET_PRICE` (default **$0.10**, user preference: "kind of like the long shots. But I definitely agree We shouldn't go too low. I like .10"). Strict less-than: $0.09 rejected, $0.10 approved. No exception for edge/confidence — unlike Gate 4.6, this is a hard structural floor. `MIN_MARKET_PRICE=0` disables. Addresses F10 (sub-10¢ bets went 1W-3L with model claiming "+50% edge" on 8-10¢ longshots). Plumbed through `.env.example`, `CLAUDE.md` (gate table + Risk Limits block), `webapp/services.py` flat-keys. +5 regression tests (218 total). Two pre-existing tests (`test_contracts_capped_by_bankroll`, `test_price_clamped_to_valid_range`) that intentionally use sub-10¢ prices patched to set `MIN_MARKET_PRICE=0` for their scope. Docs touched in Q3 (`SCRIPTS_REFERENCE.md`, `AUTOMATION_GUIDE.md`, `web-app/LOCAL.md`) rewritten from "11 risk gates" → "all risk gates" + CLAUDE.md heading changed to "Execution Gates" — count-free references so the next gate addition won't require doc churn. Files: `scripts/kalshi/kalshi_executor.py`, `.env.example`, `CLAUDE.md`, `webapp/services.py`, 3 doc files, `tests/test_risk_gates.py`. |
+
+### 2026-04-22 — Repo Analysis Response (Q1–Q5)
+
+| ID | Item |
+|----|------|
+| Q1 | **Web app `market_type` wired through the service layer.** `run_scan()` now dispatches to `scan_all_markets` (sports), `scan_futures_markets` (futures), or `scan_prediction_markets` (prediction) based on the UI selection, and passes `cross_ref` through for Polymarket reference pricing on prediction scans. Invalid market types raise `ValueError` at the boundary. Standalone Polymarket market type removed from `MARKET_TYPES`, `CATEGORIES_BY_TYPE`, `FILTERS_BY_TYPE`, and the sidebar `QUICK_SCANS` — it was UI-only and never reached the service layer. `docs/web-app/LOCAL.md` updated to match. Resolves G1. Files: `webapp/services.py`, `webapp/views/scan_page.py`, `webapp/app.py`, `docs/web-app/LOCAL.md`. |
+| Q2 | **Fixed `test_approved_clean_when_no_caps_hit` env-contamination.** Root cause: test read `MAX_BET_SIZE` and `KELLY_FRACTION` from `kalshi_executor` at import time, so developer `.env` overrides (e.g. `MAX_BET_SIZE=15`, `KELLY_FRACTION=1.0`) would cause the 5% edge / $500 bankroll / $1 unit-size case to trip the max-bet cap and return `APPROVED_CAPPED_MAX_BET` instead of `APPROVED`. Fix: monkey-patch both module constants to documented defaults (100.0 / 0.25) for the test's scope, matching the existing pattern in sibling `test_approved_capped_max_bet`. Sizing logic itself was correct. All 213 tests pass. Resolves G2. Files: `tests/test_risk_gates.py`. |
+| Q3 | **Doc drift: "8 risk gates" → "11 risk gates".** Updated `docs/SCRIPTS_REFERENCE.md:413`, `docs/setup/AUTOMATION_GUIDE.md:17`, `docs/web-app/LOCAL.md:184` to reflect live gate count post-R1/R3 and cross-link to `CLAUDE.md` §"11 Execution Gates" as the canonical source. Resolves G3. |
+| Q4 | **Pages deploy branch fixed: `main` → `master`.** `.github/workflows/deploy.yml` trigger corrected so pushes to the actual default branch republish `.claude/html/` (the "Edge-Radar · Data Flow" static page). **Side effect:** the next push to master will trigger a real Pages deploy — expected and intended. Resolves G4. Files: `.github/workflows/deploy.yml`. |
+| Q5 | **Declared `pandas` in `requirements.txt`.** All four webapp view pages (`scan_page.py`, `settle_page.py`, `portfolio_page.py`, `backtest_page.py`) import pandas; it was working only because streamlit pulls it transitively. Promoted to `pandas>=2.1.4` as a first-class runtime dep. Audited for other transitive-only imports — none found in `scripts/` or `webapp/`. Resolves G5. Files: `requirements.txt`. |
+
+### 2026-04-21 — 14-Day Review Response (R1, R2, R3, R4)
+
+| ID | Item |
+|----|------|
+| R3 | Gate 4.5 — `MIN_CONFIDENCE` (default `medium`) rejects low-confidence opportunities. Addresses 0W-3L / -105% ROI in two review windows. |
+| R1 | Gate 4.6 — NO-side favorite guard: reject NO bets priced below `NO_SIDE_FAVORITE_THRESHOLD` (0.25) unless edge ≥ `NO_SIDE_MIN_EDGE` (0.25) AND `confidence=high`. Plus sizing dampener: NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` (0.35) sized at `NO_SIDE_KELLY_MULTIPLIER` (0.5 = half-Kelly). Addresses F1 — all 13 high-edge losers in 14d window were NO-side. +14 regression tests (195 total). |
+| R4 | Resting-order janitor — `cancel_stale_resting_orders()` runs at the top of `execute_pipeline()` when `execute=True` AND `DRY_RUN=false`. Cancels resting orders older than `RESTING_ORDER_MAX_HOURS` (default 24) with zero fills. Partial/full fills left to the settler. Addresses F7 — 16% of new orders resting 25-66h with no follow-up. +12 tests (207 total). |
+| R2 | Per-sport stdev bump in `SPORT_MARGIN_STDEV` / `SPORT_TOTAL_STDEV` (edge_detector.py). NBA +15% (12.0→13.8 margin, 18.0→20.7 total), NCAAB +10% (11.0→12.1, 16.0→17.6), MLB +15% (3.5→4.025, 3.0→3.45). NHL untouched (+87% ROI, well-calibrated). Direct fix for Brier 0.2646 and the 60-70% favorite-band overconfidence (F2, F3, F4, F5). Supersedes C2. +6 tests (213 total). R12 (re-run calibration at 100 trades) is the attribution check. |
+
+### 2026-04-18 — Calibration-Driven Tuning
+
+| ID | Item |
+|----|------|
+| C1 | Soft-cap edge used in Kelly sizing (`trusted_edge()`, `KELLY_EDGE_CAP=0.15`, `KELLY_EDGE_DECAY=0.5`, +6 tests) |
+| C3 | Per-sport `MIN_EDGE_THRESHOLD` (NBA=8%, NCAAB=10%, `min_edge_for()` helper, +5 tests) |
+| C5 | Series-level dedup — Gate 7, `matchup_key()`, `SERIES_DEDUP_HOURS=48`, +16 tests (177 total passing) |
+
+### 2026-04-07 — Backtesting, Dashboard Batch 2, Package Structure
+
+| ID | Item |
+|----|------|
+| W1 | Backtesting framework — equity curve, Sharpe, drawdown, calibration curve, strategy simulation, +32 tests |
+| H4 | Package structure — `pyproject.toml` with `pythonpath`, `__init__.py` files, simplified `conftest.py` |
+| A1 | Domain package extracted — `app/domain/` with `Opportunity`, `RiskDecision`, `ExecutionPreview`, `ExecutionResult`, +7 tests |
+| D5 | Auto-refresh portfolio (`st.fragment(run_every=30s)` + toggle) |
+| D7 | Position P&L color coding (W/L/F count + unrealized P&L) |
+| D8 | Execution confirmation dialog (`@st.dialog`) |
+| D9 | Toast notifications after execution and settlement |
+| D11 | Settlement history tab (sortable + CSV export) |
+| D14 | CSV export buttons on scan/positions/settlements/report |
+| D16 | `streamlit>=1.33.0` added to `requirements.txt` |
+
+### 2026-04-06 — Dashboard v1.0, Dynamic Stdev, Simplification
+
+| ID | Item |
+|----|------|
+| U6 | Streamlit dashboard v1.0 — 3 pages (Scan & Execute, Portfolio, Settle & Report), dark theme, favorites, quick-scan |
+| D1 | Quick-scan sidebar buttons |
+| D2 | Favorite scans |
+| D4 | Default unit size $0.50 |
+| S5 | Dynamic stdev adjustment — weather severity, rest/B2B applies to spreads, per-home-team weather cache |
+| H5 | Simplified scripts & config — removed `DEFAULT_BET_SIZE`, `MIN_CONFIDENCE`, `MAX_POSITION_CONCENTRATION`, merged `MAX_BET_SIZE_*`; -4 env vars, -2 CLI flags, -2 gates. See `archive/SIMPLIFICATION.md`. |
+| H1 | Centralize config (resolved by H5 — `config.py` deleted; `kalshi_executor.py` is canonical) |
+
+### 2026-04-04 — Fill-based Logging, MLB Pitcher Data, Calibration Tooling
+
+| ID | Item |
+|----|------|
+| X5 | Fill-based trade logging — `filled_contracts`/`filled_cost` vs `requested_*`, `fill_status`, +16 regression tests |
+| X6 | Gates 8-9 documented as sizing caps; approval subtypes `APPROVED`, `APPROVED_CAPPED_CONCENTRATION`, `APPROVED_CAPPED_MAX_BET` |
+| S1 | Starting pitcher data — ERA / FIP / WHIP / K9 / days-rest, matchup classification, stdev adjustment |
+| S2 | Back-to-back / rest days — NBA / NHL detection via ESPN scoreboard, stdev + confidence adjustment |
+| W2 | `model_calibration.py` — Brier, calibration curve, dimension breakdowns, cross-tabs, prioritized recommendations |
+| W4 | Win-rate analytics by dimension (confidence × category × sport × edge bucket) |
+
+### 2026-04-02 — Execution Correctness
+
+| ID | Item |
+|----|------|
+| X1 | Hardcoded Python path fixed (`sys.executable`) |
+| X2 | All 9 risk gates enforced in executor; Kelly sizing with unit-size floor |
+| X3 | Per-event caps + correlated-bracket dedup (`dedup_correlated_brackets()`) |
+| X4 | Startup doctor command (`scripts/doctor.py`) |
+| W3 | Kelly Criterion sizing (part of X2) |
+
+### 2026-04-01 — Display Improvements
+
+| ID | Item |
+|----|------|
+| D1 | Bet-type column (ML/Spread/Total/Prop) in all output tables |
+| D2 | Descriptive Pick column replacing raw YES/NO |
+
+### 2026-03-23 — Edge Model Improvements
+
+| ID | Item |
+|----|------|
+| E1 | Normal CDF spread/total model |
+| E2 | Closing Line Value tracking |
+| E3 | Sharp book weighting (Pinnacle 3×) |
+| E4 | Team performance stats (ESPN/NHL/MLB APIs) |
+| E5 | Injury / line-disagreement signal |
+| E6 | Line movement & sharp-money detection |
+| E7 | Weather for outdoor sports (NWS API) |
+
+### 2026-03-30 to 31 — Project Quality
+
+| ID | Item |
+|----|------|
+| P1 | Standardize CLI flags |
+| P2 | Standardize logging (`setup_logging`) |
+| P3 | Consolidate import boilerplate (`.pth`) |
+| P4 | Markdown scan reports |
+| P5 | Initial test suite (83 tests) |
+| P6 | Remove empty `strategies/` |
+| P7 | `MAX_BET_SIZE_SPORTS` in `.env.example` |
+| P8 | Unify report output format |
+| P9 | Unified `scan.py` entry point |
+| P10 | Docs cleanup + `docs/scripts/` sub-docs |
+| P11 | Pre-commit hooks |
+| P12 | Makefile (18 targets) |
+
+---
+
+## Completed Item Details
+
+<details>
+<summary>X1-X4. Execution Correctness (2026-04-02 to 2026-04-04)</summary>
+
+**X1.** Replaced hardcoded `.venv/Scripts/python.exe` in `scan.py` with `sys.executable`. Now works across any environment (CI, WSL, Docker, other machines).
+
+**X2.** Enforced all risk gates that were previously loaded but never checked in `kalshi_executor.py`. The executor now runs 9 gates before every order: daily loss, max open positions, edge threshold, composite score, confidence floor, duplicate ticker, per-event cap, max concentration, max bet size. Position sizing upgraded from flat unit to quarter-Kelly with flat unit as floor. Pipeline tracks approved orders within the batch so gates apply correctly across the run.
+
+**X3.** Per-event caps + correlated-bracket dedup (updated 2026-04-04). `dedup_correlated_brackets()` groups by `(event_key, category)` and keeps only the highest composite score. `MAX_PER_EVENT` default lowered from 3 to 2. New `--max-per-game` CLI flag for session override.
+
+**X4.** Startup doctor command (`scripts/doctor.py`). Validates Python version, venv, credentials (Kalshi key + private key path, Odds API keys), data directories, config values, API connectivity, and pre-commit hooks.
+
+**Breaking change:** `MAX_BET_SIZE` split into `MAX_BET_SIZE_SPORTS` / `MAX_BET_SIZE_PREDICTION` (later re-merged in H5).
+</details>
+
+<details>
+<summary>X5. Fill-based Trade Logging (2026-04-04)</summary>
+
+Executor previously logged `requested_contracts` / `requested_cost` regardless of fill. Resting/partial orders overstated exposure. Added `filled_contracts` / `filled_cost` fields and `fill_status` enum (`filled`, `partial`, `resting`, `failed`). Settler / risk_check now read fill-based values. 16 regression tests for resting, partial, and zero-fill responses.
+</details>
+
+<details>
+<summary>X6. Sizing Caps vs Reject Gates (2026-04-04)</summary>
+
+`ARCHITECTURE.md` previously described concentration and max-bet as reject gates, but executor silently downsized. Docs updated to describe gates 8-9 as sizing caps. New approval subtypes `APPROVED`, `APPROVED_CAPPED_CONCENTRATION`, `APPROVED_CAPPED_MAX_BET` in trade log distinguish clean from force-capped.
+</details>
+
+<details>
+<summary>E1. Normal CDF Spread/Total Model (2026-03-23)</summary>
+
+Replaced linear `+3% per point` with `scipy.stats.norm` bell curve. Infers expected margin from book spread + implied probability, then `P(margin > strike)` on the bell curve. Sport-specific stdevs: NBA (12), NCAAB (11), NFL (13.5), MLB (3.5), NHL (2.5), soccer (1.8). Separate stdevs for totals.
+
+**Context:** live trading 2026-03-22 had 1W-11L on NCAAB spreads at estimated 33% edge → realized -88% ROI. Linear model systematically overestimated edge on alternate spreads.
+</details>
+
+<details>
+<summary>E2-E7. Edge Model Signals (2026-03-23)</summary>
+
+- **E2:** CLV — settler captures `last_price` from Kalshi at settlement; average CLV + beat-the-close rate in performance report.
+- **E3:** Sharp book weighting — 21-book `BOOK_WEIGHTS` map (Pinnacle/Circa 3×, DraftKings/FanDuel/BetMGM 0.7×), weighted-median consensus.
+- **E4:** Team stats — `team_stats.py`, 6 sports from free APIs (ESPN NBA/NCAAB/NFL/NCAAF, NHL Stats, MLB Stats). Win%, run/goal diff, L10, streak.
+- **E5:** Injury proxy — spread disagreement >4pts across books triggers confidence downgrade (ESPN injury endpoints were unreliable).
+- **E6:** Line movement — `line_movement.py` uses ESPN scoreboard open-vs-close; detects reverse line movement + sharp total movement.
+- **E7:** Weather — `sports_weather.py` NWS hourly forecast for 31 NFL + 30 MLB venues. Wind >15mph, rain >40%, cold <32F (NFL) / <45F (MLB).
+</details>
+
+<details>
+<summary>D1-D2. Display Improvements (2026-04-01)</summary>
+
+Type column (ML/Spread/Total/Prop) across all 7 output tables. Descriptive Pick column replacing raw YES/NO ("Over 220.5", "Spurs -4.5", "Heat win"). `bet_type_from_ticker()` + `format_pick_label()` in `ticker_display.py`. Kalshi team abbreviation aliases (SAS, GSW, NOP, etc.).
+</details>
+
+<details>
+<summary>P1-P12. Project Quality (2026-03-30 to 31)</summary>
+
+Standardized CLI flags (P1), logging (P2), imports via .pth (P3), markdown reports (P4), 83-test suite (P5), removed empty `strategies/` (P6), `.env.example` (P7), unified report format (P8), `scan.py` entry point (P9), docs cleanup + `docs/scripts/` (P10), pre-commit hooks (P11), Makefile 18 targets (P12).
+</details>

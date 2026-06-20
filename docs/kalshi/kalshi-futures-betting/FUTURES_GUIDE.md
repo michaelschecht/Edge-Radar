@@ -25,13 +25,13 @@ Bet on season-long outcomes: championship winners, conference winners, MVP award
 
 ## Quick Reference
 
-See [Scripts Reference](../SCRIPTS_REFERENCE.md) for complete CLI flags. Key command:
+See [Scripts Reference](../../SCRIPTS_REFERENCE.md) for complete CLI flags. Key command:
 
 ```bash
 python scripts/scan.py futures --filter <filter>
 ```
 
-For enhancement history, see [Roadmap](../enhancements/ROADMAP.md).
+For enhancement history, see [Roadmap](../../enhancements/ROADMAP.md).
 See also: [Sports Guide](../kalshi-sports-betting/SPORTS_GUIDE.md) | [Prediction Markets Guide](../kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)
 
 ---
