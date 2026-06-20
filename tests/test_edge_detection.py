@@ -140,7 +140,55 @@ class TestFuturesSeriesMatch:
         assert FUTURES_MAP["KXSB"][2] == "NFL Super Bowl Champion"
         assert FUTURES_MAP["KXNBA"][2] == "NBA Finals Champion"
         assert FUTURES_MAP["KXNHL"][2] == "NHL Stanley Cup Champion"
-        assert FUTURES_MAP["KXPGATOUR"][2] == "PGA Tour Winner"
+        assert FUTURES_MAP["KXPGATOUR"][2] == "PGA Tour Major Winner"
+
+
+# ── PGA: resolve the major from the market title (Odds API majors-only) ──────
+
+class TestGolfMajorResolution:
+    """KXPGATOUR spans the whole PGA Tour, but The Odds API only publishes
+    outright fields for the 4 majors. `_golf_major_key` maps a market title to
+    the right major's odds key, skipping weekly stops and qualifiers so they're
+    never priced against the wrong (or absent) field.
+    """
+
+    def test_us_open_resolves(self):
+        from futures_edge import _golf_major_key
+        key, label = _golf_major_key("Will Bud Cauley win the U.S. Open?")
+        assert key == "golf_us_open_winner"
+        assert label == "U.S. Open Winner"
+
+    def test_pga_championship_resolves(self):
+        from futures_edge import _golf_major_key
+        key, _ = _golf_major_key("Will Tom Hoge win the PGA Championship?")
+        assert key == "golf_pga_championship_winner"
+
+    def test_masters_resolves(self):
+        from futures_edge import _golf_major_key
+        key, _ = _golf_major_key("Will X win the Masters?")
+        assert key == "golf_masters_tournament_winner"
+
+    def test_the_open_resolves(self):
+        from futures_edge import _golf_major_key
+        key, _ = _golf_major_key("Will X win The Open?")
+        assert key == "golf_the_open_championship_winner"
+
+    def test_qualifier_is_skipped(self):
+        # "U.S. Open Final Qualifying ..." contains "u.s. open" but is NOT the
+        # major — must return None so it isn't priced against U.S. Open odds.
+        from futures_edge import _golf_major_key
+        assert _golf_major_key(
+            "Will Kevin Streelman win the U.S. Open Final Qualifying Dallas Playoff?"
+        ) is None
+
+    def test_canadian_open_not_mistaken_for_the_open(self):
+        # Bare "open" must not match The Open Championship.
+        from futures_edge import _golf_major_key
+        assert _golf_major_key("Will Ben Kohles win the RBC Canadian Open?") is None
+
+    def test_weekly_stop_is_skipped(self):
+        from futures_edge import _golf_major_key
+        assert _golf_major_key("Will Marco Penge win the RBC Heritage?") is None
 
 
 # ── R13: confidence bumps are one-way (down only) ───────────────────────────
