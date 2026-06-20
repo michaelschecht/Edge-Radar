@@ -101,7 +101,7 @@
 
       <div class="mt-5 grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4">
-          <div class="text-2xl font-semibold text-zinc-100">3</div>
+          <div class="text-2xl font-semibold text-zinc-100">5</div>
           <div class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Wager schedulers</div>
         </div>
         <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4">
@@ -117,7 +117,7 @@
           <div class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Sport filters</div>
         </div>
         <div class="rounded-sm border border-zinc-800/60 bg-zinc-900/40 p-4 col-span-2 sm:col-span-1">
-          <div class="text-2xl font-semibold text-zinc-100">330</div>
+          <div class="text-2xl font-semibold text-zinc-100">449</div>
           <div class="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">Tests passing</div>
         </div>
       </div>
@@ -172,8 +172,8 @@
     <section id="schedulers" class="mb-14 scroll-mt-20">
       <h2 class="text-xs uppercase tracking-wider text-zinc-500 mb-1">Wager Schedulers</h2>
       <p class="text-sm text-zinc-600 mb-4">
-        The four <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">\Edge-Radar\</code>
-        tasks that actually place bets. Times in PT (system local).
+        The five <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">\Edge-Radar\</code>
+        tasks that actually place bets &mdash; four daily sports runs plus a weekly futures run. Times in PT (system local).
       </p>
 
       <div class="overflow-x-auto rounded-sm border border-zinc-800/60 bg-zinc-900/40">
@@ -210,11 +210,18 @@
               <td class="px-4 py-3 border-b border-zinc-800/60 text-zinc-400">Late catch-up on <span class="text-zinc-200">tonight's</span> games &mdash; scratches, goalie confirmations, sharp-money moves. <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">--date today --budget 5% --max-bets 4 --exclude-open</code></td>
             </tr>
             <tr class="hover:bg-zinc-900/60 transition">
-              <td class="px-4 py-3 text-zinc-500">4</td>
-              <td class="px-4 py-3 mono text-emerald-300 whitespace-nowrap text-[13px]">All-Sports-NextDay-Execution</td>
-              <td class="px-4 py-3 whitespace-nowrap"><span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-amber-500/10 text-amber-300 border border-amber-500/30">Sun&ndash;Thu</span></td>
-              <td class="px-4 py-3 whitespace-nowrap text-zinc-400">8:30 PM</td>
-              <td class="px-4 py-3 text-zinc-400">Locks in early lines for <span class="text-zinc-200">tomorrow's</span> games. <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">--date tomorrow --budget 12% --max-bets 6 --exclude-open</code></td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 text-zinc-500">4</td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 mono text-emerald-300 whitespace-nowrap text-[13px]">All-Sports-NextDay-Execution</td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 whitespace-nowrap"><span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-amber-500/10 text-amber-300 border border-amber-500/30">Sun&ndash;Thu</span></td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 whitespace-nowrap text-zinc-400">8:30 PM</td>
+              <td class="px-4 py-3 border-b border-zinc-800/60 text-zinc-400">Locks in early lines for <span class="text-zinc-200">tomorrow's</span> games. <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">--date tomorrow --budget 12% --max-bets 6 --exclude-open</code></td>
+            </tr>
+            <tr class="hover:bg-zinc-900/60 transition">
+              <td class="px-4 py-3 text-zinc-500">5</td>
+              <td class="px-4 py-3 mono text-emerald-300 whitespace-nowrap text-[13px]">Weekly-Futures-Execution</td>
+              <td class="px-4 py-3 whitespace-nowrap"><span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-violet-500/10 text-violet-300 border border-violet-500/30">Sat</span></td>
+              <td class="px-4 py-3 whitespace-nowrap text-zinc-400">9:00 AM</td>
+              <td class="px-4 py-3 text-zinc-400">Scans championship/outright <span class="text-zinc-200">futures</span> (NFL Super Bowl, NBA/NHL/MLB titles, golf majors) and places bets. Most weeks 0 fills &mdash; gates reject thin, longshot-heavy outrights. <code class="mono px-1 py-0.5 rounded bg-zinc-900 text-zinc-300 text-[11px]">--budget 5% --max-bets 3 --unit-size 1 --exclude-open</code></td>
             </tr>
           </tbody>
         </table>
@@ -222,6 +229,7 @@
 
       <h3 class="mt-8 text-[11px] uppercase tracking-widest text-zinc-500 mb-2">Daily fire sequence</h3>
       <pre class="overflow-x-auto rounded-sm border border-zinc-800/60 bg-zinc-950/60 p-4 text-[12px] leading-relaxed text-zinc-400"> 5:05 AM  Sun Mon Tue Wed Thu Fri Sat  &mdash; All-Sports-SameDay-Execution              (today's games)
+ 9:00 AM                          Sat  &mdash; Weekly-Futures-Execution               (futures, weekly)
 11:00 AM  Sun Mon Tue Wed Thu Fri Sat  &mdash; All-Sports-NoDateFilter-Midday-Execution  (multi-day wide-net)
  2:00 PM  Sun Mon Tue Wed Thu Fri Sat  &mdash; All-Sports-SameDay-Late-Execution         (late catch-up)
  8:30 PM  Sun Mon Tue Wed Thu          &mdash; All-Sports-NextDay-Execution              (tomorrow's games)</pre>
@@ -237,6 +245,7 @@ MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-SameDay-Execution"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-NoDateFilter-Midday-Execution"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-SameDay-Late-Execution"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\All-Sports-NextDay-Execution"
+MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Weekly-Futures-Execution"
 
 # PowerShell equivalent (no MSYS prefix)
 Start-ScheduledTask -TaskPath '\Edge-Radar\' -TaskName 'All-Sports-NextDay-Execution'</pre>
