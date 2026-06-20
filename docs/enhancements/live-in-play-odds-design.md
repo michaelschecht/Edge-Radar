@@ -1,9 +1,8 @@
 # Design: Live In-Play Odds (real-time edges on in-progress games)
 
 **ID:** L1
-**Status:** Scoped — not yet implemented (2026-06-20)
+**Status:** Phase 1 **implemented** 2026-06-20 (freshness fix + live-bet gate). Phases 2–3 still scoped.
 **Related:** F44 (phantom live edges), R27 (the "LIVE" tag), R24b (file odds cache)
-**Owner decision pending:** whether to build Phase 1 now or later.
 
 ---
 
@@ -43,23 +42,35 @@ blowing up Odds API quota or destabilizing pre-game scanning.
 
 ## Phased approach
 
-### Phase 1 — Freshness fix (small, highest leverage) — RECOMMENDED FIRST
+### Phase 1 — Freshness fix (small, highest leverage) — ✅ IMPLEMENTED 2026-06-20
 
-Make in-progress games bypass the stale caches; leave pre-game behavior unchanged.
+Make in-progress games bypass the stale caches; pre-game behavior unchanged.
 
-- **Add a TTL to the in-process `_odds_cache`** (it currently has none). Store
-  `(timestamp, events)` and treat entries older than a small TTL as misses. This
-  alone fixes the dominant F44 mechanism in the webapp.
-- **Live-aware TTL.** When the *sport response contains at least one in-play event*
-  (`commence_time < now`), use a short "live TTL" (e.g. `ODDS_LIVE_TTL_SECONDS`,
-  default ~30–60s) for both cache layers instead of the 300s pre-game TTL. Pre-game
-  fetches keep the 300s TTL (quota-friendly).
-- **Detection reuses existing logic** — `ticker_display.is_game_started()` /
-  `commence_time < now`. No new matching code; `find_market_event()` already pairs
-  the live game by teams + schedule.
+- **TTL on the in-process `_odds_cache`** — it previously had none and returned
+  the first response for the whole process lifetime (the dominant F44 mechanism
+  in the long-running webapp). It now stores `(stored_at, events)` keyed on a
+  monotonic clock and expires on the same live-aware rule as the file cache.
+  Within-scan dedup is preserved (back-to-back calls in one scan are sub-second).
+- **Live-aware TTL.** When a sport response contains at least one in-play event
+  (`commence_time ≤ now`), both cache layers expire on `ODDS_LIVE_TTL_SECONDS`
+  (**default 45s**) instead of the 300s pre-game TTL. Pre-game responses keep the
+  300s TTL (quota-friendly). The decision is content-based: `odds_cache.effective_ttl()`
+  inspects the cached events, so it works identically for the in-process and file layers.
+- **Live-bet safety gate (Gate 4.8, `ALLOW_LIVE_BETS`, default off).** The freshness
+  fix makes in-play edges *honest*, which means they could pass the normal gates and
+  execute through scheduled scans. To keep in-play opt-in until calibrated, `size_order()`
+  rejects bets on started games (`is_game_started(ticker)`) unless `ALLOW_LIVE_BETS=true`.
+  Mirrors the R25 `ALLOW_PREDICTION_BETS` pattern; `preflight_gate_status()` surfaces it
+  as `live-off` in the scan Gate column. Caveat: `is_game_started()` only fires on
+  moneyline tickers that embed a start time — date-only spread/total tickers are not caught.
+- **Detection reuses existing logic** — `commence_time` parsing for the cache layer,
+  `ticker_display.is_game_started()` for the gate. No new matching code.
 
-**Effort:** contained to `fetch_odds_api()` + a new config knob in `app/config.py`
-(`odds_cache` group). ~Half a day incl. tests.
+**Delivered in:** `odds_cache.response_has_live_event()` / `effective_ttl()` /
+`load(..., live_ttl_seconds)`; `edge_detector.fetch_odds_api()` (tuple cache);
+`app/config.py` (`OddsCacheConfig.live_ttl_seconds`, `GateThresholds.allow_live_bets`);
+`kalshi_executor` Gate 4.8. Tests in `test_odds_cache.py`, `test_edge_detection.py`,
+`test_risk_gates.py` (463 pass).
 
 **Quota impact:** minimal — live games refetch only when a scan actually runs and
 only at the shorter TTL. Scans are discrete (scheduled tasks + manual), not
@@ -104,15 +115,18 @@ to actively day-trade in-play.
 
 ## Open questions / decisions for implementation
 
-1. Default `ODDS_LIVE_TTL_SECONDS` value (30s vs 60s) — trade freshness vs quota.
-2. Should live TTL apply per-sport-response (any in-play event shortens the whole
-   sport's TTL) or be deferred to Phase 2's per-event granularity? (Phase 1 = whole
-   sport for simplicity.)
-3. Do we want a hard guard that *suppresses* (not just refreshes) edges when the
-   matched event's `last_update` is older than N seconds, so a stale/suspended book
-   can't resurrect a phantom edge even within TTL?
-4. Should live betting get its own gate/flag (e.g. `ALLOW_LIVE_BETS`, off by
-   default) so in-play is opt-in until trusted? (Mirrors R25 `ALLOW_PREDICTION_BETS`.)
+1. ~~Default `ODDS_LIVE_TTL_SECONDS` value (30s vs 60s)~~ — **Resolved:** 45s
+   (env-tunable middle of the range; ~6–7× fresher than the 300s pre-game TTL).
+2. ~~Per-sport-response vs per-event live TTL~~ — **Resolved:** whole-sport for
+   Phase 1 (any in-play event shortens the whole sport's TTL). Per-event granularity
+   is the Phase 2 optimization.
+3. **Deferred to Phase 2:** a hard guard that *suppresses* (not just refreshes) edges
+   when the matched event's `last_update` is older than N seconds, so a stale/suspended
+   book can't resurrect a phantom edge even within TTL. This is edge-detection logic
+   (per-bookmaker `last_update`), not caching — out of Phase 1 scope.
+4. ~~Should live betting get its own gate/flag?~~ — **Resolved (shipped):**
+   `ALLOW_LIVE_BETS` (Gate 4.8), off by default, mirroring R25. In-play is opt-in
+   until trusted.
 
 ## Testing approach
 

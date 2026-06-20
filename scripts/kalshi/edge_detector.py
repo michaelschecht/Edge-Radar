@@ -21,6 +21,7 @@ Requires: ODDS_API_KEY in .env for sports edge detection.
 import re
 import sys
 import json
+import time
 import logging
 import argparse
 from datetime import datetime, timezone, timedelta
@@ -183,7 +184,12 @@ def categorize_market(ticker: str) -> str:
 
 # ── Odds API Integration ─────────────────────────────────────────────────────
 
-_odds_cache: dict[str, list] = {}
+# In-process cache: maps "{sport_key}:{markets}" -> (stored_at_monotonic, events).
+# A TTL was added in L1: previously this dict had none and returned the first
+# response for the entire process lifetime, which is the dominant F44 mechanism
+# in the long-running Streamlit app (pre-game odds frozen for hours while a game
+# plays out). Entries now expire on the same live-aware rule as the file cache.
+_odds_cache: dict[str, tuple[float, list]] = {}
 
 
 def fetch_odds_api(sport_key: str, markets: str = "h2h") -> list:
@@ -204,16 +210,25 @@ def fetch_odds_api(sport_key: str, markets: str = "h2h") -> list:
     exhausted keys first.
     """
     cache_key = f"{sport_key}:{markets}"
-    if cache_key in _odds_cache:
-        return _odds_cache[cache_key]
-
     cfg = get_config().odds_cache
+
+    cached = _odds_cache.get(cache_key)
+    if cached is not None:
+        stored_at, events = cached
+        ttl = odds_cache.effective_ttl(events, cfg.ttl_seconds, cfg.live_ttl_seconds)
+        if time.monotonic() - stored_at <= ttl:
+            return events
+        # Expired (live game refreshed past its short TTL, or pre-game past 300s).
+        del _odds_cache[cache_key]
+
     if cfg.enabled:
-        cached_events, age = odds_cache.load(sport_key, markets, cfg.ttl_seconds)
+        cached_events, age = odds_cache.load(
+            sport_key, markets, cfg.ttl_seconds, cfg.live_ttl_seconds
+        )
         if cached_events is not None:
             log.info("Odds API file cache hit for %s (age %ds, %d events)",
                      sport_key, age, len(cached_events))
-            _odds_cache[cache_key] = cached_events
+            _odds_cache[cache_key] = (time.monotonic(), cached_events)
             return cached_events
 
     if not get_current_key():
@@ -256,7 +271,7 @@ def fetch_odds_api(sport_key: str, markets: str = "h2h") -> list:
             except (ValueError, TypeError):
                 pass
 
-            _odds_cache[cache_key] = events
+            _odds_cache[cache_key] = (time.monotonic(), events)
             if cfg.enabled:
                 odds_cache.store(sport_key, markets, events)
             return events

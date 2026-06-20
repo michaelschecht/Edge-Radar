@@ -106,6 +106,85 @@ class TestLoad:
         assert result is None and age is None
 
 
+class TestLiveAwareTtl:
+    """L1: a response containing an in-play event expires on the shorter live
+    TTL, so in-progress games refetch on a seconds-fresh cadence."""
+
+    NOW = datetime(2026, 6, 20, 18, 0, 0, tzinfo=timezone.utc)
+
+    def _event(self, offset_seconds: int) -> dict:
+        """Event commencing `offset_seconds` relative to NOW (negative = live)."""
+        commence = self.NOW + timedelta(seconds=offset_seconds)
+        return {"commence_time": commence.isoformat().replace("+00:00", "Z")}
+
+    def test_response_has_live_event_detects_started_game(self):
+        events = [self._event(+3600), self._event(-120)]  # one upcoming, one live
+        assert odds_cache.response_has_live_event(events, now=self.NOW) is True
+
+    def test_response_has_live_event_false_for_all_upcoming(self):
+        events = [self._event(+3600), self._event(+7200)]
+        assert odds_cache.response_has_live_event(events, now=self.NOW) is False
+
+    def test_response_has_live_event_handles_garbage(self):
+        assert odds_cache.response_has_live_event([{"commence_time": "nope"}],
+                                                  now=self.NOW) is False
+        assert odds_cache.response_has_live_event([{}], now=self.NOW) is False
+        assert odds_cache.response_has_live_event("not a list") is False
+
+    def test_effective_ttl_picks_live_for_inplay(self):
+        live = [self._event(-30)]
+        upcoming = [self._event(+3600)]
+        assert odds_cache.effective_ttl(live, 300, 45, now=self.NOW) == 45
+        assert odds_cache.effective_ttl(upcoming, 300, 45, now=self.NOW) == 300
+
+    def test_load_misses_live_response_past_live_ttl(self, isolated_cache_dir):
+        """A live response 90s old is a miss at live_ttl=45 even though it's
+        well within the 300s pre-game TTL."""
+        events = [{"commence_time": "2020-01-01T00:00:00Z"}]  # long since started
+        fetched_at = datetime.now(timezone.utc) - timedelta(seconds=90)
+        _write_cache_file(isolated_cache_dir, "baseball_mlb", "h2h",
+                          fetched_at, events)
+
+        result, age = odds_cache.load(
+            "baseball_mlb", "h2h", ttl_seconds=300, live_ttl_seconds=45
+        )
+        assert result is None and age is None
+
+    def test_load_hits_live_response_within_live_ttl(self, isolated_cache_dir):
+        events = [{"commence_time": "2020-01-01T00:00:00Z"}]
+        fetched_at = datetime.now(timezone.utc) - timedelta(seconds=20)
+        _write_cache_file(isolated_cache_dir, "baseball_mlb", "h2h",
+                          fetched_at, events)
+
+        result, age = odds_cache.load(
+            "baseball_mlb", "h2h", ttl_seconds=300, live_ttl_seconds=45
+        )
+        assert result == events
+        assert age is not None and 15 <= age <= 30
+
+    def test_load_pregame_unaffected_by_live_ttl(self, isolated_cache_dir):
+        """An all-upcoming response 90s old still hits — live TTL doesn't apply."""
+        events = [{"commence_time": "2099-01-01T00:00:00Z"}]  # far future
+        fetched_at = datetime.now(timezone.utc) - timedelta(seconds=90)
+        _write_cache_file(isolated_cache_dir, "baseball_mlb", "h2h",
+                          fetched_at, events)
+
+        result, age = odds_cache.load(
+            "baseball_mlb", "h2h", ttl_seconds=300, live_ttl_seconds=45
+        )
+        assert result == events
+
+    def test_load_without_live_ttl_is_backward_compatible(self, isolated_cache_dir):
+        """Omitting live_ttl_seconds preserves the pre-L1 3-arg behavior."""
+        events = [{"commence_time": "2020-01-01T00:00:00Z"}]
+        fetched_at = datetime.now(timezone.utc) - timedelta(seconds=90)
+        _write_cache_file(isolated_cache_dir, "baseball_mlb", "h2h",
+                          fetched_at, events)
+
+        result, age = odds_cache.load("baseball_mlb", "h2h", ttl_seconds=300)
+        assert result == events  # live not considered → 300s TTL → hit
+
+
 class TestStore:
     def test_round_trip(self, isolated_cache_dir):
         events = [{"home_team": "Yankees", "bookmakers": [{"key": "fanduel"}]}]
