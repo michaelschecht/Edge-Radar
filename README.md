@@ -279,11 +279,11 @@ Want the **complete** pipeline — emails, midday/late runs, weekly calibration/
 | **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** | Windows Task Scheduler for daily betting — one-command installer for the core tasks |
 | **[Task-Schedule Reference](docs/setup/task-schedules.md)** | Full 17-task pipeline roster with `.bat`/`.sh` templates and `schtasks` setup |
 | **[Scripts Reference](docs/SCRIPTS_REFERENCE.md)** | Every script, flag, and example |
-| **[Sports Guide](docs/kalshi-sports-betting/SPORTS_GUIDE.md)** | 27 filters, edge detection, daily workflow |
-| **[Futures Guide](docs/kalshi-futures-betting/FUTURES_GUIDE.md)** | NFL, NBA, NHL, MLB, golf championships |
-| **[Prediction Markets](docs/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** | Crypto, weather, S&P 500, politics |
+| **[Sports Guide](docs/kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** | 27 filters, edge detection, daily workflow |
+| **[Futures Guide](docs/kalshi/kalshi-futures-betting/FUTURES_GUIDE.md)** | NFL, NBA, NHL, MLB, golf championships |
+| **[Prediction Markets](docs/kalshi/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** | Crypto, weather, S&P 500, politics |
 | **[Architecture](docs/ARCHITECTURE.md)** | Pipeline, edge models, risk gates, data flow, and project structure |
-| **[MLB Filtering](docs/kalshi-sports-betting/MLB_FILTERING_GUIDE.md)** | 10 filter categories for MLB picks |
+| **[MLB Filtering](docs/kalshi/kalshi-sports-betting/MLB_FILTERING_GUIDE.md)** | 10 filter categories for MLB picks |
 | **[Roadmap](docs/enhancements/ROADMAP.md)** | All enhancements — completed & pending |
 | **[Changelog](docs/CHANGELOG.md)** | Full project history |
 
