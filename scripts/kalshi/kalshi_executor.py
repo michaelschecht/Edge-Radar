@@ -787,6 +787,21 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
 # load_trade_log, save_trade_log, get_today_pnl imported from scripts.shared.trade_log
 
 
+def _order_field(order: dict, *keys: str, default: str = "0") -> str:
+    """Read a field from a Kalshi order response, tolerating v1/v2 key names.
+
+    The v2 create-order response (``/portfolio/events/orders``) is lean and flat
+    (``fill_count``, ``remaining_count``), while the orders-list / cancel / get
+    responses use the full schema (``fill_count_fp``, ``remaining_count_fp``).
+    Return the first present, non-empty candidate.
+    """
+    for k in keys:
+        v = order.get(k)
+        if v is not None and v != "":
+            return v
+    return default
+
+
 def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
     """Log an executed trade with fill-accurate accounting.
 
@@ -798,9 +813,10 @@ def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
     order = order_response.get("order", order_response)
     opp = sized.opportunity
 
-    # Parse fill info from Kalshi API response
-    fill_count = int(float(order.get("fill_count_fp", "0") or "0"))
-    remaining = int(float(order.get("remaining_count_fp", "0") or "0"))
+    # Parse fill info from Kalshi API response (v2 create uses fill_count /
+    # remaining_count; cancel/get/list use the *_fp variants).
+    fill_count = int(float(_order_field(order, "fill_count", "fill_count_fp") or "0"))
+    remaining = int(float(_order_field(order, "remaining_count", "remaining_count_fp") or "0"))
     filled_cost = round(fill_count * opp.market_price, 4) if fill_count else 0.0
 
     # Determine order status category
@@ -1250,7 +1266,7 @@ def execute_pipeline(
             record = log_trade(order_resp, s, trade_log)
             results.append(record)
 
-            fill = int(float(order.get("fill_count_fp", "0") or "0"))
+            fill = int(float(_order_field(order, "fill_count", "fill_count_fp") or "0"))
             fees = order.get("taker_fees_dollars", "0")
             fill_tag = ""
             if fill == 0:
