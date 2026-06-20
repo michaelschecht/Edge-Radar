@@ -609,13 +609,14 @@ if __name__ == "__main__":
         opps = filter_exclude_tickers(opps, open_tickers)
         rprint(f"[dim]Excluded open positions: {before} -> {len(opps)} opportunities[/dim]")
 
+    sized_orders = None  # set to the executor's order list when execution runs
     if not opps:
         rprint("[yellow]No futures opportunities found above edge threshold.[/yellow]")
     else:
         # If execution flags are set, route through the executor pipeline
         if args.execute or args.unit_size is not None or args.budget is not None:
             from kalshi_executor import execute_pipeline, UNIT_SIZE, parse_budget_arg
-            execute_pipeline(
+            sized_orders = execute_pipeline(
                 client=client,
                 opportunities=opps,
                 execute=args.execute,
@@ -661,7 +662,7 @@ if __name__ == "__main__":
                 )
             console.print(table)
 
-        if args.save and opps:
+        if args.save:
             save_path = Path(__file__).resolve().parent.parent.parent / "data" / "watchlists" / "futures_opportunities.json"
             save_path.parent.mkdir(parents=True, exist_ok=True)
             save_data = {
@@ -673,9 +674,26 @@ if __name__ == "__main__":
             with open(save_path, "w") as f:
                 json.dump(save_data, f, indent=2, default=str)
             rprint(f"[dim]Saved {len(opps)} opportunities to {save_path}[/dim]")
-            from report_writer import save_scan_report
+
+    # Always write a report on --save, even with zero opportunities, so the
+    # paired weekly email task has something to send. Futures boards are empty
+    # most weeks, so without this the email would silently skip nearly every
+    # run (mirrors the sports-scanner fix 156d5e5 / feedback_sameday_empty_emails).
+    if args.save:
+        from report_writer import save_execution_report, save_scan_report
+        if sized_orders is not None:
+            rpt = save_execution_report(sized_orders, report_type="futures",
+                                        filter_label=args.ticker_filter or "", min_edge=args.min_edge,
+                                        output_dir=args.report_dir)
+        elif opps:
             rpt = save_scan_report(opps, report_type="futures",
                                    filter_label=args.ticker_filter or "", min_edge=args.min_edge,
                                    output_dir=args.report_dir)
-            if rpt:
-                rprint(f"[dim]Report saved to {rpt}[/dim]")
+        else:
+            # No opportunities cleared the edge threshold — emit an empty
+            # "0 orders" execution report as proof-of-life for the email task.
+            rpt = save_execution_report([], report_type="futures",
+                                        filter_label=args.ticker_filter or "", min_edge=args.min_edge,
+                                        output_dir=args.report_dir)
+        if rpt:
+            rprint(f"[dim]Report saved to {rpt}[/dim]")
