@@ -340,7 +340,7 @@ python scripts/prediction/prediction_scanner.py scan [flags]
 
 ### Step 3: Present Results
 
-The scan table shows: **Sport** (NBA/NHL/MLB/etc.), **Bet** (matchup), **Type** (ML/Spread/Total/Prop), **Pick** (e.g., "Spurs win", "Over 220.5", "Blazers -7.5"), **When**, **Mkt**, **Fair**, **Edge**, **Conf**, **Score**, **Gate** (R18 — `ok` or a short label like `score` / `conf` / `no-fav` / `pred-off` showing which risk gate would reject this row at execute time).
+The scan table shows: **Sport** (NBA/NHL/MLB/etc.), **Bet** (matchup), **Type** (ML/Spread/Total/Prop), **Pick** (e.g., "Spurs win", "Over 220.5", "Blazers -7.5"), **When**, **Mkt**, **Fair**, **Edge**, **Conf**, **Score**, **Gate** (R18 — `ok` or a short label like `score` / `conf` / `no-fav` / `pred-off` / `live-off` showing which risk gate would reject this row at execute time).
 
 When `--unit-size` is passed, the executor table shows: **Sport**, **Bet**, **Type**, **Pick**, **When**, **Qty**, **Price**, **Cost**, **Edge**.
 

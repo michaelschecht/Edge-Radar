@@ -441,6 +441,70 @@ class TestFetchOddsApiKeyRotation:
         assert mock_get.call_count == 1
 
 
+# ── In-process cache live-aware TTL (L1) ─────────────────────────────────────
+
+class TestInProcessCacheTtl:
+    """L1: the in-process `_odds_cache` now expires. Pre-game entries live for
+    the full TTL (within-scan dedup preserved); in-play entries expire on the
+    short live TTL so a long-running webapp refetches current odds."""
+
+    def _mock_response(self, events: list) -> MagicMock:
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = events
+        resp.headers = {"x-requests-remaining": "100"}
+        resp.raise_for_status = MagicMock()
+        return resp
+
+    @pytest.fixture(autouse=True)
+    def _isolate(self, tmp_path, monkeypatch):
+        import odds_api
+        import odds_cache
+        import edge_detector
+        # Disable the file cache so we isolate the in-process layer.
+        monkeypatch.setattr(odds_api, "_QUOTA_CACHE_PATH", tmp_path / "quota.json")
+        monkeypatch.setattr(odds_cache, "_CACHE_DIR", tmp_path / "odds_cache")
+        from app.config import reset_config
+        monkeypatch.setenv("ODDS_CACHE_ENABLED", "false")
+        monkeypatch.setenv("ODDS_CACHE_TTL_SECONDS", "300")
+        monkeypatch.setenv("ODDS_LIVE_TTL_SECONDS", "45")
+        reset_config()
+        odds_api._keys = ["k1"]
+        odds_api._current_index = 0
+        odds_api._remaining = {}
+        edge_detector._odds_cache.clear()
+        yield
+        reset_config()
+
+    def test_pregame_entry_dedups_within_ttl(self, monkeypatch):
+        import edge_detector
+        clock = [1000.0]
+        monkeypatch.setattr(edge_detector.time, "monotonic", lambda: clock[0])
+        upcoming = [{"home_team": "Yankees", "commence_time": "2099-01-01T00:00:00Z"}]
+
+        with patch("edge_detector.requests.get",
+                   return_value=self._mock_response(upcoming)) as mock_get:
+            edge_detector.fetch_odds_api("baseball_mlb", markets="h2h")
+            clock[0] += 120  # 2 min later — still within 300s pre-game TTL
+            edge_detector.fetch_odds_api("baseball_mlb", markets="h2h")
+
+        assert mock_get.call_count == 1  # second call served from cache
+
+    def test_live_entry_expires_on_live_ttl(self, monkeypatch):
+        import edge_detector
+        clock = [1000.0]
+        monkeypatch.setattr(edge_detector.time, "monotonic", lambda: clock[0])
+        live = [{"home_team": "Yankees", "commence_time": "2020-01-01T00:00:00Z"}]
+
+        with patch("edge_detector.requests.get",
+                   return_value=self._mock_response(live)) as mock_get:
+            edge_detector.fetch_odds_api("baseball_mlb", markets="h2h")
+            clock[0] += 60  # 60s later — past the 45s live TTL
+            edge_detector.fetch_odds_api("baseball_mlb", markets="h2h")
+
+        assert mock_get.call_count == 2  # in-play entry refetched
+
+
 # ── Opponent-validated event matching (fix A + B) ─────────────────────────────
 
 def _h2h_event(away, home, away_price, home_price, commence,

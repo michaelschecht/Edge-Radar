@@ -43,17 +43,68 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _parse_commence(value: object) -> datetime | None:
+    """Parse an Odds API ``commence_time`` (ISO-8601, possibly 'Z') to aware UTC."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def response_has_live_event(events: list, now: datetime | None = None) -> bool:
+    """True if any event in the response has already started (in-play).
+
+    The Odds API ``/odds`` endpoint returns only upcoming and live games —
+    completed games drop out — so a past ``commence_time`` reliably marks an
+    in-play event (L1). Used to decide whether the short live TTL applies.
+    """
+    if not isinstance(events, list):
+        return False
+    if now is None:
+        now = _now()
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        commence = _parse_commence(event.get("commence_time"))
+        if commence is not None and commence <= now:
+            return True
+    return False
+
+
+def effective_ttl(
+    events: list,
+    pregame_ttl: int,
+    live_ttl: int,
+    now: datetime | None = None,
+) -> int:
+    """Pick the TTL for a response: ``live_ttl`` if it contains an in-play
+    event, else ``pregame_ttl`` (L1). Shared by the file cache and the
+    in-process cache in ``edge_detector`` so both expire on the same rule.
+    """
+    if response_has_live_event(events, now):
+        return live_ttl
+    return pregame_ttl
+
+
 def load(
     sport_key: str,
     markets: str,
     ttl_seconds: int,
+    live_ttl_seconds: int | None = None,
 ) -> tuple[list, int] | tuple[None, None]:
     """Return (events, age_seconds) on hit within TTL, else (None, None).
 
-    A negative or zero `ttl_seconds` always misses — callers can treat that
+    A negative or zero effective TTL always misses — callers can treat that
     as "cache disabled" without a separate code path.
+
+    When ``live_ttl_seconds`` is provided and the cached response contains an
+    in-play event, the shorter live TTL governs expiry (L1): a stale in-play
+    snapshot older than ``live_ttl_seconds`` is a miss and forces a refetch,
+    while pre-game responses keep the longer ``ttl_seconds``.
     """
-    if ttl_seconds <= 0:
+    if ttl_seconds <= 0 and (live_ttl_seconds is None or live_ttl_seconds <= 0):
         return None, None
 
     path = _filename(sport_key, markets)
@@ -75,8 +126,14 @@ def load(
     except ValueError:
         return None, None
 
+    ttl = ttl_seconds
+    if live_ttl_seconds is not None:
+        ttl = effective_ttl(events, ttl_seconds, live_ttl_seconds)
+    if ttl <= 0:
+        return None, None
+
     age_seconds = int((_now() - fetched_at).total_seconds())
-    if age_seconds < 0 or age_seconds > ttl_seconds:
+    if age_seconds < 0 or age_seconds > ttl:
         return None, None
 
     return events, age_seconds

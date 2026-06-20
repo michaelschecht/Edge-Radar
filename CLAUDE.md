@@ -141,6 +141,7 @@ Before ANY trade executes:
 | 4.5 | Confidence >= `MIN_CONFIDENCE` (low/medium/high) | Reject |
 | 4.6 | NO bets below `NO_SIDE_FAVORITE_THRESHOLD` need edge >= `NO_SIDE_MIN_EDGE` AND confidence=high | Reject |
 | 4.7 | Prediction-market categories (crypto/weather/spx/mentions/companies/politics) off by default unless `ALLOW_PREDICTION_BETS=true` (R25) | Reject |
+| 4.8 | In-progress games (`is_game_started`) off by default unless `ALLOW_LIVE_BETS=true` (L1) | Reject |
 | 5 | Not already holding this market | Reject |
 | 6 | Per-event cap not exceeded | Reject |
 | 7 | Matchup not bet in last `SERIES_DEDUP_HOURS` (or per-sport override; series dedup) | Reject |
@@ -190,8 +191,10 @@ SERIES_DEDUP_HOURS_NHL=72       # R9: NHL series cycle on consecutive days like 
 CROSS_CATEGORY_DEDUP=false      # R8: when true, collapse ML+Total+Spread on same game to one bet (highest composite). Per-sport overrides via CROSS_CATEGORY_DEDUP_<SPORT>=true|false
 RESTING_ORDER_MAX_HOURS=24      # R4: cancel zero-fill resting orders older than this (0 disables)
 ALLOW_PREDICTION_BETS=false     # R25 Gate 4.7: true to enable crypto/weather/spx/mentions/companies/politics bets
+ALLOW_LIVE_BETS=false           # L1 Gate 4.8: true to enable bets on in-progress games (is_game_started)
 ODDS_CACHE_TTL_SECONDS=300      # R24b: file-backed cache for Odds API responses (5 min default; 0 disables)
 ODDS_CACHE_ENABLED=true         # R24b: false bypasses the file cache entirely
+ODDS_LIVE_TTL_SECONDS=45        # L1: shorter TTL (both cache layers) when a sport response has an in-play event; pre-game keeps 300s
 SCAN_CACHE_TTL_SECONDS=600      # R26: cache last preview's row→ticker mapping so `--pick … --execute` replays instead of rescanning (10 min default; 0 disables)
 SCAN_CACHE_ENABLED=true         # R26: false forces every --execute call to rescan
 ```

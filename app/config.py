@@ -186,6 +186,7 @@ class GateThresholds:
     series_dedup_hours: int = 48
     resting_order_max_hours: int = 24
     allow_prediction_bets: bool = False
+    allow_live_bets: bool = False
     no_side_favorite_threshold: float = 0.25
     no_side_min_edge: float = 0.25
     cross_category_dedup: bool = False
@@ -200,6 +201,7 @@ class GateThresholds:
             series_dedup_hours=_int("SERIES_DEDUP_HOURS", 48),
             resting_order_max_hours=_int("RESTING_ORDER_MAX_HOURS", 24),
             allow_prediction_bets=_bool("ALLOW_PREDICTION_BETS", False),
+            allow_live_bets=_bool("ALLOW_LIVE_BETS", False),
             no_side_favorite_threshold=_float("NO_SIDE_FAVORITE_THRESHOLD", 0.25),
             no_side_min_edge=_float("NO_SIDE_MIN_EDGE", 0.25),
             cross_category_dedup=_bool("CROSS_CATEGORY_DEDUP", False),
@@ -298,14 +300,23 @@ class OddsCacheConfig:
 
     Survives across CLI invocations so back-to-back `scan.py` calls don't
     refetch the same sport keys. Files live under `data/cache/odds/`.
+
+    `live_ttl_seconds` (L1) is a shorter TTL applied — to both the file cache
+    and the in-process cache — whenever a sport response contains at least one
+    in-play event (`commence_time < now`). In-progress games then refetch on a
+    seconds-fresh cadence so their edge compares Kalshi's live price against
+    *current* book odds, not a frozen pre-game snapshot (the F44 phantom-edge
+    bug). Pre-game responses keep the longer `ttl_seconds` (quota-friendly).
     """
     ttl_seconds: int = 300
+    live_ttl_seconds: int = 45
     enabled: bool = True
 
     @classmethod
     def from_env(cls) -> "OddsCacheConfig":
         return cls(
             ttl_seconds=_int("ODDS_CACHE_TTL_SECONDS", 300),
+            live_ttl_seconds=_int("ODDS_LIVE_TTL_SECONDS", 45),
             enabled=_bool("ODDS_CACHE_ENABLED", True),
         )
 
@@ -420,6 +431,10 @@ class Config:
         if self.odds_cache.ttl_seconds < 0:
             raise ValueError(
                 f"ODDS_CACHE_TTL_SECONDS must be >= 0, got {self.odds_cache.ttl_seconds}"
+            )
+        if self.odds_cache.live_ttl_seconds < 0:
+            raise ValueError(
+                f"ODDS_LIVE_TTL_SECONDS must be >= 0, got {self.odds_cache.live_ttl_seconds}"
             )
         if self.scan_cache.ttl_seconds < 0:
             raise ValueError(

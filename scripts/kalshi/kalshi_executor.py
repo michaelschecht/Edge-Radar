@@ -41,7 +41,7 @@ from rich import print as rprint
 
 from kalshi_client import KalshiClient, KalshiAPIError, make_prod_client
 from edge_detector import scan_all_markets
-from ticker_display import _detect_sport
+from ticker_display import _detect_sport, is_game_started
 from app.config import get_config, reset_config
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
@@ -116,6 +116,15 @@ NO_SIDE_KELLY_MULTIPLIER = _cfg.kelly.no_side_kelly_multiplier
 PREDICTION_CATEGORIES = frozenset({"crypto", "weather", "spx", "mentions", "companies", "politics"})
 ALLOW_PREDICTION_BETS = _cfg.gates.allow_prediction_bets
 
+# L1 (2026-06-20): live-bet safety gate. The L1 freshness fix makes in-play
+# edges honest (current book odds, not a stale pre-game snapshot), which means
+# they can now pass the normal gates and execute through scheduled scans. Until
+# in-play betting is trusted, reject bets on games that have already started
+# unless ALLOW_LIVE_BETS=true. Mirrors the R25 opt-in pattern. Note: detection
+# uses is_game_started(), which only fires on tickers that embed a start time
+# (moneyline); date-only tickers (spreads/totals) are not caught here.
+ALLOW_LIVE_BETS = _cfg.gates.allow_live_bets
+
 _CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
 
 
@@ -189,6 +198,7 @@ def reload_risk_config() -> None:
     global MIN_MARKET_PRICE, RESTING_ORDER_MAX_HOURS, MIN_CONFIDENCE
     global NO_SIDE_FAVORITE_THRESHOLD, NO_SIDE_MIN_EDGE
     global NO_SIDE_KELLY_PRICE_FLOOR, NO_SIDE_KELLY_MULTIPLIER, ALLOW_PREDICTION_BETS
+    global ALLOW_LIVE_BETS
     global CROSS_CATEGORY_DEDUP
     global _PER_SPORT_MIN_EDGE, _PER_SPORT_SERIES_DEDUP, _PER_SPORT_CROSS_CATEGORY_DEDUP
 
@@ -216,6 +226,7 @@ def reload_risk_config() -> None:
     NO_SIDE_KELLY_PRICE_FLOOR = cfg.kelly.no_side_kelly_price_floor
     NO_SIDE_KELLY_MULTIPLIER = cfg.kelly.no_side_kelly_multiplier
     ALLOW_PREDICTION_BETS = cfg.gates.allow_prediction_bets
+    ALLOW_LIVE_BETS = cfg.gates.allow_live_bets
     CROSS_CATEGORY_DEDUP = cfg.gates.cross_category_dedup
     _PER_SPORT_MIN_EDGE = dict(cfg.per_sport.min_edge)
     _PER_SPORT_SERIES_DEDUP = dict(cfg.per_sport.series_dedup_hours)
@@ -276,6 +287,7 @@ def preflight_gate_status(opp: "Opportunity") -> str:
         "conf"     — Gate 4.5 (confidence below MIN_CONFIDENCE)
         "no-fav"   — Gate 4.6 (R1 NO-side favorite guard)
         "pred-off" — Gate 4.7 (R25 prediction-market safety gate)
+        "live-off" — Gate 4.8 (L1 live/in-play safety gate)
 
     Static only. Runtime gates (daily loss, open positions, duplicate
     ticker, per-event cap, series dedup) require live portfolio/log state
@@ -315,6 +327,10 @@ def preflight_gate_status(opp: "Opportunity") -> str:
     # Gate 4.7: R25 prediction-market safety gate
     if not ALLOW_PREDICTION_BETS and opp.category in PREDICTION_CATEGORIES:
         return "pred-off"
+
+    # Gate 4.8: L1 live/in-play safety gate
+    if not ALLOW_LIVE_BETS and is_game_started(opp.ticker):
+        return "live-off"
 
     return "ok"
 
@@ -699,6 +715,19 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         rejection = (
             f"prediction_market_disabled (category={opp.category}; "
             f"set ALLOW_PREDICTION_BETS=true to enable)"
+        )
+
+    # ── Risk Gate 4.8: Live/in-play safety gate (L1)
+    #   Reject bets on games that have already started unless ALLOW_LIVE_BETS=
+    #   true. The L1 freshness fix makes in-play edges honest (current book
+    #   odds, not a stale pre-game snapshot), so they can now reach order
+    #   placement; keep in-play opt-in until calibrated. Detection via
+    #   is_game_started() only fires on tickers that embed a start time
+    #   (moneyline); date-only spread/total tickers are not caught here.
+    elif not ALLOW_LIVE_BETS and is_game_started(opp.ticker):
+        rejection = (
+            "live_betting_disabled (game in progress; "
+            "set ALLOW_LIVE_BETS=true to enable)"
         )
 
     # ── Risk Gate 5: Duplicate ticker

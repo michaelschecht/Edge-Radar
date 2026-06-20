@@ -2,6 +2,28 @@
 
 ---
 
+## 2026-06-20 -- Live In-Play Odds Freshness Fix (L1 Phase 1)
+
+### Why
+
+Edges on **in-progress** games were untrustworthy: the scan flagged them with a `LIVE` tag (R27) but computed the edge against **stale pre-game odds**, producing phantom edges (F44 saw `+50%` "edges" on games already underway). The Odds API already returns live in-play odds on every fetch — the staleness came entirely from caching. The in-process `_odds_cache` had **no TTL**, so in the long-running Streamlit app a pre-game snapshot stayed frozen for hours while Kalshi's price moved during the game.
+
+### What landed
+
+- **TTL on the in-process `_odds_cache`** (`edge_detector.fetch_odds_api`) — now stores `(stored_at_monotonic, events)` and expires entries instead of holding the first response for the whole process lifetime. Within-scan dedup is preserved (back-to-back calls in one scan are sub-second).
+- **Live-aware TTL across both cache layers.** New `odds_cache.response_has_live_event()` / `effective_ttl()`: when a sport response contains an in-play event (`commence_time ≤ now`), expiry uses `ODDS_LIVE_TTL_SECONDS` (**default 45s**) instead of the 300s pre-game TTL, so in-progress games refetch current book odds. Pre-game responses keep 300s (quota-friendly). `odds_cache.load()` gained an optional `live_ttl_seconds` arg (backward compatible — `futures_edge` keeps the 3-arg call).
+- **Gate 4.8 — `ALLOW_LIVE_BETS` (default off).** The freshness fix makes live edges *honest*, hence executable through scheduled scans. To keep in-play opt-in until calibrated, `size_order()` rejects bets on started games (`is_game_started(ticker)`) unless enabled; `preflight_gate_status()` surfaces it as `live-off`. Mirrors R25. Caveat: detection only fires on moneyline tickers that embed a start time (date-only spread/total tickers aren't caught).
+
+### Verification
+
++15 tests (`TestLiveAwareTtl`, `TestInProcessCacheTtl`, L1 gate tests) → **463 passing**. Three `test_risk_gates.py` fixtures that used a hardcoded *past* date (`26MAR30…`, `26APR17…`) were bumped to a far-future year so they read as pre-game — fixing latent date fragility that the new gate exposed.
+
+### Files
+
+`scripts/shared/odds_cache.py`, `scripts/kalshi/edge_detector.py`, `app/config.py`, `scripts/kalshi/kalshi_executor.py`, `tests/test_odds_cache.py`, `tests/test_edge_detection.py`, `tests/test_risk_gates.py`, `.env.example`, `CLAUDE.md`, `docs/enhancements/live-in-play-odds-design.md`, `docs/CHANGELOG.md`.
+
+---
+
 ## 2026-06-20 -- PGA Tour (Golf Majors) Edge Detection Fixed
 
 ### Why

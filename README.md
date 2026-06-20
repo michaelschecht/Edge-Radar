@@ -58,7 +58,7 @@ graph LR
 | **Book Disagreement** | >4pt spread range flags injury news |
 
 > [!IMPORTANT]
-> Every scan defaults to **preview mode**. No money is risked until you pass `--execute`. Each scan row shows a **Gate** column (R18) that previews whether it will pass the static risk gates — `ok` if all clear, or a short label (`score`, `conf`, `no-fav`, `pred-off`, etc.) for the failing gate.
+> Every scan defaults to **preview mode**. No money is risked until you pass `--execute`. Each scan row shows a **Gate** column (R18) that previews whether it will pass the static risk gates — `ok` if all clear, or a short label (`score`, `conf`, `no-fav`, `pred-off`, `live-off`, etc.) for the failing gate.
 
 ---
 

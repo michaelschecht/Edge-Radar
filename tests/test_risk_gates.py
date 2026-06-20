@@ -72,7 +72,7 @@ class TestSizeOrderRiskGates:
 
     def _make_opp(self, edge=0.10, confidence="high", score=8.0, price=0.50):
         return Opportunity(
-            ticker="KXMLBGAME-26MAR301840CWSMIA-MIA",
+            ticker="KXMLBGAME-99MAR301840CWSMIA-MIA",
             title="Test Game",
             category="game",
             side="yes",
@@ -204,7 +204,7 @@ class TestMinMarketPriceGate:
 
     def _opp(self, price: float) -> Opportunity:
         return Opportunity(
-            ticker="KXMLBGAME-26MAR301840CWSMIA-MIA",
+            ticker="KXMLBGAME-99MAR301840CWSMIA-MIA",
             title="Test Game",
             category="game",
             side="yes",
@@ -549,7 +549,7 @@ class TestTrustedEdge:
             kalshi_executor.KELLY_FRACTION = 0.25
             kalshi_executor.MAX_BET_SIZE = 1000.0  # high enough not to cap
             opp = Opportunity(
-                ticker="KXMLBGAME-26MAR301840CWSMIA-MIA",
+                ticker="KXMLBGAME-99MAR301840CWSMIA-MIA",
                 title="Test",
                 category="game",
                 side="yes",
@@ -600,7 +600,7 @@ class TestPerSportMinEdge:
         orig = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
         try:
             kalshi_executor._PER_SPORT_MIN_EDGE.clear()
-            opp = self._opp("KXMLBGAME-26APR171900NYYKAC-NYY")
+            opp = self._opp("KXMLBGAME-99APR171900NYYKAC-NYY")
             assert min_edge_for(opp) == kalshi_executor.MIN_EDGE_THRESHOLD
         finally:
             kalshi_executor._PER_SPORT_MIN_EDGE.clear()
@@ -615,7 +615,7 @@ class TestPerSportMinEdge:
             kalshi_executor._PER_SPORT_MIN_EDGE.clear()
             kalshi_executor._PER_SPORT_MIN_EDGE["nba"] = 0.08
             nba_opp = self._opp("KXNBAGAME-26APR02SASLAC-SAS")
-            mlb_opp = self._opp("KXMLBGAME-26APR171900NYYKAC-NYY")
+            mlb_opp = self._opp("KXMLBGAME-99APR171900NYYKAC-NYY")
             assert min_edge_for(nba_opp) == 0.08
             assert min_edge_for(mlb_opp) == kalshi_executor.MIN_EDGE_THRESHOLD
         finally:
@@ -646,7 +646,7 @@ class TestPerSportMinEdge:
             kalshi_executor._PER_SPORT_MIN_EDGE.clear()
             kalshi_executor._PER_SPORT_MIN_EDGE["nba"] = 0.08
             # MLB bet at 5% edge: above global 3% → approved (no MLB override)
-            mlb_opp = self._opp("KXMLBGAME-26APR171900NYYKAC-NYY", edge=0.05)
+            mlb_opp = self._opp("KXMLBGAME-99APR171900NYYKAC-NYY", edge=0.05)
             result = size_order(mlb_opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
             assert result.risk_approval == "APPROVED"
         finally:
@@ -1378,6 +1378,41 @@ class TestPreflightGateStatus:
         assert result.risk_approval.startswith("REJECTED")
         assert "prediction_market_disabled" in result.risk_approval
         assert "crypto" in result.risk_approval
+
+    # ── L1 Gate 4.8: live/in-play safety gate ────────────────────────────────
+    # A ticker with an embedded *past* start time is an in-progress game.
+    STARTED_TICKER = "KXMLBGAME-20JUN011840CWSMIA-MIA"   # Jun 1 2020 — long started
+    UPCOMING_TICKER = "KXMLBGAME-99JUN011840CWSMIA-MIA"  # Jun 1 2099 — pre-game
+
+    def test_flags_live_gate_when_disabled(self, monkeypatch):
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "ALLOW_LIVE_BETS", False)
+        opp = _opp(ticker=self.STARTED_TICKER, score=9.0, edge=0.20,
+                   confidence="high")
+        assert preflight_gate_status(opp) == "live-off"
+
+    def test_live_gate_opens_with_flag(self, monkeypatch):
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "ALLOW_LIVE_BETS", True)
+        opp = _opp(ticker=self.STARTED_TICKER, score=9.0, edge=0.20,
+                   confidence="high")
+        assert preflight_gate_status(opp) == "ok"
+
+    def test_live_gate_ignores_pregame(self, monkeypatch):
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "ALLOW_LIVE_BETS", False)
+        opp = _opp(ticker=self.UPCOMING_TICKER, score=9.0, edge=0.20,
+                   confidence="high")
+        assert preflight_gate_status(opp) == "ok"
+
+    def test_size_order_rejects_live_when_flag_off(self, monkeypatch):
+        import kalshi_executor
+        monkeypatch.setattr(kalshi_executor, "ALLOW_LIVE_BETS", False)
+        opp = _opp(ticker=self.STARTED_TICKER, score=9.0, edge=0.20,
+                   confidence="high")
+        result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+        assert result.risk_approval.startswith("REJECTED")
+        assert "live_betting_disabled" in result.risk_approval
 
 
 class TestReloadRiskConfig:
