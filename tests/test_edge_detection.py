@@ -6,6 +6,8 @@ import pytest
 from scipy.stats import norm
 
 from edge_detector import (
+    CATEGORY_MAP,
+    KALSHI_TO_ODDS_SPORT,
     SPORT_MARGIN_STDEV,
     SPORT_TOTAL_STDEV,
     _adjust_confidence_with_stats,
@@ -737,3 +739,29 @@ class TestThreeWayDevig:
                         2.0, 1.85, "2026-06-06T01:40:00Z")
         fair, _ = consensus_fair_value([ev], "Arizona")
         assert fair == pytest.approx(0.5195, abs=0.002)
+
+
+class TestWorldCupMappings:
+    """World Cup (KXWC*) wiring — added 2026-06-20 to restore summer coverage.
+
+    World Cup is soccer (3-way), so it reuses the existing soccer edge logic;
+    these assert only the prefix/category wiring that makes the scanner pick
+    the markets up and route them through game/spread/total edge detection.
+    """
+
+    def test_game_categorized_as_game(self):
+        assert CATEGORY_MAP["KXWCGAME"] == "game"
+
+    def test_spread_total_categories(self):
+        assert CATEGORY_MAP["KXWCSPREAD"] == "spread"
+        assert CATEGORY_MAP["KXWCTOTAL"] == "total"
+
+    def test_odds_sport_key(self):
+        assert KALSHI_TO_ODDS_SPORT["KXWCGAME"] == "soccer_fifa_world_cup"
+        assert KALSHI_TO_ODDS_SPORT["KXWCSPREAD"] == "soccer_fifa_world_cup"
+        assert KALSHI_TO_ODDS_SPORT["KXWCTOTAL"] == "soccer_fifa_world_cup"
+
+    def test_stdev_resolves_to_soccer(self):
+        # KXWC -> soccer in _PREFIX_TO_SPORT, so margin/total stdevs match soccer.
+        assert _get_margin_stdev("KXWCGAME-26JUN27CODUZB-COD") == SPORT_MARGIN_STDEV["soccer"]
+        assert _get_total_stdev("KXWCTOTAL-26JUN27CODUZB-5") == SPORT_TOTAL_STDEV["soccer"]

@@ -13,6 +13,7 @@ from ticker_display import (
     parse_matchup,
     parse_pick_team,
     format_bet_label,
+    format_pick_label,
     extract_ticker_date,
     resolve_date_arg,
     filter_by_date,
@@ -112,6 +113,17 @@ class TestParsePickTeam:
 
     def test_no_hyphen(self):
         assert parse_pick_team("NOTICKER") == ""
+
+    def test_world_cup_country_code_not_us_team(self):
+        # COL is Colombia (World Cup), must NOT resolve to "Colorado" via the
+        # US-sports alias map. Country codes stay raw on KXWC* tickers.
+        assert parse_pick_team("KXWCGAME-26JUN27COLPAR-COL") == "COL"
+
+    def test_world_cup_spread_label_keeps_country_code(self):
+        # Spread label path (_extract_strike_from_ticker) had the same collision.
+        label = format_pick_label("KXWCSPREAD-26JUN27COLPAR-COL2", "", "yes", "spread")
+        assert "Colorado" not in label
+        assert label == "COL -2.5"
 
 
 # ── format_bet_label ─────────────────────────────────────────────────────────

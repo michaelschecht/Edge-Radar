@@ -80,6 +80,7 @@ CATEGORY_MAP = {
     "KXSERIEA":      "game",
     "KXBUNDESLIGA":  "game",
     "KXLIGUE1":      "game",
+    "KXWCGAME":      "game",
     "KXUFCFIGHT":    "game",
     "KXBOXING":      "game",
     "KXIPL":         "game",
@@ -89,12 +90,14 @@ CATEGORY_MAP = {
     "KXNCAAMBSPREAD":"spread",
     "KXNFLSPREAD":   "spread",
     "KXMLSSPREAD":   "spread",
+    "KXWCSPREAD":    "spread",
     # --- Total ---
     "KXNHLTOTAL":    "total",
     "KXNBATOTAL":    "total",
     "KXNCAAMBTOTAL": "total",
     "KXNFLTOTAL":    "total",
     "KXMLSTOTAL":    "total",
+    "KXWCTOTAL":     "total",
     # --- Player props ---
     "KXNHLGOAL":     "player_prop",
     "KXNHLPTS":      "player_prop",
@@ -153,6 +156,9 @@ KALSHI_TO_ODDS_SPORT = {
     "KXSERIEA":        "soccer_italy_serie_a",
     "KXBUNDESLIGA":    "soccer_germany_bundesliga",
     "KXLIGUE1":        "soccer_france_ligue_one",
+    "KXWCGAME":        "soccer_fifa_world_cup",
+    "KXWCSPREAD":      "soccer_fifa_world_cup",
+    "KXWCTOTAL":       "soccer_fifa_world_cup",
     # --- Combat Sports ---
     "KXUFCFIGHT":      "mma_mixed_martial_arts",
     "KXBOXING":        "boxing_boxing",
@@ -449,6 +455,7 @@ _PREFIX_TO_SPORT = {
     "KXSOCCER": "soccer",
     "KXUFC": "mma",
     "KXMLS": "soccer",
+    "KXWC": "soccer",
 }
 
 
@@ -1616,7 +1623,9 @@ FILTER_SHORTCUTS = {
     "seriea":  ["KXSERIEA"],
     "bundesliga": ["KXBUNDESLIGA"],
     "ligue1":  ["KXLIGUE1"],
-    "soccer":  ["KXMLSGAME", "KXMLSSPREAD", "KXMLSTOTAL", "KXUCL", "KXEPL", "KXLALIGA", "KXSERIEA", "KXBUNDESLIGA", "KXLIGUE1"],
+    "worldcup": ["KXWCGAME", "KXWCSPREAD", "KXWCTOTAL"],
+    "wc":      ["KXWCGAME", "KXWCSPREAD", "KXWCTOTAL"],
+    "soccer":  ["KXMLSGAME", "KXMLSSPREAD", "KXMLSTOTAL", "KXUCL", "KXEPL", "KXLALIGA", "KXSERIEA", "KXBUNDESLIGA", "KXLIGUE1", "KXWCGAME", "KXWCSPREAD", "KXWCTOTAL"],
     # --- Combat Sports ---
     "ufc":     ["KXUFCFIGHT"],
     "boxing":  ["KXBOXING"],
