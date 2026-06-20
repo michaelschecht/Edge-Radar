@@ -1633,7 +1633,11 @@ FILTER_SHORTCUTS = {
     "f1":      ["KXF1", "KXF1CONSTRUCTORS"],
     "nascar":  ["KXNASCARRACE"],
     # --- Golf ---
-    "pga":     ["KXPGATOUR"],
+    # PGA Tour markets (KXPGATOUR) are outright tournament-winner markets, so
+    # they route to the futures scanner, which prices the 4 majors against The
+    # Odds API outright fields. Weekly tour stops have no odds feed and are
+    # skipped there. `golf-futures` is the equivalent futures-path filter.
+    "pga":     ["__FUTURES__golf-futures"],
     # --- Cricket ---
     "ipl":     ["KXIPL"],
     # --- Esports ---

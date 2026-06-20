@@ -66,8 +66,13 @@ FUTURES_MAP = {
     "KXMLB":           ("baseball_mlb_world_series_winner", "outrights", "MLB World Series Champion"),
     # NCAAB
     "KXNCAAMBMOP":     ("basketball_ncaab_championship_winner", "outrights", "NCAAB Most Outstanding Player"),
-    # Golf
-    "KXPGATOUR":       ("golf_pga_championship_winner", "outrights", "PGA Tour Winner"),
+    # Golf — KXPGATOUR spans the ENTIRE PGA Tour calendar (weekly stops +
+    # majors), but The Odds API only publishes outright winner fields for the
+    # four majors. The sport_key here is only a placeholder so the series
+    # passes the `entry is None` filter in scan_futures_markets; the *actual*
+    # major is resolved per-market from the title by _golf_major_key(), and
+    # non-major stops + qualifiers fall through to None (skipped, no edge).
+    "KXPGATOUR":       ("golf_us_open_winner", "outrights", "PGA Tour Major Winner"),
 
     # ── Intentionally NOT mapped (2026-04-24) ────────────────────────────────
     # These markets exist on Kalshi but don't have a sensible free-tier Odds
@@ -91,7 +96,44 @@ FUTURES_FILTER_SHORTCUTS = {
     "mlb-futures":   ["KXMLB"],
     "ncaab-futures": ["KXNCAAMBMOP"],
     "golf-futures":  ["KXPGATOUR"],
+    "pga":           ["KXPGATOUR"],  # alias so `scan.py sports --filter pga` resolves here
 }
+
+
+# ── Golf major resolution ────────────────────────────────────────────────────
+# The Odds API only carries outright winner fields for the four golf majors.
+# Kalshi's KXPGATOUR series, by contrast, lists every PGA Tour stop (RBC
+# Heritage, Truist, Zurich Classic, ...) plus the majors and even qualifiers
+# ("U.S. Open Final Qualifying ..."). We match the major from the human-readable
+# market title rather than the cryptic event code (USO/PGC/...), which also lets
+# us reject qualifiers cleanly. A non-major stop returns None and is skipped —
+# pricing a weekly event against major odds would be garbage.
+#
+# Each entry: (odds_api_sport_key, human_label, title_needles). Needles are
+# matched case-insensitively against the market title. "the open" / "open
+# championship" (never bare "open") avoids false hits on "RBC Canadian Open".
+_GOLF_MAJORS = [
+    ("golf_masters_tournament_winner",    "Masters Winner",          ("masters",)),
+    ("golf_pga_championship_winner",      "PGA Championship Winner",  ("pga championship",)),
+    ("golf_us_open_winner",               "U.S. Open Winner",         ("u.s. open", "us open")),
+    ("golf_the_open_championship_winner", "The Open Winner",          ("the open", "open championship", "british open")),
+]
+
+
+def _golf_major_key(title: str) -> tuple[str, str] | None:
+    """Resolve a KXPGATOUR market title to (odds_api_key, label) for a major.
+
+    Returns None for non-major tour stops and for qualifiers ("U.S. Open Final
+    Qualifying ...") — both lack a sportsbook outright feed, so the caller skips
+    them rather than pricing against the wrong (or absent) field.
+    """
+    t = (title or "").lower()
+    if "qualif" in t:  # "... Final Qualifying ..." is not the major itself
+        return None
+    for key, label, needles in _GOLF_MAJORS:
+        if any(n in t for n in needles):
+            return key, label
+    return None
 
 
 # ── Odds API ─────────────────────────────────────────────────────────────────
@@ -464,6 +506,14 @@ def scan_futures_markets(
         if entry is None:
             continue
         sport_key, _, label = entry
+        # Golf: KXPGATOUR spans the full tour, but only the 4 majors have an
+        # Odds API outright feed. Resolve the specific major from the title;
+        # skip weekly stops + qualifiers (no sportsbook field to price against).
+        if series == "KXPGATOUR":
+            resolved = _golf_major_key(m.get("title", ""))
+            if resolved is None:
+                continue
+            sport_key, label = resolved
         sports_needed.setdefault(sport_key, []).append(m)
         market_labels[ticker] = label
 

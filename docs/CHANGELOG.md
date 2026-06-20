@@ -2,6 +2,28 @@
 
 ---
 
+## 2026-06-20 -- PGA Tour (Golf Majors) Edge Detection Fixed
+
+### Why
+
+PGA never surfaced edges because the wiring was pointed at the wrong tournament. `futures_edge.py` statically mapped the whole `KXPGATOUR` series to `golf_pga_championship_winner` — but that major already happened in May, so the Odds API key was inactive (no data). Meanwhile the live Kalshi markets were the **U.S. Open** (`KXPGATOUR-USO26-*`), which wasn't mapped at all. Diagnosis also revealed `KXPGATOUR` spans the *entire* PGA Tour calendar (RBC Heritage, Truist, Zurich Classic, qualifiers, ...), while The Odds API only publishes outright fields for the **4 majors**. Completes ROADMAP R19(b).
+
+### What landed
+
+- **`_golf_major_key(title)`** resolves the specific major from the human-readable market title (not the cryptic event code `USO`/`PGC`/...): Masters, PGA Championship, U.S. Open, The Open → the matching `golf_*_winner` Odds API key. Title-based matching cleanly rejects the **"U.S. Open Final Qualifying"** trap (contains "u.s. open" but isn't the major) and avoids "RBC Canadian Open" false-matching The Open (needs "the open"/"open championship", never bare "open").
+- **Per-market routing in `scan_futures_markets`** — KXPGATOUR markets resolve their major individually; weekly tour stops + qualifiers fall through to `None` and are skipped (no odds feed → no edge, never a wrong-tournament edge).
+- **`--filter pga`** now routes to the futures scanner (was a dead no-odds sports-path entry); `--filter golf-futures` unchanged.
+
+### Verification
+
++7 tests (`TestGolfMajorResolution` in `tests/test_edge_detection.py`) → 449 passing. Live: `scan.py futures --filter pga` priced the U.S. Open field (71 players, 3 books) and surfaced 2 edges — both correctly caught by risk gates (sub-floor longshot → `price`, NO bet → `score`). The old wiring returned nothing.
+
+### Files
+
+`scripts/kalshi/futures_edge.py`, `scripts/kalshi/edge_detector.py` (pga shortcut), `tests/test_edge_detection.py`, `docs/CHANGELOG.md`, `docs/enhancements/ROADMAP.md`.
+
+---
+
 ## 2026-06-20 -- Kalshi v2 Order Endpoint Migration (live order placement fix)
 
 ### Why
