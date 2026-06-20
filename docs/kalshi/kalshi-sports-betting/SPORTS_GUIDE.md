@@ -89,7 +89,8 @@ Use `--filter` to target a specific sport. Supports comma-separated values for m
 
 | Filter | Sport | Key Markets | Edge Detection |
 |--------|-------|-------------|----------------|
-| `soccer` | All soccer (combined) | All leagues below | Yes -- game |
+| `soccer` | All soccer (combined) | All leagues below + World Cup | Yes -- game |
+| `worldcup` (`wc`) | FIFA World Cup | Games, spreads, totals | Yes -- game, spread, total |
 | `mls` | MLS | Games, spreads, totals | Yes -- game, spread, total |
 | `ucl` | Champions League | Match winner | Yes -- game |
 | `epl` | English Premier League | Match winner | Yes -- game |
@@ -197,6 +198,7 @@ The system cross-references Kalshi prices against these Odds API sport keys:
 | KXNCAAFBGAME | `americanfootball_ncaaf` | Moneyline (h2h) |
 | KXNCAAWBGAME | `basketball_wncaab` | Moneyline (h2h) |
 | KXMLSGAME/SPREAD/TOTAL | `soccer_usa_mls` | Moneyline, spreads, totals |
+| KXWCGAME/SPREAD/TOTAL | `soccer_fifa_world_cup` | Moneyline (3-way), spreads, totals |
 | KXEPL | `soccer_epl` | Moneyline (h2h) |
 | KXUCL | `soccer_uefa_champs_league` | Moneyline (h2h) |
 | KXLALIGA | `soccer_spain_la_liga` | Moneyline (h2h) |

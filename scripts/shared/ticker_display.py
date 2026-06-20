@@ -62,6 +62,19 @@ _KALSHI_ALIASES = {
 for alias, name in _KALSHI_ALIASES.items():
     TEAM_NAMES.setdefault(alias, name)
 
+
+def _resolve_team_abbr(abbr: str, ticker: str = "") -> str:
+    """Map a Kalshi team abbreviation to a display name.
+
+    World Cup tickers use 3-letter country codes (COL=Colombia, GHA=Ghana)
+    that collide with US-sports abbreviations in TEAM_NAMES (COL->Colorado).
+    For those, keep the raw country code rather than mis-resolving it.
+    """
+    if ticker.startswith("KXWC"):
+        return abbr
+    return TEAM_NAMES.get(abbr, abbr)
+
+
 # ── Ticker prefix to sport mapping ────────────────────────────────────────────
 
 _SPORT_PREFIXES = {
@@ -71,6 +84,7 @@ _SPORT_PREFIXES = {
     "KXNFLGAME": "nfl", "KXNFL": "nfl",
     "KXNCAABB": "ncaab", "KXNCAAMB": "ncaab", "KXNCAAF": "ncaaf",
     "KXSOCCER": "soccer", "KXMLS": "mls",
+    "KXWCGAME": "worldcup", "KXWC": "worldcup",
     "KXUFC": "ufc", "KXBOX": "boxing",
     "KXGOLF": "golf", "KXPGA": "golf",
     "KXNASCAR": "nascar", "KXIPL": "ipl",
@@ -89,6 +103,7 @@ def _detect_sport(ticker: str) -> str | None:
 _SPORT_DISPLAY = {
     "mlb": "MLB", "nba": "NBA", "nhl": "NHL", "nfl": "NFL",
     "ncaab": "NCAAB", "ncaaf": "NCAAF", "soccer": "Soccer", "mls": "MLS",
+    "worldcup": "World Cup",
     "ufc": "UFC", "boxing": "Boxing", "golf": "Golf", "nascar": "NASCAR",
     "ipl": "IPL", "esports": "Esports",
 }
@@ -218,7 +233,7 @@ def _extract_strike_from_ticker(ticker: str, category: str):
         m = re.match(r"^([A-Z]+?)(\d+)$", suffix)
         if m:
             team_abbr = m.group(1)
-            team_name = TEAM_NAMES.get(team_abbr, team_abbr)
+            team_name = _resolve_team_abbr(team_abbr, ticker)
             return (team_name, f"{m.group(2)}.5")
         return None
 
@@ -320,7 +335,7 @@ def parse_pick_team(ticker: str) -> str:
     if "-" not in ticker:
         return ""
     pick_abbr = ticker.rsplit("-", 1)[-1]
-    return TEAM_NAMES.get(pick_abbr, pick_abbr)
+    return _resolve_team_abbr(pick_abbr, ticker)
 
 
 def format_bet_label(ticker: str, title: str) -> str:

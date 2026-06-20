@@ -225,3 +225,52 @@ class TestSettlementAccounting:
         assert pnl["revenue"] == 0.0
         assert pnl["cost"] == 0.0
         assert pnl["net_pnl"] == 0.0
+
+
+# ── v2 create-order response shape (Kalshi create-order-v2 migration) ──────────
+
+def _make_v2_response(fill_count=10, remaining=0):
+    """Simulate the lean, flat v2 /portfolio/events/orders create response.
+
+    Unlike the cancel/get/list schema, the v2 create response is NOT wrapped in
+    an "order" key and uses fill_count / remaining_count (no _fp suffix).
+    """
+    return {
+        "order_id": "ord-v2-abc",
+        "client_order_id": "er-1",
+        "fill_count": f"{fill_count}.00",
+        "remaining_count": f"{remaining}.00",
+        "ts_ms": 1781969450324,
+    }
+
+
+class TestV2CreateResponseParsing:
+    def test_filled_v2_response(self):
+        opp = _make_opp()
+        sized = _make_sized(opp, contracts=10)
+        rec = log_trade(_make_v2_response(fill_count=10, remaining=0), sized, [])
+        assert rec["filled_contracts"] == 10
+        assert rec["fill_status"] == "filled"
+        assert rec["order_id"] == "ord-v2-abc"
+
+    def test_resting_v2_response(self):
+        opp = _make_opp()
+        sized = _make_sized(opp, contracts=10)
+        rec = log_trade(_make_v2_response(fill_count=0, remaining=10), sized, [])
+        assert rec["filled_contracts"] == 0
+        assert rec["fill_status"] == "resting"
+
+    def test_partial_v2_response(self):
+        opp = _make_opp()
+        sized = _make_sized(opp, contracts=10)
+        rec = log_trade(_make_v2_response(fill_count=3, remaining=7), sized, [])
+        assert rec["filled_contracts"] == 3
+        assert rec["fill_status"] == "partial"
+
+    def test_legacy_fp_response_still_parses(self):
+        # The old/wrapped *_fp shape must still work (cancel/get/list responses).
+        opp = _make_opp()
+        sized = _make_sized(opp, contracts=10)
+        rec = log_trade(_make_api_response(fill_count=10, remaining=0), sized, [])
+        assert rec["filled_contracts"] == 10
+        assert rec["fill_status"] == "filled"

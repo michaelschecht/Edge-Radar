@@ -2,6 +2,51 @@
 
 ---
 
+## 2026-06-20 -- Kalshi v2 Order Endpoint Migration (live order placement fix)
+
+### Why
+
+A live execute attempt failed every order with **HTTP 410 `deprecated_v1_order_endpoint`** — Kalshi retired the v1 `POST /portfolio/orders` endpoint. This blocked *all* live order placement repo-wide (a second, independent reason betting looked dead, on top of the seasonal trough). No money was at risk — 410 is a clean pre-placement rejection. Surfaced because the new World Cup coverage finally produced executable opportunities (6 orders) that drove the pipeline to the order call.
+
+### What landed
+
+- **Migrated `create_order` to the v2 endpoint** `POST /portfolio/events/orders` (same host — `api.elections.kalshi.com` and `external-api.kalshi.com` are interchangeable, so signing/base_url are unchanged). The v2 model is single-book / YES-perspective: `side="bid"` buys YES, `side="ask"` sells YES. The public `create_order` signature is **unchanged**; translation is internal via a new pure, unit-tested `KalshiClient._build_v2_order_body()`:
+  - buy YES @ p → `bid`, `price="<p>"`; **buy NO @ p → `ask`, `price="<1−p>"`** (selling YES == buying NO at 1−price).
+  - `count` → fixed-point string (`"10.00"`), `price` → YES-perspective dollar string (`"0.5600"`), `self_trade_prevention_type="taker_at_cross"` (now required), `expiration_ts` → `expiration_time`. v1 `buy_max_cost` has no v2 equivalent and was unused — dropped.
+- **Response-shape fix:** the v2 create response is lean/flat (`fill_count`, `remaining_count`; no `order` wrapper, no `status`) vs the cancel/get/list schema (`fill_count_fp`, `remaining_count_fp`). New `_order_field()` helper in `kalshi_executor.py` reads both, so `log_trade` and the fill display record fills correctly instead of always reporting "resting" (which would have corrupted exposure/P&L accounting).
+
+### Verification
+
+Unit: +8 order-body tests (`tests/test_kalshi_client_order.py`, incl. the NO→ask inversion) + 4 v2-response tests (`tests/test_fill_accounting.py`) → **442 passing** (was 430). Live: placed two resting 1-contract orders on a World Cup market and canceled both — YES→`bid`@$0.01 (`outcome_side: yes`) and NO→`ask`@$0.99 confirmed by Kalshi as `outcome_side: no`, `no_price_dollars: 0.0100`. Both canceled; no residual exposure.
+
+### Files
+
+`scripts/kalshi/kalshi_client.py`, `scripts/kalshi/kalshi_executor.py`, `tests/test_kalshi_client_order.py` (new), `tests/test_fill_accounting.py`, `docs/CHANGELOG.md`.
+
+---
+
+## 2026-06-20 -- World Cup (FIFA) Sport Coverage Added
+
+### Why
+
+Wagers had dropped to ~0/day since ~June 13. Diagnosis: the pipeline is healthy — it's a **seasonal trough**. A live scan showed NBA/NHL/NCAA/European-club-soccer all out of season, leaving MLB as the only active daily sport (and books only post MLB lines ~1 day out, so future-dated Kalshi games correctly emit no edge). Meanwhile the **2026 FIFA World Cup is live** with deep Kalshi markets and an active Odds API feed — but the scanner had no mapping for it, so it was invisible. (WNBA, NCAA baseball/CWS, and Wimbledon were also considered; user chose World Cup now, Wimbledon deferred to ~June 28 when its markets/odds go live, NCAA baseball skipped as the CWS window closes within days.)
+
+### What landed
+
+- **World Cup wired as a soccer sport** — reuses the existing 3-way (home/draw/away) soccer edge logic with **zero changes to edge math**. `KXWCGAME`/`KXWCSPREAD`/`KXWCTOTAL` added to `CATEGORY_MAP` (game/spread/total) and `KALSHI_TO_ODDS_SPORT` (→ `soccer_fifa_world_cup`); `KXWC` → `soccer` in `_PREFIX_TO_SPORT` (margin/total stdev). New `worldcup`/`wc` filter shortcuts + folded into the combined `soccer` group. Because the no-filter scan iterates `KALSHI_TO_ODDS_SPORT`, World Cup auto-joins the daily scheduled scans with no `.bat` change.
+- **Team extraction needed no change** — WC rules read "...the Congo DR vs Uzbekistan **professional** FIFA World Cup soccer game...", and `professional` is already a recognized context keyword, so `extract_event_teams` resolves country names that match the Odds API feed.
+- **Display fix (country-code collision):** WC tickers use 3-letter country codes that collide with the US-sports alias map (`COL`=Colombia mis-rendered as "Colorado"). Added `_resolve_team_abbr()` in `ticker_display.py` that keeps the raw code for `KXWC*` tickers; used in both the pick-label (spread) and `parse_pick_team` (game) paths. Edge math was always correct (matches on the full name from rules); this was display-only.
+
+### Verification
+
+Live preview scan returned **40 World Cup opportunities** (34 spread, 6 total; edges to +14.7%, score 8.2). Moneyline produced none above 3% — expected, as 3-way match-winner prices are efficient. +6 tests (`TestWorldCupMappings` in `tests/test_edge_detection.py`; 2 country-code label tests in `tests/test_ticker_display.py`) → **430 passing** (was 424).
+
+### Files
+
+`scripts/kalshi/edge_detector.py`, `scripts/shared/ticker_display.py`, `tests/test_edge_detection.py`, `tests/test_ticker_display.py`, `CLAUDE.md`, `docs/kalshi/kalshi-sports-betting/SPORTS_GUIDE.md`, `docs/CHANGELOG.md`.
+
+---
+
 ## 2026-06-15 -- R27: "Started" Column Flags In-Progress Games on Scan Views
 
 ### Why

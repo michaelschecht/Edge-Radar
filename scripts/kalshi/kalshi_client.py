@@ -35,6 +35,9 @@ from app.config import get_config
 load_dotenv()
 log = logging.getLogger("kalshi_client")
 
+# Kalshi v2 single-book order endpoint (replaces deprecated v1 /portfolio/orders).
+V2_ORDERS_PATH = "/portfolio/events/orders"
+
 
 class KalshiClient:
     """Authenticated Kalshi API client with full trading capabilities."""
@@ -325,33 +328,74 @@ class KalshiClient:
             log.warning("[DRY RUN] Order blocked — DRY_RUN=true on non-demo env")
             return {"status": "dry_run_blocked", "ticker": ticker, "side": side}
 
+        # v1 `buy_max_cost` has no documented v2 equivalent; the executor never sets
+        # it, so it is intentionally not forwarded.
+        body = self._build_v2_order_body(
+            ticker=ticker,
+            side=side,
+            action=action,
+            count=count,
+            yes_price_cents=yes_price_cents,
+            no_price_cents=no_price_cents,
+            time_in_force=time_in_force,
+            client_order_id=client_order_id,
+            expiration_ts=expiration_ts,
+        )
+        log.info(
+            "Placing order: %s %s %s -> v2 side=%s @ $%s — count %s",
+            action, side, ticker, body["side"], body["price"], body["count"],
+        )
+        return self._post(V2_ORDERS_PATH, body=body)
+
+    @staticmethod
+    def _build_v2_order_body(
+        ticker: str,
+        side: str,
+        action: str,
+        count: int,
+        yes_price_cents: int | None,
+        no_price_cents: int | None,
+        time_in_force: str,
+        client_order_id: str | None = None,
+        expiration_ts: int | None = None,
+    ) -> dict:
+        """Translate the legacy (side, action, yes/no price) order into a v2 body.
+
+        Kalshi deprecated the v1 ``POST /portfolio/orders`` endpoint (HTTP 410
+        ``deprecated_v1_order_endpoint``). The v2 endpoint ``/portfolio/events/orders``
+        is single-book and expresses every order from the YES perspective:
+        ``side="bid"`` buys YES, ``side="ask"`` sells YES. Selling YES is economically
+        buying NO at ``1 - price``, so a NO buy maps to an **ask** at the YES-equivalent
+        price ``(100 - no_price)``. Prices are fixed-point dollar strings (YES
+        perspective); ``count`` is a fixed-point string of contracts.
+        """
+        if side == "yes":
+            if yes_price_cents is None:
+                raise ValueError("yes_price_cents required for a YES order")
+            yes_price_cents_eff = yes_price_cents
+            v2_side = "bid" if action == "buy" else "ask"
+        elif side == "no":
+            if no_price_cents is None:
+                raise ValueError("no_price_cents required for a NO order")
+            # sell-YES price == buy-NO at 1 - price
+            yes_price_cents_eff = 100 - no_price_cents
+            v2_side = "ask" if action == "buy" else "bid"
+        else:
+            raise ValueError(f"side must be 'yes' or 'no', got {side!r}")
+
         body = {
             "ticker": ticker,
-            "side": side,
-            "action": action,
-            "count": count,
-            "type": "limit",
+            "side": v2_side,
+            "count": f"{count:.2f}",
+            "price": f"{yes_price_cents_eff / 100:.4f}",
             "time_in_force": time_in_force,
+            "self_trade_prevention_type": "taker_at_cross",
         }
-
-        if yes_price_cents is not None:
-            body["yes_price"] = yes_price_cents
-        if no_price_cents is not None:
-            body["no_price"] = no_price_cents
         if client_order_id:
             body["client_order_id"] = client_order_id
         if expiration_ts:
-            body["expiration_ts"] = expiration_ts
-        if buy_max_cost is not None:
-            body["buy_max_cost"] = buy_max_cost
-
-        log.info(
-            "Placing order: %s %s %s @ %s cents — %d contracts",
-            action, side, ticker,
-            yes_price_cents or no_price_cents or "market",
-            count,
-        )
-        return self._post("/portfolio/orders", body=body)
+            body["expiration_time"] = expiration_ts
+        return body
 
     def cancel_order(self, order_id: str) -> dict:
         """Cancel a resting order."""
