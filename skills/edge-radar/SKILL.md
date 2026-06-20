@@ -117,7 +117,7 @@ make hooks             # Install pre-commit hooks
 | `ucl`, `epl`, `laliga`, `seriea`, `bundesliga`, `ligue1` | European leagues | Browse only |
 | `ufc`, `boxing` | Combat sports | Browse only |
 | `f1`, `nascar` | Motorsports | Browse only |
-| `pga` | PGA Golf | Browse only |
+| `pga` | PGA Golf (majors) | Yes — routes to futures (4 majors only) |
 | `ipl` | IPL Cricket | Browse only |
 | `cs2`, `lol`, `esports` | Esports | Browse only |
 
@@ -131,7 +131,7 @@ make hooks             # Install pre-commit hooks
 | `nhl-futures` | Stanley Cup + conferences | Yes |
 | `mlb-futures` | World Series + playoffs | Yes |
 | `ncaab-futures` | NCAAB MOP | Yes |
-| `golf-futures` | PGA tournament winners | Yes |
+| `golf-futures` | Golf major winners (4 majors only) | Yes |
 
 ### Prediction Markets — `prediction_scanner.py`
 

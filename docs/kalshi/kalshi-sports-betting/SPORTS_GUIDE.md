@@ -117,7 +117,7 @@ Use `--filter` to target a specific sport. Supports comma-separated values for m
 
 | Filter | Sport | Key Markets | Edge Detection |
 |--------|-------|-------------|----------------|
-| `pga` | PGA Golf | Tournament winners | Yes -- game |
+| `pga` | PGA Golf | Major tournament winners | Yes -- majors only (routes to `futures_edge.py`) |
 | `ipl` | IPL Cricket | Match winner | Yes -- game |
 
 ### Esports
@@ -207,7 +207,7 @@ The system cross-references Kalshi prices against these Odds API sport keys:
 | KXLIGUE1 | `soccer_france_ligue_one` | Moneyline (h2h) |
 | KXUFCFIGHT | `mma_mixed_martial_arts` | Moneyline (h2h) |
 | KXBOXING | `boxing_boxing` | Moneyline (h2h) |
-| KXPGATOUR | -- (outrights-only; handled by `futures_edge.py`) | Tournament winner |
+| KXPGATOUR | `golf_{us_open,pga_championship,masters_tournament,the_open_championship}_winner` (outrights; resolved per-major by `futures_edge.py`) | Major tournament winner (4 majors only; weekly stops have no odds) |
 | KXIPL | `cricket_ipl` | Moneyline (h2h) |
 
 > **Soccer is 3-way.** Soccer h2h returns home/draw/away. The Kalshi "team to win?" market is binary, so fair value is the team's devigged **win** share and a draw resolves to the NO side. (Before the 2026-06-03 fix, 3-outcome markets were silently skipped, so soccer produced no edges.)
