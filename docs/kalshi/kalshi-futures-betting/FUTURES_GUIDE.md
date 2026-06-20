@@ -244,9 +244,9 @@ Futures use **N-way de-vigging** instead of the 2-way de-vig used for game outco
 
 **Kalshi prefix:** `KXPGATOUR` (~160 markets per tournament)
 
-**Edge detection:** Yes -- compares against PGA Championship outright odds when available.
+**Edge detection:** Yes, **for the 4 majors only.** `KXPGATOUR` spans the entire PGA Tour calendar (weekly stops, majors, and qualifiers), but The Odds API only publishes outright winner fields for the four majors — the **Masters, PGA Championship, U.S. Open,** and **The Open**. `futures_edge.py` resolves the major from the market title (`_golf_major_key`) and routes to the matching odds key (`golf_us_open_winner`, etc.). Weekly tour stops (RBC Heritage, Truist, Zurich Classic, ...) and qualifiers ("U.S. Open Final Qualifying") have no sportsbook feed, so they're skipped — no edge, never priced against the wrong tournament. Majors are only live in the Odds API around their play dates.
 
-**Example market:** "Will Scottie Scheffler win the Valspar Championship?"
+**Example market:** "Will Bud Cauley win the U.S. Open?" (a major → priced). "Will X win the RBC Heritage?" (weekly stop → skipped, no odds).
 
 **Settlement:** After the tournament concludes.
 
@@ -276,7 +276,7 @@ Futures use **N-way de-vigging** instead of the 2-way de-vig used for game outco
 | `nhl-futures` | NHL | Stanley Cup champion + East/West conference winners | `icehockey_nhl_championship_winner` |
 | `mlb-futures` | MLB | World Series champion + playoff qualifiers | `baseball_mlb_world_series_winner` |
 | `ncaab-futures` | NCAAB | Most Outstanding Player | `basketball_ncaab_championship_winner` |
-| `golf-futures` | Golf | PGA tournament winners | `golf_pga_championship_winner` |
+| `golf-futures` (or `pga`) | Golf | Major winners (4 majors only) | `golf_{masters_tournament,pga_championship,us_open,the_open_championship}_winner` (resolved per-major from the market title) |
 
 ### Browse Only (No Automated Edge)
 
@@ -323,7 +323,7 @@ Use the raw ticker prefix with the edge detector or client:
 | **Soccer** | UCL, EPL, La Liga, Serie A, Bundesliga, Ligue 1 | ~84 | Browse only |
 | **F1** | Drivers + Constructors | ~33 | Browse only |
 | **NASCAR** | Race winners | ~37 | Browse only |
-| **Golf** | PGA tournament winners | ~160 | Yes |
+| **Golf** | Major winners (4 majors only) | ~160 | Yes (majors) |
 | **Cricket** | IPL winner | ~10 | Browse only |
 
 **Total:** ~750+ futures markets across all sports.
