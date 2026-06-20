@@ -1777,7 +1777,7 @@ def scan_all_markets(
                    or not m.get("expected_expiration_time")]
     expired = before - len(all_markets)
     if expired:
-        rprint(f"  Skipped {expired} expired/in-progress markets")
+        rprint(f"  Skipped {expired} closed markets (past expiration; in-progress games are kept)")
 
     # 1b. Apply date filter early to reduce Odds API calls
     if date_filter:
