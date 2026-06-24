@@ -39,17 +39,103 @@ load_dotenv()
 log = setup_logging("model_calibration")
 console = Console()
 
-# Current model parameters (from edge_detector.py) — used for comparison
+# Current model parameters (from edge_detector.py) — used for comparison and calibration baseline
 CURRENT_MARGIN_STDEV = {
-    "basketball_nba": 12.0, "basketball_ncaab": 11.0,
-    "americanfootball_nfl": 13.5, "americanfootball_ncaaf": 15.0,
-    "baseball_mlb": 3.5, "icehockey_nhl": 2.5, "soccer": 1.8, "mma": 5.0,
+    "basketball_nba": 13.8,
+    "basketball_ncaab": 12.1,
+    "americanfootball_nfl": 13.5,
+    "americanfootball_ncaaf": 15.0,
+    "baseball_mlb": 4.025,
+    "icehockey_nhl": 2.5,
+    "soccer": 1.8,
+    "mma": 5.0,
 }
 CURRENT_TOTAL_STDEV = {
-    "basketball_nba": 18.0, "basketball_ncaab": 16.0,
-    "americanfootball_nfl": 13.0, "americanfootball_ncaaf": 14.0,
-    "baseball_mlb": 3.0, "icehockey_nhl": 2.2, "soccer": 1.5,
+    "basketball_nba": 20.7,
+    "basketball_ncaab": 17.6,
+    "americanfootball_nfl": 13.0,
+    "americanfootball_ncaaf": 14.0,
+    "baseball_mlb": 3.45,
+    "icehockey_nhl": 2.2,
+    "soccer": 1.5,
 }
+
+_PREFIX_TO_SPORT_KEY = {
+    "KXNBA": "basketball_nba",
+    "KXNCAAMB": "basketball_ncaab",
+    "KXNCAABB": "basketball_ncaab",
+    "KXNFL": "americanfootball_nfl",
+    "KXNCAAF": "americanfootball_ncaaf",
+    "KXMLB": "baseball_mlb",
+    "KXNHL": "icehockey_nhl",
+    "KXSOCCER": "soccer",
+    "KXMLS": "soccer",
+    "KXWC": "soccer",
+    "KXUFC": "mma",
+}
+
+def get_sport_key(ticker: str) -> str | None:
+    """Resolve the internal sport key from ticker prefix."""
+    for prefix, key in _PREFIX_TO_SPORT_KEY.items():
+        if ticker.startswith(prefix):
+            return key
+    return None
+
+def save_calibration_stdevs(settled: list[dict]):
+    """Calculate and write calibrated sport standard deviations to data/cache/calibration_stdevs.json."""
+    calibrated_margin = {}
+    calibrated_total = {}
+    
+    for sport_key, base_stdev in CURRENT_MARGIN_STDEV.items():
+        in_group = [
+            t for t in settled
+            if get_sport_key(t.get("ticker", "")) == sport_key
+            and t.get("category") == "spread"
+        ]
+        if len(in_group) >= 5:
+            pred_avg = sum(t.get("fair_value", 0.5) for t in in_group) / len(in_group)
+            real_avg = sum(1.0 if t.get("settlement_won") else 0.0 for t in in_group) / len(in_group)
+            gap = pred_avg - real_avg
+            # We want to increase stdev if gap is positive (overconfident), and decrease it if negative.
+            # Clamp the multiplier to [0.8, 1.5]
+            multiplier = max(0.8, min(1.5, 1.0 + gap * 1.5))
+            calibrated_margin[sport_key] = round(base_stdev * multiplier, 3)
+            log.info("Calibrating margin stdev for %s: base=%.2f, gap=%+.1f%%, new=%.2f (n=%d)",
+                     sport_key, base_stdev, gap * 100, calibrated_margin[sport_key], len(in_group))
+        else:
+            calibrated_margin[sport_key] = base_stdev
+
+    for sport_key, base_stdev in CURRENT_TOTAL_STDEV.items():
+        in_group = [
+            t for t in settled
+            if get_sport_key(t.get("ticker", "")) == sport_key
+            and t.get("category") == "total"
+        ]
+        if len(in_group) >= 5:
+            pred_avg = sum(t.get("fair_value", 0.5) for t in in_group) / len(in_group)
+            real_avg = sum(1.0 if t.get("settlement_won") else 0.0 for t in in_group) / len(in_group)
+            gap = pred_avg - real_avg
+            multiplier = max(0.8, min(1.5, 1.0 + gap * 1.5))
+            calibrated_total[sport_key] = round(base_stdev * multiplier, 3)
+            log.info("Calibrating total stdev for %s: base=%.2f, gap=%+.1f%%, new=%.2f (n=%d)",
+                     sport_key, base_stdev, gap * 100, calibrated_total[sport_key], len(in_group))
+        else:
+            calibrated_total[sport_key] = base_stdev
+
+    output_data = {
+        "version": 1,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "margin_stdev": calibrated_margin,
+        "total_stdev": calibrated_total
+    }
+    
+    cache_dir = Path(paths.PROJECT_ROOT) / "data" / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / "calibration_stdevs.json"
+    
+    with open(cache_file, "w", encoding="utf-8") as f:
+        json.dump(output_data, f, indent=2)
+    rprint(f"[green]Calibrated standard deviations written to {cache_file}[/green]")
 
 # Map sport display names back to sport keys
 _SPORT_DISPLAY_TO_KEY = {
@@ -92,12 +178,18 @@ def _load_settled_trades() -> list[dict]:
     for s in raw:
         ticker = s.get("ticker", "")
         bet_type = bet_type_from_ticker(ticker) or ""
+        edge_est = s.get("edge_estimated")
+        edge_val = float(edge_est) if edge_est is not None else 0.0
+        fv = s.get("fair_value")
+        fv_val = float(fv) if fv is not None else 0.5
         trades.append({
             **s,
             "cost_dollars": s.get("cost", 0.0),
             "settlement_won": bool(s.get("won")),
             "closed_at": s.get("settled_at"),
             "category": _BET_TYPE_TO_CATEGORY.get(bet_type, bet_type.lower() or "other"),
+            "edge_estimated": edge_val,
+            "fair_value": fv_val,
         })
     return trades
 
@@ -591,6 +683,9 @@ def generate_calibration_report(days: int | None = None, save: bool = False):
         with open(report_path, "w", encoding="utf-8") as f:
             f.write("\n".join(md) + "\n")
         rprint(f"\n[dim]Report saved to {report_path}[/dim]")
+
+    # Auto-calibrate standard deviations and save to cache (C8)
+    save_calibration_stdevs(settled)
 
 
 def _print_dimension_table(title: str, data: list[dict], md: list[str]):

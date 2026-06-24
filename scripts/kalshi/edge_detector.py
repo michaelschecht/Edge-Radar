@@ -20,6 +20,7 @@ Requires: ODDS_API_KEY in .env for sports edge detection.
 
 import re
 import sys
+import os
 import json
 import time
 import logging
@@ -474,10 +475,55 @@ _PREFIX_TO_SPORT = {
 }
 
 
+_last_loaded_stdev_time = 0.0
+_cached_calibrated_margin_stdev = {}
+_cached_calibrated_total_stdev = {}
+
+def load_calibration_stdevs():
+    """Load standard deviation overrides from calibration_stdevs.json if present and fresh."""
+    global _last_loaded_stdev_time, _cached_calibrated_margin_stdev, _cached_calibrated_total_stdev
+    if "pytest" in sys.modules and not get_config().system.test_calibration_stdevs:
+        return
+    calibration_path = paths.DATA_DIR / "cache" / "calibration_stdevs.json"
+    if not calibration_path.exists():
+        return
+    try:
+        mtime = calibration_path.stat().st_mtime
+        if mtime == _last_loaded_stdev_time:
+            return
+        
+        # Check staleness (TTL from config)
+        ttl_days = get_config().gates.calibration_stdevs_ttl_days
+        file_age = time.time() - mtime
+        if file_age > ttl_days * 86400:
+            log.warning("Calibration file %s is stale (age %.1f days > %d days). Using defaults.", 
+                        calibration_path, file_age / 86400, ttl_days)
+            _cached_calibrated_margin_stdev = {}
+            _cached_calibrated_total_stdev = {}
+            return
+            
+        with open(calibration_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        if data.get("version") == 1:
+            _cached_calibrated_margin_stdev = data.get("margin_stdev", {})
+            _cached_calibrated_total_stdev = data.get("total_stdev", {})
+            _last_loaded_stdev_time = mtime
+            log.info("Successfully loaded calibrated standard deviations from %s (age %.1f days)", 
+                     calibration_path, file_age / 86400)
+    except Exception as e:
+        log.warning("Failed to load calibration stdevs from %s: %s. Using defaults.", calibration_path, e)
+        _cached_calibrated_margin_stdev = {}
+        _cached_calibrated_total_stdev = {}
+
+
 def _get_margin_stdev(ticker: str) -> float:
     """Look up the score margin standard deviation for a ticker's sport."""
+    load_calibration_stdevs()
     for prefix, sport in _PREFIX_TO_SPORT.items():
         if ticker.startswith(prefix):
+            if sport in _cached_calibrated_margin_stdev:
+                return _cached_calibrated_margin_stdev[sport]
             return SPORT_MARGIN_STDEV[sport]
     return 12.0  # default fallback (basketball-like)
 
@@ -603,8 +649,11 @@ SPORT_TOTAL_STDEV = {
 
 def _get_total_stdev(ticker: str) -> float:
     """Look up the total score standard deviation for a ticker's sport."""
+    load_calibration_stdevs()
     for prefix, sport in _PREFIX_TO_SPORT.items():
         if ticker.startswith(prefix):
+            if sport in _cached_calibrated_total_stdev:
+                return _cached_calibrated_total_stdev[sport]
             return SPORT_TOTAL_STDEV.get(sport, 12.0)
     return 12.0
 
@@ -1086,6 +1135,12 @@ def detect_edge_game(market: dict, odds_events: list,
     if details["n_books"] >= 8 and (details["max_fair"] - details["min_fair"]) < 0.05:
         confidence = "high"
 
+    # NBA consensus book threshold (R29)
+    if ticker.startswith("KXNBA"):
+        min_books = get_config().gates.min_consensus_books_nba
+        if details.get("n_books", 0) < min_books:
+            confidence = "low"
+
     # Adjust confidence with team stats
     stats_signal = _stats_confidence_signal(team, ticker, side)
     confidence = _adjust_confidence_with_stats(confidence, stats_signal)
@@ -1211,6 +1266,12 @@ def detect_edge_spread(market: dict, odds_events: list,
         confidence = "medium"
     else:
         confidence = "low"
+
+    # NBA consensus book threshold (R29)
+    if ticker.startswith("KXNBA"):
+        min_books = get_config().gates.min_consensus_books_nba
+        if details.get("n_books", 0) < min_books:
+            confidence = "low"
 
     # Adjust confidence with team stats
     stats_signal = _stats_confidence_signal(team, ticker, side)
@@ -1496,6 +1557,12 @@ def detect_edge_total(market: dict, odds_events: list,
     liquidity = max(0, 10 - (spread * 20))
 
     confidence = "low" if details["n_books"] < 3 else "medium"
+
+    # NBA consensus book threshold (R29)
+    if ticker.startswith("KXNBA"):
+        min_books = get_config().gates.min_consensus_books_nba
+        if details.get("n_books", 0) < min_books:
+            confidence = "low"
 
     # Weather fair-value adjustment for outdoor sports (NFL, MLB)
     # (stdev adjustment was already applied above in the compound stdev_adj)

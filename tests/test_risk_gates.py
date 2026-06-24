@@ -512,6 +512,87 @@ class TestNoSideKellyMultiplier:
             kalshi_executor.KELLY_FRACTION = orig_kelly
             kalshi_executor.MAX_BET_SIZE = orig_max
 
+    def test_no_bet_multiplier_global_damps_sizing(self):
+        # With global multiplier at 0.5, all NO bets are halved regardless of floor
+        import kalshi_executor
+        orig_kelly = kalshi_executor.KELLY_FRACTION
+        orig_max = kalshi_executor.MAX_BET_SIZE
+        orig_multiplier_global = kalshi_executor.NO_SIDE_KELLY_MULTIPLIER_GLOBAL
+        try:
+            kalshi_executor.KELLY_FRACTION = 0.50
+            kalshi_executor.MAX_BET_SIZE = 10000.0
+            kalshi_executor.NO_SIDE_KELLY_MULTIPLIER_GLOBAL = 0.50
+            
+            # NO bet at 40¢ is above the price floor (35¢) but should still be halved due to global multiplier
+            yes_opp = self._opp(side="yes", price=0.40, edge=0.10, confidence="high")
+            no_opp = self._opp(side="no", price=0.40, edge=0.10, confidence="high")
+            
+            y = size_order(yes_opp, bankroll=10000.0, open_positions=0,
+                           daily_pnl=0.0, unit_size=1.00)
+            n = size_order(no_opp, bankroll=10000.0, open_positions=0,
+                           daily_pnl=0.0, unit_size=1.00)
+            
+            assert y.risk_approval.startswith("APPROVED")
+            assert n.risk_approval.startswith("APPROVED")
+            assert n.contracts < y.contracts
+            assert n.contracts == pytest.approx(y.contracts // 2, abs=2)
+        finally:
+            kalshi_executor.KELLY_FRACTION = orig_kelly
+            kalshi_executor.MAX_BET_SIZE = orig_max
+            kalshi_executor.NO_SIDE_KELLY_MULTIPLIER_GLOBAL = orig_multiplier_global
+
+
+# ── No-side global edge floor (R28) ──────────────────────────────────────────
+
+class TestNoSideGlobalEdgeFloor:
+    """R28: elevated edge floor for all NO bets."""
+
+    def _opp(self, side="no", edge=0.05, sport_ticker="KXMLBGAME-26APR21NYYKAC-NYY") -> Opportunity:
+        return Opportunity(
+            ticker=sport_ticker,
+            title="Test", category="game", side=side,
+            market_price=0.30, fair_value=0.30 + edge, edge=edge,
+            edge_source="test", confidence="high",
+            liquidity_score=8.0, composite_score=8.0, details={},
+        )
+
+    def test_no_bet_below_global_no_edge_floor_rejected(self):
+        # NO bet at 5% edge is below the 8% global NO floor -> rejected
+        import kalshi_executor
+        orig_global_no_edge = kalshi_executor.NO_SIDE_MIN_EDGE_GLOBAL
+        try:
+            kalshi_executor.NO_SIDE_MIN_EDGE_GLOBAL = 0.08
+            opp = self._opp(side="no", edge=0.05)
+            result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+            assert result.risk_approval.startswith("REJECTED")
+            assert "edge_below_threshold" in result.risk_approval
+        finally:
+            kalshi_executor.NO_SIDE_MIN_EDGE_GLOBAL = orig_global_no_edge
+
+    def test_no_bet_above_global_no_edge_floor_approved(self):
+        # NO bet at 10% edge clears the 8% global NO floor -> approved
+        import kalshi_executor
+        orig_global_no_edge = kalshi_executor.NO_SIDE_MIN_EDGE_GLOBAL
+        try:
+            kalshi_executor.NO_SIDE_MIN_EDGE_GLOBAL = 0.08
+            opp = self._opp(side="no", edge=0.10)
+            result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+            assert result.risk_approval.startswith("APPROVED")
+        finally:
+            kalshi_executor.NO_SIDE_MIN_EDGE_GLOBAL = orig_global_no_edge
+
+    def test_yes_bet_below_global_no_edge_floor_approved(self):
+        # YES bet at 5% edge is not subject to global NO floor -> approved (since global floor is 3%)
+        import kalshi_executor
+        orig_global_no_edge = kalshi_executor.NO_SIDE_MIN_EDGE_GLOBAL
+        try:
+            kalshi_executor.NO_SIDE_MIN_EDGE_GLOBAL = 0.08
+            opp = self._opp(side="yes", edge=0.05)
+            result = size_order(opp, bankroll=100.0, open_positions=0, daily_pnl=0.0)
+            assert result.risk_approval.startswith("APPROVED")
+        finally:
+            kalshi_executor.NO_SIDE_MIN_EDGE_GLOBAL = orig_global_no_edge
+
 
 # ── trusted_edge soft-cap ────────────────────────────────────────────────────
 

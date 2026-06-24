@@ -2,6 +2,11 @@
 
 from unittest.mock import MagicMock, patch
 
+import os
+import json
+import time
+from datetime import datetime, timezone
+
 import pytest
 from scipy.stats import norm
 
@@ -877,3 +882,109 @@ class TestWorldCupMappings:
         # KXWC -> soccer in _PREFIX_TO_SPORT, so margin/total stdevs match soccer.
         assert _get_margin_stdev("KXWCGAME-26JUN27CODUZB-COD") == SPORT_MARGIN_STDEV["soccer"]
         assert _get_total_stdev("KXWCTOTAL-26JUN27CODUZB-5") == SPORT_TOTAL_STDEV["soccer"]
+
+
+class TestNbaConsensusBooks:
+    """R29: Enforce stricter consensus book limits for NBA confidence."""
+
+    def test_nba_low_books_forces_low_confidence(self):
+        # NBA ticker with 5 books on 2026-04-21 (date must match commence time of event)
+        market = _mlb_game_market("Los Angeles Lakers", "Boston Celtics", "Los Angeles Lakers", "KXNBAGAME-26APR21LALBOS-LAL", yes_ask="0.40", no_ask="0.62")
+        feed = [_h2h_event("Los Angeles Lakers", "Boston Celtics", 2.0, 1.85, "2026-04-22T01:40:00Z", 
+                           books=("pinnacle", "draftkings", "fanduel", "betmgm", "pointsbet"))]
+        
+        # Detect edge: NBA needs 8 books, so 5 books forces low confidence
+        opp = detect_edge_game(market, feed)
+        assert opp is not None
+        assert opp.confidence == "low"
+
+    def test_mlb_low_books_retains_medium_confidence(self):
+        # MLB ticker with 5 books on 2026-04-21
+        market = _mlb_game_market("New York Yankees", "Kansas City Royals", "New York Yankees", "KXMLBGAME-26APR21NYYKAC-NYY", yes_ask="0.40", no_ask="0.62")
+        feed = [_h2h_event("New York Yankees", "Kansas City Royals", 2.0, 1.85, "2026-04-22T01:40:00Z", 
+                           books=("pinnacle", "draftkings", "fanduel", "betmgm", "pointsbet"))]
+        
+        # MLB does not have NBA consensus books constraint, so 5 books gets medium confidence
+        opp = detect_edge_game(market, feed)
+        assert opp is not None
+        assert opp.confidence == "medium"
+
+
+class TestDynamicStdevLoading:
+    """C8: dynamic loading of standard deviations from cached JSON file."""
+
+    @patch("paths.DATA_DIR")
+    def test_loads_overrides_when_present_and_fresh(self, mock_data_dir, tmp_path):
+        mock_data_dir.return_value = tmp_path
+        
+        # Write dummy calibration overrides
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        calibration_file = cache_dir / "calibration_stdevs.json"
+        
+        calibration_data = {
+            "version": 1,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "margin_stdev": {
+                "basketball_nba": 15.5,
+                "baseball_mlb": 5.0
+            },
+            "total_stdev": {
+                "basketball_nba": 25.0
+            }
+        }
+        with open(calibration_file, "w", encoding="utf-8") as f:
+            json.dump(calibration_data, f)
+            
+        with patch.dict(os.environ, {"TEST_CALIBRATION_STDEVS": "1"}):
+            from app.config import reset_config
+            reset_config()
+            try:
+                with patch("paths.DATA_DIR", tmp_path):
+                    import edge_detector
+                    edge_detector._last_loaded_stdev_time = 0.0
+                    
+                    # Check that lookups fetch the overrides
+                    assert _get_margin_stdev("KXNBAGAME-...") == 15.5
+                    assert _get_margin_stdev("KXMLBGAME-...") == 5.0
+                    assert _get_total_stdev("KXNBATOTAL-...") == 25.0
+                    
+                    # Non-overridden sports fall back to baseline constants
+                    assert _get_margin_stdev("KXNHLGAME-...") == SPORT_MARGIN_STDEV["icehockey_nhl"]
+            finally:
+                reset_config()
+
+    @patch("paths.DATA_DIR")
+    def test_falls_back_when_stale(self, mock_data_dir, tmp_path):
+        mock_data_dir.return_value = tmp_path
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        calibration_file = cache_dir / "calibration_stdevs.json"
+        
+        calibration_data = {
+            "version": 1,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "margin_stdev": {
+                "basketball_nba": 15.5
+            },
+            "total_stdev": {}
+        }
+        with open(calibration_file, "w", encoding="utf-8") as f:
+            json.dump(calibration_data, f)
+            
+        # Backdate the file by 31 days (default TTL is 30)
+        mtime = time.time() - 31 * 86400
+        os.utime(calibration_file, (mtime, mtime))
+        
+        with patch.dict(os.environ, {"TEST_CALIBRATION_STDEVS": "1"}):
+            from app.config import reset_config
+            reset_config()
+            try:
+                with patch("paths.DATA_DIR", tmp_path):
+                    import edge_detector
+                    edge_detector._last_loaded_stdev_time = 0.0
+                    
+                    # Should fall back to the default baseline constant (13.8)
+                    assert _get_margin_stdev("KXNBAGAME-...") == 13.8
+            finally:
+                reset_config()
