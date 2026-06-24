@@ -9,6 +9,8 @@ python scripts/scan.py sports --min-edge 0.03 --top 20 --date today --exclude-op
 
 To narrow by market type, add `--category game`, `--category spread`, `--category total`, or `--category player_prop`.
 
+In-progress games are excluded by default and flagged with a **Started/LIVE** column — to act on them, see `live-betting.md`.
+
 For each opportunity, explain:
 - The Bet (matchup), Type (ML/Spread/Total/Prop), and Pick (e.g. "Spurs win", "Over 220.5")
 - Why there's edge (sportsbook consensus vs Kalshi price)

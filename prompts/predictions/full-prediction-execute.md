@@ -31,6 +31,8 @@ python scripts/scan.py prediction --filter spx --min-edge 0.03 --top 10 --exclud
 python scripts/scan.py prediction --min-edge 0.05 --max-bets 5 --unit-size 1 --exclude-open --execute
 ```
 
+> **⚠️ Execution requires `ALLOW_PREDICTION_BETS=true` (Gate 4.7 / R25).** Without it, every prediction bet is rejected at the risk gate — scans still preview fine. Set it in `.env` (restart Streamlit) or prepend `ALLOW_PREDICTION_BETS=true ` to the CLI command for a one-off run.
+
 6. Or cherry-pick from preview:
 ```bash
 python scripts/scan.py prediction --min-edge 0.03 --exclude-open --execute --pick '1,4,7'
@@ -46,3 +48,4 @@ The scan table shows: Title, Date, Cat. (crypto/weather/spx/mentions), Side, Mkt
 - **Weather**: Model uses NWS forecast. Most accurate 1-2 days out. Temperature strikes far from forecast have the most edge.
 - **SPX**: Model uses Yahoo Finance + VIX. VIX spikes create the most mispricing.
 - **Mentions**: Historical settlement patterns. High base-rate YES markets often mispriced.
+- **Companies / Politics**: Lower-frequency categories. Treat displayed edge skeptically — thin liquidity and slow-moving lines mean stale prices look like edge. Confirm the strike/resolution wording before betting.
