@@ -189,7 +189,11 @@ class GateThresholds:
     allow_live_bets: bool = False
     no_side_favorite_threshold: float = 0.25
     no_side_min_edge: float = 0.25
+    no_side_min_edge_global: float = 0.08
+    min_consensus_books_nba: int = 8
+    calibration_stdevs_ttl_days: int = 30
     cross_category_dedup: bool = False
+    max_live_book_age_seconds: int = 1200
 
     @classmethod
     def from_env(cls) -> "GateThresholds":
@@ -204,7 +208,11 @@ class GateThresholds:
             allow_live_bets=_bool("ALLOW_LIVE_BETS", False),
             no_side_favorite_threshold=_float("NO_SIDE_FAVORITE_THRESHOLD", 0.25),
             no_side_min_edge=_float("NO_SIDE_MIN_EDGE", 0.25),
+            no_side_min_edge_global=_float("NO_SIDE_MIN_EDGE_GLOBAL", 0.08),
+            min_consensus_books_nba=_int("MIN_CONSENSUS_BOOKS_NBA", 8),
+            calibration_stdevs_ttl_days=_int("CALIBRATION_STDEVS_TTL_DAYS", 30),
             cross_category_dedup=_bool("CROSS_CATEGORY_DEDUP", False),
+            max_live_book_age_seconds=_int("MAX_LIVE_BOOK_AGE_SECONDS", 1200),
         )
 
 
@@ -215,6 +223,7 @@ class KellyConfig:
     kelly_edge_decay: float = 0.5
     no_side_kelly_price_floor: float = 0.35
     no_side_kelly_multiplier: float = 0.5
+    no_side_kelly_multiplier_global: float = 1.0
 
     @classmethod
     def from_env(cls) -> "KellyConfig":
@@ -224,6 +233,7 @@ class KellyConfig:
             kelly_edge_decay=_float("KELLY_EDGE_DECAY", 0.5),
             no_side_kelly_price_floor=_float("NO_SIDE_KELLY_PRICE_FLOOR", 0.35),
             no_side_kelly_multiplier=_float("NO_SIDE_KELLY_MULTIPLIER", 0.5),
+            no_side_kelly_multiplier_global=_float("NO_SIDE_KELLY_MULTIPLIER_GLOBAL", 1.0),
         )
 
 
@@ -284,6 +294,7 @@ class System:
     dry_run: bool = True
     log_level: str = "INFO"
     project_root: str = ""  # PROJECT_ROOT override; "" → caller falls back to paths.PROJECT_ROOT
+    test_calibration_stdevs: bool = False
 
     @classmethod
     def from_env(cls) -> "System":
@@ -291,6 +302,7 @@ class System:
             dry_run=_bool("DRY_RUN", True),
             log_level=_str("LOG_LEVEL", "INFO").strip().upper(),
             project_root=_str("PROJECT_ROOT", ""),
+            test_calibration_stdevs=_bool("TEST_CALIBRATION_STDEVS", False),
         )
 
 
@@ -414,6 +426,26 @@ class Config:
         if not 0.0 <= self.kelly.kelly_fraction <= 1.0:
             raise ValueError(
                 f"KELLY_FRACTION must be in [0, 1], got {self.kelly.kelly_fraction}"
+            )
+        if self.gates.no_side_min_edge_global < 0:
+            raise ValueError(
+                f"NO_SIDE_MIN_EDGE_GLOBAL must be >= 0, got {self.gates.no_side_min_edge_global}"
+            )
+        if not 0.0 <= self.kelly.no_side_kelly_multiplier_global <= 1.0:
+            raise ValueError(
+                f"NO_SIDE_KELLY_MULTIPLIER_GLOBAL must be in [0, 1], got {self.kelly.no_side_kelly_multiplier_global}"
+            )
+        if self.gates.min_consensus_books_nba < 0:
+            raise ValueError(
+                f"MIN_CONSENSUS_BOOKS_NBA must be >= 0, got {self.gates.min_consensus_books_nba}"
+            )
+        if self.gates.calibration_stdevs_ttl_days <= 0:
+            raise ValueError(
+                f"CALIBRATION_STDEVS_TTL_DAYS must be > 0, got {self.gates.calibration_stdevs_ttl_days}"
+            )
+        if self.gates.max_live_book_age_seconds < 0:
+            raise ValueError(
+                f"MAX_LIVE_BOOK_AGE_SECONDS must be >= 0, got {self.gates.max_live_book_age_seconds}"
             )
         if self.gates.min_edge_threshold < 0:
             raise ValueError(

@@ -101,8 +101,10 @@ MIN_CONFIDENCE = _cfg.gates.min_confidence
 # bet priced below NO_SIDE_KELLY_PRICE_FLOOR.
 NO_SIDE_FAVORITE_THRESHOLD = _cfg.gates.no_side_favorite_threshold
 NO_SIDE_MIN_EDGE = _cfg.gates.no_side_min_edge
+NO_SIDE_MIN_EDGE_GLOBAL = _cfg.gates.no_side_min_edge_global
 NO_SIDE_KELLY_PRICE_FLOOR = _cfg.kelly.no_side_kelly_price_floor
 NO_SIDE_KELLY_MULTIPLIER = _cfg.kelly.no_side_kelly_multiplier
+NO_SIDE_KELLY_MULTIPLIER_GLOBAL = _cfg.kelly.no_side_kelly_multiplier_global
 
 # R25 (2026-04-24): prediction-market safety gate. 2026-04-24 audit found
 # that all 6 prediction-market modules (crypto_edge, weather_edge, spx_edge,
@@ -196,9 +198,9 @@ def reload_risk_config() -> None:
     global MIN_EDGE_THRESHOLD, KELLY_FRACTION, MAX_PER_EVENT, MAX_BET_RATIO
     global MIN_COMPOSITE_SCORE, KELLY_EDGE_CAP, KELLY_EDGE_DECAY, SERIES_DEDUP_HOURS
     global MIN_MARKET_PRICE, RESTING_ORDER_MAX_HOURS, MIN_CONFIDENCE
-    global NO_SIDE_FAVORITE_THRESHOLD, NO_SIDE_MIN_EDGE
-    global NO_SIDE_KELLY_PRICE_FLOOR, NO_SIDE_KELLY_MULTIPLIER, ALLOW_PREDICTION_BETS
-    global ALLOW_LIVE_BETS
+    global NO_SIDE_FAVORITE_THRESHOLD, NO_SIDE_MIN_EDGE, NO_SIDE_MIN_EDGE_GLOBAL
+    global NO_SIDE_KELLY_PRICE_FLOOR, NO_SIDE_KELLY_MULTIPLIER, NO_SIDE_KELLY_MULTIPLIER_GLOBAL
+    global ALLOW_PREDICTION_BETS, ALLOW_LIVE_BETS
     global CROSS_CATEGORY_DEDUP
     global _PER_SPORT_MIN_EDGE, _PER_SPORT_SERIES_DEDUP, _PER_SPORT_CROSS_CATEGORY_DEDUP
 
@@ -223,8 +225,10 @@ def reload_risk_config() -> None:
     MIN_CONFIDENCE = cfg.gates.min_confidence
     NO_SIDE_FAVORITE_THRESHOLD = cfg.gates.no_side_favorite_threshold
     NO_SIDE_MIN_EDGE = cfg.gates.no_side_min_edge
+    NO_SIDE_MIN_EDGE_GLOBAL = cfg.gates.no_side_min_edge_global
     NO_SIDE_KELLY_PRICE_FLOOR = cfg.kelly.no_side_kelly_price_floor
     NO_SIDE_KELLY_MULTIPLIER = cfg.kelly.no_side_kelly_multiplier
+    NO_SIDE_KELLY_MULTIPLIER_GLOBAL = cfg.kelly.no_side_kelly_multiplier_global
     ALLOW_PREDICTION_BETS = cfg.gates.allow_prediction_bets
     ALLOW_LIVE_BETS = cfg.gates.allow_live_bets
     CROSS_CATEGORY_DEDUP = cfg.gates.cross_category_dedup
@@ -271,8 +275,14 @@ def min_edge_for(opp: "Opportunity") -> float:
     """
     sport = _detect_sport(opp.ticker)
     if sport and sport in _PER_SPORT_MIN_EDGE:
-        return _PER_SPORT_MIN_EDGE[sport]
-    return MIN_EDGE_THRESHOLD
+        base_floor = _PER_SPORT_MIN_EDGE[sport]
+    else:
+        base_floor = MIN_EDGE_THRESHOLD
+
+    is_no_side = bool(opp.side and opp.side.strip().lower() == "no")
+    if is_no_side:
+        return max(base_floor, NO_SIDE_MIN_EDGE_GLOBAL)
+    return base_floor
 
 
 def preflight_gate_status(opp: "Opportunity") -> str:
@@ -773,11 +783,13 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     # Kelly would allocate, preventing over-commitment on simultaneous bets.
     effective_kelly = KELLY_FRACTION / max(1, batch_size)
 
-    # R1: dampen Kelly on NO bets priced below the floor. These are bets against
-    # market-priced favorites, where the model has historically overstated edge.
+    # R1 & R28: dampen Kelly on NO bets. Apply global NO-side multiplier first.
+    # Price-floor specific multiplier applies additionally to market-priced favorites.
     is_no_side = bool(opp.side and opp.side.strip().lower() == "no")
-    if is_no_side and opp.market_price < NO_SIDE_KELLY_PRICE_FLOOR:
-        effective_kelly *= NO_SIDE_KELLY_MULTIPLIER
+    if is_no_side:
+        effective_kelly *= NO_SIDE_KELLY_MULTIPLIER_GLOBAL
+        if opp.market_price < NO_SIDE_KELLY_PRICE_FLOOR:
+            effective_kelly *= NO_SIDE_KELLY_MULTIPLIER
 
     kelly_bet = effective_kelly * trusted_edge(opp.edge) * bankroll
     kelly_contracts = max(1, int(kelly_bet / opp.market_price)) if kelly_bet > 0 else flat_contracts

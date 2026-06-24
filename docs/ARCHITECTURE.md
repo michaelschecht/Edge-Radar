@@ -367,9 +367,8 @@ Edge-Radar/
 │   │   ├── kalshi-prediction-betting/ # Crypto, weather, S&P guides
 │   │   └── kalshi-sports-betting/     # 27 sport filters, MLB filtering, sports guide
 │   ├── enhancements/                  # ROADMAP.md — enhancement roadmap
-│   ├── mcp-config/                    # MCP server reference
 │   ├── scripts/                       # Per-script detailed docs
-│   ├── setup/                         # SETUP_GUIDE.md, AUTOMATION_GUIDE.md
+│   ├── setup/                         # SETUP_GUIDE.md, AUTOMATION_GUIDE.md, mcp-servers.md
 │   └── web-app/                       # LOCAL.md, CLOUD.md
 ├── prompts/                           # LLM prompts for analysis agents
 │   ├── futures/

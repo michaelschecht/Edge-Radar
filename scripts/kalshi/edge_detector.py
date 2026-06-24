@@ -20,6 +20,7 @@ Requires: ODDS_API_KEY in .env for sports edge detection.
 
 import re
 import sys
+import os
 import json
 import time
 import logging
@@ -280,6 +281,134 @@ def fetch_odds_api(sport_key: str, markets: str = "h2h") -> list:
             return []
 
 
+_event_odds_cache: dict[str, tuple[float, dict]] = {}
+
+
+def fetch_event_odds_api(sport_key: str, event_id: str, markets: str = "h2h,spreads,totals") -> dict | None:
+    """Fetch event-level odds from The Odds API with caching and key rotation (Phase 2)."""
+    cache_key = f"{sport_key}:{event_id}:{markets}"
+    cfg = get_config().odds_cache
+
+    cached = _event_odds_cache.get(cache_key)
+    if cached is not None:
+        stored_at, event = cached
+        if time.monotonic() - stored_at <= cfg.live_ttl_seconds:
+            return event
+        del _event_odds_cache[cache_key]
+
+    if cfg.enabled:
+        cached_event, age = odds_cache.load_event(
+            sport_key, event_id, cfg.live_ttl_seconds
+        )
+        if cached_event is not None:
+            log.info("Odds API (event) file cache hit for %s:%s (age %ds)",
+                     sport_key, event_id, age)
+            _event_odds_cache[cache_key] = (time.monotonic(), cached_event)
+            return cached_event
+
+    if not get_current_key():
+        return None
+
+    tried: set[str] = set()
+    while True:
+        api_key = get_current_key()
+        if not api_key or api_key in tried:
+            if tried:
+                log.warning("All %d Odds API keys returned 401/429 for event %s",
+                            len(tried), event_id)
+            return None
+        tried.add(api_key)
+        try:
+            resp = requests.get(
+                f"{ODDS_API_BASE}/sports/{sport_key}/events/{event_id}/odds",
+                params={
+                    "apiKey": api_key,
+                    "regions": "us",
+                    "markets": markets,
+                    "oddsFormat": "decimal",
+                    "dateFormat": "iso",
+                },
+                timeout=15,
+            )
+            if resp.status_code in (401, 429):
+                if resp.status_code == 401:
+                    mark_exhausted(api_key)
+                rotate_key("http_" + str(resp.status_code))
+                continue
+
+            resp.raise_for_status()
+            event = resp.json()
+            remaining = resp.headers.get("x-requests-remaining", "?")
+            log.info("Odds API (event): success, %s requests remaining", remaining)
+
+            try:
+                report_remaining(api_key, int(remaining))
+            except (ValueError, TypeError):
+                pass
+
+            _event_odds_cache[cache_key] = (time.monotonic(), event)
+            if cfg.enabled:
+                odds_cache.store_event(sport_key, event_id, event)
+            return event
+        except Exception as e:
+            log.warning("Odds API (event) error for %s:%s: %s", sport_key, event_id, e)
+            return None
+
+
+def _refresh_event_if_live(matched_event: dict, market: dict) -> dict:
+    """If the game is in progress, refresh its odds from the per-event Odds API endpoint (Phase 2)."""
+    is_live = False
+    from ticker_display import is_game_started
+    if is_game_started(market.get("ticker", "")):
+        is_live = True
+    else:
+        commence_str = matched_event.get("commence_time")
+        if commence_str:
+            commence_dt = _parse_iso_utc(commence_str)
+            if commence_dt and commence_dt <= datetime.now(timezone.utc):
+                is_live = True
+
+    if is_live:
+        sport_key = matched_event.get("sport_key")
+        event_id = matched_event.get("id")
+        if sport_key and event_id:
+            refreshed = fetch_event_odds_api(sport_key, event_id)
+            if refreshed:
+                return refreshed
+    return matched_event
+
+
+def _is_bookmaker_stale(bookmaker: dict, event: dict, max_age: int) -> bool:
+    """True if the bookmaker's last_update is too old for an in-progress game (Phase 2)."""
+    commence_str = event.get("commence_time")
+    if not commence_str:
+        return False
+    commence_dt = _parse_iso_utc(commence_str)
+    if not commence_dt or commence_dt > datetime.now(timezone.utc):
+        # Event is pre-game, last_update doesn't need to be fresh
+        return False
+
+    # Event is live/in-progress
+    lu_str = bookmaker.get("last_update")
+    if not lu_str:
+        # If last_update is missing (common in mock tests), assume fresh/valid
+        return False
+
+    lu_dt = _parse_iso_utc(lu_str)
+    if not lu_dt:
+        return False
+
+    age = (datetime.now(timezone.utc) - lu_dt).total_seconds()
+    if age > max_age:
+        log.warning(
+            "Excluding bookmaker %s because its last_update is %d seconds old (limit %d)",
+            bookmaker.get("key"), age, max_age
+        )
+        return True
+
+    return False
+
+
 def implied_prob(decimal_odds: float) -> float:
     """Convert decimal odds to implied probability."""
     if decimal_odds <= 1.0:
@@ -369,6 +498,9 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
 
     for ev_idx, event in enumerate(events):
         for bookmaker in event.get("bookmakers", []):
+            max_age = get_config().gates.max_live_book_age_seconds
+            if _is_bookmaker_stale(bookmaker, event, max_age):
+                continue
             for market in bookmaker.get("markets", []):
                 if market["key"] != "h2h":
                     continue
@@ -474,10 +606,55 @@ _PREFIX_TO_SPORT = {
 }
 
 
+_last_loaded_stdev_time = 0.0
+_cached_calibrated_margin_stdev = {}
+_cached_calibrated_total_stdev = {}
+
+def load_calibration_stdevs():
+    """Load standard deviation overrides from calibration_stdevs.json if present and fresh."""
+    global _last_loaded_stdev_time, _cached_calibrated_margin_stdev, _cached_calibrated_total_stdev
+    if "pytest" in sys.modules and not get_config().system.test_calibration_stdevs:
+        return
+    calibration_path = paths.DATA_DIR / "cache" / "calibration_stdevs.json"
+    if not calibration_path.exists():
+        return
+    try:
+        mtime = calibration_path.stat().st_mtime
+        if mtime == _last_loaded_stdev_time:
+            return
+        
+        # Check staleness (TTL from config)
+        ttl_days = get_config().gates.calibration_stdevs_ttl_days
+        file_age = time.time() - mtime
+        if file_age > ttl_days * 86400:
+            log.warning("Calibration file %s is stale (age %.1f days > %d days). Using defaults.", 
+                        calibration_path, file_age / 86400, ttl_days)
+            _cached_calibrated_margin_stdev = {}
+            _cached_calibrated_total_stdev = {}
+            return
+            
+        with open(calibration_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        if data.get("version") == 1:
+            _cached_calibrated_margin_stdev = data.get("margin_stdev", {})
+            _cached_calibrated_total_stdev = data.get("total_stdev", {})
+            _last_loaded_stdev_time = mtime
+            log.info("Successfully loaded calibrated standard deviations from %s (age %.1f days)", 
+                     calibration_path, file_age / 86400)
+    except Exception as e:
+        log.warning("Failed to load calibration stdevs from %s: %s. Using defaults.", calibration_path, e)
+        _cached_calibrated_margin_stdev = {}
+        _cached_calibrated_total_stdev = {}
+
+
 def _get_margin_stdev(ticker: str) -> float:
     """Look up the score margin standard deviation for a ticker's sport."""
+    load_calibration_stdevs()
     for prefix, sport in _PREFIX_TO_SPORT.items():
         if ticker.startswith(prefix):
+            if sport in _cached_calibrated_margin_stdev:
+                return _cached_calibrated_margin_stdev[sport]
             return SPORT_MARGIN_STDEV[sport]
     return 12.0  # default fallback (basketball-like)
 
@@ -504,6 +681,9 @@ def consensus_spread_prob(events: list, team_name: str, strike: float,
 
     for ev_idx, event in enumerate(events):
         for bookmaker in event.get("bookmakers", []):
+            max_age = get_config().gates.max_live_book_age_seconds
+            if _is_bookmaker_stale(bookmaker, event, max_age):
+                continue
             for market in bookmaker.get("markets", []):
                 if market["key"] != "spreads":
                     continue
@@ -603,8 +783,11 @@ SPORT_TOTAL_STDEV = {
 
 def _get_total_stdev(ticker: str) -> float:
     """Look up the total score standard deviation for a ticker's sport."""
+    load_calibration_stdevs()
     for prefix, sport in _PREFIX_TO_SPORT.items():
         if ticker.startswith(prefix):
+            if sport in _cached_calibrated_total_stdev:
+                return _cached_calibrated_total_stdev[sport]
             return SPORT_TOTAL_STDEV.get(sport, 12.0)
     return 12.0
 
@@ -626,6 +809,9 @@ def consensus_total_prob(events: list, strike: float,
 
     for ev_idx, event in enumerate(events):
         for bookmaker in event.get("bookmakers", []):
+            max_age = get_config().gates.max_live_book_age_seconds
+            if _is_bookmaker_stale(bookmaker, event, max_age):
+                continue
             for market in bookmaker.get("markets", []):
                 if market["key"] != "totals":
                     continue
@@ -1053,6 +1239,7 @@ def detect_edge_game(market: dict, odds_events: list,
     matched_event = find_market_event(market, odds_events)
     if matched_event is None:
         return None
+    matched_event = _refresh_event_if_live(matched_event, market)
     odds_events = [matched_event]
 
     result = consensus_fair_value(odds_events, team)
@@ -1085,6 +1272,12 @@ def detect_edge_game(market: dict, odds_events: list,
         confidence = "medium"
     if details["n_books"] >= 8 and (details["max_fair"] - details["min_fair"]) < 0.05:
         confidence = "high"
+
+    # NBA consensus book threshold (R29)
+    if ticker.startswith("KXNBA"):
+        min_books = get_config().gates.min_consensus_books_nba
+        if details.get("n_books", 0) < min_books:
+            confidence = "low"
 
     # Adjust confidence with team stats
     stats_signal = _stats_confidence_signal(team, ticker, side)
@@ -1167,6 +1360,7 @@ def detect_edge_spread(market: dict, odds_events: list,
     matched_event = find_market_event(market, odds_events)
     if matched_event is None:
         return None
+    matched_event = _refresh_event_if_live(matched_event, market)
     odds_events = [matched_event]
 
     # Build compound stdev adjustment from rest + weather
@@ -1211,6 +1405,12 @@ def detect_edge_spread(market: dict, odds_events: list,
         confidence = "medium"
     else:
         confidence = "low"
+
+    # NBA consensus book threshold (R29)
+    if ticker.startswith("KXNBA"):
+        min_books = get_config().gates.min_consensus_books_nba
+        if details.get("n_books", 0) < min_books:
+            confidence = "low"
 
     # Adjust confidence with team stats
     stats_signal = _stats_confidence_signal(team, ticker, side)
@@ -1461,6 +1661,7 @@ def detect_edge_total(market: dict, odds_events: list,
     matched_event = find_market_event(market, odds_events)
     if matched_event is None:
         return None
+    matched_event = _refresh_event_if_live(matched_event, market)
     odds_events = [matched_event]
 
     # Compound stdev adjustment from pitcher + rest + weather
@@ -1496,6 +1697,12 @@ def detect_edge_total(market: dict, odds_events: list,
     liquidity = max(0, 10 - (spread * 20))
 
     confidence = "low" if details["n_books"] < 3 else "medium"
+
+    # NBA consensus book threshold (R29)
+    if ticker.startswith("KXNBA"):
+        min_books = get_config().gates.min_consensus_books_nba
+        if details.get("n_books", 0) < min_books:
+            confidence = "low"
 
     # Weather fair-value adjustment for outdoor sports (NFL, MLB)
     # (stdev adjustment was already applied above in the compound stdev_adj)

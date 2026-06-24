@@ -1,6 +1,6 @@
 # Edge-Radar Enhancement Roadmap
 
-*Last updated: 2026-06-20 — **L1 Phase 1 shipped** (live in-play odds freshness fix: TTL'd the previously-no-TTL in-process odds cache + a live-aware TTL on both cache layers when a sport response contains an in-progress game, fixing F44 phantom edges; added Gate 4.8 `ALLOW_LIVE_BETS`, default off; 463 tests passing). The full ship-by-ship history lives in the [Completed](#completed) index below — keep new entries there, not on this line.*
+*Last updated: 2026-06-23 — **L1 (Phase 2), R28, R29, and C8 shipped** (NO-side overrides, NBA consensus books, automatic stdev recalibration, and live-odds targeted fetch + book freshness check). The full ship-by-ship history lives in the [Completed](#completed) index below — keep new entries there, not on this line.*
 
 All pending improvements for Edge-Radar in a single prioritized action list, plus findings/context behind them and an index of completed work.
 
@@ -16,15 +16,15 @@ Source context: 3rd-party assessments (`edge_radar_assessment_2026-04-02.md`, `e
 
 ## Current Performance
 
-| Metric | At Launch (03-22) | Interim (04-02) | Post-Baseline (04-18) | 14-Day (04-21) | 30-Day (04-24) |
-|--------|-------------------|-----------------|------------------------|-----------------|-----------------|
-| Sample | 12 bets | 54 bets | 70 bets (since 04-03 baseline) | 76 settled (last 14d) | **160 settled (last 30d)** |
-| Win rate | 8% (1/12) | 46% (25-29) | 51% (36-34) | 48.7% (37-39) | **50.0% (80-80)** |
-| ROI | -88% | +29.3% | +20.3% | +31.2% ($19.55 P&L) | **+37.4% ($43.48 P&L)** |
-| Brier score | n/a | n/a | 0.2561 | 0.2646 | **0.2657** (still > 0.2500) |
-| CLV | not tracked | tracking | tracking | tracking | tracking |
+| Metric | At Launch (03-22) | Interim (04-02) | Post-Baseline (04-18) | 14-Day (04-21) | 30-Day (04-24) | 90-Day (06-23) |
+|--------|-------------------|-----------------|------------------------|-----------------|-----------------|-----------------|
+| Sample | 12 bets | 54 bets | 70 bets (since 04-03 baseline) | 76 settled (last 14d) | **160 settled (last 30d)** | **302 settled (cumulative)** |
+| Win rate | 8% (1/12) | 46% (25-29) | 51% (36-34) | 48.7% (37-39) | **50.0% (80-80)** | **48.3% (146-156)** |
+| ROI | -88% | +29.3% | +20.3% | +31.2% ($19.55 P&L) | **+37.4% ($43.48 P&L)** | **+29.1% (+$78.21 P&L)** |
+| Brier score | n/a | n/a | 0.2561 | 0.2646 | **0.2657** | **0.2513** (closer to 0.2500) |
+| CLV | not tracked | tracking | tracking | tracking | tracking | **tracking** |
 
-Aggregate ROI looks healthy but remains concentrated: NHL +72% (n=43), NCAAB +71% (n=43), and a single 7¢ MLS fill (+$14.80) carry most of the P&L. NBA continues to underperform (-14.8%, n=17). Brier ticked up slightly (0.2646 → 0.2657) — post-R2 bets are still settling in, so R12 (formal calibration re-run) is now the gating measurement. See Findings for detail.
+Aggregate ROI is solid at +29.1% but relies heavily on MLS (+137.3%) and NHL (+62.1%). NBA remains a significant underperformer at -23.3%. Brier score has improved to 0.2513 (closer to 0.2500, but still lacks strong predictive resolution). In addition, a stark asymmetry exists between YES (+48.1% ROI) and NO (-7.0% ROI) contracts.
 
 ---
 
@@ -34,9 +34,11 @@ One unified list. Items from retired sections (C1a, R-series, S/H/M/U/D/A/T tier
 
 ### Priority 1 — Ship Now (P&L or Correctness)
 
-*No active Priority 1 items — R27 shipped 2026-06-15 (see Completed). Next measurement gate is the monthly R12 calibration re-run (R16 cron).*
+These items address the critical P&L drains and calibration overconfidence identified in the 90-day review (2026-06-23).
 
-*Also: R12–R18, R20, R21–R23, R24a, R25 all shipped 2026-04-24. Monthly R12 re-run (R16 cron) is the next measurement gate. Post-R13/R14 cohort needs ~30 days of live settlements before attribution is meaningful.*
+*All items in this priority category have been successfully shipped (R28, R29, C8 shipped 2026-06-23).*
+
+*Note: R12–R18, R20, R21–R23, R24a, R25 all shipped 2026-04-24. R27 shipped 2026-06-15.*
 
 ### Priority 2 — Near Term (Weeks)
 
@@ -46,11 +48,9 @@ Items that improve measurement, close known gaps, or remove operator friction.
 |----|------|--------|--------|-------|
 | R10 | **Category-weighted composite score** | Medium | Medium | Pull back on ML (30d: +11% ROI on 61 bets). Favor Total (30d: +32% ROI on 76 bets) and Spread (+145% but still one-fill dependent — watch, don't re-weight up). |
 | C6 | **Totals bias audit** | Medium | Small | 2026-04-18 report showed Totals -14% ROI; 14-day +33%; 30-day +32%. Stability confirming — may deprioritize if R10 subsumes. |
-| C8 | **Auto-recalibrate per-sport stdevs from settlement data** | Medium | Medium | F40 (2026-05-13 analysis). R2 (04-21) and R14 (04-24) tuned `SPORT_MARGIN_STDEV` / `SPORT_TOTAL_STDEV` by hand from review windows. With R16 monthly calibration now running, the loop should close: emit recommended per-sport stdevs in the monthly calibration report and (optionally) auto-write them to a versioned JSON the edge detector reads. Removes hand-tuning lag and decouples the values from source. Natural pair with H7. |
 | R23b | **Distinguish 401 vs 429 in Odds API key rotation** | Low | Small | F41 (2026-05-13 analysis). R23 rotates on both 401 and 429 and calls `mark_exhausted()` on 401. If the Odds API ever sends a 429 for transient per-second/per-minute rate limits (vs. quota exhaustion), a healthy key gets permanently dumped. Fix: only `mark_exhausted` on 401; on 429, short back-off then retry the same key. Inspect `X-Requests-Remaining` / `X-Requests-Last` headers when present. Low-urgency — no observed 429s today — but tightens the rotation contract before quota pressure increases. |
 | R24c | **Audit `install_windows_task.py` vs live scheduler** | Low | Small | **Discovered during R24 investigation.** User has 13 tasks installed under `\Edge-Radar\` but `install_windows_task.py status` only knows about 5 profiles (scan, execute, settle, next-day, calibration). The 8 others (`All-Sports-SameDay-Execution`, `All-Sports-NoDateFilter-Execution`, `NextDay-Execute`, `Backtest`, `Calibration`, `Reconcile`, and 4 `Email-*` jobs) were created manually. Add the missing profiles so the installer has an honest view of what's running. Cosmetic but prevents future "where did this task come from?" confusion. **Note (2026-04-30):** U2 added 2 more (`Daily-Summary`, `Email-Daily-Summary`) — also installed manually. R24c scope grows by 2. |
 | U1 | **Automated settlement cron** | Medium | Small | Run `kalshi_settler.py` hourly on market-close times. Standalone; also a building block for A6. |
-| L1 | **Live in-play odds (real-time edges on in-progress games)** | High | Medium (phased) | Design doc: [`live-in-play-odds-design.md`](live-in-play-odds-design.md). **Phase 1 SHIPPED 2026-06-20** (freshness fix + Gate 4.8 `ALLOW_LIVE_BETS` — see Completed). Remaining: **Phase 2** = per-event `/events/{id}/odds` refresh (capture the Odds API event `id` at match time, refresh only in-progress games instead of re-pulling the whole sport) + the deferred Q3 stale-`last_update` edge-suppression guard. **Phase 3** (real-time polling / auto-exec) likely out of scope. Caveats: quota (`markets×regions`), uneven US in-play book coverage (soccer good, MLB spotty/suspended), execution lag. |
 
 ### Priority 3 — Background (Data Quality, UX, Hygiene)
 
@@ -154,6 +154,17 @@ Multi-quarter track. Build order: A2 → A3 → A4+A5 → A6+A7+A8 → A9. Assum
 ---
 
 ## Findings & Context
+
+### 2026-06-23 — 90-day comprehensive review (302 settled trades)
+
+Source: `docs/my-documents/repo-analysis/analysis-6_23_26.md`. Analysis of all settled trades since launch. Focuses on sport performance, YES/NO pricing bias, model calibration, and prediction market caches.
+
+| ID | Finding | Evidence | → Action |
+|----|---------|----------|----------|
+| F45 | **Extreme YES vs. NO asymmetry** — YES bets yield a highly profitable +48.1% ROI, whereas NO bets yield -7.0% ROI on similar win rates. Indicates structured pricing premium/spread friction on NO contracts. | YES: 100W–107L, Cost $176.17, P&L +$84.70. NO: 46W–49L, Cost $92.65, P&L -$6.48. | R28 |
+| F46 | **NBA Underperformance** — NBA bets continue to be a net drain on the portfolio (-23.3% ROI), contrasting starkly with MLS (+137.3%) and NHL (+62.1%). | 32 NBA bets, Cost $50.43, P&L -$11.74. | R29 |
+| F47 | **Model Calibration Overconfidence** — Predicted probabilities are consistently 11% to 15% higher than realized win rates in the 50%-80% bands. | 50-60% band: 41.8% WR vs 56.1% predicted. 60-70% band: 52.4% WR vs 64.3% predicted. | C8 |
+| F48 | **Longshot Outperformance** — Bets priced below 15¢ deliver +123.3% ROI due to market under-valuation, contrasting with overestimation in higher probability bins. | 29 bets, 5W–24L (17.2% WR), Cost: $26.12, P&L: +$32.17 | Keep longshot filters active |
 
 ### 2026-06-14 — Scan view surfaces in-progress phantom edges
 
@@ -315,6 +326,15 @@ Re-measure at 4 weeks. If ≥25% bucket is still negative, tighten to a harder c
 ## Completed
 
 Index only — detailed notes are in the collapsed section below.
+
+### 2026-06-23 — L1 (Phase 2) + R28 + R29 + C8 Shipped
+
+| ID | Item |
+|----|------|
+| R28 | **NO-Side Sizing & Edge Override.** Implemented an elevated minimum edge floor (8%) and configurable Kelly multiplier override (default 1.0) globally for NO bets to damp contract sizing and address the NO-side contract P&L drag (-7% ROI). |
+| R29 | **NBA Model & Consensus Calibration.** Raise minimum consensus book limit to 8 (`MIN_CONSENSUS_BOOKS_NBA=8`) for NBA games, dropping the confidence tier to `low` if fewer than 8 books agree, avoiding stale recreational lines. |
+| C8 | **Auto-recalibrate sport stdevs.** Closed the calibration feedback loop by automating the calculation of updated CDF standard deviations from settled trade outcomes, caching recommendations to `data/cache/calibration_stdevs.json` which is read at runtime. |
+| L1 (Phase 2) | **Live in-play odds — targeted live fetch + stale bookmaker suppression.** Designed and implemented Phase 2 of L1. Implemented `fetch_event_odds_api` in `edge_detector.py` to query `GET /v4/sports/{sport}/events/{eventId}/odds` when a matched game is in progress, bypassing sport-level caching. Implemented cross-process and in-process single-event caching via `odds_cache.load_event`/`store_event`. Added a bookmaker freshness check `_is_bookmaker_stale` using the new `MAX_LIVE_BOOK_AGE_SECONDS` threshold (default 1200s/20m) to exclude stale/suspended bookmaker lines from consensus calculations for live games. Added unit and integration tests. |
 
 ### 2026-06-20 — L1 Phase 1 + World Cup + Kalshi v2 Orders + R19(b) PGA
 

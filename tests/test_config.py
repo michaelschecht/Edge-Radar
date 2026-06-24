@@ -131,6 +131,10 @@ class TestDocumentedDefaults:
         assert g.allow_prediction_bets is False
         assert g.no_side_favorite_threshold == 0.25
         assert g.no_side_min_edge == 0.25
+        assert g.no_side_min_edge_global == 0.08
+        assert g.min_consensus_books_nba == 8
+        assert g.calibration_stdevs_ttl_days == 30
+        assert g.max_live_book_age_seconds == 1200
 
     @patch.dict(os.environ, {}, clear=True)
     def test_kelly_defaults(self):
@@ -140,6 +144,7 @@ class TestDocumentedDefaults:
         assert k.kelly_edge_decay == 0.5
         assert k.no_side_kelly_price_floor == 0.35
         assert k.no_side_kelly_multiplier == 0.5
+        assert k.no_side_kelly_multiplier_global == 1.0
 
     @patch.dict(os.environ, {}, clear=True)
     def test_system_defaults(self):
@@ -147,6 +152,7 @@ class TestDocumentedDefaults:
         assert s.dry_run is True
         assert s.log_level == "INFO"
         assert s.project_root == ""
+        assert s.test_calibration_stdevs is False
 
     @patch.dict(os.environ, {}, clear=True)
     def test_kalshi_defaults(self):
@@ -305,6 +311,11 @@ class TestValidate:
     def test_zero_min_market_price_allowed(self):
         # 0 disables the gate per .env.example — must not raise.
         Config.from_env()
+
+    @patch.dict(os.environ, {"MAX_LIVE_BOOK_AGE_SECONDS": "-1"}, clear=True)
+    def test_negative_max_live_book_age_raises(self):
+        with pytest.raises(ValueError, match="MAX_LIVE_BOOK_AGE_SECONDS"):
+            Config.from_env()
 
 
 # ── Memoization ─────────────────────────────────────────────────────────────

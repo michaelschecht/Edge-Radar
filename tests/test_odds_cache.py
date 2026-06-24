@@ -20,9 +20,11 @@ import odds_cache
 
 @pytest.fixture
 def isolated_cache_dir(monkeypatch, tmp_path):
-    """Point _CACHE_DIR at a tmpdir so the real cache is never touched."""
+    """Point _CACHE_DIR and _EVENT_CACHE_DIR at a tmpdir so the real cache is never touched."""
     cache_dir = tmp_path / "odds"
+    event_dir = tmp_path / "odds_events"
     monkeypatch.setattr(odds_cache, "_CACHE_DIR", cache_dir)
+    monkeypatch.setattr(odds_cache, "_EVENT_CACHE_DIR", event_dir)
     yield cache_dir
 
 
@@ -214,13 +216,55 @@ class TestClear:
     def test_removes_all_files(self, isolated_cache_dir):
         for sport in ["baseball_mlb", "basketball_nba", "icehockey_nhl"]:
             odds_cache.store(sport, "h2h", [])
-        assert len(list(isolated_cache_dir.glob("*.json"))) == 3
+            odds_cache.store_event(sport, "ev1", {})
+        
+        # Check files in main and event directories
+        assert len(list(odds_cache._CACHE_DIR.glob("*.json"))) == 3
+        assert len(list(odds_cache._EVENT_CACHE_DIR.glob("*.json"))) == 3
 
         removed = odds_cache.clear()
-        assert removed == 3
-        assert len(list(isolated_cache_dir.glob("*.json"))) == 0
+        assert removed == 6
+        assert len(list(odds_cache._CACHE_DIR.glob("*.json"))) == 0
+        assert len(list(odds_cache._EVENT_CACHE_DIR.glob("*.json"))) == 0
 
     def test_clear_when_dir_missing(self, monkeypatch, tmp_path):
         monkeypatch.setattr(odds_cache, "_CACHE_DIR", tmp_path / "does_not_exist")
+        monkeypatch.setattr(odds_cache, "_EVENT_CACHE_DIR", tmp_path / "does_not_exist_events")
         # Must not raise
         assert odds_cache.clear() == 0
+
+
+class TestEventCache:
+    def test_event_hit_within_ttl(self, isolated_cache_dir):
+        event = {"id": "ev1", "home_team": "Lakers"}
+        odds_cache.store_event("basketball_nba", "ev1", event)
+
+        result, age = odds_cache.load_event("basketball_nba", "ev1", live_ttl_seconds=45)
+        assert result == event
+        assert age is not None and age >= 0
+
+    def test_event_miss_after_ttl(self, isolated_cache_dir, monkeypatch):
+        event = {"id": "ev1", "home_team": "Lakers"}
+        odds_cache.store_event("basketball_nba", "ev1", event)
+
+        future_time = odds_cache._now() + timedelta(seconds=50)
+        monkeypatch.setattr(odds_cache, "_now", lambda: future_time)
+
+        result, age = odds_cache.load_event("basketball_nba", "ev1", live_ttl_seconds=45)
+        assert result is None
+        assert age is None
+
+    def test_event_disabled_via_zero_ttl(self, isolated_cache_dir):
+        event = {"id": "ev1", "home_team": "Lakers"}
+        odds_cache.store_event("basketball_nba", "ev1", event)
+
+        result, age = odds_cache.load_event("basketball_nba", "ev1", live_ttl_seconds=0)
+        assert result is None and age is None
+
+    def test_corrupted_event_file_silently_misses(self, isolated_cache_dir):
+        odds_cache._EVENT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        path = odds_cache._EVENT_CACHE_DIR / "basketball_nba__ev1.json"
+        path.write_text("{ corrupt }", encoding="utf-8")
+
+        result, age = odds_cache.load_event("basketball_nba", "ev1", live_ttl_seconds=45)
+        assert result is None and age is None
