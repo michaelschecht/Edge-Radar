@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src=".claude/images/logos/logo.png" alt="Edge-Radar" width="520">
-
 # Edge-Radar
 
 **Automated edge detection &amp; execution for prediction markets**
