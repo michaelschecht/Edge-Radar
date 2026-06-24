@@ -132,9 +132,15 @@ def save_calibration_stdevs(settled: list[dict]):
     cache_dir = Path(paths.PROJECT_ROOT) / "data" / "cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_file = cache_dir / "calibration_stdevs.json"
-    
-    with open(cache_file, "w", encoding="utf-8") as f:
+
+    # Atomic write: serialize to a temp file in the same directory, then replace.
+    # This calibration job runs nightly via the scheduler while live scans and the
+    # Streamlit app may be reading the file; an in-place truncate+stream would let a
+    # reader see half-written JSON. Path.replace() is atomic on the same filesystem.
+    tmp_file = cache_dir / "calibration_stdevs.json.tmp"
+    with open(tmp_file, "w", encoding="utf-8") as f:
         json.dump(output_data, f, indent=2)
+    tmp_file.replace(cache_file)
     rprint(f"[green]Calibrated standard deviations written to {cache_file}[/green]")
 
 # Map sport display names back to sport keys

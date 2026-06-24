@@ -14,11 +14,11 @@ Welcome to the central documentation index for **Edge-Radar**. This index organi
 ## 🗺️ Documentation Directory
 
 ### 🚀 Setup & Automation
-*   [pipeline-diagram.md](./setup/pipeline-diagram.md) — MCP Server setup for Edge-Radar.
 *   [SETUP_GUIDE.md](./setup/SETUP_GUIDE.md) — Step-by-step instructions to configure API keys, venv, and RSA private credentials.
 *   [AUTOMATION_GUIDE.md](./setup/AUTOMATION_GUIDE.md) — Setting up the automated scanners and schedulers.
 *   [task-schedules.md](./setup/task-schedules.md) — Reference for Windows Task Scheduler cron entries.
 *   [mcp-servers.md](./setup/mcp-servers.md) — MCP Server setup for Edge-Radar.
+*   [pipeline-diagram.md](./setup/pipeline-diagram.md) — End-to-end pipeline & data-flow diagram (scan → edge models → risk gating → execution → calibration feedback).
 
 ### 🧠 Edge Models & Market Guides
 *   [SPORTS_GUIDE.md](./kalshi/kalshi-sports-betting/SPORTS_GUIDE.md) — Sports betting edge model: weighted de-vig consensus, CDF spreads/totals, and sportsbook weighting tiers.
@@ -35,10 +35,10 @@ Welcome to the central documentation index for **Edge-Radar**. This index organi
 *   [CLOUD.md](./web-app/CLOUD.md) — Streamlit Cloud deployment guide.
 
 ### 📈 Reports & Analysis
-*   [ROADMAP.md](./enhancements/ROADMAP.md) — Priorities, consolidated action items, and completed milestones history.
+*   [ROADMAP.md](./enhancements/ROADMAP.md) — Priorities, consolidated action items, completed milestones, and the findings log (incl. the 90-day review, F45–F49).
 *   [CHANGELOG.md](./CHANGELOG.md) — Project commit and feature changelog history.
-*   [analysis-6_23_26.md](./my-documents/repo-analysis/analysis-6_23_26.md) — 90-day comprehensive performance audit and logic recommendations.
-*   [analysis-5_2_26.md](./my-documents/repo-analysis/analysis-5_2_26.md) — Legacy codebase audit.
+
+> Periodic performance audits live under `docs/my-documents/` (git-ignored, local-only). Their conclusions are folded into the ROADMAP findings log, which is the tracked, canonical record.
 
 ---
 

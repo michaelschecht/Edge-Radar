@@ -913,6 +913,20 @@ class TestNbaConsensusBooks:
 class TestDynamicStdevLoading:
     """C8: dynamic loading of standard deviations from cached JSON file."""
 
+    @pytest.fixture(autouse=True)
+    def _reset_stdev_cache(self):
+        """C8 overrides live in module-level globals that persist across tests.
+        Reset them before AND after each test here so a populated override can't
+        leak into a sibling test that expects the hardcoded defaults."""
+        import edge_detector
+        def _clear():
+            edge_detector._last_loaded_stdev_time = 0.0
+            edge_detector._cached_calibrated_margin_stdev = {}
+            edge_detector._cached_calibrated_total_stdev = {}
+        _clear()
+        yield
+        _clear()
+
     @patch("paths.DATA_DIR")
     def test_loads_overrides_when_present_and_fresh(self, mock_data_dir, tmp_path):
         mock_data_dir.return_value = tmp_path
@@ -986,6 +1000,62 @@ class TestDynamicStdevLoading:
                     
                     # Should fall back to the default baseline constant (13.8)
                     assert _get_margin_stdev("KXNBAGAME-...") == 13.8
+            finally:
+                reset_config()
+
+    @pytest.mark.parametrize("bad_value", [0, -5.0, "13.8", float("nan"), float("inf")])
+    def test_falls_back_on_invalid_values(self, tmp_path, bad_value):
+        """A single out-of-range / non-numeric stdev must reject the WHOLE map and
+        fall back to defaults — never reach the CDF model (0 → every favorite ~100%,
+        negative → scipy breaks, NaN → silently poisons every probability)."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        calibration_file = cache_dir / "calibration_stdevs.json"
+        calibration_data = {
+            "version": 1,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "margin_stdev": {"basketball_nba": bad_value, "baseball_mlb": 5.0},
+            "total_stdev": {},
+        }
+        with open(calibration_file, "w", encoding="utf-8") as f:
+            json.dump(calibration_data, f)
+
+        with patch.dict(os.environ, {"TEST_CALIBRATION_STDEVS": "1"}):
+            from app.config import reset_config
+            reset_config()
+            try:
+                with patch("paths.DATA_DIR", tmp_path):
+                    import edge_detector
+                    edge_detector._last_loaded_stdev_time = 0.0
+                    # Whole map rejected: even the *valid* MLB entry is discarded.
+                    assert _get_margin_stdev("KXNBAGAME-...") == SPORT_MARGIN_STDEV["basketball_nba"]
+                    assert _get_margin_stdev("KXMLBGAME-...") == SPORT_MARGIN_STDEV["baseball_mlb"]
+            finally:
+                reset_config()
+
+    def test_falls_back_on_unsupported_version(self, tmp_path):
+        """A future/unknown schema version must fail safe to defaults, not silently
+        retain whatever was cached before."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        calibration_file = cache_dir / "calibration_stdevs.json"
+        calibration_data = {
+            "version": 2,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "margin_stdev": {"basketball_nba": 15.5},
+            "total_stdev": {},
+        }
+        with open(calibration_file, "w", encoding="utf-8") as f:
+            json.dump(calibration_data, f)
+
+        with patch.dict(os.environ, {"TEST_CALIBRATION_STDEVS": "1"}):
+            from app.config import reset_config
+            reset_config()
+            try:
+                with patch("paths.DATA_DIR", tmp_path):
+                    import edge_detector
+                    edge_detector._last_loaded_stdev_time = 0.0
+                    assert _get_margin_stdev("KXNBAGAME-...") == SPORT_MARGIN_STDEV["basketball_nba"]
             finally:
                 reset_config()
 

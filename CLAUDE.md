@@ -139,6 +139,7 @@ Before ANY trade executes:
 | 4 | Composite score >= minimum | Reject |
 | 4.5 | Confidence >= `MIN_CONFIDENCE` (low/medium/high) | Reject |
 | 4.6 | NO bets below `NO_SIDE_FAVORITE_THRESHOLD` need edge >= `NO_SIDE_MIN_EDGE` AND confidence=high | Reject |
+| 4.6b | All NO bets: effective edge floor = max(per-sport floor, `NO_SIDE_MIN_EDGE_GLOBAL` 8%) (R28) | Reject |
 | 4.7 | Prediction-market categories (crypto/weather/spx/mentions/companies/politics) off by default unless `ALLOW_PREDICTION_BETS=true` (R25) | Reject |
 | 4.8 | In-progress games (`is_game_started`) off by default unless `ALLOW_LIVE_BETS=true` (L1) | Reject |
 | 5 | Not already holding this market | Reject |
@@ -180,8 +181,13 @@ MIN_COMPOSITE_SCORE=6.0         # Minimum score (0-10)
 MIN_CONFIDENCE=medium           # Reject below this confidence (low|medium|high) — R3
 NO_SIDE_FAVORITE_THRESHOLD=0.25 # R1: NO bets below this price need elevated bar
 NO_SIDE_MIN_EDGE=0.25           # R1: required edge when NO price < threshold (also needs confidence=high)
+NO_SIDE_MIN_EDGE_GLOBAL=0.08    # R28 (2026-06-23): min edge on ANY NO bet (90d review: NO -7% vs YES +48% ROI). Effective NO floor = max(per-sport floor, this); 0 disables
 NO_SIDE_KELLY_PRICE_FLOOR=0.35  # R1: below this NO-side price, apply Kelly multiplier
 NO_SIDE_KELLY_MULTIPLIER=0.5    # R1: half-Kelly on NO bets below the price floor
+NO_SIDE_KELLY_MULTIPLIER_GLOBAL=1.0 # R28: Kelly multiplier on ALL NO bets (default 1.0 = off; lower to shrink NO sizing)
+MIN_CONSENSUS_BOOKS_NBA=8       # R29 (2026-06-23): NBA games with <8 agreeing books drop to `low` confidence (Gate 4.5 then rejects); filters stale recreational lines. 0 disables
+MAX_LIVE_BOOK_AGE_SECONDS=1200  # L1 Phase 2: drop bookmakers whose in-play line is older than this (20m) from live-game consensus; 0 disables
+CALIBRATION_STDEVS_TTL_DAYS=30  # C8 (2026-06-23): max age of auto-recalibrated per-sport stdevs in data/cache/calibration_stdevs.json before falling back to hardcoded defaults
 KELLY_EDGE_CAP=0.15             # Soft-cap edge for Kelly sizing
 KELLY_EDGE_DECAY=0.5            # Decay factor on edge above the cap
 SERIES_DEDUP_HOURS=48           # Reject same-matchup bets within this window (0 disables)
