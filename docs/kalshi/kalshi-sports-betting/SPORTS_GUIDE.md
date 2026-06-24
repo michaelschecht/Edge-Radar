@@ -2,8 +2,8 @@
 
 Consolidated guide for sports betting on Kalshi: scanning markets, detecting edges, placing bets, and tracking results.
 
-For complete CLI flags and command examples, see [Scripts Reference](../../SCRIPTS_REFERENCE.md).
-For risk gates and parameters, see [Architecture](../../ARCHITECTURE.md).
+For complete CLI flags and command examples, see [Scripts Reference](../../scripts/SCRIPTS_REFERENCE.md).
+For risk gates and parameters, see [Architecture](../../setup/ARCHITECTURE.md).
 For enhancement history and planned features, see [Roadmap](../../enhancements/ROADMAP.md).
 See also: [Futures Guide](../kalshi-futures-betting/FUTURES_GUIDE.md) | [Prediction Markets Guide](../kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)
 
@@ -41,7 +41,7 @@ python scripts/kalshi/kalshi_settler.py settle
 python scripts/kalshi/kalshi_settler.py report --detail --save
 ```
 
-> For the full daily workflow (morning, midday, evening), see [Daily Workflow](../../SCRIPTS_REFERENCE.md#daily-workflow) in the Scripts Reference.
+> For the full daily workflow (morning, midday, evening), see [Daily Workflow](../../scripts/SCRIPTS_REFERENCE.md#daily-workflow) in the Scripts Reference.
 
 ---
 

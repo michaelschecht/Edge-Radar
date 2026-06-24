@@ -392,7 +392,7 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 
 Use the same virtual environment interpreter path your manual runs use.
 
-For command recipes, see [SCRIPTS_REFERENCE.md](../SCRIPTS_REFERENCE.md) and [AUTOMATION_GUIDE.md](./AUTOMATION_GUIDE.md).
+For command recipes, see [SCRIPTS_REFERENCE.md](../scripts/SCRIPTS_REFERENCE.md) and [AUTOMATION_GUIDE.md](./AUTOMATION_GUIDE.md).
 
 ---
 
@@ -483,9 +483,10 @@ Every configured key is either invalid or has hit its monthly quota (free tier =
 
 - **[Automation Guide](./AUTOMATION_GUIDE.md)** — Windows Task Scheduler setup walkthrough
 - **[Task-Schedule Reference](./task-schedules.md)** — full 17-task pipeline roster with `.bat`/`.sh` templates and `schtasks` setup
-- **[Scripts Reference](../SCRIPTS_REFERENCE.md)** — Full CLI reference for every script and flag
-- **[Sports Guide](../kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** — 27 sport filters, edge detection methodology
-- **[Architecture](../ARCHITECTURE.md)** — How scoring, confidence, and risk gates work together
+- **[Scripts Reference](../scripts/SCRIPTS_REFERENCE.md)** — Full CLI reference for every script and flag
+- **[Kalshi Coverage & Guides](../kalshi/README.md)** — Which sports/markets are configured and what bet types
+- **[Sports Guide](../kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** — Edge detection methodology
+- **[Architecture](./ARCHITECTURE.md)** — How scoring, confidence, and risk gates work together
 - **[Local Dashboard](../web-app/LOCAL.md)** — Run the Streamlit dashboard locally
 - **[Cloud Dashboard](../web-app/CLOUD.md)** — Deploy your own to Streamlit Community Cloud
 - **[Roadmap](../enhancements/ROADMAP.md)** — What's built and what's planned

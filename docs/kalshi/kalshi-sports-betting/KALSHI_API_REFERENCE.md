@@ -84,9 +84,11 @@ Write-limited: CreateOrder, CancelOrder, AmendOrder, DecreaseOrder, BatchCreateO
 
 ### Orders
 
-**POST /portfolio/orders** -- Place order
-- Required: `ticker`, `side` (yes/no), `action` (buy/sell)
-- Optional: `count`, `yes_price` (cents 1-99), `no_price`, `time_in_force` (fill_or_kill/good_till_canceled/immediate_or_cancel), `client_order_id`, `buy_max_cost`, `expiration_ts`
+**POST /portfolio/events/orders** -- Place order (v2 single-book endpoint)
+- The legacy v1 `POST /portfolio/orders` was **deprecated** (returns HTTP 410 `deprecated_v1_order_endpoint`). Our client migrated to the v2 endpoint on 2026-06-20.
+- v2 is single-book and expresses every order from the YES perspective: `side` is `bid` (buy YES) or `ask` (sell YES). Buying NO maps to an `ask` at the YES-equivalent price `(1 - no_price)`.
+- Body fields: `ticker`, `side` (bid/ask), `count` (fixed-point string), `price` (fixed-point dollar string, YES perspective), `time_in_force`, `self_trade_prevention_type`, optional `client_order_id`, `expiration_time`.
+- `KalshiClient.create_order()` still takes the legacy `(side=yes/no, action=buy/sell, yes_price/no_price)` arguments and translates them into the v2 body.
 - Returns: Order object with order_id, status, fill details, fees
 
 **GET /portfolio/orders** -- List orders (filter by status: resting/canceled/executed)

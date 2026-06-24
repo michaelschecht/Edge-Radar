@@ -57,16 +57,17 @@ Edge-Radar/
 ├── skills/                          # Canonical source for the relocated edge-radar skills (tracked here once)
 │   ├── edge-radar/SKILL.md          # /edge-radar — unified scan/bet/status/settle/risk command center
 │   └── edge-radar-analysis/SKILL.md # /edge-radar-analysis — post-hoc performance report
-├── docs/
+├── docs/                            # Only README.md + CHANGELOG.md live at the root
+│   ├── README.md                    # Docs index
 │   ├── CHANGELOG.md                 # Project history
-│   ├── SCRIPTS_REFERENCE.md         # Complete CLI reference
-│   ├── ARCHITECTURE.md              # Pipeline, risk gates, data flow
-│   ├── kalshi/                      # Kalshi domain guides (grouped)
-│   │   ├── kalshi-sports-betting/   # Sports: filters, edge detection, MLB filtering
+│   ├── kalshi/                      # Betting domain — README.md = coverage matrix + guide index
+│   │   ├── kalshi-sports-betting/   # Sports: filters, edge detection, MLB filtering, API reference
 │   │   ├── kalshi-prediction-betting/ # Prediction: crypto, weather, S&P
 │   │   └── kalshi-futures-betting/  # Futures: championship markets
-│   ├── scripts/                     # Per-script detailed docs
-│   ├── setup/                       # Setup guides, automation & MCP reference
+│   ├── scripts/                     # SCRIPTS_REFERENCE.md + per-script/ deep-dive docs
+│   │   ├── SCRIPTS_REFERENCE.md     # Complete CLI reference
+│   │   └── per-script/              # One detailed doc per script
+│   ├── setup/                       # SETUP_GUIDE, ARCHITECTURE, automation, MCP, task schedules
 │   └── enhancements/                # ROADMAP.md — enhancement roadmap (tracked)
 ├── app/                             # Application core
 │   ├── config.py                    # Single source of truth for env-driven knobs (see CONFIG_CENTRALIZATION.md, Phase 1 landed 2026-04-25)

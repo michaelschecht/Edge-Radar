@@ -335,7 +335,7 @@ python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date to
 
 ## 🔮 Remaining Work
 
-For the full enhancement roadmap (completed and pending items), see [ROADMAP.md](enhancements/ROADMAP.md).
+For the full enhancement roadmap (completed and pending items), see [ROADMAP.md](../enhancements/ROADMAP.md).
 
 | Priority | Enhancement | Status |
 | :--- | :--- | :--- |
@@ -394,6 +394,6 @@ Edge-Radar/
 
 <p align="center">
 
-**[← Back to README](../README.md)** · **[Scripts Reference →](SCRIPTS_REFERENCE.md)** · **[Setup Guide →](setup/SETUP_GUIDE.md)**
+**[← Back to Docs Index](../README.md)** · **[Scripts Reference →](../scripts/SCRIPTS_REFERENCE.md)** · **[Setup Guide →](SETUP_GUIDE.md)**
 
 </p>

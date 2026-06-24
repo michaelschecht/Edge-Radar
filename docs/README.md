@@ -13,29 +13,34 @@ Welcome to the central documentation index for **Edge-Radar**. This index organi
 
 ## 🗺️ Documentation Directory
 
-### 🚀 Setup & Automation
+Only `README.md` and `CHANGELOG.md` live at the root of `docs/`. Everything else is grouped into the subfolders below.
+
+### 🚀 Setup & Architecture — [`setup/`](./setup/)
 *   [SETUP_GUIDE.md](./setup/SETUP_GUIDE.md) — Step-by-step instructions to configure API keys, venv, and RSA private credentials.
+*   [ARCHITECTURE.md](./setup/ARCHITECTURE.md) — In-depth overview of the pipeline, Kelly sizing equations, and risk gating conditions.
 *   [AUTOMATION_GUIDE.md](./setup/AUTOMATION_GUIDE.md) — Setting up the automated scanners and schedulers.
 *   [task-schedules.md](./setup/task-schedules.md) — Reference for Windows Task Scheduler cron entries.
 *   [mcp-servers.md](./setup/mcp-servers.md) — MCP Server setup for Edge-Radar.
 *   [pipeline-diagram.md](./setup/pipeline-diagram.md) — End-to-end pipeline & data-flow diagram (scan → edge models → risk gating → execution → calibration feedback).
 
-### 🧠 Edge Models & Market Guides
-*   [SPORTS_GUIDE.md](./kalshi/kalshi-sports-betting/SPORTS_GUIDE.md) — Sports betting edge model: weighted de-vig consensus, CDF spreads/totals, and sportsbook weighting tiers.
-*   [MLB_FILTERING_GUIDE.md](./kalshi/kalshi-sports-betting/MLB_FILTERING_GUIDE.md) — Detailed pitcher/matchup and weather filtering for baseball wagers.
+### 🎯 Betting Guides & Coverage — [`kalshi/`](./kalshi/)
+*   **[kalshi/README.md](./kalshi/README.md) — start here: the sports/markets coverage matrix (what's configured, what bet types) and links to every betting guide.**
+*   [SPORTS_GUIDE.md](./kalshi/kalshi-sports-betting/SPORTS_GUIDE.md) — Sports edge model: weighted de-vig consensus, CDF spreads/totals, sportsbook weighting tiers.
+*   [MLB_FILTERING_GUIDE.md](./kalshi/kalshi-sports-betting/MLB_FILTERING_GUIDE.md) — Pitcher/matchup and weather filtering for baseball wagers.
+*   [KALSHI_API_REFERENCE.md](./kalshi/kalshi-sports-betting/KALSHI_API_REFERENCE.md) — Kalshi REST/auth reference (RSA signing, endpoints).
 *   [FUTURES_GUIDE.md](./kalshi/kalshi-futures-betting/FUTURES_GUIDE.md) — Championship and division futures de-vigging models.
-*   [PREDICTION_MARKETS_GUIDE.md](./kalshi/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md) — Scanners for Weather (NWS), Crypto (CoinGecko), and S&P 500 options.
+*   [PREDICTION_MARKETS_GUIDE.md](./kalshi/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md) — Scanners for Weather (NWS), Crypto (CoinGecko), and S&P 500.
 
-### ⚙️ Architecture & CLI References
-*   [ARCHITECTURE.md](./ARCHITECTURE.md) — In-depth overview of the 7-stage pipeline, Kelly sizing equations, and risk gating conditions.
-*   [SCRIPTS_REFERENCE.md](./SCRIPTS_REFERENCE.md) — Complete CLI reference list of all script arguments, flags, and batch commands.
+### ⚙️ Scripts & CLI — [`scripts/`](./scripts/)
+*   [SCRIPTS_REFERENCE.md](./scripts/SCRIPTS_REFERENCE.md) — Complete CLI reference for every script, flag, and batch command.
+*   [per-script/](./scripts/per-script/) — Deep-dive docs for each script (edge_detector, futures_edge, prediction_scanner, kalshi_executor, kalshi_settler, risk_check, backtester).
 
-### 💻 Web App
-*   [LOCAL.md](./web-app/LOCAL.md) — Running the local Streamlit dashboard web interface.
+### 💻 Web App — [`web-app/`](./web-app/)
+*   [LOCAL.md](./web-app/LOCAL.md) — Running the local Streamlit dashboard.
 *   [CLOUD.md](./web-app/CLOUD.md) — Streamlit Cloud deployment guide.
 
-### 📈 Reports & Analysis
-*   [ROADMAP.md](./enhancements/ROADMAP.md) — Priorities, consolidated action items, completed milestones, and the findings log (incl. the 90-day review, F45–F49).
+### 📈 Roadmap & Changelog
+*   [enhancements/ROADMAP.md](./enhancements/ROADMAP.md) — Priorities, consolidated action items, completed milestones, and the findings log (incl. the 90-day review, F45–F49).
 *   [CHANGELOG.md](./CHANGELOG.md) — Project commit and feature changelog history.
 
 > Periodic performance audits live under `docs/my-documents/` (git-ignored, local-only). Their conclusions are folded into the ROADMAP findings log, which is the tracked, canonical record.
