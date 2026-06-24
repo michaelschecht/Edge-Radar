@@ -7,7 +7,7 @@ python scripts/kalshi/kalshi_executor.py status
 python scripts/scan.py sports --filter <sport> --min-edge 0.05 --max-bets 5 --unit-size 1 --date today --exclude-open --execute
 ```
 
-Replace `<sport>` with: `nba`, `nhl`, `mlb`, `nfl`, `ncaamb`, etc.
+Replace `<sport>` with any active filter: `nba`, `nhl`, `mlb`, `nfl`, `ncaamb`, `ncaafb`, `soccer`, `mls`, `epl`, `worldcup`, `ufc`, `boxing`, `f1`, `nascar`, `ipl`, `esports`, etc. (full roster in `sport-specific-scan.md`).
 
 To target a specific market type, add `--category game`, `--category spread`, `--category total`, or `--category player_prop`.
 

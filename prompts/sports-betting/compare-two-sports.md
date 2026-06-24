@@ -8,7 +8,7 @@ python scripts/scan.py sports --filter <sport1> --min-edge 0.03 --top 10 --date 
 python scripts/scan.py sports --filter <sport2> --min-edge 0.03 --top 10 --date today --exclude-open --save
 ```
 
-Replace `<sport1>` and `<sport2>` with: `nba`, `nhl`, `mlb`, `nfl`, `ncaamb`, etc.
+Replace `<sport1>` and `<sport2>` with any active filter: `nba`, `nhl`, `mlb`, `nfl`, `ncaamb`, `ncaafb`, `soccer`, `mls`, `epl`, `worldcup`, `ufc`, `boxing`, `f1`, `nascar`, `ipl`, `esports`, etc. (full roster in `sport-specific-scan.md`).
 
 Compare:
 - Number of opportunities above threshold

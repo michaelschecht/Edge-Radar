@@ -185,6 +185,8 @@ Edge-Radar ships with two slash commands for [Claude Code](https://claude.ai/cla
 
 > The skill source of truth lives in [`skills/`](skills/). Claude Code loads them from `.claude/skills/`, which on Windows are directory junctions to `skills/` (git-ignored, since `core.symlinks=false`). After a fresh clone, recreate the junctions once: `pwsh -File scripts/setup/link_skills.ps1`.
 
+Prefer copy-paste recipes over slash commands? The **[Prompt Library](prompts/README.md)** has 35 ready-to-use natural-language prompts — daily scans, execution sessions, live/prop betting, futures, portfolio routines, and backtesting — grouped by workflow.
+
 ```
 /edge-radar status                        # Balance, positions, P&L
 /edge-radar scan nba                      # Preview NBA opportunities

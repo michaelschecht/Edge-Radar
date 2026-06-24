@@ -3,6 +3,9 @@
 Full morning startup: check portfolio, settle overnight bets, then scan for today's opportunities across all markets.
 
 ```
+# 0. One-shot morning digest (yesterday P&L + open exposure + today pending + 7d rolling)
+python scripts/kalshi/daily_summary.py --save
+
 # 1. Portfolio state
 python scripts/kalshi/kalshi_executor.py status
 
