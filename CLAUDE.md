@@ -57,16 +57,17 @@ Edge-Radar/
 ├── skills/                          # Canonical source for the relocated edge-radar skills (tracked here once)
 │   ├── edge-radar/SKILL.md          # /edge-radar — unified scan/bet/status/settle/risk command center
 │   └── edge-radar-analysis/SKILL.md # /edge-radar-analysis — post-hoc performance report
-├── docs/
+├── docs/                            # Only README.md + CHANGELOG.md live at the root
+│   ├── README.md                    # Docs index
 │   ├── CHANGELOG.md                 # Project history
-│   ├── SCRIPTS_REFERENCE.md         # Complete CLI reference
-│   ├── ARCHITECTURE.md              # Pipeline, risk gates, data flow
-│   ├── kalshi/                      # Kalshi domain guides (grouped)
-│   │   ├── kalshi-sports-betting/   # Sports: filters, edge detection, MLB filtering
+│   ├── kalshi/                      # Betting domain — README.md = coverage matrix + guide index
+│   │   ├── kalshi-sports-betting/   # Sports: filters, edge detection, MLB filtering, API reference
 │   │   ├── kalshi-prediction-betting/ # Prediction: crypto, weather, S&P
 │   │   └── kalshi-futures-betting/  # Futures: championship markets
-│   ├── scripts/                     # Per-script detailed docs
-│   ├── setup/                       # Setup guides, automation & MCP reference
+│   ├── scripts/                     # SCRIPTS_REFERENCE.md + per-script/ deep-dive docs
+│   │   ├── SCRIPTS_REFERENCE.md     # Complete CLI reference
+│   │   └── per-script/              # One detailed doc per script
+│   ├── setup/                       # SETUP_GUIDE, ARCHITECTURE, automation, MCP, task schedules
 │   └── enhancements/                # ROADMAP.md — enhancement roadmap (tracked)
 ├── app/                             # Application core
 │   ├── config.py                    # Single source of truth for env-driven knobs (see CONFIG_CENTRALIZATION.md, Phase 1 landed 2026-04-25)
@@ -187,6 +188,7 @@ NO_SIDE_KELLY_MULTIPLIER=0.5    # R1: half-Kelly on NO bets below the price floo
 NO_SIDE_KELLY_MULTIPLIER_GLOBAL=1.0 # R28: Kelly multiplier on ALL NO bets (default 1.0 = off; lower to shrink NO sizing)
 MIN_CONSENSUS_BOOKS_NBA=8       # R29 (2026-06-23): NBA games with <8 agreeing books drop to `low` confidence (Gate 4.5 then rejects); filters stale recreational lines. 0 disables
 MAX_LIVE_BOOK_AGE_SECONDS=1200  # L1 Phase 2: drop bookmakers whose in-play line is older than this (20m) from live-game consensus; 0 disables
+MIN_LIVE_CONSENSUS_BOOKS=3      # L1 Phase 2: skip an in-progress game whose consensus the stale filter thinned below this many fresh books (fires only when staleness removed books; pre-game unaffected); 0 disables
 CALIBRATION_STDEVS_TTL_DAYS=30  # C8 (2026-06-23): max age of auto-recalibrated per-sport stdevs in data/cache/calibration_stdevs.json before falling back to hardcoded defaults
 KELLY_EDGE_CAP=0.15             # Soft-cap edge for Kelly sizing
 KELLY_EDGE_DECAY=0.5            # Decay factor on edge above the cap

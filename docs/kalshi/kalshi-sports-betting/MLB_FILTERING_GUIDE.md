@@ -10,8 +10,8 @@ Comprehensive reference for filtering MLB bets on Kalshi using Edge-Radar's data
 # Game markets (moneyline)
 python scripts/kalshi/edge_detector.py scan --filter mlb
 
-# Futures (World Series + Playoff Qualifier)
-python scripts/kalshi/edge_detector.py scan --filter mlb-futures
+# Futures (World Series champion only; playoff-qualifier edge disabled R22)
+python scripts/scan.py futures --filter mlb-futures
 
 # Top 10 MLB picks with 5% minimum edge
 python scripts/kalshi/edge_detector.py scan --filter mlb --min-edge 0.05 --top 10
@@ -36,7 +36,7 @@ These use the existing edge detection engine (`edge_detector.py`).
 ### Minimum Edge Threshold
 Only surface picks where the Kalshi-implied probability diverges from the consensus line by a meaningful margin.
 
-- **Default:** 3% (`MIN_EDGE_THRESHOLD=0.03`). MLB uses the global floor. Per-sport overrides exist via `MIN_EDGE_THRESHOLD_<SPORT>` — NCAAB set to 10% after 2026-04-18 calibration; NBA bumped to 12% in R14 on 2026-04-24 (NBA Brier 0.3306 was the worst-calibrated sport in the 30-day review). MLB's floor remains 3%.
+- **Default:** 3% (`MIN_EDGE_THRESHOLD=0.03`). Per-sport overrides exist via `MIN_EDGE_THRESHOLD_<SPORT>`. As of 2026-06-14, MLB, NBA, and NCAAB are all set to 4% (`MIN_EDGE_THRESHOLD_MLB=0.04`, `MIN_EDGE_THRESHOLD_NBA=0.04`, `MIN_EDGE_THRESHOLD_NCAAB=0.04`) — lowered from the prior 6% floors after the 06-03/06-05 edge-matching corrections de-inflated the over-claim that had justified a higher bar.
 - **Conservative MLB play:** 5%+ edge — baseball variance is lower than basketball/football, so smaller edges are more meaningful but also noisier
 - **Aggressive:** 3–5% edge with supporting filters below
 
@@ -45,11 +45,11 @@ The pipeline already weights sharp books higher when calculating consensus proba
 
 | Bookmaker | Weight | Why |
 |---|---|---|
-| Pinnacle | 3.0x | Sharpest MLB lines, lowest vig |
-| Bookmaker.eu | 3.0x | Sharp market |
-| BetOnline | 2.0x | Accepts sharp action |
-| LowVig | 1.5x | Low-margin book |
-| DraftKings / FanDuel | 0.7x | Recreational-skewed lines |
+| Pinnacle / Circa | 3.0x | Sharpest lines, lowest vig |
+| Bookmaker.eu | 2.5x | Sharp market |
+| LowVig | 2.0x | Low-margin book |
+| BetOnline / Bovada | 1.5x | Accepts sharp action |
+| DraftKings / FanDuel / BetMGM | 0.7x | Recreational-skewed lines |
 
 **Filter idea:** Only take picks where Pinnacle and at least 2 other sharp books agree on direction.
 

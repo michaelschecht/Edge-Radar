@@ -84,7 +84,7 @@ Every order must clear gates 1-7 (including 3.5, 4.5, 4.6, 4.7). Gates 8-9 cap s
 | 8 | Bet size cap | Cap at $100 |
 | 9 | Bet ratio cap | Cap at 3x batch median |
 
-<sub>All limits configurable via <code>.env</code>. See <a href="docs/ARCHITECTURE.md">Architecture</a> for the full pipeline.</sub>
+<sub>All limits configurable via <code>.env</code>. See <a href="docs/setup/ARCHITECTURE.md">Architecture</a> for the full pipeline.</sub>
 
 <details>
 <summary><b>Why these gates exist</b> — calibration history behind each rule</summary>
@@ -279,11 +279,12 @@ Want the **complete** pipeline — emails, midday/late runs, weekly calibration/
 | **[Setup Guide](docs/setup/SETUP_GUIDE.md)** | Install, API keys, `.env`, safe rollout, automation, and monitoring — the single end-to-end operator guide |
 | **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** | Windows Task Scheduler for daily betting — one-command installer for the core tasks |
 | **[Task-Schedule Reference](docs/setup/task-schedules.md)** | Full 17-task pipeline roster with `.bat`/`.sh` templates and `schtasks` setup |
-| **[Scripts Reference](docs/SCRIPTS_REFERENCE.md)** | Every script, flag, and example |
-| **[Sports Guide](docs/kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** | 27 filters, edge detection, daily workflow |
+| **[Scripts Reference](docs/scripts/SCRIPTS_REFERENCE.md)** | Every script, flag, and example |
+| **[Kalshi Coverage & Guides](docs/kalshi/README.md)** | Coverage matrix — which sports/markets are configured and what bet types |
+| **[Sports Guide](docs/kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** | Edge detection model, consensus de-vig, daily workflow |
 | **[Futures Guide](docs/kalshi/kalshi-futures-betting/FUTURES_GUIDE.md)** | NFL, NBA, NHL, MLB, golf championships |
 | **[Prediction Markets](docs/kalshi/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** | Crypto, weather, S&P 500, politics |
-| **[Architecture](docs/ARCHITECTURE.md)** | Pipeline, edge models, risk gates, data flow, and project structure |
+| **[Architecture](docs/setup/ARCHITECTURE.md)** | Pipeline, edge models, risk gates, data flow, and project structure |
 | **[MLB Filtering](docs/kalshi/kalshi-sports-betting/MLB_FILTERING_GUIDE.md)** | 10 filter categories for MLB picks |
 | **[Roadmap](docs/enhancements/ROADMAP.md)** | All enhancements — completed & pending |
 | **[Changelog](docs/CHANGELOG.md)** | Full project history |
@@ -308,7 +309,7 @@ All external data is **free**. Only Kalshi requires a funded account.
 ---
 
 <p align="center">
-  <a href="docs/setup/SETUP_GUIDE.md">Setup</a>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<a href="docs/ARCHITECTURE.md">Architecture</a>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<a href="docs/SCRIPTS_REFERENCE.md">Scripts</a>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<a href="docs/CHANGELOG.md">Changelog</a>
+  <a href="docs/setup/SETUP_GUIDE.md">Setup</a>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<a href="docs/setup/ARCHITECTURE.md">Architecture</a>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<a href="docs/scripts/SCRIPTS_REFERENCE.md">Scripts</a>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<a href="docs/CHANGELOG.md">Changelog</a>
 </p>
 
 <p align="center">

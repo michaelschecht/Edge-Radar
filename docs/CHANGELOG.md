@@ -2,6 +2,28 @@
 
 ---
 
+## 2026-06-23 -- L1 Phase 2 live-freshness fixes (fail-closed staleness + min-books floor)
+
+### Why
+
+A code review of the L1 Phase 2 live-odds path found two freshness holes that both failed *open* (toward using stale/thin data) — the opposite of what the feature is for. They only bite when `ALLOW_LIVE_BETS=true` (off by default), so no live bet was affected, but they had to be fixed before live betting is enabled.
+
+### What landed
+
+- **Fail closed on missing `last_update` (CRITICAL #1).** `_is_bookmaker_stale` previously treated a bookmaker with a missing/unparseable `last_update` as *fresh* on an in-progress game — so a suspended feed that dropped its timestamp would silently flow into the live consensus. It now **excludes** such a book (and logs it). Real Odds API event responses always carry `last_update`, so this only fires on malformed data; pre-game markets are untouched.
+- **Minimum fresh-books floor (CRITICAL #2).** After the stale filter runs on a live game, if it **thinned** the consensus below `MIN_LIVE_CONSENSUS_BOOKS` (**default 3**) surviving fresh books, the game is now skipped instead of priced off 1-2 quotes. The guard fires **only when staleness actually removed books** — a live market whose books are all fresh is no thinner than pre-game and keeps its existing behavior, as do all pre-game/futures markets.
+- **Visible fallback (MEDIUM #3).** When the per-event live refresh fails (404 / quota / network), `_refresh_event_if_live` now logs a warning before falling back to the stale sport-level snapshot, instead of degrading silently.
+
+### Verification
+
++4 tests (thinned-below-floor → skip, all-fresh-not-floored, missing/unparseable `last_update` exclusion, plus the config knob default + negative-value guard); existing fixtures gained a realistic per-book `last_update`. **492 passing.**
+
+### Files
+
+`scripts/kalshi/edge_detector.py`, `app/config.py`, `tests/test_edge_detection.py`, `tests/test_config.py`, `.env.example`, `CLAUDE.md`, `docs/CHANGELOG.md`, `docs/enhancements/ROADMAP.md`.
+
+---
+
 ## 2026-06-23 -- 90-Day Review Fixes: NO-Side Floors (R28), NBA Consensus (R29), Auto-Stdev Calibration (C8), Live Odds Phase 2 (L1)
 
 ### Why

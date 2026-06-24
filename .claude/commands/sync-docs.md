@@ -9,7 +9,7 @@ Update the following surfaces with the information provided in $ARGUMENTS. Touch
 
 **Surfaces to update (in this order):**
 
-1. **`docs/`** — any topical doc that covers the affected area (e.g., `docs/SCRIPTS_REFERENCE.md`, `docs/ARCHITECTURE.md`, per-domain folders under `docs/kalshi-*/`, `docs/scripts/`, `docs/setup/`, `docs/web-app/`).
+1. **`docs/`** — any topical doc that covers the affected area (e.g., `docs/scripts/SCRIPTS_REFERENCE.md` + `docs/scripts/per-script/`, `docs/setup/ARCHITECTURE.md`, the betting guides + coverage matrix under `docs/kalshi/` (incl. `docs/kalshi/README.md`), `docs/setup/`, `docs/web-app/`). Only `README.md` and `CHANGELOG.md` live at the `docs/` root.
 2. **`.env.example` + `CLAUDE.md`** — for any env-var / risk-gate / config-default change, these are primary surfaces and the most prone to drift. `.env.example` is the tracked config template (values + their inline rationale comments); `CLAUDE.md` covers agent instructions, risk gates, env vars, project structure, and workflow. Update both whenever a knob, default, or gate changes.
 3. **`ROADMAP.md`** — if the information adds, completes, or reprioritizes a roadmap item.
 4. **`README.md`** — only if the change affects user-visible features, commands, or setup.

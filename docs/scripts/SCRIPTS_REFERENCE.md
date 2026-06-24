@@ -7,7 +7,7 @@
 [![Utilities](https://img.shields.io/badge/Utilities-4%20Scripts-F97316?style=flat-square)](#-utility-scripts)
 [![Automation](https://img.shields.io/badge/Automation-Task%20Scheduler-0078D4?style=flat-square)](#-automated-execution)
 
-For domain-specific guides: **[Sports](kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** · **[Futures](kalshi/kalshi-futures-betting/FUTURES_GUIDE.md)** · **[Predictions](kalshi/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** · **[Architecture](ARCHITECTURE.md)** · **[Roadmap](enhancements/ROADMAP.md)**
+For domain-specific guides: **[Sports](../kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** · **[Futures](../kalshi/kalshi-futures-betting/FUTURES_GUIDE.md)** · **[Predictions](../kalshi/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** · **[Architecture](../setup/ARCHITECTURE.md)** · **[Roadmap](../enhancements/ROADMAP.md)**
 
 ---
 
@@ -15,13 +15,13 @@ For domain-specific guides: **[Sports](kalshi/kalshi-sports-betting/SPORTS_GUIDE
 
 | Goal | Command | Details |
 | :--- | :--- | :--- |
-| **Scan for sports bets** | `scan.py sports --filter mlb` | [edge_detector.md](scripts/edge_detector.md) |
-| **Scan championship futures** | `scan.py futures --filter nba-futures` | [futures_edge.md](scripts/futures_edge.md) |
-| **Scan prediction markets** | `scan.py prediction --filter crypto` | [prediction_scanner.md](scripts/prediction_scanner.md) |
+| **Scan for sports bets** | `scan.py sports --filter mlb` | [edge_detector.md](per-script/edge_detector.md) |
+| **Scan championship futures** | `scan.py futures --filter nba-futures` | [futures_edge.md](per-script/futures_edge.md) |
+| **Scan prediction markets** | `scan.py prediction --filter crypto` | [prediction_scanner.md](per-script/prediction_scanner.md) |
 | **Scan AND execute** | Add `--execute` to any scan | Orders placed through risk pipeline |
-| **Quick portfolio status** | `kalshi_executor.py status` | [kalshi_executor.md](scripts/kalshi_executor.md) |
-| **Full risk dashboard** | `risk_check.py` | [risk_check.md](scripts/risk_check.md) |
-| **Settle bets + P&L** | `kalshi_settler.py settle` then `report` | [kalshi_settler.md](scripts/kalshi_settler.md) |
+| **Quick portfolio status** | `kalshi_executor.py status` | [kalshi_executor.md](per-script/kalshi_executor.md) |
+| **Full risk dashboard** | `risk_check.py` | [risk_check.md](per-script/risk_check.md) |
+| **Settle bets + P&L** | `kalshi_settler.py settle` then `report` | [kalshi_settler.md](per-script/kalshi_settler.md) |
 
 > [!IMPORTANT]
 > Every scan defaults to **preview mode**. No money is risked until you pass `--execute`.
@@ -209,22 +209,22 @@ Each script has a dedicated doc with full flag tables, examples, methodology, an
 
 | Script | Purpose | Docs |
 | :--- | :--- | :--- |
-| `edge_detector.py` | Sports edge detection (NBA, MLB, NHL, NFL, NCAA, etc.) | [edge_detector.md](scripts/edge_detector.md) |
-| `futures_edge.py` | Championship & season-long futures | [futures_edge.md](scripts/futures_edge.md) |
-| `prediction_scanner.py` | Crypto, weather, S&P 500, politics | [prediction_scanner.md](scripts/prediction_scanner.md) |
+| `edge_detector.py` | Sports edge detection (NBA, MLB, NHL, NFL, NCAA, etc.) | [edge_detector.md](per-script/edge_detector.md) |
+| `futures_edge.py` | Championship & season-long futures | [futures_edge.md](per-script/futures_edge.md) |
+| `prediction_scanner.py` | Crypto, weather, S&P 500, politics | [prediction_scanner.md](per-script/prediction_scanner.md) |
 ### 💼 Execution & Portfolio
 
 | Script | Purpose | Docs |
 | :--- | :--- | :--- |
-| `kalshi_executor.py` | Portfolio status + execution library | [kalshi_executor.md](scripts/kalshi_executor.md) |
-| `kalshi_settler.py` | Settlement, P&L reporting, reconciliation | [kalshi_settler.md](scripts/kalshi_settler.md) |
-| `risk_check.py` | Portfolio risk dashboard & limits gating | [risk_check.md](scripts/risk_check.md) |
+| `kalshi_executor.py` | Portfolio status + execution library | [kalshi_executor.md](per-script/kalshi_executor.md) |
+| `kalshi_settler.py` | Settlement, P&L reporting, reconciliation | [kalshi_settler.md](per-script/kalshi_settler.md) |
+| `risk_check.py` | Portfolio risk dashboard & limits gating | [risk_check.md](per-script/risk_check.md) |
 
 ### 📊 Analysis & Backtesting
 
 | Script | Purpose | Docs |
 | :--- | :--- | :--- |
-| `backtest/backtester.py` | Strategy backtesting — equity curve, Sharpe, drawdown, signal breakdowns, strategy simulation | [backtester.md](scripts/backtester.md) |
+| `backtest/backtester.py` | Strategy backtesting — equity curve, Sharpe, drawdown, signal breakdowns, strategy simulation | [backtester.md](per-script/backtester.md) |
 | `model_calibration.py` | Brier score, calibration curve, dimension breakdowns, recommendations | |
 
 **Backtester usage:**
@@ -457,6 +457,6 @@ schtasks /Create /TN "Edge-Radar\Monthly-Report" /TR "D:\AI_Agents\Specialized_A
 
 <p align="center">
 
-**[← Back to README](../README.md)** · **[Architecture →](ARCHITECTURE.md)** · **[Setup Guide →](setup/SETUP_GUIDE.md)**
+**[← Back to Docs Index](../README.md)** · **[Architecture →](../setup/ARCHITECTURE.md)** · **[Setup Guide →](../setup/SETUP_GUIDE.md)**
 
 </p>

@@ -376,7 +376,46 @@ def _refresh_event_if_live(matched_event: dict, market: dict) -> dict:
             refreshed = fetch_event_odds_api(sport_key, event_id)
             if refreshed:
                 return refreshed
+            # Refresh failed (404 / quota exhausted / network). Falling back to the
+            # sport-level snapshot means pricing a live game on pre-game odds — make
+            # that visible rather than silent so a bad fill is diagnosable.
+            log.warning(
+                "Live odds refresh failed for %s (%s); proceeding on the stale "
+                "sport-level snapshot", event_id, sport_key,
+            )
     return matched_event
+
+
+def _event_is_live(event: dict) -> bool:
+    """True if the event's commence_time is in the past (game in progress)."""
+    commence_dt = _parse_iso_utc(event.get("commence_time", ""))
+    return commence_dt is not None and commence_dt <= datetime.now(timezone.utc)
+
+
+def _live_consensus_too_thin(events: list, n_fresh_books: int, n_excluded: int) -> bool:
+    """For an in-progress game whose consensus was thinned by the stale-book
+    filter, require a minimum number of surviving fresh books before trusting it
+    (Phase 2). The filter can strip a live market down to 1-2 quotes (uneven
+    in-play coverage, suspended books); sizing off that is the 'garbage
+    consensus' the freshness work exists to avoid.
+
+    The guard only fires when staleness ACTUALLY removed books (n_excluded > 0).
+    A live game whose books are all fresh is no thinner than it would be
+    pre-game, so it keeps the existing behavior — as do all pre-game markets
+    (thin futures / early lines are unaffected)."""
+    if n_excluded <= 0:
+        return False
+    if not any(_event_is_live(ev) for ev in events):
+        return False
+    floor = get_config().gates.min_live_consensus_books
+    if n_fresh_books < floor:
+        log.warning(
+            "Live consensus thinned to %d fresh book(s) (< %d) after dropping %d "
+            "stale book(s) — skipping rather than pricing off a thin sample",
+            n_fresh_books, floor, n_excluded,
+        )
+        return True
+    return False
 
 
 def _is_bookmaker_stale(bookmaker: dict, event: dict, max_age: int) -> bool:
@@ -391,13 +430,18 @@ def _is_bookmaker_stale(bookmaker: dict, event: dict, max_age: int) -> bool:
 
     # Event is live/in-progress
     lu_str = bookmaker.get("last_update")
-    if not lu_str:
-        # If last_update is missing (common in mock tests), assume fresh/valid
-        return False
-
-    lu_dt = _parse_iso_utc(lu_str)
-    if not lu_dt:
-        return False
+    lu_dt = _parse_iso_utc(lu_str) if lu_str else None
+    if lu_dt is None:
+        # Live game but no usable last_update — fail CLOSED: exclude this book
+        # rather than trust a quote we can't date. A suspended/stale feed can drop
+        # or mangle the field, and on a live game that stale line would poison the
+        # consensus. The Odds API event endpoint returns last_update on every real
+        # response, so this only fires on malformed/mocked data.
+        log.warning(
+            "Excluding bookmaker %s on live event: missing/unparseable last_update (%r)",
+            bookmaker.get("key"), lu_str,
+        )
+        return True
 
     age = (datetime.now(timezone.utc) - lu_dt).total_seconds()
     if age > max_age:
@@ -496,11 +540,13 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
     book_keys = []
     book_details = {}
     matched_event_ids = set()
+    n_stale_excluded = 0
 
     for ev_idx, event in enumerate(events):
         for bookmaker in event.get("bookmakers", []):
             max_age = get_config().gates.max_live_book_age_seconds
             if _is_bookmaker_stale(bookmaker, event, max_age):
+                n_stale_excluded += 1
                 continue
             for market in bookmaker.get("markets", []):
                 if market["key"] != "h2h":
@@ -547,6 +593,9 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
                 }
 
     if not fair_probs:
+        return None
+
+    if _live_consensus_too_thin(events, len(fair_probs), n_stale_excluded):
         return None
 
     # Fix B (belt-and-suspenders): never pool a team across multiple games.
@@ -722,11 +771,13 @@ def consensus_spread_prob(events: list, team_name: str, strike: float,
     """
     spread_data = []
     matched_event_ids = set()
+    n_stale_excluded = 0
 
     for ev_idx, event in enumerate(events):
         for bookmaker in event.get("bookmakers", []):
             max_age = get_config().gates.max_live_book_age_seconds
             if _is_bookmaker_stale(bookmaker, event, max_age):
+                n_stale_excluded += 1
                 continue
             for market in bookmaker.get("markets", []):
                 if market["key"] != "spreads":
@@ -756,6 +807,9 @@ def consensus_spread_prob(events: list, team_name: str, strike: float,
                 })
 
     if not spread_data:
+        return None
+
+    if _live_consensus_too_thin(events, len(spread_data), n_stale_excluded):
         return None
 
     # Fix B: refuse to pool one team's spread across multiple games.
@@ -850,11 +904,13 @@ def consensus_total_prob(events: list, strike: float,
     """
     total_data = []
     matched_event_ids = set()
+    n_stale_excluded = 0
 
     for ev_idx, event in enumerate(events):
         for bookmaker in event.get("bookmakers", []):
             max_age = get_config().gates.max_live_book_age_seconds
             if _is_bookmaker_stale(bookmaker, event, max_age):
+                n_stale_excluded += 1
                 continue
             for market in bookmaker.get("markets", []):
                 if market["key"] != "totals":
@@ -870,6 +926,9 @@ def consensus_total_prob(events: list, strike: float,
                         })
 
     if not total_data:
+        return None
+
+    if _live_consensus_too_thin(events, len(total_data), n_stale_excluded):
         return None
 
     # Fix B: this function keys only on "Over" (no team match), so an unscoped

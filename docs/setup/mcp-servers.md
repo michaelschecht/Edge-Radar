@@ -163,5 +163,5 @@ MCP servers run in isolated sub-processes. They do not automatically inherit you
 ---
 
 <p align="center">
-  Built for <a href="https://github.com/michaelschecht/Edge-Radar">Edge-Radar</a> · <a href="../ARCHITECTURE.md">Architecture</a> · <a href="SETUP_GUIDE.md">Setup Guide</a>
+  Built for <a href="https://github.com/michaelschecht/Edge-Radar">Edge-Radar</a> · <a href="ARCHITECTURE.md">Architecture</a> · <a href="SETUP_GUIDE.md">Setup Guide</a>
 </p>

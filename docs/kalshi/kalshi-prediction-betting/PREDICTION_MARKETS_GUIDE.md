@@ -24,13 +24,15 @@ Non-sports prediction markets on Kalshi covering crypto, weather, S&P 500, econo
 
 ## Quick Reference
 
-See [Scripts Reference](../../SCRIPTS_REFERENCE.md) for complete CLI flags. Key command:
+See [Scripts Reference](../../scripts/SCRIPTS_REFERENCE.md) for complete CLI flags. Key command:
 
 ```bash
 python scripts/scan.py prediction --filter <filter>
 ```
 
-For risk gates and position sizing rules, see [Architecture](../../ARCHITECTURE.md). For enhancement history, see [Roadmap](../../enhancements/ROADMAP.md).
+> **⚠️ Prediction-market bets are gated OFF by default.** Risk Gate 4.7 (R25) rejects every prediction-market category (crypto, weather, spx, mentions, companies, politics) unless `ALLOW_PREDICTION_BETS=true` is set in `.env`. The 2026-04-24 audit found these models produced unreliable fair values and none had ever produced a settled bet, so they were parked. You can still **scan** these markets to research them; you just can't `--execute` them without flipping the flag.
+
+For risk gates and position sizing rules, see [Architecture](../../setup/ARCHITECTURE.md). For enhancement history, see [Roadmap](../../enhancements/ROADMAP.md).
 See also: [Sports Guide](../kalshi-sports-betting/SPORTS_GUIDE.md) | [Futures Guide](../kalshi-futures-betting/FUTURES_GUIDE.md)
 
 ---
@@ -40,7 +42,7 @@ See also: [Sports Guide](../kalshi-sports-betting/SPORTS_GUIDE.md) | [Futures Gu
 | Category | Filter | Ticker Prefixes | Edge Detection | Data Source |
 |----------|--------|----------------|----------------|-------------|
 | Crypto | `crypto` | KXBTC, KXETH, KXXRP, KXDOGE, KXSOL | **Yes** | CoinGecko (free) |
-| Weather | `weather` | KXHIGHNY, KXHIGHCHI, KXHIGHMIA, KXHIGHDEN | **Yes** | NWS API (free) |
+| Weather | `weather` | KXHIGH* (13 cities) | **Yes** | NWS API (free) |
 | S&P 500 | `spx` | KXINX | **Yes** | Yahoo Finance + VIX (free) |
 | TV Mentions | `mentions` | KXLASTWORDCOUNT, KXPOLITICSMENTION, KXFOXNEWSMENTION, KXNBAMENTION | **Yes** | Historical settlement rates |
 | Companies | `companies` | KXBANKRUPTCY, KXIPO | **Partial** | Historical baseline (bankruptcy), browse only (IPO) |
@@ -79,12 +81,23 @@ Edge detection uses the **NWS (National Weather Service) API** for temperature f
 
 ### Available Cities
 
-| Filter Prefix | City | NWS Office |
-|---------------|------|------------|
-| KXHIGHNY | New York City | OKX |
-| KXHIGHCHI | Chicago | LOT |
-| KXHIGHMIA | Miami | MFL |
-| KXHIGHDEN | Denver | BOU |
+13 cities are mapped (`TICKER_CITY_MAP` in `weather_edge.py`):
+
+| Filter Prefix | City |
+|---------------|------|
+| KXHIGHNY | New York City |
+| KXHIGHCHI | Chicago |
+| KXHIGHMIA | Miami |
+| KXHIGHDEN | Denver |
+| KXHIGHLA | Los Angeles |
+| KXHIGHDAL | Dallas |
+| KXHIGHHOU | Houston |
+| KXHIGHPHX | Phoenix |
+| KXHIGHSF | San Francisco |
+| KXHIGHDC | Washington D.C. |
+| KXHIGHBOS | Boston |
+| KXHIGHSEA | Seattle |
+| KXHIGHATL | Atlanta |
 
 **Example market:** "Will the high temp in NYC be >61 degrees on Mar 23, 2026?"
 

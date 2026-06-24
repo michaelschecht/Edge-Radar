@@ -512,6 +512,13 @@ class TestInProcessCacheTtl:
 
 # ── Opponent-validated event matching (fix A + B) ─────────────────────────────
 
+# Real Odds API responses always carry a per-bookmaker last_update; fixtures must
+# too, or the Phase-2 live-staleness guard excludes them whenever a fixture's
+# commence_time happens to be in the past. Stamp "now" so books read as fresh.
+def _fresh_lu():
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _h2h_event(away, home, away_price, home_price, commence,
                books=("pinnacle", "draftkings")):
     """Build a minimal Odds API h2h event with N identical bookmakers."""
@@ -522,6 +529,7 @@ def _h2h_event(away, home, away_price, home_price, commence,
         "bookmakers": [
             {
                 "key": b,
+                "last_update": _fresh_lu(),
                 "markets": [{
                     "key": "h2h",
                     "outcomes": [
@@ -543,6 +551,7 @@ def _totals_event(away, home, line, over_price, commence, books=("pinnacle",)):
         "bookmakers": [
             {
                 "key": b,
+                "last_update": _fresh_lu(),
                 "markets": [{
                     "key": "totals",
                     "outcomes": [
@@ -1196,26 +1205,95 @@ class TestLiveInPlayOddsPhase2:
         # Verify freshness check on bookmakers
         assert _is_bookmaker_stale(event["bookmakers"][0], event, 1200) is False
         assert _is_bookmaker_stale(event["bookmakers"][1], event, 1200) is True
-        
-        # Verify consensus_fair_value excludes DraftKings and devigs only Pinnacle
+
+        # Add two more fresh books so the live consensus survives the min-books
+        # floor (default 3); the stale DraftKings line must still be excluded.
+        for key in ("fanduel", "betmgm"):
+            event["bookmakers"].append({
+                "key": key,
+                "last_update": fresh_lu,
+                "markets": [{"key": "h2h", "outcomes": [
+                    {"name": "Lakers", "price": 1.5},
+                    {"name": "Celtics", "price": 2.5},
+                ]}],
+            })
+
         result = consensus_fair_value([event], "Lakers")
         assert result is not None
         fair_prob, details = result
         assert fair_prob == pytest.approx(0.625, abs=0.001)
         assert "pinnacle" in details["books"]
-        assert "draftkings" not in details["books"]
-        
+        assert "draftkings" not in details["books"]  # stale -> excluded
+
         # If the event was pre-game, last_update is not checked for staleness
         pregame_commence = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat().replace("+00:00", "Z")
         event_pregame = dict(event, commence_time=pregame_commence)
-        
+
         assert _is_bookmaker_stale(event_pregame["bookmakers"][0], event_pregame, 1200) is False
         assert _is_bookmaker_stale(event_pregame["bookmakers"][1], event_pregame, 1200) is False
-        
-        # Both bookmakers will be included in consensus
+
+        # Pre-game: even the otherwise-stale DraftKings line is included
         result_pregame = consensus_fair_value([event_pregame], "Lakers")
         assert result_pregame is not None
         _, details_pregame = result_pregame
         assert "pinnacle" in details_pregame["books"]
         assert "draftkings" in details_pregame["books"]
+
+    def test_live_consensus_thinned_below_floor_returns_none(self):
+        """CRITICAL #2: when the stale filter strips a live market below the
+        min-books floor, refuse rather than price off 1-2 surviving quotes."""
+        from edge_detector import consensus_fair_value
+        from datetime import datetime, timedelta, timezone
+
+        commence = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat().replace("+00:00", "Z")
+        fresh = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
+        stale = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat().replace("+00:00", "Z")
+        event = {
+            "commence_time": commence,
+            "bookmakers": [
+                {"key": "pinnacle", "last_update": fresh, "markets": [{"key": "h2h", "outcomes": [
+                    {"name": "Lakers", "price": 1.5}, {"name": "Celtics", "price": 2.5}]}]},
+                {"key": "draftkings", "last_update": stale, "markets": [{"key": "h2h", "outcomes": [
+                    {"name": "Lakers", "price": 2.0}, {"name": "Celtics", "price": 2.0}]}]},
+            ],
+        }
+        # 1 fresh book survives (< floor 3) AND a book was excluded -> None.
+        assert consensus_fair_value([event], "Lakers") is None
+
+    def test_live_consensus_all_fresh_not_floored(self):
+        """The floor only fires when staleness actually thinned the set. A live
+        2-book market with both books fresh is no thinner than pre-game, so it
+        still produces a consensus."""
+        from edge_detector import consensus_fair_value
+        from datetime import datetime, timedelta, timezone
+
+        commence = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat().replace("+00:00", "Z")
+        fresh = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
+        event = {
+            "commence_time": commence,
+            "bookmakers": [
+                {"key": "pinnacle", "last_update": fresh, "markets": [{"key": "h2h", "outcomes": [
+                    {"name": "Lakers", "price": 1.5}, {"name": "Celtics", "price": 2.5}]}]},
+                {"key": "fanduel", "last_update": fresh, "markets": [{"key": "h2h", "outcomes": [
+                    {"name": "Lakers", "price": 1.5}, {"name": "Celtics", "price": 2.5}]}]},
+            ],
+        }
+        result = consensus_fair_value([event], "Lakers")
+        assert result is not None
+        assert result[1]["n_books"] == 2
+
+    def test_missing_last_update_excluded_on_live_game(self):
+        """CRITICAL #1: a book with no/unparseable last_update on a live game
+        fails closed (excluded); pre-game it is untouched."""
+        from edge_detector import _is_bookmaker_stale
+        from datetime import datetime, timedelta, timezone
+
+        live = {"commence_time": (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat().replace("+00:00", "Z")}
+        pregame = {"commence_time": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat().replace("+00:00", "Z")}
+        no_lu = {"key": "pinnacle", "markets": []}
+        bad_lu = {"key": "pinnacle", "last_update": "not-a-timestamp", "markets": []}
+
+        assert _is_bookmaker_stale(no_lu, live, 1200) is True
+        assert _is_bookmaker_stale(bad_lu, live, 1200) is True
+        assert _is_bookmaker_stale(no_lu, pregame, 1200) is False
 
