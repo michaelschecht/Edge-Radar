@@ -1,6 +1,6 @@
 # Edge-Radar Enhancement Roadmap
 
-*Last updated: 2026-06-23 — **L1 (Phase 2), R28, R29, and C8 shipped** (NO-side overrides, NBA consensus books, automatic stdev recalibration, and live-odds targeted fetch + book freshness check). The full ship-by-ship history lives in the [Completed](#completed) index below — keep new entries there, not on this line.*
+*Last updated: 2026-06-24 — **C4 shipped** (retired the base "high" confidence tier's composite-score premium — no predictive signal in the 306-bet review). Prior: L1 (Phase 2), R28, R29, C8 (2026-06-23). The full ship-by-ship history lives in the [Completed](#completed) index below — keep new entries there, not on this line.*
 
 All pending improvements for Edge-Radar in a single prioritized action list, plus findings/context behind them and an index of completed work.
 
@@ -46,8 +46,9 @@ Items that improve measurement, close known gaps, or remove operator friction.
 
 | ID | Item | Impact | Effort | Notes |
 |----|------|--------|--------|-------|
-| C4 | **Audit the base "high" confidence criteria** | Medium | Medium | **Reactivated 2026-06-23** — deferral condition (50+ high-conf trades) met at 118. F49: High = 41.5% WR / +13.5% ROI vs Medium 53.3% / +45.5%. R13 already neutralized the bolt-on bumps; this targets the *base* "high" rule (≥8 sharp books + tight consensus) — is it selecting for tight markets (less edge) rather than better picks? Don't just demote — measure whether the tier carries any predictive signal at all before reweighting sizing. |
-| R10 | **Category-weighted composite score** | Medium | Medium | Pull back on ML (30d: +11% ROI on 61 bets). Favor Total (30d: +32% ROI on 76 bets) and Spread (+145% but still one-fill dependent — watch, don't re-weight up). |
+| ~~C4~~ | **Audit the base "high" confidence criteria** | Medium | Medium | **SHIPPED 2026-06-24.** Measured the tier's predictive signal on 306 settled bets: at *equal claimed edge* High underperforms Medium (5–10% edge bucket: 34% vs 63% WR) — no positive signal. The roadmap's "tight-market = lower edge" hunch was the wrong shape: High actually *over-claims* edge (19.1% vs 15.9% avg) against efficient ≥8-book consensus. Fix: capped `high`→`medium` in the sports composite weight (`edge_detector.py`) so "high" no longer floats no-signal bets up the `--max-bets` queue or helps clear Gate 4. Label retained (still gates NO-favorites at Gate 4.6); sizing never used confidence. Scoped to sports. See Completed entry below + Findings (C4 detail). Follow-up logged as **C4b** (edge-cap the base rule to make a meaningful High tier). |
+| C4b | **Edge-cap the base "high" rule (make High mean something)** | Low | Small | Follow-up to C4. C4 *retired* High's composite premium but left the minting rule (≥8 books + tight consensus) intact, so "high" is now a near-inert label. Optional next step: only grant "high" when claimed edge is *modest* against the tight consensus (e.g. `edge ≤ ~10%`), since a large edge vs an efficient price is the over-claim signature (NCAAMB High: 33.8% avg edge / 28.6% WR). Caveat: C4 data showed High also underperforms at *low* edge (5–10% bucket, 34% WR), so an edge-cap may not rescue the tier — measure before shipping. Low priority; the composite fix already stops the bleeding. |
+| R10 | **Category-weighted composite score** | Medium | Medium | Pull back on ML (30d: +11% ROI on 61 bets). Favor Total (30d: +32% ROI on 76 bets) and Spread (+145% but still one-fill dependent — watch, don't re-weight up). Related to C4 (both touch the composite weighting) — consider doing together. |
 | C6 | **Totals bias audit** | Medium | Small | 2026-04-18 report showed Totals -14% ROI; 14-day +33%; 30-day +32%. Stability confirming — may deprioritize if R10 subsumes. |
 | ~~C8-followup~~ | **Fix C8 calibration statistics** | High | Small | **SHIPPED 2026-06-23.** Replaced the `n≥5` / `×1.5` / `[0.8,1.5]` recommender with a guarded one: `n≥20` per sport+market, a 1.5-SE significance gate, a gentler `×1.0` step clamped to `[0.85,1.25]`, and exclusion of settlements with no recorded `fair_value` (the 0.5-default contamination). Against the full 302-bet history this writes a single override (NCAAB margin 12.1→14.7 from 29 spread bets at a significant +21.8pp gap); all other sports hold at base, and the bad live cache was deleted. **Still open (deferred — needs more data / a bigger build):** the gap is still measured over gate-selected bets, so it can't fully separate stdev miscalibration from selection bias; a true per-game Brier/MLE fit, and the moneyline-heavy bet mix starving spread/total samples, remain the structural limits. |
 | R23b | **Distinguish 401 vs 429 in Odds API key rotation** | Low | Small | F41 (2026-05-13 analysis). R23 rotates on both 401 and 429 and calls `mark_exhausted()` on 401. If the Odds API ever sends a 429 for transient per-second/per-minute rate limits (vs. quota exhaustion), a healthy key gets permanently dumped. Fix: only `mark_exhausted` on 401; on 429, short back-off then retry the same key. Inspect `X-Requests-Remaining` / `X-Requests-Last` headers when present. Low-urgency — no observed 429s today — but tightens the rotation contract before quota pressure increases. |
@@ -170,6 +171,16 @@ Source: 90-day post-mortem over all 302 settled trades since launch (2026-03-22 
 | F47 | **Model Calibration Overconfidence** — Predicted probabilities are consistently 11% to 15% higher than realized win rates in the 50%-80% bands. | 50-60% band: 41.8% WR vs 56.1% predicted. 60-70% band: 52.4% WR vs 64.3% predicted. | C8 |
 | F48 | **Longshot Outperformance** — Bets priced below 15¢ deliver +123.3% ROI due to market under-valuation, contrasting with overestimation in higher probability bins. | 29 bets, 5W–24L (17.2% WR), Cost: $26.12, P&L: +$32.17 | Keep longshot filters active |
 | F49 | **High-confidence paradox persists at 90 days** — High-confidence bets still *under*perform Medium ones. Confirms the R13 hypothesis (pre-patch confidence bumps tracked inflated edge, not outcomes) and **meets C4's deferral condition** (was "revisit at 50+ high-conf trades"; now 118). Action: audit the *base* "high" criteria (≥8 books + tight consensus), not just the bolt-on bumps R13 already neutralized. | High: 118 bets, 41.5% WR, +13.5% ROI (+$13.68). Medium: 169 bets, 53.3% WR, +45.5% ROI (+$66.22). | C4 (reactivated) |
+
+#### C4 resolution (2026-06-24) — the audit and what we changed
+
+Ran the audit F49 called for, on 306 settled bets (118 High / 173 Medium). Two cuts settled it:
+
+- **Edge-matched (the decisive test).** Bucketing High vs Medium by *claimed* edge removes the "High just bets bigger edges" confound. Result — at equal edge, **High wins less**: in the 5–10% edge band High is 34.4% WR (n=32) vs Medium 62.7% (n=51); in the 10%+ band 45.2% (n=84) vs 46.8% (n=111). So the tier carries **no positive predictive signal** (the roadmap's pre-condition for acting).
+- **Mechanism.** The roadmap guessed "High selects tight markets = less edge." Wrong shape: High actually *over-claims* edge (19.1% vs 15.9% avg). The real story — a tight ≥8-sharp-book consensus is an **efficient price**, so a large model edge against it is most likely model error. The worst cells are NCAAMB High (33.8% avg edge, 28.6% WR) and HIGH/NO (−29.7% ROI); High genuinely works only for NHL (70% WR, n=10).
+- **What "high" actually did downstream** (audited in code, not assumed): (1) **+0.9 composite** vs Medium (`{low:3,medium:6,high:9}×0.30`) → ranked bets higher in the `--max-bets` queue and eased Gate 4; (2) **Gate 4.6** — a *restriction* (NO-favorites need `high`), not an unlock; (3) **sizing — none** (`size_order` never reads confidence). Only effect (1) is harmful, so that's the single thing changed: `high`→`medium` in the composite weight. Effects (2)/(3) left intact.
+
+This is deliberately minimal and reversible (one value across three formulas). It does **not** redistribute the 30% confidence weight (a bigger calibration change — folded into R10/C4b) and does **not** add sport-specific carve-outs (28–54-bet samples too thin). Live automation is unaffected until the branch merges to master.
 
 ### 2026-06-14 — Scan view surfaces in-progress phantom edges
 
@@ -331,6 +342,12 @@ Re-measure at 4 weeks. If ≥25% bucket is still negative, tighten to a harder c
 ## Completed
 
 Index only — detailed notes are in the collapsed section below.
+
+### 2026-06-24 — C4 Confidence-Tier Audit (Retire High's Composite Premium)
+
+| ID | Item |
+|----|------|
+| C4 | **Base "high" tier no longer earns a composite-score premium.** Audited the tier's predictive value on 306 settled bets. Found High at 41.5% WR / +13.5% ROI vs Medium 53.2% / +44.4%, and — controlling for claimed edge — High underperforms Medium at *equal* edge (5–10% band: 34% vs 63% WR), i.e. **no positive signal**. Mechanism: a tight ≥8-sharp-book consensus is an efficient price, so a large model edge against it is more likely model error than alpha (High *over-claims* edge, 19.1% vs 15.9% avg). Fix: capped `high`→`medium` in the three sports composite formulas (`edge_detector.py`) so "high" can no longer float no-signal bets up the `--max-bets` queue or help clear Gate 4 (`MIN_COMPOSITE_SCORE`). The `high` label is retained as a Gate-4.6 restriction on NO-favorites; Kelly sizing never used confidence (nothing to unwind). Scoped to sports — futures/prediction "high" earned by different rules, out of scope. No env var. Follow-up **C4b** (edge-cap the minting rule) logged in Priority 2. |
 
 ### 2026-06-23 — L1 (Phase 2) + R28 + R29 + C8 Shipped
 
