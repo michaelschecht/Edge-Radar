@@ -1375,6 +1375,17 @@ def detect_edge_game(market: dict, odds_events: list,
         confidence = "medium"
     if details["n_books"] >= 8 and (details["max_fair"] - details["min_fair"]) < 0.05:
         confidence = "high"
+    # C4 (2026-06-24): the base "high" tier above (>=8 sharp books + tight
+    # consensus) carries no positive predictive signal. The 306-bet review
+    # (F49) found High at 41.5% WR / +13.5% ROI vs Medium 53.2% / +44.4%, and
+    # at *equal* claimed edge High underperforms Medium (5-10% edge bucket:
+    # 34% vs 63% WR) — a tight 8-book consensus means the price is efficient,
+    # so a large model edge against it is more likely model error than signal.
+    # The "high" label is retained (it still gates NO-favorite bets at executor
+    # Gate 4.6, a conservative restriction) but no longer earns a composite-
+    # score premium below: high is capped to medium in the composite weight, so
+    # it can no longer float no-signal bets up the --max-bets execution queue.
+    # Sizing never used confidence. See R13 (one-way stat bumps) for prior art.
 
     # NBA consensus book threshold (R29)
     if ticker.startswith("KXNBA"):
@@ -1423,7 +1434,7 @@ def detect_edge_game(market: dict, odds_events: list,
 
     composite = (
         min(edge / 0.01, 10) * 0.40 +      # edge strength (40%)
-        {"low": 3, "medium": 6, "high": 9}[confidence] * 0.30 +  # confidence (30%)
+        {"low": 3, "medium": 6, "high": 6}[confidence] * 0.30 +  # confidence (30%) — C4: high capped to medium (F49)
         liquidity * 0.20 +                   # liquidity (20%)
         5 * 0.10                             # time sensitivity placeholder (10%)
     )
@@ -1547,7 +1558,7 @@ def detect_edge_spread(market: dict, odds_events: list,
 
     composite = (
         min(edge / 0.01, 10) * 0.40 +
-        {"low": 3, "medium": 6, "high": 9}[confidence] * 0.30 +
+        {"low": 3, "medium": 6, "high": 6}[confidence] * 0.30 +  # C4: high capped to medium (F49)
         liquidity * 0.20 +
         5 * 0.10
     )
@@ -1880,7 +1891,7 @@ def detect_edge_total(market: dict, odds_events: list,
 
     composite = (
         min(edge / 0.01, 10) * 0.40 +
-        {"low": 3, "medium": 6, "high": 9}[confidence] * 0.30 +
+        {"low": 3, "medium": 6, "high": 6}[confidence] * 0.30 +  # C4: high capped to medium (F49)
         liquidity * 0.20 +
         5 * 0.10
     )

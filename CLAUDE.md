@@ -153,6 +153,8 @@ NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` are additionally sized at `NO_S
 
 **R13 (2026-04-24): confidence bumps are one-way.** The team-stats, rest/B2B, and sharp-money signals can *drop* a confidence tier on `contradicts`, but `supports` is now a no-op (previously bumped up a tier). The 30-day calibration showed High-confidence WR 47% below Medium 53%, with NBA High = 1-6 / -71% ROI — upward bumps correlated with inflated claimed edge, not better outcomes. Base "high" tier is still reachable via the ≥8 sharp-books + tight-consensus rule; only the bolt-on bumps are neutralized. Implemented in `_adjust_confidence_with_stats()` in `scripts/kalshi/edge_detector.py`; no env var.
 
+**C4 (2026-06-24): the base "high" tier no longer earns a composite-score premium.** Reactivated once the 50+ high-conf-trade deferral condition was met (118 at review). The 306-bet review (F49) found High at 41.5% WR / +13.5% ROI vs Medium 53.2% / +44.4%, and — the decisive cut — at *equal claimed edge* High underperforms Medium (5–10% edge bucket: 34% vs 63% WR). A tight ≥8-sharp-book consensus means the price is efficient, so a large model edge against it is more likely model error than signal. Fix: the sports composite weight caps `high` to `medium` (`{low:3, medium:6, high:6}` in `edge_detector.py`), so "high" can no longer float no-signal bets up the `--max-bets` queue or help clear Gate 4. The `high` *label* is retained — it still gates NO-favorite bets at executor Gate 4.6 (a conservative restriction, left intact). Sizing never used confidence. No env var; scoped to sports only (futures/prediction modules earn "high" by different rules and were out of scope).
+
 ### Dry Run Mode
 
 - Default: `DRY_RUN=true`

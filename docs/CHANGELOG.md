@@ -2,6 +2,33 @@
 
 ---
 
+## 2026-06-24 -- C4: retire the base "high" confidence tier's composite-score premium
+
+### Why
+
+The 90-day review (F49) flagged that High-confidence bets keep *under*performing Medium ones (High 41.5% WR / +13.5% ROI vs Medium 53.2% / +44.4%), meeting C4's deferral condition (118 high-conf trades). The roadmap required measuring whether the tier carries any predictive signal before acting.
+
+### What the audit found (306 settled bets)
+
+- **No positive signal — controlled for edge.** Bucketing High vs Medium by *claimed* edge: in the 5–10% band High is 34.4% WR (n=32) vs Medium 62.7% (n=51); in the 10%+ band 45.2% vs 46.8%. At equal claimed edge, High wins less.
+- **Mechanism is over-claim on efficient prices**, not "tight = low edge" as the roadmap guessed. High actually carries *higher* avg claimed edge (19.1% vs 15.9%) — a tight ≥8-sharp-book consensus is an efficient price, so a large model edge against it is most likely model error. Worst cells: NCAAMB High (33.8% edge / 28.6% WR), HIGH/NO (−29.7% ROI). High works only for NHL (70% WR).
+
+### What landed
+
+- **`high`→`medium` in the sports composite weight** (`{low:3, medium:6, high:6}×0.30`) across all three formulas (game/spread/total) in `edge_detector.py`. "High" no longer earns a +0.9 composite premium, so it can't float no-signal bets up the `--max-bets` queue or ease Gate 4 (`MIN_COMPOSITE_SCORE`).
+- **Left intact:** the `high` *label* (still a Gate 4.6 restriction on NO-favorites), Gate 4.5, and Kelly sizing (which never read confidence). Scoped to **sports only** — futures/prediction modules mint "high" by different rules and were out of scope. No env var.
+- A documented follow-up **C4b** (edge-cap the minting rule to make a meaningful High tier) is logged in the roadmap; deferred because High underperforms even at low edge.
+
+### Verification
+
+Full suite **493 passing**. No test asserted the internal composite formula (composite is supplied as a fixture), so the change is a pure ranking-calibration tweak; behavior validated against the 306-bet settlement history. Live automation is unaffected until the branch merges to master.
+
+### Files
+
+`scripts/kalshi/edge_detector.py`, `CLAUDE.md`, `docs/CHANGELOG.md`, `docs/enhancements/ROADMAP.md`.
+
+---
+
 ## 2026-06-23 -- L1 Phase 2 live-freshness fixes (fail-closed staleness + min-books floor)
 
 ### Why
