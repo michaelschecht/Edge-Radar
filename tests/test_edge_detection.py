@@ -988,3 +988,114 @@ class TestDynamicStdevLoading:
                     assert _get_margin_stdev("KXNBAGAME-...") == 13.8
             finally:
                 reset_config()
+
+
+class TestLiveInPlayOddsPhase2:
+    """L1 Phase 2: targeted live fetch and stale bookmaker exclusion."""
+
+    @patch("edge_detector.fetch_event_odds_api")
+    def test_refresh_event_if_live_updates_event_when_game_started(self, mock_fetch_event):
+        from edge_detector import _refresh_event_if_live
+        from datetime import datetime, timedelta, timezone
+        
+        # Scenario 1: Game not started yet (future commence time)
+        commence_future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+        market = {"ticker": "KXNBAGAME-26APR21LALBOS-LAL"}
+        matched_event = {
+            "id": "event_123",
+            "sport_key": "basketball_nba",
+            "commence_time": commence_future,
+            "bookmakers": [{"key": "draftkings", "markets": []}]
+        }
+        
+        result = _refresh_event_if_live(matched_event, market)
+        assert result is matched_event
+        mock_fetch_event.assert_not_called()
+        
+        # Scenario 2: Game started (commence time in the past)
+        commence_past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+        matched_event_past = {
+            "id": "event_123",
+            "sport_key": "basketball_nba",
+            "commence_time": commence_past,
+            "bookmakers": [{"key": "draftkings", "markets": []}]
+        }
+        
+        refreshed_event = {
+            "id": "event_123",
+            "sport_key": "basketball_nba",
+            "commence_time": commence_past,
+            "bookmakers": [{"key": "draftkings", "markets": [{"key": "h2h", "outcomes": []}]}]
+        }
+        mock_fetch_event.return_value = refreshed_event
+        
+        result = _refresh_event_if_live(matched_event_past, market)
+        assert result is refreshed_event
+        mock_fetch_event.assert_called_once_with("basketball_nba", "event_123")
+
+    def test_is_bookmaker_stale_excludes_stale_bookmaker_in_consensus(self):
+        from edge_detector import _is_bookmaker_stale, consensus_fair_value, _parse_iso_utc
+        from datetime import datetime, timedelta, timezone
+        
+        # Game in progress (started 10 mins ago)
+        commence_time = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat().replace("+00:00", "Z")
+        
+        # Stale bookmaker last updated 30 minutes ago (1800s ago > 1200s max)
+        stale_lu = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat().replace("+00:00", "Z")
+        # Fresh bookmaker last updated 1 minute ago
+        fresh_lu = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
+        
+        event = {
+            "commence_time": commence_time,
+            "bookmakers": [
+                {
+                    "key": "pinnacle",
+                    "last_update": fresh_lu,
+                    "markets": [{
+                        "key": "h2h",
+                        "outcomes": [
+                            {"name": "Lakers", "price": 1.5},
+                            {"name": "Celtics", "price": 2.5}
+                        ]
+                    }]
+                },
+                {
+                    "key": "draftkings",
+                    "last_update": stale_lu,
+                    "markets": [{
+                        "key": "h2h",
+                        "outcomes": [
+                            {"name": "Lakers", "price": 2.0},
+                            {"name": "Celtics", "price": 2.0}
+                        ]
+                    }]
+                }
+            ]
+        }
+        
+        # Verify freshness check on bookmakers
+        assert _is_bookmaker_stale(event["bookmakers"][0], event, 1200) is False
+        assert _is_bookmaker_stale(event["bookmakers"][1], event, 1200) is True
+        
+        # Verify consensus_fair_value excludes DraftKings and devigs only Pinnacle
+        result = consensus_fair_value([event], "Lakers")
+        assert result is not None
+        fair_prob, details = result
+        assert fair_prob == pytest.approx(0.625, abs=0.001)
+        assert "pinnacle" in details["books"]
+        assert "draftkings" not in details["books"]
+        
+        # If the event was pre-game, last_update is not checked for staleness
+        pregame_commence = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat().replace("+00:00", "Z")
+        event_pregame = dict(event, commence_time=pregame_commence)
+        
+        assert _is_bookmaker_stale(event_pregame["bookmakers"][0], event_pregame, 1200) is False
+        assert _is_bookmaker_stale(event_pregame["bookmakers"][1], event_pregame, 1200) is False
+        
+        # Both bookmakers will be included in consensus
+        result_pregame = consensus_fair_value([event_pregame], "Lakers")
+        assert result_pregame is not None
+        _, details_pregame = result_pregame
+        assert "pinnacle" in details_pregame["books"]
+        assert "draftkings" in details_pregame["books"]
+

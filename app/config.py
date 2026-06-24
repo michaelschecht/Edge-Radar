@@ -193,6 +193,7 @@ class GateThresholds:
     min_consensus_books_nba: int = 8
     calibration_stdevs_ttl_days: int = 30
     cross_category_dedup: bool = False
+    max_live_book_age_seconds: int = 1200
 
     @classmethod
     def from_env(cls) -> "GateThresholds":
@@ -211,6 +212,7 @@ class GateThresholds:
             min_consensus_books_nba=_int("MIN_CONSENSUS_BOOKS_NBA", 8),
             calibration_stdevs_ttl_days=_int("CALIBRATION_STDEVS_TTL_DAYS", 30),
             cross_category_dedup=_bool("CROSS_CATEGORY_DEDUP", False),
+            max_live_book_age_seconds=_int("MAX_LIVE_BOOK_AGE_SECONDS", 1200),
         )
 
 
@@ -440,6 +442,10 @@ class Config:
         if self.gates.calibration_stdevs_ttl_days <= 0:
             raise ValueError(
                 f"CALIBRATION_STDEVS_TTL_DAYS must be > 0, got {self.gates.calibration_stdevs_ttl_days}"
+            )
+        if self.gates.max_live_book_age_seconds < 0:
+            raise ValueError(
+                f"MAX_LIVE_BOOK_AGE_SECONDS must be >= 0, got {self.gates.max_live_book_age_seconds}"
             )
         if self.gates.min_edge_threshold < 0:
             raise ValueError(

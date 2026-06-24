@@ -1,6 +1,6 @@
 # Edge-Radar Enhancement Roadmap
 
-*Last updated: 2026-06-20 — **L1 Phase 1 shipped** (live in-play odds freshness fix: TTL'd the previously-no-TTL in-process odds cache + a live-aware TTL on both cache layers when a sport response contains an in-progress game, fixing F44 phantom edges; added Gate 4.8 `ALLOW_LIVE_BETS`, default off; 463 tests passing). The full ship-by-ship history lives in the [Completed](#completed) index below — keep new entries there, not on this line.*
+*Last updated: 2026-06-23 — **L1 (Phase 2), R28, R29, and C8 shipped** (NO-side overrides, NBA consensus books, automatic stdev recalibration, and live-odds targeted fetch + book freshness check). The full ship-by-ship history lives in the [Completed](#completed) index below — keep new entries there, not on this line.*
 
 All pending improvements for Edge-Radar in a single prioritized action list, plus findings/context behind them and an index of completed work.
 
@@ -36,11 +36,7 @@ One unified list. Items from retired sections (C1a, R-series, S/H/M/U/D/A/T tier
 
 These items address the critical P&L drains and calibration overconfidence identified in the 90-day review (2026-06-23).
 
-| ID | Item | Impact | Effort | Notes |
-|----|------|--------|--------|-------|
-| R28 | **NO-Side Sizing & Edge Override** | High | Small | Address the NO-side drag (-7.0% ROI). Require elevated edge floors (e.g. 8% min) or tighter Kelly multipliers (e.g., half-Kelly by default) for NO wagers. |
-| R29 | **NBA Model & Consensus Calibration** | High | Medium | Address the NBA deficit (-23.3% ROI). Adjust margin/totals stdevs in CDF models and raise minimum consensus book limit to 8 to avoid stale recreational lines. |
-| C8 | **Auto-recalibrate per-sport stdevs from settlement data** | Medium | Medium | Moved from Priority 2. Calibration overconfidence is a major P&L concern (11% to 15% predicted-probability inflation). Automate standard deviation updates using Brier scores and calibration data. |
+*All items in this priority category have been successfully shipped (R28, R29, C8 shipped 2026-06-23).*
 
 *Note: R12–R18, R20, R21–R23, R24a, R25 all shipped 2026-04-24. R27 shipped 2026-06-15.*
 
@@ -55,7 +51,6 @@ Items that improve measurement, close known gaps, or remove operator friction.
 | R23b | **Distinguish 401 vs 429 in Odds API key rotation** | Low | Small | F41 (2026-05-13 analysis). R23 rotates on both 401 and 429 and calls `mark_exhausted()` on 401. If the Odds API ever sends a 429 for transient per-second/per-minute rate limits (vs. quota exhaustion), a healthy key gets permanently dumped. Fix: only `mark_exhausted` on 401; on 429, short back-off then retry the same key. Inspect `X-Requests-Remaining` / `X-Requests-Last` headers when present. Low-urgency — no observed 429s today — but tightens the rotation contract before quota pressure increases. |
 | R24c | **Audit `install_windows_task.py` vs live scheduler** | Low | Small | **Discovered during R24 investigation.** User has 13 tasks installed under `\Edge-Radar\` but `install_windows_task.py status` only knows about 5 profiles (scan, execute, settle, next-day, calibration). The 8 others (`All-Sports-SameDay-Execution`, `All-Sports-NoDateFilter-Execution`, `NextDay-Execute`, `Backtest`, `Calibration`, `Reconcile`, and 4 `Email-*` jobs) were created manually. Add the missing profiles so the installer has an honest view of what's running. Cosmetic but prevents future "where did this task come from?" confusion. **Note (2026-04-30):** U2 added 2 more (`Daily-Summary`, `Email-Daily-Summary`) — also installed manually. R24c scope grows by 2. |
 | U1 | **Automated settlement cron** | Medium | Small | Run `kalshi_settler.py` hourly on market-close times. Standalone; also a building block for A6. |
-| L1 | **Live in-play odds (real-time edges on in-progress games)** | High | Medium (phased) | Design doc: [`live-in-play-odds-design.md`](live-in-play-odds-design.md). **Phase 1 SHIPPED 2026-06-20** (freshness fix + Gate 4.8 `ALLOW_LIVE_BETS` — see Completed). Remaining: **Phase 2** = per-event `/events/{id}/odds` refresh (capture the Odds API event `id` at match time, refresh only in-progress games instead of re-pulling the whole sport) + the deferred Q3 stale-`last_update` edge-suppression guard. **Phase 3** (real-time polling / auto-exec) likely out of scope. Caveats: quota (`markets×regions`), uneven US in-play book coverage (soccer good, MLB spotty/suspended), execution lag. |
 
 ### Priority 3 — Background (Data Quality, UX, Hygiene)
 
@@ -331,6 +326,15 @@ Re-measure at 4 weeks. If ≥25% bucket is still negative, tighten to a harder c
 ## Completed
 
 Index only — detailed notes are in the collapsed section below.
+
+### 2026-06-23 — L1 (Phase 2) + R28 + R29 + C8 Shipped
+
+| ID | Item |
+|----|------|
+| R28 | **NO-Side Sizing & Edge Override.** Implemented an elevated minimum edge floor (8%) and configurable Kelly multiplier override (default 1.0) globally for NO bets to damp contract sizing and address the NO-side contract P&L drag (-7% ROI). |
+| R29 | **NBA Model & Consensus Calibration.** Raise minimum consensus book limit to 8 (`MIN_CONSENSUS_BOOKS_NBA=8`) for NBA games, dropping the confidence tier to `low` if fewer than 8 books agree, avoiding stale recreational lines. |
+| C8 | **Auto-recalibrate sport stdevs.** Closed the calibration feedback loop by automating the calculation of updated CDF standard deviations from settled trade outcomes, caching recommendations to `data/cache/calibration_stdevs.json` which is read at runtime. |
+| L1 (Phase 2) | **Live in-play odds — targeted live fetch + stale bookmaker suppression.** Designed and implemented Phase 2 of L1. Implemented `fetch_event_odds_api` in `edge_detector.py` to query `GET /v4/sports/{sport}/events/{eventId}/odds` when a matched game is in progress, bypassing sport-level caching. Implemented cross-process and in-process single-event caching via `odds_cache.load_event`/`store_event`. Added a bookmaker freshness check `_is_bookmaker_stale` using the new `MAX_LIVE_BOOK_AGE_SECONDS` threshold (default 1200s/20m) to exclude stale/suspended bookmaker lines from consensus calculations for live games. Added unit and integration tests. |
 
 ### 2026-06-20 — L1 Phase 1 + World Cup + Kalshi v2 Orders + R19(b) PGA
 

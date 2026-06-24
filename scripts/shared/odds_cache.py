@@ -32,11 +32,16 @@ from paths import DATA_DIR
 log = logging.getLogger("odds_cache")
 
 _CACHE_DIR = DATA_DIR / "cache" / "odds"
+_EVENT_CACHE_DIR = DATA_DIR / "cache" / "odds" / "events"
 
 
 def _filename(sport_key: str, markets: str) -> Path:
     safe_markets = markets.replace(",", "_")
     return _CACHE_DIR / f"{sport_key}__{safe_markets}.json"
+
+
+def _event_filename(sport_key: str, event_id: str) -> Path:
+    return _EVENT_CACHE_DIR / f"{sport_key}__{event_id}.json"
 
 
 def _now() -> datetime:
@@ -155,18 +160,75 @@ def store(sport_key: str, markets: str, events: list) -> None:
         log.debug("odds_cache.store failed for %s/%s: %s", sport_key, markets, e)
 
 
+def load_event(
+    sport_key: str,
+    event_id: str,
+    live_ttl_seconds: int,
+) -> tuple[dict, int] | tuple[None, None]:
+    """Return (event, age_seconds) on hit within live TTL, else (None, None)."""
+    if live_ttl_seconds <= 0:
+        return None, None
+
+    path = _event_filename(sport_key, event_id)
+    if not path.exists():
+        return None, None
+
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, None
+
+    fetched_at_str = raw.get("fetched_at")
+    event = raw.get("event")
+    if not isinstance(fetched_at_str, str) or not isinstance(event, dict):
+        return None, None
+
+    try:
+        fetched_at = datetime.fromisoformat(fetched_at_str.replace("Z", "+00:00"))
+    except ValueError:
+        return None, None
+
+    age_seconds = int((_now() - fetched_at).total_seconds())
+    if age_seconds < 0 or age_seconds > live_ttl_seconds:
+        return None, None
+
+    return event, age_seconds
+
+
+def store_event(sport_key: str, event_id: str, event: dict) -> None:
+    """Write a single event's odds to the on-disk cache. Silent on any I/O error."""
+    path = _event_filename(sport_key, event_id)
+    payload = {
+        "fetched_at": _now().isoformat().replace("+00:00", "Z"),
+        "sport_key": sport_key,
+        "event_id": event_id,
+        "event": event,
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    except OSError as e:
+        log.debug("odds_cache.store_event failed for %s/%s: %s", sport_key, event_id, e)
+
+
 def clear() -> int:
     """Delete every cached odds file. Returns count of files removed.
 
     Used by tests and as a manual purge knob. Silent on per-file errors.
     """
-    if not _CACHE_DIR.exists():
-        return 0
     removed = 0
-    for path in _CACHE_DIR.glob("*.json"):
-        try:
-            path.unlink()
-            removed += 1
-        except OSError:
-            pass
+    if _CACHE_DIR.exists():
+        for path in _CACHE_DIR.glob("*.json"):
+            try:
+                path.unlink()
+                removed += 1
+            except OSError:
+                pass
+    if _EVENT_CACHE_DIR.exists():
+        for path in _EVENT_CACHE_DIR.glob("*.json"):
+            try:
+                path.unlink()
+                removed += 1
+            except OSError:
+                pass
     return removed
