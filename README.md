@@ -275,6 +275,7 @@ Want the **complete** pipeline — emails, midday/late runs, weekly calibration/
 
 | Guide | Description |
 |:------|:------------|
+| **[Documentation Index](docs/README.md)** | Central index and map linking all guides, references, and specifications |
 | **[Setup Guide](docs/setup/SETUP_GUIDE.md)** | Install, API keys, `.env`, safe rollout, automation, and monitoring — the single end-to-end operator guide |
 | **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** | Windows Task Scheduler for daily betting — one-command installer for the core tasks |
 | **[Task-Schedule Reference](docs/setup/task-schedules.md)** | Full 17-task pipeline roster with `.bat`/`.sh` templates and `schtasks` setup |
