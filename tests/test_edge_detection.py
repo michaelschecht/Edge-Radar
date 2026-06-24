@@ -1060,6 +1060,56 @@ class TestDynamicStdevLoading:
                 reset_config()
 
 
+class TestCalibrationStdevComputation:
+    """C8-followup: significance-gated, sample-floored per-sport stdev calibration."""
+
+    @staticmethod
+    def _recs(n, fair_value, wins, category="spread", ticker="KXNBASPREAD-X", has_fv=True):
+        return [
+            {
+                "ticker": ticker,
+                "category": category,
+                "fair_value": fair_value,
+                "settlement_won": i < wins,
+                "_has_fair_value": has_fv,
+            }
+            for i in range(n)
+        ]
+
+    def test_skips_below_min_samples(self):
+        import model_calibration as mc
+        # Overconfident (pred .65 vs real ~.42) but only 19 bets (< the 20 floor) — must not move.
+        settled = self._recs(19, 0.65, 8)
+        assert mc._calibrate_one_stdev(settled, "basketball_nba", 13.8, "spread") == 13.8
+
+    def test_holds_when_gap_insignificant(self):
+        import model_calibration as mc
+        # 40 bets, pred .52 vs real .50 — a 2pp gap is within sampling noise.
+        settled = self._recs(40, 0.52, 20)
+        assert mc._calibrate_one_stdev(settled, "basketball_nba", 13.8, "spread") == 13.8
+
+    def test_widens_on_significant_overconfidence(self):
+        import model_calibration as mc
+        # 60 bets, pred .55 vs real .40 — a 15pp gap clears the 1.96-SE gate.
+        settled = self._recs(60, 0.55, 24)
+        new = mc._calibrate_one_stdev(settled, "basketball_nba", 13.8, "spread")
+        assert new > 13.8
+        assert new <= round(13.8 * 1.25, 3)  # within the per-run ceiling
+
+    def test_excludes_missing_fair_value(self):
+        import model_calibration as mc
+        # 60 overconfident bets but none carry a recorded fair_value -> all excluded.
+        settled = self._recs(60, 0.55, 24, has_fv=False)
+        assert mc._calibrate_one_stdev(settled, "basketball_nba", 13.8, "spread") == 13.8
+
+    def test_clamps_extreme_multiplier(self):
+        import model_calibration as mc
+        # pred .95 vs real .30 would imply x1.65; the clamp caps it at x1.25.
+        settled = self._recs(60, 0.95, 18)
+        new = mc._calibrate_one_stdev(settled, "basketball_nba", 13.8, "spread")
+        assert new == round(13.8 * 1.25, 3)
+
+
 class TestLiveInPlayOddsPhase2:
     """L1 Phase 2: targeted live fetch and stale bookmaker exclusion."""
 
