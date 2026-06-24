@@ -2,6 +2,35 @@
 
 ---
 
+## 2026-06-23 -- 90-Day Review Fixes: NO-Side Floors (R28), NBA Consensus (R29), Auto-Stdev Calibration (C8), Live Odds Phase 2 (L1)
+
+### Why
+
+The 90-day review (302 settled trades) surfaced three structural P&L/calibration problems and the live-odds work had a Phase 2 remaining:
+- **NO contracts net -7.0% ROI vs YES +48.1%** at near-identical (~48%) win rates (F45) — a structural pricing drag on the NO side.
+- **NBA -23.3% ROI** across 32 bets (F46), partly edges built on thin/stale recreational lines.
+- **Model overconfidence** — predicted probabilities run 11-25% above realized win rates across mid/high bands (F47); per-sport stdevs were still hand-tuned (F40).
+- **L1 Phase 1** fixed live-edge *freshness* via caching TTLs but still re-pulled whole sports and trusted every in-play book.
+
+### What landed
+
+- **R28 — global NO-side floors.** Every NO bet's effective edge floor is now `max(per-sport floor, NO_SIDE_MIN_EDGE_GLOBAL)` (**default 8%**), independent of price (Gate 4.6b), plus a `NO_SIDE_KELLY_MULTIPLIER_GLOBAL` dampener on all NO sizing (**default 1.0 = off**). The edge floor does the heavy lifting; the multiplier is a tuning lever.
+- **R29 — NBA consensus-book floor.** NBA games with fewer than `MIN_CONSENSUS_BOOKS_NBA` (**default 8**) agreeing books are dropped to `low` confidence, which Gate 4.5 (`MIN_CONFIDENCE=medium`) then rejects — filtering edges built on stale recreational lines.
+- **C8 — auto-recalibrated per-sport stdevs.** `model_calibration.py` now writes recommended `SPORT_MARGIN_STDEV` / `SPORT_TOTAL_STDEV` to `data/cache/calibration_stdevs.json` from settled-trade outcomes; the edge detector reads them at runtime, falling back to hardcoded defaults when the cache is older than `CALIBRATION_STDEVS_TTL_DAYS` (**default 30**). Closes the F40 hand-tuning loop.
+  - **Fail-safe hardening (follow-up review):** the loader now validates every cached value (numeric, finite, within `[0.5, 60]`) and rejects the whole map on any bad entry; an unsupported `version` or unreadable file falls back to defaults instead of silently retaining stale overrides; the per-lookup re-parse/re-warn loop is fixed (the file's mtime is marked processed up front); and the writer is now atomic (temp file + `Path.replace`) so a concurrent scan can't read a half-written file.
+  - **Statistical fix (C8-followup):** the recommender no longer moves a sport's stdev on noise. It now requires **≥20 settled bets** in that sport+market, gates the move on **statistical significance** (the predicted-vs-realized gap must exceed 1.5 standard errors), uses a gentler `×1.0` step (was `×1.5`) clamped to **`[0.85, 1.25]`** per run (was `[0.8, 1.5]`), and **excludes settlements with no recorded `fair_value`** (previously defaulted to 0.5, contaminating the average). Run against the full 302-bet history, this writes a **single** override — NCAAB margin 12.1 → 14.7 (×1.22) from 29 spread bets at a significant +21.8pp overconfidence gap — and every other sport holds at base (below the floor or within noise). The calibration cron is now safe to run. The earlier cache (NBA totals +39%, soccer margin −20% on samples of 1–22 bets) was deleted.
+- **L1 Phase 2 — targeted live fetch + stale-book suppression.** For an in-progress matched game, `fetch_event_odds_api` queries `GET /v4/sports/{sport}/events/{eventId}/odds` (bypassing the sport-level cache, with its own single-event cache via `odds_cache.load_event`/`store_event`), and `_is_bookmaker_stale` excludes any book whose line is older than `MAX_LIVE_BOOK_AGE_SECONDS` (**default 1200s / 20m**) from the live consensus.
+
+### Verification
+
++15 feature tests + 6 C8 fail-safe tests (invalid-value rejection across 5 cases, unsupported-version fallback, plus a global-state reset fixture) + 5 C8 statistics tests (sample floor, significance hold, significant-widen, missing-fair_value exclusion, clamp ceiling) across `test_edge_detection.py`, `test_risk_gates.py`, `test_odds_cache.py`, `test_config.py` → **489 passing**.
+
+### Files
+
+`app/config.py`, `scripts/kalshi/edge_detector.py`, `scripts/kalshi/kalshi_executor.py`, `scripts/kalshi/model_calibration.py`, `scripts/shared/odds_cache.py`, `tests/test_edge_detection.py`, `tests/test_risk_gates.py`, `tests/test_odds_cache.py`, `tests/test_config.py`, `.env.example`, `CLAUDE.md`, `docs/enhancements/ROADMAP.md`, `docs/CHANGELOG.md`.
+
+---
+
 ## 2026-06-20 -- Live In-Play Odds Freshness Fix (L1 Phase 1)
 
 ### Why

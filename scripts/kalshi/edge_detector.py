@@ -22,6 +22,7 @@ import re
 import sys
 import os
 import json
+import math
 import time
 import logging
 import argparse
@@ -610,8 +611,35 @@ _last_loaded_stdev_time = 0.0
 _cached_calibrated_margin_stdev = {}
 _cached_calibrated_total_stdev = {}
 
+# Sane bounds for a calibrated stdev. The writer clamps to [0.8, 1.5]x a base
+# in [1.5, 20.7], so anything outside this range is corruption / a hand-edit and
+# must never reach the normal-CDF pricing model (a 0 stdev makes every favorite
+# ~100%, a negative one breaks scipy).
+_STDEV_MIN = 0.5
+_STDEV_MAX = 60.0
+
+
+def _valid_stdev_map(raw) -> dict | None:
+    """Return a clean {sport: float} stdev map, or None if any entry is unusable
+    (non-dict, non-numeric, bool, non-finite, or outside [_STDEV_MIN, _STDEV_MAX]).
+    Reject-the-whole-map semantics keep a single bad value from silently mispricing
+    a sport — the caller falls back to the hardcoded SPORT_*_STDEV defaults."""
+    if not isinstance(raw, dict):
+        return None
+    clean = {}
+    for key, value in raw.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        if not math.isfinite(value) or not (_STDEV_MIN <= value <= _STDEV_MAX):
+            return None
+        clean[key] = float(value)
+    return clean
+
+
 def load_calibration_stdevs():
-    """Load standard deviation overrides from calibration_stdevs.json if present and fresh."""
+    """Load per-sport stdev overrides from calibration_stdevs.json when present,
+    fresh, and valid. Any problem (missing, stale, unreadable, wrong version, or
+    out-of-range values) falls back safely to the hardcoded SPORT_*_STDEV defaults."""
     global _last_loaded_stdev_time, _cached_calibrated_margin_stdev, _cached_calibrated_total_stdev
     if "pytest" in sys.modules and not get_config().system.test_calibration_stdevs:
         return
@@ -620,32 +648,48 @@ def load_calibration_stdevs():
         return
     try:
         mtime = calibration_path.stat().st_mtime
-        if mtime == _last_loaded_stdev_time:
-            return
-        
-        # Check staleness (TTL from config)
-        ttl_days = get_config().gates.calibration_stdevs_ttl_days
-        file_age = time.time() - mtime
-        if file_age > ttl_days * 86400:
-            log.warning("Calibration file %s is stale (age %.1f days > %d days). Using defaults.", 
-                        calibration_path, file_age / 86400, ttl_days)
-            _cached_calibrated_margin_stdev = {}
-            _cached_calibrated_total_stdev = {}
-            return
-            
+    except OSError:
+        return
+    if mtime == _last_loaded_stdev_time:
+        return
+
+    # Mark this file version processed up front, regardless of the outcome below.
+    # load_calibration_stdevs() runs on every per-scan stdev lookup (thousands of
+    # times), so a stale/invalid file must not be re-parsed and re-warned each
+    # call. Every return path from here leaves both caches in a defined state.
+    _last_loaded_stdev_time = mtime
+    _cached_calibrated_margin_stdev = {}
+    _cached_calibrated_total_stdev = {}
+
+    ttl_days = get_config().gates.calibration_stdevs_ttl_days
+    file_age_days = (time.time() - mtime) / 86400
+    if file_age_days > ttl_days:
+        log.warning("calibration_stdevs.json is stale (age %.1f days > %d days). Using defaults.",
+                    file_age_days, ttl_days)
+        return
+
+    try:
         with open(calibration_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            
-        if data.get("version") == 1:
-            _cached_calibrated_margin_stdev = data.get("margin_stdev", {})
-            _cached_calibrated_total_stdev = data.get("total_stdev", {})
-            _last_loaded_stdev_time = mtime
-            log.info("Successfully loaded calibrated standard deviations from %s (age %.1f days)", 
-                     calibration_path, file_age / 86400)
     except Exception as e:
-        log.warning("Failed to load calibration stdevs from %s: %s. Using defaults.", calibration_path, e)
-        _cached_calibrated_margin_stdev = {}
-        _cached_calibrated_total_stdev = {}
+        log.warning("calibration_stdevs.json unreadable (%s). Using defaults.", e)
+        return
+
+    if data.get("version") != 1:
+        log.warning("calibration_stdevs.json has unsupported version %r. Using defaults.",
+                    data.get("version"))
+        return
+
+    margin = _valid_stdev_map(data.get("margin_stdev", {}))
+    total = _valid_stdev_map(data.get("total_stdev", {}))
+    if margin is None or total is None:
+        log.warning("calibration_stdevs.json contains invalid stdev values. Using defaults.")
+        return
+
+    _cached_calibrated_margin_stdev = margin
+    _cached_calibrated_total_stdev = total
+    log.info("Loaded calibrated standard deviations from %s (age %.1f days).",
+             calibration_path, file_age_days)
 
 
 def _get_margin_stdev(ticker: str) -> float:

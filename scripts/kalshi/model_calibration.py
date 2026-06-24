@@ -81,46 +81,78 @@ def get_sport_key(ticker: str) -> str | None:
             return key
     return None
 
+# ── C8 calibration tuning constants ──────────────────────────────────────────
+# Deliberately conservative (see C8-followup, 2026-06-23 review). The earlier
+# version moved a sport's stdev on as few as 5 settled bets with a x1.5
+# amplifier and a [0.8, 1.5] clamp, so one unlucky week could swing live pricing
+# ±20–50% on noise (it widened NBA totals +39% and clamped soccer margin to the
+# -20% floor). These guards require a real, statistically-significant signal and
+# cap how far a single monthly run can move.
+_MIN_CALIB_SAMPLES = 20          # need a real sample before touching live pricing
+_CALIB_SIGNIFICANCE_Z = 1.5      # ~87%: |gap| must exceed this many standard errors
+_CALIB_ADJUST_COEFF = 1.0        # gentle: a +15pp gap -> ~1.15x, not 1.225x
+_CALIB_MULT_FLOOR = 0.85         # cap a single run's move to [-15%, +25%]
+_CALIB_MULT_CEIL = 1.25
+
+
+def _calibrate_one_stdev(settled: list[dict], sport_key: str, base_stdev: float,
+                         category: str) -> float:
+    """Return a calibrated stdev for one sport/market, or base_stdev unchanged
+    when there is no statistically meaningful overconfidence signal.
+
+    Compares the mean predicted probability (model fair value) of the settled
+    bets in this sport+category against their realized win rate. A positive gap
+    means the model was overconfident, so the stdev is widened (pulling
+    probabilities toward 0.5); a negative gap narrows it. The move is gated on
+    sample size (>= _MIN_CALIB_SAMPLES) and statistical significance
+    (|gap| > _CALIB_SIGNIFICANCE_Z * standard error), then clamped — so noise and
+    small samples cannot swing live pricing.
+
+    This is a conservative auto-nudge, NOT a maximum-likelihood stdev fit: the gap
+    is measured only over gate-selected (placed) bets, so it cannot fully separate
+    stdev miscalibration from bet-selection bias. It relies on the monthly loop
+    compounding small, significant corrections over time. Records without a
+    recorded fair_value are excluded so the 0.5 loader default can't contaminate
+    the average.
+    """
+    group = [
+        t for t in settled
+        if get_sport_key(t.get("ticker", "")) == sport_key
+        and t.get("category") == category
+        and t.get("_has_fair_value")
+    ]
+    n = len(group)
+    if n < _MIN_CALIB_SAMPLES:
+        log.info("Calibration skip %s/%s: only %d settled bets with fair_value (need %d).",
+                 sport_key, category, n, _MIN_CALIB_SAMPLES)
+        return base_stdev
+
+    pred_avg = sum(t["fair_value"] for t in group) / n
+    real_avg = sum(1.0 if t.get("settlement_won") else 0.0 for t in group) / n
+    gap = pred_avg - real_avg
+    se = math.sqrt(real_avg * (1.0 - real_avg) / n) if 0.0 < real_avg < 1.0 else 0.0
+    if se == 0.0 or abs(gap) < _CALIB_SIGNIFICANCE_Z * se:
+        log.info("Calibration hold %s/%s: gap %+.1f%% within noise (n=%d, se=%.3f).",
+                 sport_key, category, gap * 100, n, se)
+        return base_stdev
+
+    multiplier = max(_CALIB_MULT_FLOOR, min(_CALIB_MULT_CEIL, 1.0 + gap * _CALIB_ADJUST_COEFF))
+    new_stdev = round(base_stdev * multiplier, 3)
+    log.info("Calibrate %s/%s: base=%.2f gap=%+.1f%% (n=%d, se=%.3f) -> %.2f (x%.3f).",
+             sport_key, category, base_stdev, gap * 100, n, se, new_stdev, multiplier)
+    return new_stdev
+
+
 def save_calibration_stdevs(settled: list[dict]):
     """Calculate and write calibrated sport standard deviations to data/cache/calibration_stdevs.json."""
-    calibrated_margin = {}
-    calibrated_total = {}
-    
-    for sport_key, base_stdev in CURRENT_MARGIN_STDEV.items():
-        in_group = [
-            t for t in settled
-            if get_sport_key(t.get("ticker", "")) == sport_key
-            and t.get("category") == "spread"
-        ]
-        if len(in_group) >= 5:
-            pred_avg = sum(t.get("fair_value", 0.5) for t in in_group) / len(in_group)
-            real_avg = sum(1.0 if t.get("settlement_won") else 0.0 for t in in_group) / len(in_group)
-            gap = pred_avg - real_avg
-            # We want to increase stdev if gap is positive (overconfident), and decrease it if negative.
-            # Clamp the multiplier to [0.8, 1.5]
-            multiplier = max(0.8, min(1.5, 1.0 + gap * 1.5))
-            calibrated_margin[sport_key] = round(base_stdev * multiplier, 3)
-            log.info("Calibrating margin stdev for %s: base=%.2f, gap=%+.1f%%, new=%.2f (n=%d)",
-                     sport_key, base_stdev, gap * 100, calibrated_margin[sport_key], len(in_group))
-        else:
-            calibrated_margin[sport_key] = base_stdev
-
-    for sport_key, base_stdev in CURRENT_TOTAL_STDEV.items():
-        in_group = [
-            t for t in settled
-            if get_sport_key(t.get("ticker", "")) == sport_key
-            and t.get("category") == "total"
-        ]
-        if len(in_group) >= 5:
-            pred_avg = sum(t.get("fair_value", 0.5) for t in in_group) / len(in_group)
-            real_avg = sum(1.0 if t.get("settlement_won") else 0.0 for t in in_group) / len(in_group)
-            gap = pred_avg - real_avg
-            multiplier = max(0.8, min(1.5, 1.0 + gap * 1.5))
-            calibrated_total[sport_key] = round(base_stdev * multiplier, 3)
-            log.info("Calibrating total stdev for %s: base=%.2f, gap=%+.1f%%, new=%.2f (n=%d)",
-                     sport_key, base_stdev, gap * 100, calibrated_total[sport_key], len(in_group))
-        else:
-            calibrated_total[sport_key] = base_stdev
+    calibrated_margin = {
+        sport_key: _calibrate_one_stdev(settled, sport_key, base_stdev, "spread")
+        for sport_key, base_stdev in CURRENT_MARGIN_STDEV.items()
+    }
+    calibrated_total = {
+        sport_key: _calibrate_one_stdev(settled, sport_key, base_stdev, "total")
+        for sport_key, base_stdev in CURRENT_TOTAL_STDEV.items()
+    }
 
     output_data = {
         "version": 1,
@@ -132,9 +164,15 @@ def save_calibration_stdevs(settled: list[dict]):
     cache_dir = Path(paths.PROJECT_ROOT) / "data" / "cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_file = cache_dir / "calibration_stdevs.json"
-    
-    with open(cache_file, "w", encoding="utf-8") as f:
+
+    # Atomic write: serialize to a temp file in the same directory, then replace.
+    # This calibration job runs nightly via the scheduler while live scans and the
+    # Streamlit app may be reading the file; an in-place truncate+stream would let a
+    # reader see half-written JSON. Path.replace() is atomic on the same filesystem.
+    tmp_file = cache_dir / "calibration_stdevs.json.tmp"
+    with open(tmp_file, "w", encoding="utf-8") as f:
         json.dump(output_data, f, indent=2)
+    tmp_file.replace(cache_file)
     rprint(f"[green]Calibrated standard deviations written to {cache_file}[/green]")
 
 # Map sport display names back to sport keys
@@ -190,6 +228,11 @@ def _load_settled_trades() -> list[dict]:
             "category": _BET_TYPE_TO_CATEGORY.get(bet_type, bet_type.lower() or "other"),
             "edge_estimated": edge_val,
             "fair_value": fv_val,
+            # Track whether fair_value was actually recorded. Older settlements
+            # predate the field; defaulting them to 0.5 (above) is fine for the
+            # Brier/bucket displays but must NOT contaminate stdev calibration,
+            # which excludes records where this is False.
+            "_has_fair_value": fv is not None,
         })
     return trades
 
