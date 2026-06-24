@@ -65,9 +65,8 @@ Edge-Radar/
 │   │   ├── kalshi-sports-betting/   # Sports: filters, edge detection, MLB filtering
 │   │   ├── kalshi-prediction-betting/ # Prediction: crypto, weather, S&P
 │   │   └── kalshi-futures-betting/  # Futures: championship markets
-│   ├── mcp-config/                  # MCP server reference
 │   ├── scripts/                     # Per-script detailed docs
-│   ├── setup/                       # Setup & automation guides
+│   ├── setup/                       # Setup guides, automation & MCP reference
 │   └── enhancements/                # ROADMAP.md — enhancement roadmap (tracked)
 ├── app/                             # Application core
 │   ├── config.py                    # Single source of truth for env-driven knobs (see CONFIG_CENTRALIZATION.md, Phase 1 landed 2026-04-25)
@@ -205,7 +204,7 @@ SCAN_CACHE_ENABLED=true         # R26: false forces every --execute call to resc
 
 ## MCP Servers
 
-See `mcp-config/mcp-servers.md` for full setup.
+See `docs/setup/mcp-servers.md` for full setup.
 
 | Server | Purpose |
 |:-------|:--------|

@@ -617,7 +617,7 @@ Zero historical use evidenced. No `data/polymarket/`, no `reports/Polymarket/`, 
 - `docs/SCRIPTS_REFERENCE.md` — removed polymarket from goal table, scanner registry, alias resolution mermaid + alias table, scanner subgraph, `--cross-ref` tip, examples; flipped `fetch_market_data --source` default from polymarket to kalshi
 - `docs/setup/SETUP_GUIDE.md` — dropped Polymarket from free-API list, data-sources table, external-docs links
 - `docs/web-app/LOCAL.md` — removed `scripts/polymarket/*.py` from architecture diagram, Cross-Ref filter row, Polymarket-via-CLI note
-- `docs/mcp-config/mcp-servers.md` — removed `POLYMARKET_PRIVATE_KEY` env line, polymarket-mcp future-integration row, Polymarket fetch examples
+- `docs/setup/mcp-servers.md` (formerly `docs/mcp-config/mcp-servers.md`) — removed `POLYMARKET_PRIVATE_KEY` env line, polymarket-mcp future-integration row, Polymarket fetch examples
 - `docs/scripts/prediction_scanner.md` — full rewrite without `--cross-ref` references
 - `.claude/skills/edge-radar/SKILL.md` — multiple sections cleaned: description frontmatter, flag table, scanner table, makefile shortcuts, polymarket subsection, scan-and-bet block, routing examples
 - `prompts/predictions/full-prediction-execute.md` — full rewrite (Polymarket cross-ref was central)
