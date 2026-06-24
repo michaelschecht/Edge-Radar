@@ -19,9 +19,11 @@ Only `README.md` and `CHANGELOG.md` live at the root of `docs/`. Everything else
 *   [SETUP_GUIDE.md](./setup/SETUP_GUIDE.md) — Step-by-step instructions to configure API keys, venv, and RSA private credentials.
 *   [ARCHITECTURE.md](./setup/ARCHITECTURE.md) — In-depth overview of the pipeline, Kelly sizing equations, and risk gating conditions.
 *   [AUTOMATION_GUIDE.md](./setup/AUTOMATION_GUIDE.md) — Setting up the automated scanners and schedulers.
-*   [task-schedules.md](./setup/task-schedules.md) — Reference for Windows Task Scheduler cron entries.
 *   [mcp-servers.md](./setup/mcp-servers.md) — MCP Server setup for Edge-Radar.
 *   [pipeline-diagram.md](./setup/pipeline-diagram.md) — End-to-end pipeline & data-flow diagram (scan → edge models → risk gating → execution → calibration feedback).
+
+### ⏰ Automation Schedule — [`task-schedules/`](./task-schedules/)
+*   **[task-schedules/README.md](./task-schedules/README.md) — the full ~20-task automation pipeline the repo owner actually runs** (scan → execute → email → settle → reconcile → calibrate → review). Documented as a recommended starting point, with sanitized `.bat`/`.sh` templates and `schtasks` registration so you can build the equivalent on your own machine. Start with [AUTOMATION_GUIDE.md](./setup/AUTOMATION_GUIDE.md) for the minimal installer-driven core.
 
 ### 🎯 Betting Guides & Coverage — [`kalshi/`](./kalshi/)
 *   **[kalshi/README.md](./kalshi/README.md) — start here: the sports/markets coverage matrix (what's configured, what bet types) and links to every betting guide.**
