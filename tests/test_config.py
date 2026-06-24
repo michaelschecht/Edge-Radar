@@ -135,6 +135,7 @@ class TestDocumentedDefaults:
         assert g.min_consensus_books_nba == 8
         assert g.calibration_stdevs_ttl_days == 30
         assert g.max_live_book_age_seconds == 1200
+        assert g.min_live_consensus_books == 3
 
     @patch.dict(os.environ, {}, clear=True)
     def test_kelly_defaults(self):
@@ -315,6 +316,11 @@ class TestValidate:
     @patch.dict(os.environ, {"MAX_LIVE_BOOK_AGE_SECONDS": "-1"}, clear=True)
     def test_negative_max_live_book_age_raises(self):
         with pytest.raises(ValueError, match="MAX_LIVE_BOOK_AGE_SECONDS"):
+            Config.from_env()
+
+    @patch.dict(os.environ, {"MIN_LIVE_CONSENSUS_BOOKS": "-1"}, clear=True)
+    def test_negative_min_live_consensus_books_raises(self):
+        with pytest.raises(ValueError, match="MIN_LIVE_CONSENSUS_BOOKS"):
             Config.from_env()
 
 
