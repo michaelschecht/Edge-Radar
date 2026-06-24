@@ -30,21 +30,9 @@
 
 ## 🎯 Edge Detection Pipeline
 
-```mermaid
-graph LR
-    A["12 Sportsbooks<br><sub>The Odds API</sub>"] --> D["Normal CDF<br>Fair Value"]
-    B["Team Stats<br><sub>ESPN / NHL / MLB</sub>"] --> D
-    C["Signals<br><sub>Weather, Pitchers, Rest, Sharp $</sub>"] --> D
-    D -->|"compare"| E["Kalshi Price"]
-    E -->|"Edge >= 3%"| F["Composite Score<br><sub>0-10 scale</sub>"]
-    F --> G["13 Risk Gates"]
-    G --> H["Kelly Sizing"]
-    H --> I["Limit Order + Log"]
-
-    style D fill:#8B5CF6,color:#fff,stroke:none
-    style G fill:#e74c3c,color:#fff,stroke:none
-    style I fill:#2ea44f,color:#fff,stroke:none
-```
+<p align="center">
+  <img src=".claude/images/diagrams/data_flow/high_level_data_flow/high_level_pipeline_horizontal.png" alt="Edge-Radar pipeline: data sources → edge detection engine → risk gates → execution" width="784">
+</p>
 
 Fair value is a sport-specific normal-CDF model over a weighted-median consensus of 12 sportsbooks (sharp books like Pinnacle/Circa weighted 3×, recreational 0.7×), then adjusted by team-stats win%, sharp-money line movement, weather, pitcher matchups, rest/back-to-back fatigue, and book-disagreement signals. **[Sports Guide →](docs/kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** breaks down each signal and the de-vig math.
 
