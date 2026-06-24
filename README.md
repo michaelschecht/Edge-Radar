@@ -46,16 +46,7 @@ graph LR
     style I fill:#2ea44f,color:#fff,stroke:none
 ```
 
-| Signal | Source |
-|:-------|:-------|
-| **Normal CDF Model** | Sport-specific stdev bell curve probabilities |
-| **Sharp Book Weighting** | Pinnacle 3x, Circa 3x, DraftKings 0.7x |
-| **Team Stats** | ESPN/NHL/MLB win% validates fair value |
-| **Sharp Money** | Open-vs-close odds detect reverse line movement |
-| **Weather** | NWS forecasts for 61 NFL/MLB outdoor venues |
-| **Pitcher Matchups** | ERA, FIP, WHIP, K/9, rest days from MLB Stats API |
-| **Rest Days** | NBA/NHL back-to-back fatigue detection |
-| **Book Disagreement** | >4pt spread range flags injury news |
+Fair value is a sport-specific normal-CDF model over a weighted-median consensus of 12 sportsbooks (sharp books like Pinnacle/Circa weighted 3×, recreational 0.7×), then adjusted by team-stats win%, sharp-money line movement, weather, pitcher matchups, rest/back-to-back fatigue, and book-disagreement signals. **[Sports Guide →](docs/kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** breaks down each signal and the de-vig math.
 
 > [!IMPORTANT]
 > Every scan defaults to **preview mode**. No money is risked until you pass `--execute`. Each scan row shows a **Gate** column (R18) that previews whether it will pass the static risk gates — `ok` if all clear, or a short label (`score`, `conf`, `no-fav`, `pred-off`, `live-off`, etc.) for the failing gate.
@@ -84,21 +75,7 @@ Every order must clear gates 1-7 (including 3.5, 4.5, 4.6, 4.7). Gates 8-9 cap s
 | 8 | Bet size cap | Cap at $100 |
 | 9 | Bet ratio cap | Cap at 3x batch median |
 
-<sub>All limits configurable via <code>.env</code>. See <a href="docs/setup/ARCHITECTURE.md">Architecture</a> for the full pipeline.</sub>
-
-<details>
-<summary><b>Why these gates exist</b> — calibration history behind each rule</summary>
-
-<br>
-
-- **Gate 3.5 — `MIN_MARKET_PRICE` (R7, 2026-04-22):** sub-10¢ bets ran 1W-3L while the model claimed "+50% edge" on 8-10¢ longshots.
-- **Gates 4.5 / 4.6 — `MIN_CONFIDENCE`, `NO_SIDE_*` (2026-04-21):** low-confidence bets hit -105% ROI and all 13 high-edge losers were NO-side on heavy favorites. NO bets below `NO_SIDE_KELLY_PRICE_FLOOR` (35¢) are additionally sized at half-Kelly.
-- **Per-sport edge floors → 0.04 (2026-06-14):** MLB/NBA/NCAAB ran a higher floor (NBA Brier 0.3306 was worst-of-sport) to offset a model that over-claimed ~15% edge. The 06-03/06-05 edge-matching fixes removed that over-claim at the source, so the floor was lowered 0.06 → 0.04 to stop double-correcting and re-admit honest 3-6% edges.
-- **One-way confidence bumps (R13, 2026-04-24):** team-stats, rest/B2B, and sharp-money signals can *drop* a tier but no longer raise one — upward bumps tracked inflated claimed edge, not better outcomes.
-- **Gate 4.7 — `ALLOW_PREDICTION_BETS` (R25, 2026-04-24):** an audit found all 6 prediction modules (crypto/weather/spx/mentions/companies/politics) cached stale data with no TTL and produced nonsense fair values; blocked by default until rebuilt.
-- **Cross-category dedup (R8, 2026-04-29):** opt-in `CROSS_CATEGORY_DEDUP_<SPORT>=true` collapses ML+Total+Spread on the same game to the highest-composite row *before* gating. Default off — cross-category correlation varies by sport.
-
-</details>
+<sub>All limits configurable via <code>.env</code>. Every gate traces to a documented calibration finding — the per-rule history (why the price floor, the NO-side guard, the per-sport edge floors, one-way confidence bumps, and the prediction-market block exist) lives in <a href="docs/setup/ARCHITECTURE.md">Architecture → Risk Management</a>.</sub>
 
 ### Batch-Aware Kelly Sizing
 
@@ -108,15 +85,7 @@ Bet size scales with edge, divided by batch count to control total exposure. Edg
 bet = max(unit, (kelly_frac / batch) * trusted_edge(edge) * bankroll)
 ```
 
-| Edge | Trusted | 1 bet | 5 bets | 10 bets |
-|:-----|:--------|------:|-------:|--------:|
-| 3% | 3% | $0.75 | $0.15 | $0.08 |
-| 10% | 10% | $2.50 | $0.50 | $0.25 |
-| 15% | 15% | $3.75 | $0.75 | $0.38 |
-| 25% | 20% | $5.00 | $1.00 | $0.50 |
-| 35% | 25% | $6.25 | $1.25 | $0.63 |
-
-<sub>Example: $50 bankroll, <code>KELLY_FRACTION=0.50</code>. Capped by max bet ($100) and balance. Soft-cap: <code>KELLY_EDGE_CAP=0.15</code>, <code>KELLY_EDGE_DECAY=0.5</code>.</sub>
+Result is capped by max bet ($100), the bet-ratio cap, and available bankroll. <sub>**[Architecture → Position Sizing](docs/setup/ARCHITECTURE.md#-position-sizing)** has the full edge→contracts worked example and every `KELLY_*` knob.</sub>
 
 ---
 
@@ -267,7 +236,7 @@ python scripts/schedulers/automation/install_windows_task.py install all
 
 <sub>Reports save to <code>reports/Sports/schedulers/</code> with full execution details.</sub>
 
-Want the **complete** pipeline — emails, midday/late runs, weekly calibration/backtest/analysis — beyond the installer's core tasks? See **[Task-Schedule Reference & Setup](docs/setup/task-schedules.md)** for the full 17-task roster with copy-paste `.bat`/`.sh` templates and `schtasks` registration.
+Want the **complete** pipeline — emails, midday/late runs, weekly calibration/backtest/analysis — beyond the installer's core tasks? See the **[owner's live task-schedule](docs/task-schedules/README.md)** — the full ~20-task roster the repo owner actually runs (documented as a recommended starting point), with copy-paste `.bat`/`.sh` templates and `schtasks` registration.
 
 ---
 
@@ -278,7 +247,7 @@ Want the **complete** pipeline — emails, midday/late runs, weekly calibration/
 | **[Documentation Index](docs/README.md)** | Central index and map linking all guides, references, and specifications |
 | **[Setup Guide](docs/setup/SETUP_GUIDE.md)** | Install, API keys, `.env`, safe rollout, automation, and monitoring — the single end-to-end operator guide |
 | **[Automation Guide](docs/setup/AUTOMATION_GUIDE.md)** | Windows Task Scheduler for daily betting — one-command installer for the core tasks |
-| **[Task-Schedule Reference](docs/setup/task-schedules.md)** | Full 17-task pipeline roster with `.bat`/`.sh` templates and `schtasks` setup |
+| **[Task Schedule (owner's live setup)](docs/task-schedules/README.md)** | The full ~20-task automation pipeline the repo owner runs — recommended template, with `.bat`/`.sh` templates and `schtasks` setup |
 | **[Scripts Reference](docs/scripts/SCRIPTS_REFERENCE.md)** | Every script, flag, and example |
 | **[Kalshi Coverage & Guides](docs/kalshi/README.md)** | Coverage matrix — which sports/markets are configured and what bet types |
 | **[Sports Guide](docs/kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** | Edge detection model, consensus de-vig, daily workflow |

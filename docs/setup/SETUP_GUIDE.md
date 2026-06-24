@@ -386,7 +386,7 @@ python scripts/kalshi/kalshi_settler.py report --detail --save
 
 ### Scheduler options
 
-- **Windows** — Task Scheduler (`taskschd.msc`). See [AUTOMATION_GUIDE.md](./AUTOMATION_GUIDE.md) for the installer helper, or [task-schedules.md](./task-schedules.md) for the full 17-task pipeline (emails, midday/late runs, weekly analytics) with copy-paste templates.
+- **Windows** — Task Scheduler (`taskschd.msc`). See [AUTOMATION_GUIDE.md](./AUTOMATION_GUIDE.md) for the installer helper, or the [owner's live task schedule](../task-schedules/README.md) for the full ~20-task pipeline (emails, midday/late runs, weekly analytics) with copy-paste templates.
 - **Linux** — cron or systemd timers
 - **macOS** — launchd
 
@@ -482,7 +482,7 @@ Every configured key is either invalid or has hit its monthly quota (free tier =
 ### Internal docs
 
 - **[Automation Guide](./AUTOMATION_GUIDE.md)** — Windows Task Scheduler setup walkthrough
-- **[Task-Schedule Reference](./task-schedules.md)** — full 17-task pipeline roster with `.bat`/`.sh` templates and `schtasks` setup
+- **[Task Schedule (owner's live setup)](../task-schedules/README.md)** — the full ~20-task pipeline roster the repo owner runs, with `.bat`/`.sh` templates and `schtasks` setup
 - **[Scripts Reference](../scripts/SCRIPTS_REFERENCE.md)** — Full CLI reference for every script and flag
 - **[Kalshi Coverage & Guides](../kalshi/README.md)** — Which sports/markets are configured and what bet types
 - **[Sports Guide](../kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** — Edge detection methodology
