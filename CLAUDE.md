@@ -16,7 +16,7 @@ Read relevant memory files before starting work to avoid re-learning prior conte
 
 | Domain | Coverage | Data Sources |
 |:-------|:---------|:-------------|
-| **Sports Betting** | NBA, NHL, MLB, NFL, NCAA, MLS, World Cup, soccer, UFC, boxing, F1, NASCAR, PGA, IPL, esports (28 filters) | The Odds API, ESPN, NHL/MLB Stats, NWS |
+| **Sports Betting** | NBA, NHL, MLB, NFL, NCAA, MLS, World Cup, soccer, UFC, boxing, F1, NASCAR, PGA, IPL, Wimbledon tennis, esports (30 filters) | The Odds API, ESPN, NHL/MLB Stats, NWS |
 | **Prediction Markets** | Crypto (BTC, ETH, XRP, DOGE, SOL), weather (13 cities), S&P 500 | CoinGecko, Yahoo Finance, NWS |
 | **Championship Futures** | NFL, NBA, NHL, MLB, PGA | Sportsbook futures odds |
 | **Execution Pipeline** | Unified scan → risk-check → size → execute | Kalshi API (RSA-signed) |

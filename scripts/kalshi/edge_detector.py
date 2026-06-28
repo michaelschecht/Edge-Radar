@@ -87,6 +87,9 @@ CATEGORY_MAP = {
     "KXUFCFIGHT":    "game",
     "KXBOXING":      "game",
     "KXIPL":         "game",
+    # --- Tennis (Wimbledon) ---
+    "KXATPMATCH":    "game",
+    "KXWTAMATCH":    "game",
     # --- Spread ---
     "KXNBASPREAD":   "spread",
     "KXNHLSPREAD":   "spread",
@@ -173,6 +176,12 @@ KALSHI_TO_ODDS_SPORT = {
     # futures_edge.py using the `outrights` market type.
     # --- Cricket ---
     "KXIPL":           "cricket_ipl",
+    # --- Tennis (Wimbledon) ---
+    # h2h match-winner only; no spread/total on Kalshi.
+    # NOTE: verify these prefixes locally — Kalshi API was egress-blocked during
+    # the initial implementation (2026-06-28). Also try: KXATPGAME, KXWTAGAME.
+    "KXATPMATCH":      "tennis_atp_wimbledon",
+    "KXWTAMATCH":      "tennis_wta_wimbledon",
 }
 
 
@@ -1114,6 +1123,13 @@ def extract_event_teams(market: dict) -> tuple[str, str] | None:
     match = re.search(r"in the (.+?) (?:vs\.?|at) (.+?) (?:game|match)", rules, re.IGNORECASE)
     if match:
         return _clean_team(match.group(1)), _clean_team(match.group(2))
+    # Tennis h2h: "If [Player A] wins this match against [Player B]"
+    match = re.search(
+        r"If (.+?) wins this (?:[\w\s]*?)?match against (.+?)(?:\s+(?:at|in)\b|[,.]|$)",
+        rules, re.IGNORECASE,
+    )
+    if match:
+        return _clean_team(match.group(1)), _clean_team(match.group(2))
     return None
 
 
@@ -1976,6 +1992,12 @@ FILTER_SHORTCUTS = {
     "pga":     ["__FUTURES__golf-futures"],
     # --- Cricket ---
     "ipl":     ["KXIPL"],
+    # --- Tennis (Wimbledon) ---
+    # Match-winner only (no spread/total). Both ATP and WTA singles.
+    # NOTE: verify KXATPMATCH/KXWTAMATCH against live Kalshi markets.
+    # Alternate prefixes to try: KXATPGAME, KXWTAGAME, KXWIMMEN, KXWMENSINGLES.
+    "wimbledon": ["KXATPMATCH", "KXWTAMATCH"],
+    "tennis":    ["KXATPMATCH", "KXWTAMATCH"],
     # --- Esports ---
     "cs2":     ["KXCS2MAP", "KXCS2GAME"],
     "lol":     ["KXLOLMAP", "KXLOLGAME"],

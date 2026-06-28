@@ -1297,3 +1297,53 @@ class TestLiveInPlayOddsPhase2:
         assert _is_bookmaker_stale(bad_lu, live, 1200) is True
         assert _is_bookmaker_stale(no_lu, pregame, 1200) is False
 
+
+
+class TestTennisMappings:
+    """Wimbledon tennis (KXATPMATCH / KXWTAMATCH) wiring — added 2026-06-28.
+
+    Tennis is h2h match-winner only (no spread/total). ATP and WTA singles
+    route to their respective Odds API keys. These tests assert only the
+    prefix/category wiring; live odds-matching requires local verification
+    (Kalshi API was egress-blocked in the cloud environment at implementation
+    time — run: python scripts/scan.py sports --filter wimbledon --top 30).
+
+    NOTE: if the live ticker prefix turns out to be KXATPGAME or KXWTAGAME
+    (not KXATPMATCH / KXWTAMATCH), update these constants and re-run the suite.
+    """
+
+    def test_atp_match_categorized_as_game(self):
+        assert CATEGORY_MAP["KXATPMATCH"] == "game"
+
+    def test_wta_match_categorized_as_game(self):
+        assert CATEGORY_MAP["KXWTAMATCH"] == "game"
+
+    def test_atp_odds_sport_key(self):
+        assert KALSHI_TO_ODDS_SPORT["KXATPMATCH"] == "tennis_atp_wimbledon"
+
+    def test_wta_odds_sport_key(self):
+        assert KALSHI_TO_ODDS_SPORT["KXWTAMATCH"] == "tennis_wta_wimbledon"
+
+    def test_tennis_extract_event_teams_against_pattern(self):
+        market = {
+            "ticker": "KXATPMATCH-26JUL01DJOKMED-DJOK",
+            "rules_primary": (
+                "If Novak Djokovic wins this Wimbledon match against Carlos Alcaraz "
+                "in the men's singles tournament, this market resolves Yes."
+            ),
+        }
+        result = extract_event_teams(market)
+        assert result is not None
+        player_a, player_b = result
+        assert "Djokovic" in player_a
+        assert "Alcaraz" in player_b
+
+    def test_tennis_extract_event_teams_simple_against(self):
+        market = {
+            "ticker": "KXWTAMATCH-26JUL01SWISWIA-SWI",
+            "rules_primary": "If Iga Swiatek wins this match against Elena Rybakina.",
+        }
+        result = extract_event_teams(market)
+        assert result is not None
+        assert "Swiatek" in result[0]
+        assert "Rybakina" in result[1]

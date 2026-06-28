@@ -113,6 +113,17 @@ Use `--filter` to target a specific sport. Supports comma-separated values for m
 | `f1` | Formula 1 | Drivers + constructors championship | No (not on Odds API) |
 | `nascar` | NASCAR | Race winners | No (not on Odds API) |
 
+### Tennis
+
+| Filter | Sport | Key Markets | Edge Detection |
+|--------|-------|-------------|----------------|
+| `wimbledon` | Wimbledon (ATP + WTA) | Match winner (h2h only) | Yes -- game |
+| `tennis` | Wimbledon (ATP + WTA) | Match winner (h2h only) | Yes -- game |
+
+> **Tennis specifics:** Match-winner only (no spread or total Kalshi markets). ATP men's singles routes to `tennis_atp_wimbledon`; WTA women's singles routes to `tennis_wta_wimbledon` via the Odds API. Player names are extracted from `rules_primary` via the "wins this match against" pattern. Player abbreviations in the ticker suffix pass through as-is (they aren't in the US-sport team alias table).
+>
+> **Ticker prefix caveat:** The wiring uses `KXATPMATCH` (ATP) and `KXWTAMATCH` (WTA). Kalshi may instead use `KXATPGAME`/`KXWTAGAME`, `KXWIMMEN`, or other variants — verify locally by running `python scripts/scan.py sports --filter wimbledon --top 30`. If the prefix differs, update `CATEGORY_MAP`, `KALSHI_TO_ODDS_SPORT`, and `FILTER_SHORTCUTS` in `scripts/kalshi/edge_detector.py` and the `_SPORT_PREFIXES` map in `scripts/shared/ticker_display.py`.
+
 ### Other Sports
 
 | Filter | Sport | Key Markets | Edge Detection |
@@ -209,6 +220,10 @@ The system cross-references Kalshi prices against these Odds API sport keys:
 | KXBOXING | `boxing_boxing` | Moneyline (h2h) |
 | KXPGATOUR | `golf_{us_open,pga_championship,masters_tournament,the_open_championship}_winner` (outrights; resolved per-major by `futures_edge.py`) | Major tournament winner (4 majors only; weekly stops have no odds) |
 | KXIPL | `cricket_ipl` | Moneyline (h2h) |
+| KXATPMATCH | `tennis_atp_wimbledon` | Moneyline (h2h) |
+| KXWTAMATCH | `tennis_wta_wimbledon` | Moneyline (h2h) |
+
+> **Tennis prefix caveat:** Kalshi ticker prefixes for tennis were not directly verifiable (API egress-blocked in cloud). `KXATPMATCH`/`KXWTAMATCH` are best-guess — verify locally and update if needed.
 
 > **Soccer is 3-way.** Soccer h2h returns home/draw/away. The Kalshi "team to win?" market is binary, so fair value is the team's devigged **win** share and a draw resolves to the NO side. (Before the 2026-06-03 fix, 3-outcome markets were silently skipped, so soccer produced no edges.)
 

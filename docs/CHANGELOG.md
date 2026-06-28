@@ -2,6 +2,57 @@
 
 ---
 
+## 2026-06-28 -- Wimbledon Tennis Sport Coverage Added
+
+### Why
+
+Wimbledon 2026 starts June 29. The scanner had no tennis mapping, so Kalshi's
+Wimbledon match-winner markets were invisible. Tennis was deferred from the
+2026-06-20 World Cup release because markets weren't open yet (Kalshi API
+confirmed 0 open markets on June 20 for all tested prefixes).
+
+### What landed
+
+- **Tennis wired as a new h2h-only sport** — match-winner (`game` category) only;
+  no spread or total markets on Kalshi for tennis. `KXATPMATCH` → `tennis_atp_wimbledon`
+  and `KXWTAMATCH` → `tennis_wta_wimbledon` added to `CATEGORY_MAP` and
+  `KALSHI_TO_ODDS_SPORT`. New `wimbledon` and `tennis` filter shortcuts.
+- **Player-name extraction** — extended `extract_event_teams()` with a tennis-specific
+  regex for the "If [Player A] wins this match against [Player B]" rules_primary
+  pattern used by Kalshi tennis markets. All existing team-sport patterns unchanged.
+- **Display wiring** — `KXATP`/`KXWTA` prefixes → sport label "Tennis" in
+  `ticker_display.py`. Player abbreviations in ticker suffixes pass through raw
+  (not in the US-sport team alias table, which is correct).
+- **No edge-math changes** — tennis uses the existing de-vigged h2h moneyline
+  path (`detect_edge_game`). No spread/total stdev entries needed.
+
+### Ticker prefix caveat
+
+The Kalshi API was egress-blocked in the cloud environment during implementation,
+so `KXATPMATCH`/`KXWTAMATCH` are best-guess. **Must be verified locally:**
+
+```bash
+python scripts/scan.py sports --filter wimbledon --top 30
+```
+
+If the real prefix differs (e.g. `KXATPGAME`, `KXWTAGAME`, `KXWIMMEN`), update
+`CATEGORY_MAP`, `KALSHI_TO_ODDS_SPORT`, and `FILTER_SHORTCUTS` in
+`scripts/kalshi/edge_detector.py`, plus `_SPORT_PREFIXES` in
+`scripts/shared/ticker_display.py`.
+
+### Verification
+
++10 tests (`TestTennisMappings` in `tests/test_edge_detection.py`; `TestTennisDisplay`
+in `tests/test_ticker_display.py`) → **503 passing** (was 493).
+
+### Files
+
+`scripts/kalshi/edge_detector.py`, `scripts/shared/ticker_display.py`,
+`tests/test_edge_detection.py`, `tests/test_ticker_display.py`,
+`CLAUDE.md`, `docs/kalshi/kalshi-sports-betting/SPORTS_GUIDE.md`, `docs/CHANGELOG.md`.
+
+---
+
 ## 2026-06-24 -- C4: retire the base "high" confidence tier's composite-score premium
 
 ### Why
