@@ -2,6 +2,42 @@
 
 ---
 
+## 2026-06-29 -- De-vig the spread & total models (fix the always-YES bias)
+
+### Why
+
+A review of recent betting found World Cup spread bets were **always `YES`**
+(favorite covers): 44/48 live WC spread markets priced model fair-value above
+the market, including **both teams in the same match** — which is impossible for
+a genuine edge. Root cause: `consensus_spread_prob` and `consensus_total_prob`
+inferred the expected margin/total from the **raw, vigged** book-implied
+probability (`implied_prob(book_odds)`), never de-vigging. The two-way spread/
+total sums to ~1.05-1.08 implied, so each side ran ~half the vig high, inflating
+the inferred mean and thus `P(cover)`/`P(over)` for both sides of every game.
+The moneyline path (`consensus_fair_value`) already de-vigs — spreads/totals
+were the outliers. The bias inflated claimed edges (→ Kelly oversizing, often on
+the longest-shot picks) and removed the model's ability to ever take NO or pass.
+
+### What changed
+
+- **De-vig the two-way line before inferring the mean.** Both functions now
+  divide the matched outcome's implied by the book's overround
+  (`sum(implied_prob(o) for o in outcomes)`), mirroring the moneyline devig.
+  Each book record now carries both `implied` (de-vigged) and `raw_implied`.
+- **Validated live:** on the WC spread board the always-YES lean dropped from
+  44/48 (92%) to 39/48, and mean model edge fell ~1 point — claimed edges are
+  now honest. +4 tests (`TestSpreadTotalDevig`), 496 passing.
+
+### Known residual (separate follow-up, not fixed here)
+
+De-vig removes the vig-driven half of the bias but **not all of it**: 16/22
+matches still show both sides leaning YES, traced to the **soccer margin stdev
+(1.8)** making the normal-CDF tail too fat for soccer's discrete low-scoring
+margins. A sensitivity sweep shows stdev ≈ 1.4 makes the model symmetric
+(mean fair−mid ≈ 0, both-sides-impossible 16→1). Deferred as a calibration
+decision because lowering stdev also shrinks a possibly-real underpricing edge
+(placed soccer spreads hit 31% vs 19% market-implied) and should be chosen
+against settled outcomes, not fit to one day's board.
 ## 2026-06-28 -- Wimbledon Tennis Sport Coverage Added
 
 ### Why
