@@ -89,6 +89,8 @@ _SPORT_PREFIXES = {
     "KXGOLF": "golf", "KXPGA": "golf",
     "KXNASCAR": "nascar", "KXIPL": "ipl",
     "KXESPORT": "esports",
+    "KXATPMATCH": "tennis", "KXATP": "tennis",
+    "KXWTAMATCH": "tennis", "KXWTA": "tennis",
 }
 
 
@@ -105,7 +107,7 @@ _SPORT_DISPLAY = {
     "ncaab": "NCAAB", "ncaaf": "NCAAF", "soccer": "Soccer", "mls": "MLS",
     "worldcup": "World Cup",
     "ufc": "UFC", "boxing": "Boxing", "golf": "Golf", "nascar": "NASCAR",
-    "ipl": "IPL", "esports": "Esports",
+    "ipl": "IPL", "esports": "Esports", "tennis": "Tennis",
 }
 
 

@@ -87,6 +87,9 @@ CATEGORY_MAP = {
     "KXUFCFIGHT":    "game",
     "KXBOXING":      "game",
     "KXIPL":         "game",
+    # --- Tennis (Wimbledon) ---
+    "KXATPMATCH":    "game",
+    "KXWTAMATCH":    "game",
     # --- Spread ---
     "KXNBASPREAD":   "spread",
     "KXNHLSPREAD":   "spread",
@@ -173,6 +176,12 @@ KALSHI_TO_ODDS_SPORT = {
     # futures_edge.py using the `outrights` market type.
     # --- Cricket ---
     "KXIPL":           "cricket_ipl",
+    # --- Tennis (Wimbledon) ---
+    # h2h match-winner only; no spread/total on Kalshi.
+    # NOTE: verify these prefixes locally — Kalshi API was egress-blocked during
+    # the initial implementation (2026-06-28). Also try: KXATPGAME, KXWTAGAME.
+    "KXATPMATCH":      "tennis_atp_wimbledon",
+    "KXWTAMATCH":      "tennis_wta_wimbledon",
 }
 
 
@@ -1114,6 +1123,10 @@ def extract_event_teams(market: dict) -> tuple[str, str] | None:
     match = re.search(r"in the (.+?) (?:vs\.?|at) (.+?) (?:game|match)", rules, re.IGNORECASE)
     if match:
         return _clean_team(match.group(1)), _clean_team(match.group(2))
+    # Tennis (Wimbledon) is already covered by the first pattern: its rules read
+    # "... wins the <LastA> vs <LastB> professional tennis match in the 2026
+    # Wimbledon ...", so the "(?:vs|at) ... professional" branch returns the two
+    # players' last names (which substring-match the Odds API full names).
     return None
 
 
@@ -1679,6 +1692,19 @@ def _event_has_matchup(event: dict, team_a: str, team_b: str) -> bool:
     )
 
 
+def _is_tennis_market(ticker: str) -> bool:
+    """True for tennis tickers, which need date-tolerant odds matching.
+
+    Tennis tickers date the market by its *expected expiration* (roughly a day
+    after the match), not by commence time, so exact ET-date equality never
+    lines up with the odds feed (e.g. KXATPMATCH-26JUL01... is the Jun 30 09:00
+    UTC Tsitsipas vs Djokovic match). Derived from KALSHI_TO_ODDS_SPORT so any
+    future tennis tournament prefix mapped to a ``tennis_*`` key inherits this.
+    """
+    prefix = ticker.split("-", 1)[0]
+    return KALSHI_TO_ODDS_SPORT.get(prefix, "").startswith("tennis_")
+
+
 def find_market_event(market: dict, events: list) -> dict | None:
     """Return the single odds event for this market's specific game, or None.
 
@@ -1727,6 +1753,30 @@ def find_market_event(market: dict, events: list) -> dict | None:
         log.warning(
             "find_market_event: no odds event within 6h of %s scheduled start "
             "— specific game absent, emitting no edge", ticker)
+        return None
+
+    # Tennis: the ticker date is the market's expected expiration (~a day after
+    # the match), not its commence date, so exact ET-date equality never matches
+    # the odds feed. A given player pair meets at most once per tournament, so a
+    # single both-players candidate is unambiguous; accept it when its commence
+    # lands within a few days of the ticker date. >1 candidate (unexpected in
+    # one tournament) or a far-off date stays a refusal.
+    if _is_tennis_market(ticker):
+        if len(candidates) == 1:
+            tdate = _extract_game_date(ticker)
+            cdate = _commence_et_date(candidates[0])
+            if not tdate:
+                return candidates[0]
+            try:
+                within = abs((datetime.fromisoformat(cdate)
+                              - datetime.fromisoformat(tdate)).days) <= 3
+            except (ValueError, TypeError):
+                within = False
+            if within:
+                return candidates[0]
+        log.warning(
+            "find_market_event: %d tennis candidate(s) for %s — absent/"
+            "ambiguous, emitting no edge", len(candidates), ticker)
         return None
 
     # Spread/total and NBA/NHL game tickers carry the date but no time. Require
@@ -1976,6 +2026,12 @@ FILTER_SHORTCUTS = {
     "pga":     ["__FUTURES__golf-futures"],
     # --- Cricket ---
     "ipl":     ["KXIPL"],
+    # --- Tennis (Wimbledon) ---
+    # Match-winner only (no spread/total). Both ATP and WTA singles.
+    # NOTE: verify KXATPMATCH/KXWTAMATCH against live Kalshi markets.
+    # Alternate prefixes to try: KXATPGAME, KXWTAGAME, KXWIMMEN, KXWMENSINGLES.
+    "wimbledon": ["KXATPMATCH", "KXWTAMATCH"],
+    "tennis":    ["KXATPMATCH", "KXWTAMATCH"],
     # --- Esports ---
     "cs2":     ["KXCS2MAP", "KXCS2GAME"],
     "lol":     ["KXLOLMAP", "KXLOLGAME"],

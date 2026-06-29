@@ -294,3 +294,25 @@ class TestIsGameStarted:
 
     def test_unparseable_ticker_not_started(self):
         assert is_game_started("RANDOM-TICKER") is False
+
+
+# ── Tennis (Wimbledon) ───────────────────────────────────────────────────────
+
+class TestTennisDisplay:
+    """Sport detection and label for Wimbledon ATP/WTA tickers."""
+
+    def test_atp_ticker_sport_is_tennis(self):
+        from ticker_display import sport_from_ticker
+        assert sport_from_ticker("KXATPMATCH-26JUL01DJOKMED-DJOK") == "Tennis"
+
+    def test_wta_ticker_sport_is_tennis(self):
+        from ticker_display import sport_from_ticker
+        assert sport_from_ticker("KXWTAMATCH-26JUL01SWIRYB-SWI") == "Tennis"
+
+    def test_atp_player_abbr_returned_raw(self):
+        # Player abbreviations aren't in TEAM_NAMES, so parse_pick_team returns
+        # the raw suffix rather than mis-resolving it as a US team.
+        assert parse_pick_team("KXATPMATCH-26JUL01DJOKMED-DJOK") == "DJOK"
+
+    def test_wta_player_abbr_returned_raw(self):
+        assert parse_pick_team("KXWTAMATCH-26JUL01SWIRYB-SWI") == "SWI"
