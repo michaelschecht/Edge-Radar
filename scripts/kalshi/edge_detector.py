@@ -645,6 +645,15 @@ SPORT_MARGIN_STDEV = {
     "americanfootball_ncaaf": 15.0,
     "baseball_mlb": 4.025,        # R2: 3.5 * 1.15
     "icehockey_nhl": 2.5,
+    # soccer: KEEP ~1.8 — do NOT naively lower it. 2026-06-29 calibration
+    # against 74 completed World Cup matches: mean total 2.96 goals, so the
+    # Poisson-consistent margin stdev = sqrt(mean_total) = 1.72, 95% CI
+    # [1.59, 1.84] — 1.8 sits inside it. A Skellam fit reproduces the realized
+    # margin tail (P(|m|>=2)=0.46, P(|m|>=3)=0.24); stdev 1.4 badly UNDER-
+    # predicts it (P(|m|>=3)=0.07). The post-devig "always-YES" lean on soccer
+    # spreads is largely a REAL edge (Kalshi underprices goal margins —
+    # placed spreads hit 31% vs 19% paid), not a stdev bug. Fitting stdev to
+    # Kalshi's board (which suggested ~1.4) would import that underpricing.
     "soccer": 1.8,
     "mma": 5.0,
 }
@@ -808,11 +817,25 @@ def consensus_spread_prob(events: list, team_name: str, strike: float,
                 matched_event_ids.add(ev_idx)
                 book_spread = o.get("point", 0)
                 book_odds = o.get("price", 2.0)
+                # De-vig across both spread sides (favorite covers / underdog
+                # covers) so the implied cover probability that infers the mean
+                # margin excludes the book's overround. The two-way spread sums
+                # to ~1.05-1.08 implied; using the raw implied biased the
+                # inferred mean — and thus P(cover) — high for BOTH sides, which
+                # made the model over-price every favorite to cover and only
+                # ever take the YES side. Mirrors the moneyline devig in
+                # consensus_fair_value.
+                raw_implied = implied_prob(book_odds)
+                book_overround = sum(implied_prob(oc.get("price", 2.0))
+                                     for oc in outcomes)
+                devigged = (raw_implied / book_overround
+                            if book_overround > 0 else raw_implied)
                 spread_data.append({
                     "book": bookmaker["key"],
                     "spread": book_spread,
                     "odds": book_odds,
-                    "implied": round(implied_prob(book_odds), 4),
+                    "implied": round(devigged, 4),
+                    "raw_implied": round(raw_implied, 4),
                 })
 
     if not spread_data:
@@ -884,6 +907,11 @@ SPORT_TOTAL_STDEV = {
     "americanfootball_ncaaf": 14.0,
     "baseball_mlb": 3.45,         # R2: 3.0 * 1.15
     "icehockey_nhl": 2.2,
+    # soccer: FOLLOW-UP (logged in ROADMAP 2026-06-29) — empirically too LOW.
+    # 74 WC matches show a realized total-goals stdev of 1.86 vs 1.5 here, so
+    # the totals model is over-confident (distribution too narrow). Left as-is
+    # for now because soccer totals are profitable (75% WR / +24% ROI, n=24);
+    # raise toward ~1.8 only with a deliberate calibration pass + backtest.
     "soccer": 1.5,
 }
 
@@ -924,15 +952,27 @@ def consensus_total_prob(events: list, strike: float,
             for market in bookmaker.get("markets", []):
                 if market["key"] != "totals":
                     continue
-                for o in market.get("outcomes", []):
-                    if o["name"] == "Over":
-                        matched_event_ids.add(ev_idx)
-                        total_data.append({
-                            "book": bookmaker["key"],
-                            "line": o.get("point", 0),
-                            "odds": o.get("price", 2.0),
-                            "implied": round(implied_prob(o["price"]), 4),
-                        })
+                outcomes = market.get("outcomes", [])
+                over = next((o for o in outcomes if o.get("name") == "Over"), None)
+                if over is None:
+                    continue
+                matched_event_ids.add(ev_idx)
+                # De-vig Over against Over+Under so the implied over-probability
+                # that infers the mean total excludes the book's overround —
+                # same bias the spread model carried (raw implied runs ~half the
+                # vig high, pushing the inferred mean and P(over) up).
+                raw_implied = implied_prob(over["price"])
+                book_overround = sum(implied_prob(o.get("price", 2.0))
+                                     for o in outcomes)
+                devigged = (raw_implied / book_overround
+                            if book_overround > 0 else raw_implied)
+                total_data.append({
+                    "book": bookmaker["key"],
+                    "line": over.get("point", 0),
+                    "odds": over.get("price", 2.0),
+                    "implied": round(devigged, 4),
+                    "raw_implied": round(raw_implied, 4),
+                })
 
     if not total_data:
         return None
