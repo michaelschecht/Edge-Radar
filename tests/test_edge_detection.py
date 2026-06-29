@@ -21,6 +21,7 @@ from edge_detector import (
     _match_team_outcome,
     _team_match_strength,
     consensus_fair_value,
+    consensus_spread_prob,
     consensus_total_prob,
     detect_edge_game,
     extract_event_teams,
@@ -565,6 +566,31 @@ def _totals_event(away, home, line, over_price, commence, books=("pinnacle",)):
     }
 
 
+def _spread_event(favorite, underdog, fav_point, fav_price, dog_price,
+                  commence, books=("pinnacle",)):
+    """Odds API spreads event. fav_point is the favorite's handicap (negative,
+    e.g. -1.5); the underdog gets +fav_point. Prices carry book vig."""
+    return {
+        "away_team": underdog,
+        "home_team": favorite,
+        "commence_time": commence,
+        "bookmakers": [
+            {
+                "key": b,
+                "last_update": _fresh_lu(),
+                "markets": [{
+                    "key": "spreads",
+                    "outcomes": [
+                        {"name": favorite, "point": fav_point, "price": fav_price},
+                        {"name": underdog, "point": -fav_point, "price": dog_price},
+                    ],
+                }],
+            }
+            for b in books
+        ],
+    }
+
+
 def _mlb_game_market(away, home, yes_team, ticker, yes_ask="0.54",
                      no_ask="0.48", yes_bid="0.52"):
     return {
@@ -857,6 +883,62 @@ class TestThreeWayDevig:
         # A team that doesn't appear returns None, not the Draw outcome.
         ev = self._soccer_event("Chelsea", "Arsenal", 2.5, 3.2, 3.0)
         assert consensus_fair_value([ev], "Liverpool") is None
+
+
+class TestSpreadTotalDevig:
+    """Spread/total models must de-vig the book's two-way line before inferring
+    the mean, exactly as consensus_fair_value does for moneyline.
+
+    Bug (2026-06-29): consensus_spread_prob / consensus_total_prob used the RAW
+    implied cover/over probability. A two-way spread sums to ~1.05-1.08 implied,
+    so the raw figure ran ~half the vig high, inflating the inferred mean — and
+    thus P(cover)/P(over) — for BOTH sides of every game. On soccer spreads this
+    made the model price both teams to over-cover and only ever bet YES.
+    """
+
+    FUTURE = "2099-08-16T14:00:00Z"  # pre-game (avoid the live-staleness gate)
+
+    def test_spread_symmetric_vig_infers_mean_at_the_line(self):
+        # Favorite -1.5 and underdog +1.5 BOTH priced 1.90 (each raw implied
+        # 0.5263, sum 1.0526). De-vigged, the favorite's cover prob is exactly
+        # 0.5, so the inferred mean margin must equal the line (1.5) — no vig
+        # leak. With the raw 0.5263 it would land above 1.5.
+        ev = _spread_event("Brazil", "Japan", -1.5, 1.90, 1.90, self.FUTURE)
+        result = consensus_spread_prob([ev], "Brazil", 2.5,
+                                       ticker="KXWCSPREAD-26JUL01BRAJPN-BRA3")
+        assert result is not None
+        _, d = result
+        assert d["inferred_mean_margin"] == pytest.approx(1.5, abs=0.02)
+        # raw implied is recorded distinctly and is the vigged (higher) figure
+        assert d["books"][0]["raw_implied"] == pytest.approx(0.5263, abs=0.001)
+        assert d["books"][0]["implied"] == pytest.approx(0.5, abs=0.001)
+
+    def test_spread_devig_lowers_cover_prob_vs_raw(self):
+        # Asymmetric vigged line; the de-vigged fair must be below what the raw
+        # implied would have produced (the always-YES inflation).
+        ev = _spread_event("Brazil", "Japan", -1.5, 1.50, 2.50, self.FUTURE)
+        strike = 1.5
+        fair_devig, d = consensus_spread_prob(
+            [ev], "Brazil", strike, ticker="KXWCSPREAD-26JUL01BRAJPN-BRA2")
+        raw_implied = d["books"][0]["raw_implied"]
+        stdev = d["margin_stdev"]
+        # reproduce the OLD (buggy) computation from the raw implied
+        from scipy.stats import norm
+        raw_mean = -(-1.5) - stdev * norm.ppf(1 - raw_implied)
+        raw_fair = 1 - norm.cdf(strike, loc=raw_mean, scale=stdev)
+        assert fair_devig < raw_fair          # de-vig reduced the cover prob
+        assert d["inferred_mean_margin"] < raw_mean
+
+    def test_total_symmetric_vig_infers_mean_at_the_line(self):
+        # Over/Under both 1.90 -> de-vigged over prob 0.5 -> inferred mean total
+        # equals the line. _totals_event already prices both sides equal.
+        ev = _totals_event("A", "B", 2.5, 1.90, self.FUTURE)
+        result = consensus_total_prob([ev], 3.5, ticker="KXWCTOTAL-26JUL01ABX-T35")
+        assert result is not None
+        _, d = result
+        assert d["inferred_mean_total"] == pytest.approx(2.5, abs=0.02)
+        assert d["books"][0]["raw_implied"] == pytest.approx(0.5263, abs=0.001)
+        assert d["books"][0]["implied"] == pytest.approx(0.5, abs=0.001)
 
     def test_two_way_share_unchanged(self):
         # Regression: the proportional devig must match the old 2-way result.
