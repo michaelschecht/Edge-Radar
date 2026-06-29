@@ -645,6 +645,15 @@ SPORT_MARGIN_STDEV = {
     "americanfootball_ncaaf": 15.0,
     "baseball_mlb": 4.025,        # R2: 3.5 * 1.15
     "icehockey_nhl": 2.5,
+    # soccer: KEEP ~1.8 — do NOT naively lower it. 2026-06-29 calibration
+    # against 74 completed World Cup matches: mean total 2.96 goals, so the
+    # Poisson-consistent margin stdev = sqrt(mean_total) = 1.72, 95% CI
+    # [1.59, 1.84] — 1.8 sits inside it. A Skellam fit reproduces the realized
+    # margin tail (P(|m|>=2)=0.46, P(|m|>=3)=0.24); stdev 1.4 badly UNDER-
+    # predicts it (P(|m|>=3)=0.07). The post-devig "always-YES" lean on soccer
+    # spreads is largely a REAL edge (Kalshi underprices goal margins —
+    # placed spreads hit 31% vs 19% paid), not a stdev bug. Fitting stdev to
+    # Kalshi's board (which suggested ~1.4) would import that underpricing.
     "soccer": 1.8,
     "mma": 5.0,
 }
@@ -898,6 +907,11 @@ SPORT_TOTAL_STDEV = {
     "americanfootball_ncaaf": 14.0,
     "baseball_mlb": 3.45,         # R2: 3.0 * 1.15
     "icehockey_nhl": 2.2,
+    # soccer: FOLLOW-UP (logged in ROADMAP 2026-06-29) — empirically too LOW.
+    # 74 WC matches show a realized total-goals stdev of 1.86 vs 1.5 here, so
+    # the totals model is over-confident (distribution too narrow). Left as-is
+    # for now because soccer totals are profitable (75% WR / +24% ROI, n=24);
+    # raise toward ~1.8 only with a deliberate calibration pass + backtest.
     "soccer": 1.5,
 }
 
