@@ -120,9 +120,9 @@ Use `--filter` to target a specific sport. Supports comma-separated values for m
 | `wimbledon` | Wimbledon (ATP + WTA) | Match winner (h2h only) | Yes -- game |
 | `tennis` | Wimbledon (ATP + WTA) | Match winner (h2h only) | Yes -- game |
 
-> **Tennis specifics:** Match-winner only (no spread or total Kalshi markets). ATP men's singles routes to `tennis_atp_wimbledon`; WTA women's singles routes to `tennis_wta_wimbledon` via the Odds API. Player names are extracted from `rules_primary` via the "wins this match against" pattern. Player abbreviations in the ticker suffix pass through as-is (they aren't in the US-sport team alias table).
+> **Tennis specifics:** Match-winner only (no spread or total Kalshi markets). ATP men's singles routes to `tennis_atp_wimbledon`; WTA women's singles routes to `tennis_wta_wimbledon` via the Odds API. Player names come from `rules_primary` ("... wins the *Tsitsipas* vs *Djokovic* professional tennis match ...") via the existing "(?:vs\|at) ... professional" pattern in `extract_event_teams()` — last names, which substring-match the Odds API full names. Player abbreviations in the ticker suffix pass through as-is (they aren't in the US-sport team alias table).
 >
-> **Ticker prefix caveat:** The wiring uses `KXATPMATCH` (ATP) and `KXWTAMATCH` (WTA). Kalshi may instead use `KXATPGAME`/`KXWTAGAME`, `KXWIMMEN`, or other variants — verify locally by running `python scripts/scan.py sports --filter wimbledon --top 30`. If the prefix differs, update `CATEGORY_MAP`, `KALSHI_TO_ODDS_SPORT`, and `FILTER_SHORTCUTS` in `scripts/kalshi/edge_detector.py` and the `_SPORT_PREFIXES` map in `scripts/shared/ticker_display.py`.
+> **Date matching:** Tennis tickers date the market by its *expected expiration* (~a day after the match), not commence — e.g. `KXATPMATCH-26JUL01TSIDJO` is the **Jun 30** match. Because a player pair meets at most once per tournament, `find_market_event()` accepts the single both-players odds candidate within 3 days of the ticker date (the `_is_tennis_market()` branch) rather than requiring exact ET-date equality. Prefixes `KXATPMATCH`/`KXWTAMATCH` confirmed against live markets 2026-06-29.
 
 ### Other Sports
 
@@ -223,7 +223,7 @@ The system cross-references Kalshi prices against these Odds API sport keys:
 | KXATPMATCH | `tennis_atp_wimbledon` | Moneyline (h2h) |
 | KXWTAMATCH | `tennis_wta_wimbledon` | Moneyline (h2h) |
 
-> **Tennis prefix caveat:** Kalshi ticker prefixes for tennis were not directly verifiable (API egress-blocked in cloud). `KXATPMATCH`/`KXWTAMATCH` are best-guess — verify locally and update if needed.
+> **Tennis tickers date by expiration.** `KXATPMATCH`/`KXWTAMATCH` confirmed against live markets (2026-06-29). Their ticker date is the expected *expiration* (~a day after the match), so `find_market_event()` matches tennis date-tolerantly — see the Tennis section above.
 
 > **Soccer is 3-way.** Soccer h2h returns home/draw/away. The Kalshi "team to win?" market is binary, so fair value is the team's devigged **win** share and a draw resolves to the NO side. (Before the 2026-06-03 fix, 3-outcome markets were silently skipped, so soccer produced no edges.)
 

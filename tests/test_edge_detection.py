@@ -1300,17 +1300,25 @@ class TestLiveInPlayOddsPhase2:
 
 
 class TestTennisMappings:
-    """Wimbledon tennis (KXATPMATCH / KXWTAMATCH) wiring — added 2026-06-28.
+    """Wimbledon tennis (KXATPMATCH / KXWTAMATCH) wiring.
 
     Tennis is h2h match-winner only (no spread/total). ATP and WTA singles
-    route to their respective Odds API keys. These tests assert only the
-    prefix/category wiring; live odds-matching requires local verification
-    (Kalshi API was egress-blocked in the cloud environment at implementation
-    time — run: python scripts/scan.py sports --filter wimbledon --top 30).
-
-    NOTE: if the live ticker prefix turns out to be KXATPGAME or KXWTAGAME
-    (not KXATPMATCH / KXWTAMATCH), update these constants and re-run the suite.
+    route to their respective Odds API keys. The rules_primary strings below are
+    taken verbatim from live Kalshi markets (2026-06-29), so they exercise the
+    real extraction + matching path rather than a fabricated pattern.
     """
+
+    # Real rules_primary text from live KXATPMATCH / KXWTAMATCH markets.
+    _ATP_RULES = (
+        "If Stefanos Tsitsipas wins the Tsitsipas vs Djokovic professional "
+        "tennis match in the 2026 Wimbledon Men Singles Round Of 64 after a "
+        "ball has been played, then the market resolves to Yes."
+    )
+    _WTA_RULES = (
+        "If Solana Sierra wins the Sierra vs Gauff professional tennis match "
+        "in the 2026 Wimbledon Women Singles Round Of 64 after a ball has been "
+        "played, then the market resolves to Yes."
+    )
 
     def test_atp_match_categorized_as_game(self):
         assert CATEGORY_MAP["KXATPMATCH"] == "game"
@@ -1324,26 +1332,36 @@ class TestTennisMappings:
     def test_wta_odds_sport_key(self):
         assert KALSHI_TO_ODDS_SPORT["KXWTAMATCH"] == "tennis_wta_wimbledon"
 
-    def test_tennis_extract_event_teams_against_pattern(self):
-        market = {
-            "ticker": "KXATPMATCH-26JUL01DJOKMED-DJOK",
-            "rules_primary": (
-                "If Novak Djokovic wins this Wimbledon match against Carlos Alcaraz "
-                "in the men's singles tournament, this market resolves Yes."
-            ),
-        }
-        result = extract_event_teams(market)
-        assert result is not None
-        player_a, player_b = result
-        assert "Djokovic" in player_a
-        assert "Alcaraz" in player_b
+    def test_atp_extract_players_from_real_rules(self):
+        # The existing "(?:vs|at) ... professional" pattern returns last names,
+        # which substring-match the Odds API full names.
+        market = {"ticker": "KXATPMATCH-26JUL01TSIDJO-TSI",
+                  "rules_primary": self._ATP_RULES}
+        assert extract_event_teams(market) == ("Tsitsipas", "Djokovic")
 
-    def test_tennis_extract_event_teams_simple_against(self):
-        market = {
-            "ticker": "KXWTAMATCH-26JUL01SWISWIA-SWI",
-            "rules_primary": "If Iga Swiatek wins this match against Elena Rybakina.",
-        }
-        result = extract_event_teams(market)
-        assert result is not None
-        assert "Swiatek" in result[0]
-        assert "Rybakina" in result[1]
+    def test_wta_extract_players_from_real_rules(self):
+        market = {"ticker": "KXWTAMATCH-26JUL01SIEGAU-SIE",
+                  "rules_primary": self._WTA_RULES}
+        assert extract_event_teams(market) == ("Sierra", "Gauff")
+
+    def test_find_event_tolerates_expiration_dated_ticker(self):
+        # The ticker date (26JUL01) is the market's *expected expiration*, ~a day
+        # AFTER the match commences (Jun 30 09:00 UTC). Exact ET-date equality
+        # would miss it; the tennis branch accepts the single player-pair
+        # candidate within a few days.
+        market = {"ticker": "KXATPMATCH-26JUL01TSIDJO-TSI",
+                  "yes_sub_title": "Stefanos Tsitsipas",
+                  "rules_primary": self._ATP_RULES}
+        ev = _h2h_event("Stefanos Tsitsipas", "Novak Djokovic",
+                        4.5, 1.2, "2026-06-30T09:00:00Z")
+        assert find_market_event(market, [ev]) is ev
+
+    def test_find_event_refuses_far_off_date(self):
+        # A candidate whose commence is far from the ticker date is a stale /
+        # wrong-tournament listing — refuse rather than fabricate an edge.
+        market = {"ticker": "KXATPMATCH-26JUL01TSIDJO-TSI",
+                  "yes_sub_title": "Stefanos Tsitsipas",
+                  "rules_primary": self._ATP_RULES}
+        ev = _h2h_event("Stefanos Tsitsipas", "Novak Djokovic",
+                        4.5, 1.2, "2026-06-20T09:00:00Z")
+        assert find_market_event(market, [ev]) is None

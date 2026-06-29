@@ -17,33 +17,43 @@ confirmed 0 open markets on June 20 for all tested prefixes).
   no spread or total markets on Kalshi for tennis. `KXATPMATCH` → `tennis_atp_wimbledon`
   and `KXWTAMATCH` → `tennis_wta_wimbledon` added to `CATEGORY_MAP` and
   `KALSHI_TO_ODDS_SPORT`. New `wimbledon` and `tennis` filter shortcuts.
-- **Player-name extraction** — extended `extract_event_teams()` with a tennis-specific
-  regex for the "If [Player A] wins this match against [Player B]" rules_primary
-  pattern used by Kalshi tennis markets. All existing team-sport patterns unchanged.
+- **Player-name extraction** — no new regex needed. Live markets read
+  "... wins the *Tsitsipas* vs *Djokovic* professional tennis match in the 2026
+  Wimbledon ...", which the existing "(?:vs|at) ... professional" branch in
+  `extract_event_teams()` already parses, returning the two players' last names.
+  Those substring-match the Odds API full names ("Stefanos Tsitsipas").
 - **Display wiring** — `KXATP`/`KXWTA` prefixes → sport label "Tennis" in
   `ticker_display.py`. Player abbreviations in ticker suffixes pass through raw
   (not in the US-sport team alias table, which is correct).
 - **No edge-math changes** — tennis uses the existing de-vigged h2h moneyline
   path (`detect_edge_game`). No spread/total stdev entries needed.
 
-### Ticker prefix caveat
+### 2026-06-29 — local validation + date-matching fix
 
-The Kalshi API was egress-blocked in the cloud environment during implementation,
-so `KXATPMATCH`/`KXWTAMATCH` are best-guess. **Must be verified locally:**
+The 06-28 work was authored by a cloud agent with the Kalshi API egress-blocked,
+so prefixes and the rules format were guesses. Validated locally against live
+markets and corrected:
 
-```bash
-python scripts/scan.py sports --filter wimbledon --top 30
-```
-
-If the real prefix differs (e.g. `KXATPGAME`, `KXWTAGAME`, `KXWIMMEN`), update
-`CATEGORY_MAP`, `KALSHI_TO_ODDS_SPORT`, and `FILTER_SHORTCUTS` in
-`scripts/kalshi/edge_detector.py`, plus `_SPORT_PREFIXES` in
-`scripts/shared/ticker_display.py`.
+- **Prefixes confirmed.** `KXATPMATCH` / `KXWTAMATCH` are correct (3+ open
+  markets each on 2026-06-29). The speculative "wins this match against" regex
+  the cloud agent added was dead code (real markets use the "vs ... professional
+  tennis match" phrasing) and was removed.
+- **Date-matching fix (the real blocker).** Tennis tickers embed the market's
+  *expected expiration* date (~a day after the match), not the commence date —
+  e.g. `KXATPMATCH-26JUL01TSIDJO` is the **Jun 30** 09:00 UTC match. The
+  exact ET-date equality in `find_market_event()` rejected every market with
+  "0 candidate events". Added a tennis branch (`_is_tennis_market()`): a player
+  pair meets at most once per tournament, so the single both-players candidate
+  is accepted when its commence lands within 3 days of the ticker date. After
+  the fix, `--filter wimbledon` matches markets to events and `detect_edge_game`
+  computes fair values (e.g. Djokovic 0.832 fair vs 0.87 ask → correctly no bet).
 
 ### Verification
 
-+10 tests (`TestTennisMappings` in `tests/test_edge_detection.py`; `TestTennisDisplay`
-in `tests/test_ticker_display.py`) → **503 passing** (was 493).
+`TestTennisMappings` (real-data extraction + date-tolerant matching) and
+`TestTennisDisplay` → **505 passing**. Live: `python scripts/scan.py sports
+--filter wimbledon` matches all 76 markets to odds events (no edges cleared the
+threshold at validation time — an efficient market, not a wiring gap).
 
 ### Files
 
