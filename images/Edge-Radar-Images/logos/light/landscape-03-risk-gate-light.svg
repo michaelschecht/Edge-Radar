@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">Edge-Radar Risk Gate light landscape logo concept</title>
+  <desc id="desc">A wide light Edge-Radar wordmark with a risk-gate clearance icon.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="78" y1="70" x2="286" y2="282" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00b894"/>
+      <stop offset="0.55" stop-color="#d97706"/>
+      <stop offset="1" stop-color="#dc2626"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="360" rx="40" fill="url(#bg)"/>
+  <rect x="72" y="72" width="216" height="216" rx="46" fill="#ffffff" stroke="url(#accent)" stroke-width="8"/>
+  <path d="M118 138h124M118 180h124M118 222h124" stroke="#cbd5e1" stroke-width="18" stroke-linecap="round"/>
+  <path d="M118 138h82M118 180h58M118 222h96" stroke="#00b894" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="118" cy="138" r="17" fill="#16a34a"/>
+  <circle cx="118" cy="180" r="17" fill="#d97706"/>
+  <circle cx="118" cy="222" r="17" fill="#dc2626"/>
+  <path d="M198 212l24 24 48-62" fill="none" stroke="#0a0e17" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M228 125l16 16 16-16" fill="none" stroke="#64748b" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="344" y="171" fill="#0a0e17" font-family="Outfit, Inter, Segoe UI, Arial, sans-serif" font-size="88" font-weight="800" letter-spacing="0">Edge-Radar</text>
+  <text x="350" y="226" fill="#64748b" font-family="JetBrains Mono, Consolas, monospace" font-size="28" font-weight="500" letter-spacing="0">13 risk gates plus Kelly-sized limit orders</text>
+</svg>

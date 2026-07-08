@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">Edge-Radar Fair Value Curve light landscape logo concept</title>
+  <desc id="desc">A wide light Edge-Radar wordmark with a fair-value curve compared against market price.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="78" y1="70" x2="286" y2="282" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#00b894"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="360" rx="40" fill="url(#bg)"/>
+  <rect x="72" y="72" width="216" height="216" rx="46" fill="#ffffff" stroke="url(#accent)" stroke-width="8"/>
+  <path d="M119 236h127M119 236V124" stroke="#94a3b8" stroke-width="8" stroke-linecap="round"/>
+  <path d="M124 223c18-3 28-21 41-45 14-26 30-42 52-37 15 3 24 15 32 31" fill="none" stroke="#00b894" stroke-width="10" stroke-linecap="round"/>
+  <path d="M122 180h122" stroke="#cbd5e1" stroke-width="7" stroke-dasharray="12 12" stroke-linecap="round"/>
+  <path d="M140 204h82" stroke="#d97706" stroke-width="8" stroke-linecap="round"/>
+  <path d="M229 146l20 28 20-28" fill="none" stroke="#0a0e17" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="165" cy="178" r="11" fill="#7c3aed"/>
+  <circle cx="222" cy="143" r="11" fill="#16a34a"/>
+  <rect x="127" y="116" width="56" height="28" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="4"/>
+  <path d="M140 130h29" stroke="#0a0e17" stroke-width="6" stroke-linecap="round"/>
+  <text x="344" y="171" fill="#0a0e17" font-family="Outfit, Inter, Segoe UI, Arial, sans-serif" font-size="88" font-weight="800" letter-spacing="0">Edge-Radar</text>
+  <text x="350" y="226" fill="#64748b" font-family="JetBrains Mono, Consolas, monospace" font-size="28" font-weight="500" letter-spacing="0">Fair value versus price across Kalshi markets</text>
+</svg>
