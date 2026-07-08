@@ -12,5 +12,12 @@
       "mcp__ax-platform__spaces",
       "mcp__ax-platform__context"
     ]
-  }
+  },
+  "disabledMcpjsonServers": [
+    "serper",
+    "github",
+    "context7",
+    "ax-channel",
+    "ax-platform"
+  ]
 }

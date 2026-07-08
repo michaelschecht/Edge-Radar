@@ -1,16 +1,38 @@
-<div align="center">
+<a id="readme-top"></a>
 
-# Edge-Radar
+<p align="center">
+  <a href="https://github.com/michaelschecht/Edge-Radar">
+    <img src="images/Edge-Radar-Images/logos/dark/landscape-01-market-sweep.svg" alt="Edge-Radar — automated edge detection & execution for prediction markets" width="720">
+  </a>
+</p>
 
-**Automated edge detection &amp; execution for prediction markets**
+<p align="center">
+  <em>Automated edge detection &amp; execution<br>for prediction markets.</em>
+</p>
 
-[![Kalshi Live Trading](https://img.shields.io/badge/Kalshi-Live%20Trading-e74c3c?style=flat-square)](https://kalshi.com)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-2ea44f?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![Markets](https://img.shields.io/badge/Markets-27%20Sports-0078D4?style=flat-square)](#-markets)
-[![Risk Gates](https://img.shields.io/badge/Risk-13%20Gates%20%2B%20Kelly-e74c3c?style=flat-square)](#-risk--position-sizing)
-[![APIs](https://img.shields.io/badge/APIs-9%20Free%20%2B%20Kalshi-F97316?style=flat-square)](#-data-sources)
+<p align="center">
+  <a href="docs/ARCHITECTURE.md"><strong>Explore the docs »</strong></a>
+</p>
 
-</div>
+<p align="center">
+  <a href="#-markets">View Markets</a>
+  ·
+  <a href="https://github.com/michaelschecht/Edge-Radar/issues">Report Bug</a>
+  ·
+  <a href="https://github.com/michaelschecht/Edge-Radar/issues">Request Feature</a>
+</p>
+
+<p align="center">
+  <a href="https://kalshi.com"><img src="https://img.shields.io/badge/Kalshi-Live_Trading-e74c3c?style=for-the-badge" alt="Kalshi Live Trading"></a>
+  <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.11+-2ea44f?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+"></a>
+  <a href="#-markets"><img src="https://img.shields.io/badge/markets-27_Sports-0078D4?style=for-the-badge" alt="Markets: 27 Sports"></a>
+</p>
+
+<p align="center">
+  <a href="#-risk--position-sizing"><img src="https://img.shields.io/badge/risk-13_Gates_·_Kelly-e74c3c?style=flat-square" alt="Risk: 13 Gates + Kelly"></a>
+  <a href="#-data-sources"><img src="https://img.shields.io/badge/APIs-9_Free_·_Kalshi-F97316?style=flat-square" alt="APIs: 9 Free + Kalshi"></a>
+  <a href="https://claude.ai/claude-code"><img src="https://img.shields.io/badge/Claude_Code-slash_commands-8B5CF6?style=flat-square" alt="Claude Code slash commands"></a>
+</p>
 
 > **Scans thousands of Kalshi markets, cross-references 12 sportsbooks and free data APIs, prices fair value with a normal-CDF model, and executes Kelly-sized limit orders** — every bet cleared through 13 risk gates and logged with fill-accurate accounting for closing-line-value tracking.
 
