@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">Edge-Radar Market Sweep light landscape logo concept</title>
+  <desc id="desc">A wide light Edge-Radar wordmark with a radar sweep market-edge icon.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="78" y1="70" x2="286" y2="282" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00b894"/>
+      <stop offset="1" stop-color="#16a34a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="360" rx="40" fill="url(#bg)"/>
+  <rect x="72" y="72" width="216" height="216" rx="46" fill="#ffffff" stroke="url(#accent)" stroke-width="8"/>
+  <circle cx="180" cy="180" r="72" fill="none" stroke="#cbd5e1" stroke-width="8"/>
+  <circle cx="180" cy="180" r="46" fill="none" stroke="#cbd5e1" stroke-width="6"/>
+  <path d="M180 180l57-55" stroke="#00b894" stroke-width="12" stroke-linecap="round"/>
+  <path d="M180 180h82M180 180v-82" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="180" cy="180" r="11" fill="#0a0e17"/>
+  <circle cx="230" cy="134" r="14" fill="#00b894"/>
+  <circle cx="130" cy="203" r="10" fill="#d97706"/>
+  <circle cx="214" cy="233" r="10" fill="#dc2626"/>
+  <path d="M132 249h96" stroke="#cbd5e1" stroke-width="8" stroke-linecap="round"/>
+  <path d="M132 249h54" stroke="#00b894" stroke-width="8" stroke-linecap="round"/>
+  <text x="344" y="171" fill="#0a0e17" font-family="Outfit, Inter, Segoe UI, Arial, sans-serif" font-size="88" font-weight="800" letter-spacing="0">Edge-Radar</text>
+  <text x="350" y="226" fill="#64748b" font-family="JetBrains Mono, Consolas, monospace" font-size="28" font-weight="500" letter-spacing="0">Scan markets, find edge, execute with discipline</text>
+</svg>
