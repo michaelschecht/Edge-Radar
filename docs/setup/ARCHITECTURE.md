@@ -335,7 +335,7 @@ python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date to
 
 ## 🔮 Remaining Work
 
-For the full enhancement roadmap (completed and pending items), see [ROADMAP.md](../enhancements/ROADMAP.md).
+For the full enhancement roadmap (completed and pending items), see [ROADMAP.md](../ROADMAP.md).
 
 | Priority | Enhancement | Status |
 | :--- | :--- | :--- |
@@ -366,7 +366,7 @@ Edge-Radar/
 │   │   ├── kalshi-futures-betting/    # Championship futures guide
 │   │   ├── kalshi-prediction-betting/ # Crypto, weather, S&P guides
 │   │   └── kalshi-sports-betting/     # 27 sport filters, MLB filtering, sports guide
-│   ├── enhancements/                  # ROADMAP.md — enhancement roadmap
+│   ├── ROADMAP.md                     # Enhancement roadmap (docs root)
 │   ├── scripts/                       # Per-script detailed docs
 │   ├── setup/                         # SETUP_GUIDE.md, AUTOMATION_GUIDE.md, mcp-servers.md
 │   └── web-app/                       # LOCAL.md, CLOUD.md

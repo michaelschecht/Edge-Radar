@@ -2,6 +2,36 @@
 
 ---
 
+## 2026-07-14 -- Polymarket integration scoped as top priority + roadmap relocated to docs root
+
+### Why
+
+Polymarket account approved + funded (US-persons ToS confirmed legitimate by operator).
+Goal: place wagers on Polymarket through Edge-Radar as a second execution venue. Ran a
+technical spike to scope it before building.
+
+### What changed
+
+- **New Priority 0 on the roadmap: Polymarket integration** (PM0–PM3), marked the
+  highest-priority active build. Phased Phase 1 read-only/dry-run → prove edge → Phase 2
+  execution → Phase 3 settlement.
+- **Spike findings:** the retired 2026-04-27 integration (commit `4361c85`) was a
+  read-only Kalshi↔Polymarket arbitrage scanner (Gamma API) — never placed a bet.
+  Execution is net-new (on-chain Polygon/USDC, EIP-712 wallet-signed via `py-clob-client`,
+  CLOB order book, UMA settlement). Good news: `app/domain/opportunity.py` is
+  provider-agnostic and `size_order()` runs on `Opportunity`, so a normalized Polymarket
+  opp reuses the existing risk gates; the execution client is a clean ~7-method interface
+  hardcoded as `KalshiClient()` at `kalshi_executor.py:1592` + `webapp/services.py:161`
+  (introduce a `MarketClient` abstraction + factory). Recoverable git assets:
+  `polymarket_edge.py` (Gamma reads) + `.claude/skills/polymarket/references/` (~9k lines
+  of CLOB/trading docs). Full plan: `docs/my-documents/temp/polymarket-integration/PLAN.md`.
+- **Roadmap relocated:** `docs/enhancements/ROADMAP.md` → **`docs/ROADMAP.md`** (`git mv`,
+  history preserved). Fixed all 11 inbound links (README, docs/README, ARCHITECTURE,
+  SCRIPTS_REFERENCE, SETUP_GUIDE, the three kalshi guides, CLAUDE.md + ARCHITECTURE trees,
+  `r8_cross_category_review.py`). Historical CHANGELOG "Files:" references left as-is.
+- **CLAUDE.md** — added a "🔴 NEXT UP: Polymarket" callout and marked it in-progress in the
+  Planned list.
+
 ## 2026-07-14 -- Full repo review + money-path fixes, longshot floor, config reconcile, cruft purge
 
 ### Why

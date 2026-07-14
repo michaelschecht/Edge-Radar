@@ -1,6 +1,6 @@
 # Edge-Radar Enhancement Roadmap
 
-*Last updated: 2026-07-14 — **Repo review + money-path fixes + longshot floor.** Fixed 3 real-money bugs (calibration-on-read, non-atomic trade log, R26 replay gate bypass); reconciled risk-gate config (MAX_OPEN_POSITIONS=50, MAX_PER_EVENT=2); raised MIN_MARKET_PRICE 0.06→0.12 to kill the sub-15¢ longshot bleed (0W–21L / −100% over 30d); purged orphaned scripts. **Open:** MLB executable-bets recheck due 2026-07-17/18 (see Priority 2 + `docs/my-documents/temp/mlb-executable-bets/`). Prior: C4 (2026-06-24), L1(P2)/R28/R29/C8 (2026-06-23). The full ship-by-ship history lives in the [Completed](#completed) index below — keep new entries there, not on this line.*
+*Last updated: 2026-07-14 — **🔴 NEXT UP: Polymarket integration** (Priority 0 below — the account is approved + funded; highest-priority active build). Also this session: repo review + 3 money-path bug fixes (calibration-on-read, non-atomic trade log, R26 replay gate bypass); reconciled risk-gate config (MAX_OPEN_POSITIONS=50, MAX_PER_EVENT=2); raised MIN_MARKET_PRICE 0.06→0.12 to kill the sub-15¢ longshot bleed (0W–21L / −100% over 30d); purged orphaned scripts; and this roadmap moved from `docs/enhancements/ROADMAP.md` → `docs/ROADMAP.md`. **Also open:** MLB executable-bets recheck due 2026-07-17/18 (Priority 2 + `docs/my-documents/temp/mlb-executable-bets/`). Prior: C4 (2026-06-24), L1(P2)/R28/R29/C8 (2026-06-23). The full ship-by-ship history lives in the [Completed](#completed) index below — keep new entries there, not on this line.*
 
 All pending improvements for Edge-Radar in a single prioritized action list, plus findings/context behind them and an index of completed work.
 
@@ -31,6 +31,23 @@ Aggregate ROI is solid at +29.1% but relies heavily on MLS (+137.3%) and NHL (+6
 ## Action Items (Consolidated)
 
 One unified list. Items from retired sections (C1a, R-series, S/H/M/U/D/A/T tiers) have been merged, deduplicated against each other, and re-sorted by priority. Old IDs preserved so existing commits / comments still resolve.
+
+### Priority 0 — 🔴 Active Build: Polymarket Integration (HIGHEST PRIORITY)
+
+**The #1 item on this roadmap.** Polymarket account approved + funded (2026-07-14; US-persons ToS confirmed legitimate by operator). Goal: place wagers on Polymarket through Edge-Radar, reusing the existing provider-agnostic `Opportunity` + `size_order` risk-gate chain.
+
+**Spike findings (2026-07-14):** The retired 2026-04-27 integration (commit `4361c85`) was a **read-only Kalshi↔Polymarket arbitrage scanner** (Gamma API) — it never placed a bet; `py-clob-client` was never wired. Execution is **net-new**: Polymarket is on-chain (Polygon/USDC), wallet-signed (EIP-712 via `py-clob-client`), CLOB order book, UMA-oracle settlement. **Good seam:** `app/domain/opportunity.py` is provider-agnostic (0 Kalshi refs) and `size_order()` runs on `Opportunity`, so a normalized Polymarket opp flows through existing gates for free. The execution client is a clean ~7-method interface (`get_balance_dollars`, `get_positions`, `create_order`, `get_orders`, `cancel_order`, `get_fills`, `get_settlements`), today hardcoded as `KalshiClient()` at `kalshi_executor.py:1592` + `webapp/services.py:161`. Recovered git assets: `polymarket_edge.py` (Gamma read layer) + `.claude/skills/polymarket/references/` (~9k lines of CLOB/trading API docs). **Full plan:** `docs/my-documents/temp/polymarket-integration/PLAN.md` (local).
+
+**Recommended approach: Phase 1 read/dry-run → prove edge → Phase 2 execution.** Do not wire real money through a new execution path until edge is demonstrated in dry-run.
+
+| ID | Item | Impact | Effort | Notes |
+|----|------|--------|--------|-------|
+| PM0 | **Spike follow-through** | — | Small | `git checkout 4361c85^ -- .claude/skills/polymarket/` to restore API refs; smoke-test the Gamma API against `polymarket_edge.py` (code is ~3mo stale, endpoints may have moved). |
+| PM1 | **Phase 1 — read-only edge detection (dry-run)** | High | Large | Read-only `PolymarketClient` (Gamma markets + CLOB orderbook reads); resurrect/modernize `polymarket_edge.py` to emit normalized `Opportunity` objects; `scan.py polymarket --dry-run` routes through existing `size_order` gates. **No wallet. Exit criteria: demonstrate real, gated edge on Polymarket.** Start **sports-only** (reuses Odds-API matching); non-sports markets need a new signal. |
+| PM2 | **Phase 2 — execution (real funds)** | High | Large | Define `MarketClient` Protocol; make `KalshiClient` conform; client factory + `--venue` plumbing. `PolymarketClient` write half via `py-clob-client` (EIP-712 order signing, USDC allowances, fills/cancel). **Wallet private key = direct fund access** — new secrets handling, detect-secrets baseline, dedicated low-balance trading wallet. Test with $1–2 stakes first. Risk gates reused as-is. |
+| PM3 | **Phase 3 — settlement & ops** | Medium | Med–Large | Polymarket settler (Data API / on-chain resolution → redeem → venue-tagged `trade_log`); surface venue in daily-summary / portfolio / betting_analysis; schedulers. Extend series/event dedup to be **venue-aware** (same game on both venues = double exposure). |
+
+**Open questions for operator** (in the plan): (1) sports-only vs all Polymarket categories; (2) dedicated trading wallet vs main funded wallet; (3) confirm $1–2 test stakes before size; (4) cross-venue arbitrage (original use case) vs independent Polymarket edge betting.
 
 ### Priority 1 — Ship Now (P&L or Correctness)
 

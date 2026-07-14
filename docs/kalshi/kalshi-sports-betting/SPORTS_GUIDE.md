@@ -4,7 +4,7 @@ Consolidated guide for sports betting on Kalshi: scanning markets, detecting edg
 
 For complete CLI flags and command examples, see [Scripts Reference](../../scripts/SCRIPTS_REFERENCE.md).
 For risk gates and parameters, see [Architecture](../../setup/ARCHITECTURE.md).
-For enhancement history and planned features, see [Roadmap](../../enhancements/ROADMAP.md).
+For enhancement history and planned features, see [Roadmap](../../ROADMAP.md).
 See also: [Futures Guide](../kalshi-futures-betting/FUTURES_GUIDE.md) | [Prediction Markets Guide](../kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)
 
 ---

@@ -489,7 +489,7 @@ Every configured key is either invalid or has hit its monthly quota (free tier =
 - **[Architecture](./ARCHITECTURE.md)** — How scoring, confidence, and risk gates work together
 - **[Local Dashboard](../web-app/LOCAL.md)** — Run the Streamlit dashboard locally
 - **[Cloud Dashboard](../web-app/CLOUD.md)** — Deploy your own to Streamlit Community Cloud
-- **[Roadmap](../enhancements/ROADMAP.md)** — What's built and what's planned
+- **[Roadmap](../ROADMAP.md)** — What's built and what's planned
 
 ### External docs
 
