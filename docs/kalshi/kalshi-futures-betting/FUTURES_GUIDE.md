@@ -31,7 +31,7 @@ See [Scripts Reference](../../scripts/SCRIPTS_REFERENCE.md) for complete CLI fla
 python scripts/scan.py futures --filter <filter>
 ```
 
-For enhancement history, see [Roadmap](../../enhancements/ROADMAP.md).
+For enhancement history, see [Roadmap](../../ROADMAP.md).
 See also: [Sports Guide](../kalshi-sports-betting/SPORTS_GUIDE.md) | [Prediction Markets Guide](../kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)
 
 ---

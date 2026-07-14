@@ -42,7 +42,7 @@ Only `README.md` and `CHANGELOG.md` live at the root of `docs/`. Everything else
 *   [CLOUD.md](./web-app/CLOUD.md) — Streamlit Cloud deployment guide.
 
 ### 📈 Roadmap & Changelog
-*   [enhancements/ROADMAP.md](./enhancements/ROADMAP.md) — Priorities, consolidated action items, completed milestones, and the findings log (incl. the 90-day review, F45–F49).
+*   [ROADMAP.md](./ROADMAP.md) — Priorities, consolidated action items, completed milestones, and the findings log (incl. the 90-day review, F45–F49). **Top item: Polymarket integration (Priority 0).**
 *   [CHANGELOG.md](./CHANGELOG.md) — Project commit and feature changelog history.
 
 > Periodic performance audits live under `docs/my-documents/` (git-ignored, local-only). Their conclusions are folded into the ROADMAP findings log, which is the tracked, canonical record.

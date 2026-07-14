@@ -265,7 +265,7 @@ Want the **complete** pipeline — emails, midday/late runs, weekly calibration/
 | **[Prediction Markets](docs/kalshi/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md)** | Crypto, weather, S&P 500, politics |
 | **[Architecture](docs/setup/ARCHITECTURE.md)** | Pipeline, edge models, risk gates, data flow, and project structure |
 | **[MLB Filtering](docs/kalshi/kalshi-sports-betting/MLB_FILTERING_GUIDE.md)** | 10 filter categories for MLB picks |
-| **[Roadmap](docs/enhancements/ROADMAP.md)** | All enhancements — completed & pending |
+| **[Roadmap](docs/ROADMAP.md)** | All enhancements — completed & pending (top item: Polymarket integration) |
 | **[Changelog](docs/CHANGELOG.md)** | Full project history |
 
 ---

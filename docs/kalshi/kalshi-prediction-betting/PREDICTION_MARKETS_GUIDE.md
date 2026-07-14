@@ -32,7 +32,7 @@ python scripts/scan.py prediction --filter <filter>
 
 > **⚠️ Prediction-market bets are gated OFF by default.** Risk Gate 4.7 (R25) rejects every prediction-market category (crypto, weather, spx, mentions, companies, politics) unless `ALLOW_PREDICTION_BETS=true` is set in `.env`. The 2026-04-24 audit found these models produced unreliable fair values and none had ever produced a settled bet, so they were parked. You can still **scan** these markets to research them; you just can't `--execute` them without flipping the flag.
 
-For risk gates and position sizing rules, see [Architecture](../../setup/ARCHITECTURE.md). For enhancement history, see [Roadmap](../../enhancements/ROADMAP.md).
+For risk gates and position sizing rules, see [Architecture](../../setup/ARCHITECTURE.md). For enhancement history, see [Roadmap](../../ROADMAP.md).
 See also: [Sports Guide](../kalshi-sports-betting/SPORTS_GUIDE.md) | [Futures Guide](../kalshi-futures-betting/FUTURES_GUIDE.md)
 
 ---

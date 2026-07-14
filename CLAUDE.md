@@ -22,9 +22,12 @@ Read relevant memory files before starting work to avoid re-learning prior conte
 | **Execution Pipeline** | Unified scan → risk-check → size → execute | Kalshi API (RSA-signed) |
 | **Web Dashboard** | Streamlit app — scan, execute, portfolio, settle | Deploy your own (see `docs/web-app/LOCAL.md`) |
 
+> **🔴 NEXT UP — Polymarket integration (highest priority).** Account approved + funded 2026-07-14. Adding Polymarket as a second execution venue (on-chain Polygon/USDC, wallet-signed via `py-clob-client`) behind the existing provider-agnostic `Opportunity` + `size_order` risk-gate chain. Phased: **Phase 1 read-only/dry-run → prove edge → Phase 2 execution.** Full plan + phase breakdown: **[docs/ROADMAP.md](docs/ROADMAP.md) Priority 0**; spike detail in `docs/my-documents/temp/polymarket-integration/PLAN.md`.
+
 <details>
 <summary><b>Planned (not yet implemented)</b></summary>
 
+- **Polymarket** — 🔴 **IN PROGRESS (Priority 0, see above)**
 - Manifold prediction markets
 - Alpaca stocks/options trading
 - Coinbase/Binance crypto trading
@@ -68,7 +71,7 @@ Edge-Radar/
 │   │   ├── SCRIPTS_REFERENCE.md     # Complete CLI reference
 │   │   └── per-script/              # One detailed doc per script
 │   ├── setup/                       # SETUP_GUIDE, ARCHITECTURE, automation, MCP, task schedules
-│   └── enhancements/                # ROADMAP.md — enhancement roadmap (tracked)
+│   └── ROADMAP.md                   # Enhancement roadmap (moved from enhancements/ → docs root 2026-07-14)
 ├── app/                             # Application core
 │   ├── config.py                    # Single source of truth for env-driven knobs (see CONFIG_CENTRALIZATION.md, Phase 1 landed 2026-04-25)
 │   └── domain/                      # Typed domain objects
