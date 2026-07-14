@@ -92,14 +92,14 @@ DRY_RUN = "true"
 # KELLY_FRACTION = "0.25"            # Kelly multiplier (0.25)
 # MAX_BET_SIZE = "100"               # Hard cap per bet in USD (100)
 # MAX_DAILY_LOSS = "250"             # Daily hard stop in USD (250)
-# MAX_OPEN_POSITIONS = "10"          # Concurrent open positions (10)
+# MAX_OPEN_POSITIONS = "50"          # Concurrent open positions (50)
 # MAX_PER_EVENT = "2"                # Max positions per game/event (2)
 # MAX_BET_RATIO = "3.0"             # Max bet as multiple of batch median (3.0)
 # MIN_EDGE_THRESHOLD = "0.03"       # Global minimum edge (fallback)
 # MIN_EDGE_THRESHOLD_MLB = "0.04"   # Per-sport override (2026-06-14, lowered from 0.06)
 # MIN_EDGE_THRESHOLD_NBA = "0.04"   # Per-sport override (2026-06-14, lowered from 0.06)
 # MIN_EDGE_THRESHOLD_NCAAB = "0.04" # Per-sport override (2026-06-14, lowered from 0.06)
-# MIN_MARKET_PRICE = "0.06"         # Gate 3.5 lottery-ticket floor (2026-06-14, doc-corrected from 0.10)
+# MIN_MARKET_PRICE = "0.12"         # Gate 3.5 lottery-ticket floor (2026-07-14, raised 0.06->0.12: sub-15c bets went 0W-21L)
 # MIN_COMPOSITE_SCORE = "6.0"       # Minimum score 0-10 (6.0)
 # KELLY_EDGE_CAP = "0.15"           # Soft-cap edge for Kelly sizing (2026-04-18)
 # KELLY_EDGE_DECAY = "0.5"          # Decay factor above the cap
@@ -152,7 +152,7 @@ Mapped via `st.secrets["KALSHI_API_KEY"]` -> `os.environ["KALSHI_API_KEY"]`
 | `KELLY_FRACTION` | `KELLY_FRACTION` | `"0.25"` | `kalshi_executor.py` |
 | `MAX_BET_SIZE` | `MAX_BET_SIZE` | `"100"` | `kalshi_executor.py` |
 | `MAX_DAILY_LOSS` | `MAX_DAILY_LOSS` | `"250"` | `kalshi_executor.py`, `services.py` |
-| `MAX_OPEN_POSITIONS` | `MAX_OPEN_POSITIONS` | `"10"` | `kalshi_executor.py`, `services.py` |
+| `MAX_OPEN_POSITIONS` | `MAX_OPEN_POSITIONS` | `"50"` | `kalshi_executor.py`, `services.py` |
 | `MAX_PER_EVENT` | `MAX_PER_EVENT` | `"2"` | `kalshi_executor.py`, `services.py` |
 | `MAX_BET_RATIO` | `MAX_BET_RATIO` | `"3.0"` | `kalshi_executor.py` |
 | `MIN_EDGE_THRESHOLD` | `MIN_EDGE_THRESHOLD` | `"0.03"` | `edge_detector.py`, `services.py` |
@@ -181,7 +181,7 @@ Mapped via `st.secrets["KALSHI_API_KEY"]` -> `os.environ["KALSHI_API_KEY"]`
 
 The risk-gate thresholds (`MIN_MARKET_PRICE`, `MIN_EDGE_THRESHOLD_*`, `MIN_COMPOSITE_SCORE`, `MIN_CONFIDENCE`, the NO-side gates, etc.) are snapshotted into **module-level globals in `kalshi_executor.py` at import time** — i.e. once, when the app process starts. A running app will keep using its startup values until the process restarts, no matter what you change in Secrets.
 
-> **Symptom this prevents:** the dashboard approving bets that should be rejected — e.g. a `$0.05` longshot getting "APPROVED" even though the current floor is `MIN_MARKET_PRICE = 0.06`. That happens when the app is still running on a *pre-edit* config snapshot.
+> **Symptom this prevents:** the dashboard approving bets that should be rejected — e.g. a `$0.10` longshot getting "APPROVED" even though the current floor is `MIN_MARKET_PRICE = 0.12`. That happens when the app is still running on a *pre-edit* config snapshot.
 
 ### How to apply a config change
 
@@ -196,7 +196,7 @@ The risk-gate thresholds (`MIN_MARKET_PRICE`, `MIN_EDGE_THRESHOLD_*`, `MIN_COMPO
 1. Go to [share.streamlit.io](https://share.streamlit.io) and open your app's workspace.
 2. Open the app menu (**⋮** next to the app, or **Manage app** from the running app's bottom-right).
 3. Click **Settings → Secrets**.
-4. Edit the flat TOML key (e.g. `MIN_MARKET_PRICE = "0.06"`) and click **Save**.
+4. Edit the flat TOML key (e.g. `MIN_MARKET_PRICE = "0.12"`) and click **Save**.
 5. Streamlit Cloud **automatically reboots** the app to load the new value. Wait ~30–60s for the cold start.
 6. **Verify:** re-run the same scan/preview — bets that violate the new floor should now drop out (or show the expected reject reason in the scan log).
 
