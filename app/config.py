@@ -161,7 +161,7 @@ class RiskLimits:
     unit_size: float = 1.00
     max_bet_size: float = 100.0
     max_daily_loss: float = 250.0
-    max_open_positions: int = 10
+    max_open_positions: int = 50
     max_per_event: int = 2
     max_bet_ratio: float = 3.0
 
@@ -171,7 +171,7 @@ class RiskLimits:
             unit_size=_float("UNIT_SIZE", 1.00),
             max_bet_size=_float("MAX_BET_SIZE", 100.0),
             max_daily_loss=_float("MAX_DAILY_LOSS", 250.0),
-            max_open_positions=_int("MAX_OPEN_POSITIONS", 10),
+            max_open_positions=_int("MAX_OPEN_POSITIONS", 50),
             max_per_event=_int("MAX_PER_EVENT", 2),
             max_bet_ratio=_float("MAX_BET_RATIO", 3.0),
         )
@@ -180,7 +180,7 @@ class RiskLimits:
 @dataclass(frozen=True)
 class GateThresholds:
     min_edge_threshold: float = 0.03
-    min_market_price: float = 0.10
+    min_market_price: float = 0.12
     min_composite_score: float = 6.0
     min_confidence: str = "medium"
     series_dedup_hours: int = 48
@@ -200,7 +200,7 @@ class GateThresholds:
     def from_env(cls) -> "GateThresholds":
         return cls(
             min_edge_threshold=_float("MIN_EDGE_THRESHOLD", 0.03),
-            min_market_price=_float("MIN_MARKET_PRICE", 0.10),
+            min_market_price=_float("MIN_MARKET_PRICE", 0.12),
             min_composite_score=_float("MIN_COMPOSITE_SCORE", 6.0),
             min_confidence=_str("MIN_CONFIDENCE", "medium").strip().lower(),
             series_dedup_hours=_int("SERIES_DEDUP_HOURS", 48),

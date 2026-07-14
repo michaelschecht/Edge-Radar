@@ -7,10 +7,46 @@ Used by kalshi_executor.py, kalshi_settler.py, and future prediction executor.
 """
 
 import json
+import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 from paths import TRADE_LOG_PATH, SETTLEMENT_LOG_PATH
+
+
+def _atomic_write_json(path: Path, data) -> None:
+    """Serialize ``data`` to ``path`` atomically.
+
+    Writes to a temp file in the same directory, flushes+fsyncs it, then
+    ``os.replace``s it over the target. ``os.replace`` is atomic on both POSIX
+    and Windows when source and destination share a filesystem, so a reader
+    (or a crash) never observes a half-written trade/settlement log — the file
+    is either the old contents or the complete new contents.
+
+    NOTE: this closes the *corruption-on-interrupted-write* hole. It does NOT
+    serialize concurrent read-modify-write cycles across processes — callers
+    that do load→append→save (executor, settler) should still avoid running
+    simultaneously, or a lost-update race remains. A cross-process lock is a
+    separate, larger change tracked in the repo review.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2, default=str)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_name, path)
+    except BaseException:
+        # Never leave a stray temp file behind on failure.
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 def load_trade_log() -> list[dict]:
@@ -22,10 +58,8 @@ def load_trade_log() -> list[dict]:
 
 
 def save_trade_log(trades: list[dict]) -> None:
-    """Save the trade log to disk."""
-    TRADE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(TRADE_LOG_PATH, "w") as f:
-        json.dump(trades, f, indent=2, default=str)
+    """Save the trade log to disk (atomic write — see ``_atomic_write_json``)."""
+    _atomic_write_json(TRADE_LOG_PATH, trades)
 
 
 def load_settlement_log() -> list[dict]:
@@ -37,10 +71,8 @@ def load_settlement_log() -> list[dict]:
 
 
 def save_settlement_log(settlements: list[dict]) -> None:
-    """Save the settlement log to disk."""
-    SETTLEMENT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(SETTLEMENT_LOG_PATH, "w") as f:
-        json.dump(settlements, f, indent=2, default=str)
+    """Save the settlement log to disk (atomic write — see ``_atomic_write_json``)."""
+    _atomic_write_json(SETTLEMENT_LOG_PATH, settlements)
 
 
 def get_today_pnl(trades: list[dict] | None = None) -> float:

@@ -282,47 +282,6 @@ python scripts/kalshi/kalshi_client.py COMMAND [flags]
 </details>
 
 <details>
-<summary><b>fetch_odds.py — Odds API Explorer</b></summary>
-
-**Location:** `scripts/kalshi/fetch_odds.py`
-
-Explore raw sportsbook odds without running edge detection.
-
-```bash
-python scripts/kalshi/fetch_odds.py [flags]
-```
-
-| Flag | Default | Description |
-| :--- | :--- | :--- |
-| `--market SPORT` | `nba` | `nba`, `nfl`, `mlb`, `nhl`, `ncaafb`, `ncaabb`, `soccer`, `mma`, `all` |
-| `--min-edge N` | from .env | Minimum edge threshold |
-| `--dry-run` | off | Print results without saving |
-| `--save` | off | Save opportunities to watchlist |
-
-</details>
-
-<details>
-<summary><b>fetch_market_data.py — Market Data Fetcher</b></summary>
-
-**Location:** `scripts/kalshi/fetch_market_data.py`
-
-Pull market data for stocks, crypto, or prediction markets.
-
-```bash
-python scripts/kalshi/fetch_market_data.py [flags]
-```
-
-| Flag | Default | Description |
-| :--- | :--- | :--- |
-| `--type TYPE` | `stocks` | `stocks`, `prediction`, `crypto`, `account`, `all` |
-| `--symbols SYM [SYM ...]` | `AAPL NVDA TSLA SPY QQQ` | Tickers to fetch |
-| `--limit N` | `20` | Number of prediction market results |
-| `--save` | off | Save snapshot to data/ |
-| `--source SOURCE` | `kalshi` | Prediction market source (currently `kalshi` only) |
-
-</details>
-
-<details>
 <summary><b>recover_trade_log.py — Trade-Log Recovery</b></summary>
 
 **Location:** `scripts/kalshi/recover_trade_log.py`
@@ -337,26 +296,6 @@ python scripts/kalshi/recover_trade_log.py --write    # back up + rewrite
 | Flag | Default | Description |
 | :--- | :--- | :--- |
 | `--write` | off | Back up the current log (`*.clobbered-<ts>.bak`) and write the rebuilt one |
-
-</details>
-
-<details>
-<summary><b>daily_sports_scan.py — Daily Morning Report</b></summary>
-
-**Location:** `scripts/schedulers/automation/daily_sports_scan.py`
-
-Generate a morning edge report scanning MLB, NBA, NHL, and NFL.
-
-```bash
-python scripts/schedulers/automation/daily_sports_scan.py [flags]
-```
-
-| Flag | Default | Description |
-| :--- | :--- | :--- |
-| `--top N` | `25` | Number of top opportunities to include |
-| `--daemon` | off | Run as background daemon — scans at 8:00 AM PST daily |
-
-**Output:** Report saved to `reports/Sports/daily_edge_reports/YYYY-MM-DD_morning_scan.md`
 
 </details>
 

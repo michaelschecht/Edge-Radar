@@ -2,6 +2,74 @@
 
 ---
 
+## 2026-07-14 -- Full repo review + money-path fixes, longshot floor, config reconcile, cruft purge
+
+### Why
+
+Session started from "not many wagers being placed." Diagnosis (30-day settled
+review) flipped the premise: volume wasn't gate-starved — it was **calendar-driven**
+(World Cup ending ~07-19, MLB All-Star break, NBA/NHL offseason) and the bets that
+*were* placed bled **−43% ROI (12W–30L, L9 streak)**, ~98% World Cup spread-YES
+longshots. The sub-15¢ price bucket went **0W–21L, −100%**. Odds API quota was
+healthy (2,465 requests). A full five-agent repo review ran alongside; findings at
+`docs/my-documents/repo-reviews/2026-07-14-repo-review.md`.
+
+### What changed
+
+**Money-path bug fixes (all 508 tests green):**
+- **Calibration-on-read** (`model_calibration.py`): `save_calibration_stdevs()` was
+  called unconditionally, so a read-only report run silently mutated the per-sport
+  margin/total stdevs the scanner prices against. Now gated behind `--save` (all
+  scheduled calibration tasks pass `--save`, so the C8 feedback loop is unaffected).
+- **Trade-log corruption** (`scripts/shared/trade_log.py`): `save_trade_log` /
+  `save_settlement_log` did a plain non-atomic `open("w")`. Added
+  `_atomic_write_json` (temp file + fsync + `os.replace`) so a crash/interrupt can
+  no longer corrupt the ledger or lose a live position. (Residual cross-process
+  read-modify-write lock left as a follow-up — see repo review.)
+- **R26 replay gate bypass** (`kalshi_executor.py`): the cached-preview replay path
+  set `to_execute = list(cached_rows)` and skipped straight to execution, bypassing
+  gates 5/6/7. It now re-checks duplicate-ticker, per-event cap, and series-dedup
+  against *current* portfolio state before executing (sizing stays locked from the
+  preview). Drops are reported.
+
+**Risk-gate config reconciled to a single source of truth** (`app/config.py`) across
+`.env.example` and `CLAUDE.md`:
+- `MAX_OPEN_POSITIONS` → **50** everywhere (live `.env` ran 50; docs/code default
+  wrongly said 10 — reconciled *up* to match live intent per operator decision).
+- `MAX_PER_EVENT` → **2** in `CLAUDE.md` (was the lone outlier at 3; code/.env were 2).
+
+**Longshot price floor (R7 tightening):** `MIN_MARKET_PRICE` **0.06 → 0.12** in live
+`.env`, `.env.example`, `app/config.py` default, and `CLAUDE.md`. 30-day data: every
+sub-15¢ bet lost (0W–21L / −100%) while ≥25¢ bets were profitable. This is the direct
+fix for the World Cup spread-YES longshot bleed and protects future soccer/all-sport
+longshots. **Requires webapp restart / Streamlit Cloud Secrets update to take effect
+in long-running apps** (CLI picks it up immediately).
+
+**Cruft purge:** `git rm` of three verified broken+orphaned scripts —
+`daily_sports_scan.py` (crashed on import: `from config import …`; superseded by
+`same_day_scan.bat → scan.py`), `fetch_market_data.py`, `fetch_odds.py` (orphaned,
+broken auth + Polymarket response shape). Removed 16 untracked dated
+`send_daily_summary_email_2026-*.py` snapshots (canonical `send_daily_summary_email.py`
+retained). Updated `docs/scripts/SCRIPTS_REFERENCE.md` to drop the three blocks.
+**Deliberately NOT removed:** `.claude/backup/` — its README documents it as an
+intentional holding pen keeping old HTML out of the public Pages deploy (the review
+agent misread it as dead cruft).
+
+**Tests:** updated `test_config.py` (new defaults) and `test_risk_gates.py` (two tests
+using $0.10 prices now neutralize the floor via monkeypatch, since they exercise the
+max-bet cap / Kelly sizing, not the R7 floor). 508 passing.
+
+### Open follow-up
+
+- **MLB executable-bets recheck** — MLB placed 0 bets in 30 days (crowded out by
+  World Cup's inflated pre-de-vig edges for the `--max-bets` slots). Should self-correct
+  now that WC is ending + de-vig shipped + longshot floor raised. Recheck plan +
+  commands: `docs/my-documents/temp/mlb-executable-bets/README.md`. **Run 2026-07-17/18.**
+- Other repo-review follow-ups (composite-formula regression test, undocumented env
+  vars `KALSHI_PROD_*`/`ALPACA_*`/`TELEGRAM_*` in `.env.example`, settlement
+  double-count-by-ticker, three-way Brier definition mismatch, cross-process trade-log
+  lock) are catalogued in the repo-review doc.
+
 ## 2026-06-29 -- De-vig the spread & total models (fix the always-YES bias)
 
 ### Why

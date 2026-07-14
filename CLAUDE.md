@@ -80,7 +80,7 @@ Edge-Radar/
 │   ├── services.py                  # Wrapper around core scripts
 │   ├── theme.py                     # Dark terminal CSS
 │   └── views/                       # Page modules (scan, portfolio, settle)
-├── tests/                           # 330 pytest tests
+├── tests/                           # 508 pytest tests
 └── scripts/
     ├── scan.py                      # Unified entry point
     ├── doctor.py                    # Environment validator
@@ -172,11 +172,11 @@ UNIT_SIZE=1.00                  # Kelly floor per bet
 KELLY_FRACTION=0.25             # Kelly multiplier (divided by batch size)
 MAX_BET_SIZE=100                # Hard cap per bet (USD)
 MAX_DAILY_LOSS=250              # Daily hard stop (USD)
-MAX_OPEN_POSITIONS=10           # Concurrent open positions
-MAX_PER_EVENT=3                 # Max positions per game/event
+MAX_OPEN_POSITIONS=50           # Concurrent open positions
+MAX_PER_EVENT=2                 # Max positions per game/event
 MAX_BET_RATIO=3.0               # Max bet as multiple of batch median
 MIN_EDGE_THRESHOLD=0.03         # Minimum 3% edge (global)
-MIN_MARKET_PRICE=0.06           # R7: reject bets priced below this (lottery-ticket floor); 0 disables
+MIN_MARKET_PRICE=0.12           # R7: reject bets priced below this (lottery-ticket floor); 0 disables. Raised 0.06->0.12 2026-07-14 (30d: sub-15c bets 0W-21L / -100%)
 MIN_EDGE_THRESHOLD_NBA=0.04     # Per-sport override (2026-06-14 — lowered 0.06->0.04 alongside MLB; matching fix de-inflated edges)
 MIN_EDGE_THRESHOLD_NCAAB=0.04   # Per-sport override (2026-06-14 — lowered 0.06->0.04 for consistency)
 MIN_EDGE_THRESHOLD_MLB=0.04     # Per-sport override (2026-06-14 — lowered 0.06->0.04; the ~15% over-claim that justified the higher floor is now fixed upstream by the edge-matching corrections of 06-03/06-05. 2-4 week experiment, then recalibrate)

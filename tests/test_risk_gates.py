@@ -182,14 +182,17 @@ class TestSizeOrderRiskGates:
         # Big Kelly bet hits the max bet cap
         import kalshi_executor
         orig_max = kalshi_executor.MAX_BET_SIZE
+        orig_floor = kalshi_executor.MIN_MARKET_PRICE
         try:
             kalshi_executor.MAX_BET_SIZE = 5.0  # low cap
+            kalshi_executor.MIN_MARKET_PRICE = 0.0  # this test exercises the cap, not the R7 floor
             opp = self._make_opp(price=0.10, edge=0.50, score=9.0)
             result = size_order(opp, bankroll=500.0, open_positions=0, daily_pnl=0.0, unit_size=1.00)
             assert result.risk_approval == "APPROVED_CAPPED_MAX_BET"
             assert result.cost_dollars <= 5.0 + 0.11
         finally:
             kalshi_executor.MAX_BET_SIZE = orig_max
+            kalshi_executor.MIN_MARKET_PRICE = orig_floor
 
 
 # ── R7: Minimum market-price floor (Gate 3.5) ────────────────────────────────
@@ -626,9 +629,11 @@ class TestTrustedEdge:
         import kalshi_executor
         orig_kelly = kalshi_executor.KELLY_FRACTION
         orig_max = kalshi_executor.MAX_BET_SIZE
+        orig_floor = kalshi_executor.MIN_MARKET_PRICE
         try:
             kalshi_executor.KELLY_FRACTION = 0.25
             kalshi_executor.MAX_BET_SIZE = 1000.0  # high enough not to cap
+            kalshi_executor.MIN_MARKET_PRICE = 0.0  # this test exercises Kelly sizing, not the R7 floor
             opp = Opportunity(
                 ticker="KXMLBGAME-99MAR301840CWSMIA-MIA",
                 title="Test",
@@ -653,6 +658,7 @@ class TestTrustedEdge:
         finally:
             kalshi_executor.KELLY_FRACTION = orig_kelly
             kalshi_executor.MAX_BET_SIZE = orig_max
+            kalshi_executor.MIN_MARKET_PRICE = orig_floor
 
 
 # ── Per-sport MIN_EDGE_THRESHOLD override ─────────────────────────────────────
