@@ -1099,16 +1099,66 @@ def execute_pipeline(
         return []
 
     if cached_rows is not None:
-        # ── R26 replay path: rows already passed dedup/sizing/caps in the
-        #    original preview run. Skip straight to the preview table + execute
-        #    loop so --pick row indices map to the same tickers the user saw.
+        # ── R26 replay path: sizing / correlated-bracket dedup / bet-ratio &
+        #    budget caps are intentionally locked from the original preview run
+        #    (that's what makes --pick row indices stable). BUT the three
+        #    portfolio-STATE-dependent gates can go stale inside the cache TTL:
+        #    between the preview and the replay you may have opened one of these
+        #    tickers, filled the per-event cap, or bet the matchup. Re-check
+        #    gates 5 (duplicate ticker), 6 (per-event cap) and 7 (series dedup)
+        #    against *current* state so a replay can't re-bet a market you now
+        #    hold. Sizing is NOT recomputed — only these guards.
         age_str = f"{cache_age_seconds}s" if cache_age_seconds is not None else "unknown"
         rprint(
             f"\n[bold cyan]Replaying cached preview "
             f"({len(cached_rows)} rows, age {age_str}).[/bold cyan]"
         )
         rprint("[dim]Pass --rescan to force a fresh scan instead.[/dim]")
-        to_execute = list(cached_rows)
+
+        to_execute = []
+        replay_dropped: list[tuple[str, str]] = []
+        for s in cached_rows:
+            tkr = s.opportunity.ticker
+            evt = _event_key(tkr)
+            mkey = matchup_key(tkr)
+            if tkr in open_tickers:
+                replay_dropped.append((tkr, "already holding this market (gate 5)"))
+                continue
+            if event_counts.get(evt, 0) >= MAX_PER_EVENT:
+                replay_dropped.append(
+                    (tkr, f"per-event cap {MAX_PER_EVENT} reached (gate 6)")
+                )
+                continue
+            if mkey and mkey in recent_matchups:
+                replay_dropped.append(
+                    (tkr, "matchup bet within series-dedup window (gate 7)")
+                )
+                continue
+            to_execute.append(s)
+            # Track within this batch so two cached rows on the same event/matchup
+            # don't both slip through.
+            open_tickers.add(tkr)
+            event_counts[evt] = event_counts.get(evt, 0) + 1
+            if mkey:
+                recent_matchups.add(mkey)
+
+        if replay_dropped:
+            rprint(
+                f"  [yellow]Re-gate dropped {len(replay_dropped)} stale cached "
+                f"row(s) on current portfolio state:[/yellow]"
+            )
+            for tkr, why in replay_dropped[:5]:
+                rprint(f"    [dim]SKIP {tkr}: {why}[/dim]")
+            if len(replay_dropped) > 5:
+                rprint(f"    [dim]... and {len(replay_dropped) - 5} more[/dim]")
+
+        if not to_execute:
+            rprint(
+                "[yellow]All cached rows were dropped by re-gating against "
+                "current portfolio state; nothing to execute. "
+                "Pass --rescan for a fresh scan.[/yellow]"
+            )
+            return []
     else:
         # ── Deduplicate correlated brackets (e.g., multiple totals lines on same game)
         before_dedup = len(opportunities)

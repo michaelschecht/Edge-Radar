@@ -1,6 +1,6 @@
 # Edge-Radar Enhancement Roadmap
 
-*Last updated: 2026-06-24 — **C4 shipped** (retired the base "high" confidence tier's composite-score premium — no predictive signal in the 306-bet review). Prior: L1 (Phase 2), R28, R29, C8 (2026-06-23). The full ship-by-ship history lives in the [Completed](#completed) index below — keep new entries there, not on this line.*
+*Last updated: 2026-07-14 — **Repo review + money-path fixes + longshot floor.** Fixed 3 real-money bugs (calibration-on-read, non-atomic trade log, R26 replay gate bypass); reconciled risk-gate config (MAX_OPEN_POSITIONS=50, MAX_PER_EVENT=2); raised MIN_MARKET_PRICE 0.06→0.12 to kill the sub-15¢ longshot bleed (0W–21L / −100% over 30d); purged orphaned scripts. **Open:** MLB executable-bets recheck due 2026-07-17/18 (see Priority 2 + `docs/my-documents/temp/mlb-executable-bets/`). Prior: C4 (2026-06-24), L1(P2)/R28/R29/C8 (2026-06-23). The full ship-by-ship history lives in the [Completed](#completed) index below — keep new entries there, not on this line.*
 
 All pending improvements for Edge-Radar in a single prioritized action list, plus findings/context behind them and an index of completed work.
 
@@ -46,6 +46,8 @@ Items that improve measurement, close known gaps, or remove operator friction.
 
 | ID | Item | Impact | Effort | Notes |
 |----|------|--------|--------|-------|
+| M1 | **MLB executable-bets recheck (post-World-Cup)** | High | Small | **OPEN — run 2026-07-17/18** (season resumes 07-17; 07-14 was the All-Star break). MLB placed 0 bets in 30 days (F52) — crowded out by World Cup's inflated pre-de-vig edges for the `--max-bets` slots. Now WC is ending, de-vig shipped, and the longshot floor is up, MLB should flow. Recheck commands + interpretation table: `docs/my-documents/temp/mlb-executable-bets/README.md`. If MLB still shows 0 on a full slate with `edge`/`score`-gated rows, run a controlled loosening of `MIN_EDGE_THRESHOLD_MLB` (0.03) / `MIN_COMPOSITE_SCORE` (6.0) on a 2–4 week trial. |
+| M2 | **Cross-process trade-log lock** | Medium | Small | Follow-up to the 2026-07-14 atomic-write fix. `_atomic_write_json` closed the corruption hole but not the concurrent read-modify-write race (executor + settler + webapp all do load→append→save). Add a cross-process lock (or a single-writer discipline) so a lost-update can't drop a live trade record. See repo review. |
 | ~~C4~~ | **Audit the base "high" confidence criteria** | Medium | Medium | **SHIPPED 2026-06-24.** Measured the tier's predictive signal on 306 settled bets: at *equal claimed edge* High underperforms Medium (5–10% edge bucket: 34% vs 63% WR) — no positive signal. The roadmap's "tight-market = lower edge" hunch was the wrong shape: High actually *over-claims* edge (19.1% vs 15.9% avg) against efficient ≥8-book consensus. Fix: capped `high`→`medium` in the sports composite weight (`edge_detector.py`) so "high" no longer floats no-signal bets up the `--max-bets` queue or helps clear Gate 4. Label retained (still gates NO-favorites at Gate 4.6); sizing never used confidence. Scoped to sports. See Completed entry below + Findings (C4 detail). Follow-up logged as **C4b** (edge-cap the base rule to make a meaningful High tier). |
 | C4b | **Edge-cap the base "high" rule (make High mean something)** | Low | Small | Follow-up to C4. C4 *retired* High's composite premium but left the minting rule (≥8 books + tight consensus) intact, so "high" is now a near-inert label. Optional next step: only grant "high" when claimed edge is *modest* against the tight consensus (e.g. `edge ≤ ~10%`), since a large edge vs an efficient price is the over-claim signature (NCAAMB High: 33.8% avg edge / 28.6% WR). Caveat: C4 data showed High also underperforms at *low* edge (5–10% bucket, 34% WR), so an edge-cap may not rescue the tier — measure before shipping. Low priority; the composite fix already stops the bleeding. |
 | R10 | **Category-weighted composite score** | Medium | Medium | Pull back on ML (30d: +11% ROI on 61 bets). Favor Total (30d: +32% ROI on 76 bets) and Spread (+145% but still one-fill dependent — watch, don't re-weight up). Related to C4 (both touch the composite weighting) — consider doing together. |
@@ -158,6 +160,28 @@ Multi-quarter track. Build order: A2 → A3 → A4+A5 → A6+A7+A8 → A9. Assum
 ---
 
 ## Findings & Context
+
+### 2026-07-14 — 30-day review + MLB volume diagnosis (42 settled trades)
+
+Source: 30-day settled review (2026-06-14 → 07-14) prompted by "not many wagers
+being placed." **The premise was wrong** — 42 bets were placed (1.4/day, tapering
+to 0.6/day); the problem was concentration and losses, not volume starvation.
+
+- **F50 — World Cup monoculture.** 41 of 42 bets were World Cup; 0 MLB, 1 NHL. The
+  schedulers scan all sports unfiltered, but World Cup's pre-de-vig inflated spread
+  edges out-ranked everything else for the `--max-bets` slots. Book bled −43% ROI
+  (12W–30L, L9 streak).
+- **F51 — sub-15¢ longshots are −EV, full stop.** The <15¢ price bucket went 0W–21L,
+  −100%, −$14.53 — mostly World Cup spread-YES. By side: NO 5–0 (+17%), YES 7–30
+  (−54%). By price: everything ≥25¢ was profitable. → Raised `MIN_MARKET_PRICE`
+  0.06→0.12 (see Completed 2026-07-14). Not a code bug — the 06-29 de-vig already
+  neutralized the always-YES *mechanism*; this is a settled-outcome calibration call.
+- **F52 — MLB at zero is crowding, not an MLB bug (OPEN).** MLB placed 0 executed
+  bets in 30 days despite daily scanning. Likely cause: World Cup's phantom edges ate
+  every slot. Should self-correct now WC is ending + de-vig shipped + longshot floor
+  raised. Recheck due 2026-07-17/18 — see Priority 2 (M1) and
+  `docs/my-documents/temp/mlb-executable-bets/README.md`.
+- Quota healthy (2,465 Odds API requests remaining). Balance $85.75, avg bet $0.67.
 
 ### 2026-06-23 — 90-day comprehensive review (302 settled trades)
 
@@ -343,6 +367,15 @@ Re-measure at 4 weeks. If ≥25% bucket is still negative, tighten to a harder c
 ## Completed
 
 Index only — detailed notes are in the collapsed section below.
+
+### 2026-07-14 — Repo Review + Money-Path Fixes + Longshot Floor + Config Reconcile
+
+| ID | Item |
+|----|------|
+| — | **Fixed 3 real-money bugs.** (1) Calibration-on-read: `model_calibration.py` called `save_calibration_stdevs()` unconditionally, so a read-only report mutated the scanner's pricing stdevs — now gated behind `--save`. (2) Non-atomic trade log: `trade_log.py` now writes via temp-file + `os.replace` (`_atomic_write_json`) so a crash can't corrupt the ledger / lose a live position. (3) R26 replay gate bypass: `kalshi_executor.py` cached-preview replay now re-checks gates 5/6/7 (duplicate ticker / per-event cap / series dedup) against current portfolio before executing. 508 tests green. |
+| R7↑ | **Longshot floor raised.** `MIN_MARKET_PRICE` 0.06→0.12 (live `.env` + `.env.example` + `app/config.py` + `CLAUDE.md`). 30-day settled: every sub-15¢ bet lost (0W–21L / −100%); ≥25¢ profitable. Directly kills the World Cup spread-YES longshot bleed. Needs webapp restart / Cloud Secrets update to apply in long-running apps. |
+| — | **Config reconciled to `app/config.py`.** `MAX_OPEN_POSITIONS`=50 everywhere (live intent; docs said 10), `MAX_PER_EVENT`=2 in CLAUDE.md (was 3). |
+| — | **Cruft purged.** Removed orphaned/broken `daily_sports_scan.py`, `fetch_market_data.py`, `fetch_odds.py` + 16 dated email snapshots; updated SCRIPTS_REFERENCE.md. Kept `.claude/backup/` (intentional, documented). Full review: `docs/my-documents/repo-reviews/2026-07-14-repo-review.md`. |
 
 ### 2026-06-24 — C4 Confidence-Tier Audit (Retire High's Composite Premium)
 

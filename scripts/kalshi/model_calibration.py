@@ -727,8 +727,12 @@ def generate_calibration_report(days: int | None = None, save: bool = False):
             f.write("\n".join(md) + "\n")
         rprint(f"\n[dim]Report saved to {report_path}[/dim]")
 
-    # Auto-calibrate standard deviations and save to cache (C8)
-    save_calibration_stdevs(settled)
+        # Auto-calibrate standard deviations and persist to cache (C8).
+        # Gated on `save` so a read-only report run (no --save) is truly
+        # read-only and never mutates the stdevs the scanner prices against.
+        # All scheduled calibration tasks (weekly/monthly) pass --save, so the
+        # auto-calibration feedback loop is unaffected.
+        save_calibration_stdevs(settled)
 
 
 def _print_dimension_table(title: str, data: list[dict], md: list[str]):

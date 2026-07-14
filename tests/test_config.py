@@ -115,7 +115,7 @@ class TestDocumentedDefaults:
         assert r.unit_size == 1.00
         assert r.max_bet_size == 100.0
         assert r.max_daily_loss == 250.0
-        assert r.max_open_positions == 10
+        assert r.max_open_positions == 50
         assert r.max_per_event == 2
         assert r.max_bet_ratio == 3.0
 
@@ -123,7 +123,7 @@ class TestDocumentedDefaults:
     def test_gate_defaults(self):
         g = GateThresholds.from_env()
         assert g.min_edge_threshold == 0.03
-        assert g.min_market_price == 0.10
+        assert g.min_market_price == 0.12
         assert g.min_composite_score == 6.0
         assert g.min_confidence == "medium"
         assert g.series_dedup_hours == 48
