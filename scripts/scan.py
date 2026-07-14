@@ -22,11 +22,14 @@ SCANNERS = {
     "sports":     PROJECT_ROOT / "scripts" / "kalshi"      / "edge_detector.py",
     "futures":    PROJECT_ROOT / "scripts" / "kalshi"      / "futures_edge.py",
     "prediction": PROJECT_ROOT / "scripts" / "prediction"  / "prediction_scanner.py",
+    "polymarket": PROJECT_ROOT / "scripts" / "polymarket"  / "polymarket_futures_edge.py",
 }
 
 ALIASES = {
     "sport": "sports",
     "pred":  "prediction",
+    "poly":  "polymarket",
+    "pm":    "polymarket",
 }
 
 
@@ -65,8 +68,9 @@ Market types:
   sports       Kalshi sports betting (NBA, NHL, MLB, NFL, NCAA, etc.)
   futures      Championship & season-long futures
   prediction   Crypto, weather, S&P 500, politics
+  polymarket   Polymarket championship futures (Phase 1: read-only / dry-run)
 
-Aliases:  sport, pred
+Aliases:  sport, pred, poly, pm
 
 Common flags (all scanners):
   --filter X       Filter by sport/asset/category
@@ -86,6 +90,7 @@ Examples:
   python scripts/scan.py sports --filter mlb --date today --save
   python scripts/scan.py futures --filter nba-futures --top 10
   python scripts/scan.py prediction --filter crypto
+  python scripts/scan.py polymarket --filter worldcup
 
 Run with <market-type> --help for the full flag list of each scanner.""")
 

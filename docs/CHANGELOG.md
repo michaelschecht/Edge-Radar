@@ -2,6 +2,46 @@
 
 ---
 
+## 2026-07-14 -- Polymarket Phase 1: read-only championship-futures edge detection (dry-run)
+
+### Why
+
+Kick off the Polymarket integration (Priority 0). Phase 0 spike found the Gamma API
+live and healthy, but that Polymarket's sports coverage is **futures/props/politics**,
+not per-game lines (0 MLB game markets; top markets are World Cup Winner $4.2B, F1
+champion, retirement props). So Phase 1 targets **championship futures**, which map to
+Edge-Radar's existing `futures_edge` outright fair-value model.
+
+### What landed
+
+- **New `scripts/polymarket/` package (read-only):**
+  - `polymarket_client.py` — Gamma API client: `find_event` (slug + keyword fallback,
+    paginated), `iter_future_candidates` (normalizes an event's sub-markets, skips
+    closed/eliminated candidates and degenerate 0/1 prices, reads the Yes-token
+    `bestAsk`). No auth, no wallet, places no orders.
+  - `polymarket_futures_edge.py` — `detect_edge_futures_polymarket` mirrors
+    `futures_edge.detect_edge_futures` but reads the Polymarket candidate shape and
+    **reuses `fetch_outrights` + `consensus_outright_fair_values` unchanged** for the
+    sportsbook fair-value side. Emits normalized `Opportunity` (category=`futures`,
+    `edge_source=polymarket_vs_outrights`, `details.venue=polymarket`). YES-side only in v1.
+- **Wired into `scan.py`:** `polymarket` market type (aliases `poly`/`pm`),
+  `--filter worldcup|nfl|mlb|nba|nhl`. The preview shows each opp's `preflight_gate_status`
+  (routes through the existing risk gates read-only). `--execute` is **refused** — execution
+  is Phase 2 (wallet / `py-clob-client`).
+- **Reuses the provider-agnostic seam:** Polymarket opps flow through the same
+  `Opportunity` + gate logic as Kalshi — no gate code duplicated.
+- **Proven live end-to-end:** ingested the World Cup Winner event, priced against
+  `soccer_fifa_world_cup_winner` outrights, matched the final-4 candidates → 0 edge (a
+  correct result: efficient cross-venue pricing + tournament ending ~07-19).
+- **+12 tests** (`tests/test_polymarket_futures.py`); 520 passing. `scripts/polymarket`
+  added to `pyproject.toml` pytest pythonpath.
+
+### Known follow-up (PM1b)
+
+Event **discovery** for NFL/MLB/NBA/NHL futures needs each event's exact Gamma slug or
+tag_id — the keyword-search fallback didn't locate them (World Cup works via its confirmed
+slug). The pricing framework is done; only discovery config is missing. See ROADMAP PM1b.
+
 ## 2026-07-14 -- Polymarket integration scoped as top priority + roadmap relocated to docs root
 
 ### Why
