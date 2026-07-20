@@ -117,3 +117,39 @@ class TestRotateKey:
         new_key = odds_api.rotate_key("test")
         assert new_key == "keyB"
         assert odds_api._current_index == 1
+
+
+class TestRedactSecrets:
+    """`redact_secrets` must strip the Odds API key from any string bound for
+    a log — a `requests` exception stringifies the full URL with `?apiKey=…`."""
+
+    SECRET = "abcd1234deadbeef"
+
+    def test_masks_apikey_in_url(self):
+        url = f"https://api.the-odds-api.com/v4/sports/baseball_mlb/odds?apiKey={self.SECRET}&regions=us"
+        out = odds_api.redact_secrets(url)
+        assert self.SECRET not in out
+        assert "apiKey=***" in out
+        # non-secret query params survive
+        assert "regions=us" in out
+
+    def test_masks_key_at_end_of_string(self):
+        out = odds_api.redact_secrets(f"...odds?apiKey={self.SECRET}")
+        assert self.SECRET not in out
+        assert out.endswith("apiKey=***")
+
+    def test_case_insensitive_param_name(self):
+        out = odds_api.redact_secrets(f"?APIKEY={self.SECRET}&x=1")
+        assert self.SECRET not in out
+
+    def test_redacts_requests_exception_object(self):
+        exc = Exception(
+            f"HTTPSConnectionPool: Max retries exceeded with url: "
+            f"/v4/sports/x/odds?apiKey={self.SECRET}&regions=us"
+        )
+        out = odds_api.redact_secrets(exc)
+        assert self.SECRET not in out
+        assert "apiKey=***" in out
+
+    def test_passthrough_when_no_key(self):
+        assert odds_api.redact_secrets("plain connection timeout") == "plain connection timeout"

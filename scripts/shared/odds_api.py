@@ -16,6 +16,7 @@ monthly quota reset can be re-discovered naturally.
 
 import json
 import logging
+import re
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -23,6 +24,16 @@ load_dotenv()
 log = logging.getLogger("odds_api")
 
 from app.config import get_config
+
+# Strip the Odds API key out of any string before it reaches a log/stdout.
+# A `requests` HTTPError/ConnectionError/Timeout stringifies the full resolved
+# URL, which carries `?apiKey=<secret>`; logging it verbatim leaks the key.
+_APIKEY_QUERY_RE = re.compile(r"(apiKey=)[^&\s'\"]+", re.IGNORECASE)
+
+
+def redact_secrets(text: object) -> str:
+    """Return ``str(text)`` with any ``apiKey=<value>`` query param masked."""
+    return _APIKEY_QUERY_RE.sub(r"\1***", str(text))
 
 # ── Key Management ───────────────────────────────────────────────────────────
 

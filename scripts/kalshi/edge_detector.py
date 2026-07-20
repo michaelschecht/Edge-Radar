@@ -55,7 +55,7 @@ load_dotenv()
 log = setup_logging("edge_detector")
 console = Console()
 
-from odds_api import get_current_key, rotate_key, report_remaining, mark_exhausted
+from odds_api import get_current_key, rotate_key, report_remaining, mark_exhausted, redact_secrets
 import odds_cache
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
@@ -287,7 +287,7 @@ def fetch_odds_api(sport_key: str, markets: str = "h2h") -> list:
                 odds_cache.store(sport_key, markets, events)
             return events
         except Exception as e:
-            log.warning("Odds API error for %s: %s", sport_key, e)
+            log.warning("Odds API error for %s: %s", sport_key, redact_secrets(e))
             return []
 
 
@@ -361,7 +361,7 @@ def fetch_event_odds_api(sport_key: str, event_id: str, markets: str = "h2h,spre
                 odds_cache.store_event(sport_key, event_id, event)
             return event
         except Exception as e:
-            log.warning("Odds API (event) error for %s:%s: %s", sport_key, event_id, e)
+            log.warning("Odds API (event) error for %s:%s: %s", sport_key, event_id, redact_secrets(e))
             return None
 
 

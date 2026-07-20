@@ -406,10 +406,12 @@ def _render_longshot(rows: list[dict]) -> list[str]:
         fv = r.get("fair_value")
         result = "WIN" if r.get("won") else "LOSS"
         pnl = float(r.get("net_pnl") or 0.0)
+        edge_str = f"{edge * 100:+.1f}%" if edge is not None else "—"
+        fv_str = f"{fv * 100:.0f}%" if fv is not None else "—"
         _write(lines,
                f"| {date} | {sport} | {matchup} | {side} | "
                f"{price * 100:.0f}¢ | "
-               f"{edge * 100:+.1f}% | {fv * 100:.0f}% | "
+               f"{edge_str} | {fv_str} | "
                f"{result} | {_fmt_money(pnl)} |")
     _write(lines)
     return lines

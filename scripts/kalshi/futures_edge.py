@@ -45,7 +45,7 @@ from logging_setup import setup_logging
 load_dotenv()
 log = setup_logging("futures_edge")
 
-from odds_api import get_current_key, rotate_key, report_remaining, mark_exhausted
+from odds_api import get_current_key, rotate_key, report_remaining, mark_exhausted, redact_secrets
 import odds_cache
 from app.config import get_config
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
@@ -213,7 +213,7 @@ def fetch_outrights(sport_key: str) -> list:
                 odds_cache.store(sport_key, "outrights", events)
             return events
         except Exception as e:
-            log.warning("Odds API outright error for %s: %s", sport_key, e)
+            log.warning("Odds API outright error for %s: %s", sport_key, redact_secrets(e))
             return []
 
 
