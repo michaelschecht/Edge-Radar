@@ -115,28 +115,27 @@ class KalshiProdCredentials:
 
 @dataclass(frozen=True)
 class PolymarketCredentials:
-    """PM2 execution credentials (wallet-signed CLOB orders).
+    """PM2 execution credentials — Polymarket US retail API (Ed25519).
 
-    The operator's account is an email/Magic proxy wallet: `private_key` is
-    the key exported from Polymarket (Settings → Export Private Key),
-    `funder_address` is the proxy wallet address that actually holds the
-    USDC (shown as the deposit address / profile address), and
-    `signature_type` is 1 for email/Magic accounts (2 = browser-wallet
-    Gnosis proxy, 0 = plain EOA). The key controls the full account balance
-    — keep the account balance ≈ the intended trading bankroll.
+    The operator's funded account is the CFTC-regulated **Polymarket US**
+    product (iOS-app only). Its retail API authenticates with Ed25519 API
+    keys — **not** the international EIP-712 / py-clob-client wallet scheme.
+    `key_id` is a UUID and `secret_key` is the base64-encoded Ed25519 private
+    key, both generated once at https://polymarket.us/developer. Requests are
+    signed per-call (see `polymarket_exec_client`); there is no on-chain
+    wallet, funder address, or signature type. Full setup + the verified auth
+    contract: docs/setup/polymarket-us-setup.md.
     """
-    private_key: str = ""
-    funder_address: str = ""
-    signature_type: int = 1
-    host: str = "https://clob.polymarket.com"
+    key_id: str = ""
+    secret_key: str = ""
+    host: str = "https://api.polymarket.us"
 
     @classmethod
     def from_env(cls) -> "PolymarketCredentials":
         return cls(
-            private_key=_str("POLYMARKET_PRIVATE_KEY", ""),
-            funder_address=_str("POLYMARKET_FUNDER_ADDRESS", ""),
-            signature_type=_int("POLYMARKET_SIGNATURE_TYPE", 1),
-            host=_str("POLYMARKET_CLOB_HOST", "https://clob.polymarket.com").rstrip("/"),
+            key_id=_str("POLYMARKET_KEY_ID", ""),
+            secret_key=_str("POLYMARKET_SECRET_KEY", ""),
+            host=_str("POLYMARKET_API_HOST", "https://api.polymarket.us").rstrip("/"),
         )
 
 

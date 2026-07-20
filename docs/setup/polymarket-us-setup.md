@@ -1,7 +1,9 @@
 # Polymarket US — API Setup & Integration Status
 
-> **Status (2026-07-20):** Account funded + verified. API keys **not yet generated**.
-> Execution code (`PolymarketClient`) **needs a rewrite** — see [Code rework required](#code-rework-required).
+> **Status (2026-07-20):** Account funded + verified. API keys generated and in `.env`.
+> **Auth verified live** — a read-only Ed25519-signed probe hit the funded account
+> (see [Verified live](#verified-live-2026-07-20)). Execution code (`PolymarketClient`)
+> **needs a rewrite** — see [Code rework required](#code-rework-required).
 > Read-only edge detection (PM1) is **unaffected** and keeps working.
 
 ---
@@ -54,51 +56,83 @@ Notes:
 - **Clock matters:** Ed25519 requests carry a millisecond timestamp and reject on **>30s**
   drift. Make sure the machine's clock is NTP-synced before live calls.
 
-## Part C — Verify (after the code rework lands)
+## Part C — Verify
 
-Once `PolymarketClient` is rebuilt (below), a read-only balance/positions probe confirms the
-keys resolve to the funded account. Until then, verification isn't wired.
+Done 2026-07-20 via a standalone read-only probe (raw `cryptography` + `requests`, no SDK).
+See [Verified live](#verified-live-2026-07-20) for the confirmed endpoints and response
+shapes. A permanent balance/positions check lands with the `PolymarketClient` rewrite below.
 
 ---
 
-## Code rework required
+## Verified live (2026-07-20)
 
-`.env` alone does **not** make execution work — this is real code, tracked as the PM2c-0
-resolution:
+A read-only Ed25519-signed probe authenticated to the **funded** account (every earlier
+`py-clob-client` attempt hit $0 — this confirms the retail-API path is the correct one):
 
-- [ ] Add `polymarket-us` to `requirements.txt`; drop `py-clob-client` if unused elsewhere.
-- [ ] Rewrite `scripts/polymarket/polymarket_exec_client.py` (`PolymarketClient`) on the
-      `polymarket_us` SDK while keeping the `MarketClient` contract
-      (`get_balance_dollars`, `get_positions`, `create_order`, `get_orders`, `cancel_order`,
-      `get_fills`, `get_settlements`). Map order shape → SDK (`client.orders.create({...})`
-      with `marketSlug`/`intent`/`type`/`price`/`quantity`/`tif`); balance via
-      `client.account.balances()`; positions via `client.portfolio.positions()`.
-- [ ] Rework the `polymarket` section of `app/config.py`: `key_id` + `secret_key` (+ host)
-      instead of `private_key` / `funder_address` / `signature_type`.
-- [ ] Re-check the ticker→market resolution: US uses **`marketSlug`**, not CLOB `token_id`,
-      so the scan-time `market_registry` mapping likely changes.
-- [ ] Update PM2b tests (currently assert the `py-clob-client` path).
-- [ ] Keep the DRY_RUN safety behavior identical (`dry_run_blocked`, no network on init).
+- **Host + versioning:** `https://api.polymarket.us`, paths are **`/v1`-prefixed**
+  (`GET /v1/account/balances` → 200; bare `/account/balances` → 404).
+- **Signing (confirmed working):** `X-PM-Signature` = base64(Ed25519 sign of
+  `"{ts_ms}{METHOD}{path}"`), key = **first 32 bytes** of the base64-decoded secret
+  (the secret decodes to 64 bytes = seed+pubkey). Headers `X-PM-Access-Key` (key_id),
+  `X-PM-Timestamp` (ms). Clock must be within 30s.
+- **Balance shape** (`GET /v1/account/balances`): `balances[]` with `currentBalance`,
+  `buyingPower`, `assetAvailable`, `openOrders`, `marginRequirement`, `unsettledFunds`,
+  `balanceReservation`. **`buyingPower = currentBalance + assetAvailable − openOrders −
+  marginRequirement`** — `balanceReservation` is **not** in the formula and does **not**
+  reduce buying power (confirmed live: buyingPower == currentBalance with a nonzero
+  reservation present). Full funded balance is tradable.
+- **Positions shape** (`GET /v1/portfolio/positions`): `positions` is an object **keyed by
+  `marketSlug`**, each with `netPosition`, `qtyBought`/`qtySold`, `cost.value`,
+  `realized.value`, `marketMetadata.slug`. → **US resolves markets by `marketSlug`, not CLOB
+  `token_id`** — this is what drives the `market_registry` change below.
 
-Scope this before writing it — the order/market model differs enough from Kalshi/CLOB that
-the mapping deserves its own pass.
+---
+
+## Code rework — DONE 2026-07-20 (608 tests pass; reads verified live)
+
+The `PolymarketClient` was rebuilt on the US retail API using **raw `cryptography` +
+`requests`** (no SDK dependency). Verified live: `get_balance_dollars` → $60.12 buying power,
+`get_positions` → 2 real MLB-champ positions.
+
+- [x] `app/config.py` `PolymarketCredentials` → `key_id` / `secret_key` / `host`
+      (`api.polymarket.us`), env `POLYMARKET_KEY_ID` / `POLYMARKET_SECRET_KEY`.
+- [x] `polymarket_exec_client.py` rewritten on `_signed_request` (Ed25519 header scheme),
+      keeping the 7-method `MarketClient` contract. Endpoints: `GET /v1/account/balances`,
+      `GET /v1/portfolio/positions`, `POST /v1/orders`, `DELETE /v1/orders/{id}`,
+      `GET /v1/orders`, `GET /v1/portfolio/activities`.
+- [x] Order body maps side→`outcomeSide`, action→`action`, price→`{value,currency}` Amount,
+      tif→`TIME_IN_FORCE_*`. DRY_RUN still returns `dry_run_blocked`, init stays network-free.
+- [x] `market_registry` → `market_slug` (US addresses by slug; one slug per market).
+- [x] Tests rewritten to the US scheme (mock `_signed_request`, no network).
+
+### ⚠️ Remaining blocker before live orders — slug namespace reconciliation
+
+The edge scanners read the **international Gamma** API; its market slugs are a **different
+namespace** than Polymarket US (US position slug seen live: `tec-mlb-champ-2026-09-27-mil`).
+So the registry has no valid US `market_slug` yet, and `create_order` **correctly refuses**
+every live order until that's resolved. Options to reconcile (needs a decision):
+
+1. Point the execution-side market lookup at the **US market-data API** (`api.polymarket.us`
+   markets/search) instead of Gamma, so tickers resolve to real US slugs.
+2. Build a Gamma-event → US-slug mapping layer.
+
+Until then: reads work, DRY_RUN dry-run scans work, but **no live order can be placed** — which
+matches the operator gate (live orders only after the dry-run edge window proves out).
 
 ---
 
 ## Reference
 
-**SDK init**
-```python
-import os
-from polymarket_us import PolymarketUS
+**Decision (2026-07-20): build raw, not on the SDK.** The read-only probe proved the
+signed-request scheme works with just `cryptography` + `requests` (already installed), so
+`PolymarketClient` will implement auth directly rather than adding the `polymarket-us`
+dependency. SDK init is kept below only as an alternative reference.
 
-client = PolymarketUS(
-    key_id=os.environ["POLYMARKET_KEY_ID"],
-    secret_key=os.environ["POLYMARKET_SECRET_KEY"],
-)
-```
+**Read-only endpoints (verified):**
+- `GET /v1/account/balances` — buying power + balances
+- `GET /v1/portfolio/positions` — open positions, keyed by `marketSlug`
 
-**Manual auth (no SDK)** — three headers per request against `https://api.polymarket.us`:
+**Auth** — four headers per request against `https://api.polymarket.us` (`/v1`-prefixed paths):
 
 | Header | Value |
 |:--|:--|
@@ -110,8 +144,14 @@ client = PolymarketUS(
 Signing: decode the secret from base64 (first 32 bytes = seed), sign the message string,
 base64-encode the result. Timestamp must be within **30s** of server time.
 
+**SDK init (alternative, not adopted):**
+```python
+from polymarket_us import PolymarketUS
+client = PolymarketUS(key_id=..., secret_key=...)   # client.account.balances(), client.portfolio.positions()
+```
+
 **Sources**
-- Official SDK: https://github.com/Polymarket/polymarket-us-python
+- Official SDK (reference only): https://github.com/Polymarket/polymarket-us-python
 - Auth docs: https://docs.polymarket.us/api-reference/authentication
 - Docs index: https://docs.polymarket.us
 - Developer portal: https://polymarket.us/developer

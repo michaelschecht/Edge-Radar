@@ -90,10 +90,9 @@ class TestGetMarketClient:
         import polymarket_exec_client as pec
         from types import SimpleNamespace
         monkeypatch.setattr(pec, "get_config", lambda: SimpleNamespace(
-            polymarket=SimpleNamespace(private_key="", funder_address="",
-                                       signature_type=1, host="h"),
+            polymarket=SimpleNamespace(key_id="", secret_key="", host="h"),
             system=SimpleNamespace(dry_run=True)))
-        with pytest.raises(FileNotFoundError, match="POLYMARKET_PRIVATE_KEY"):
+        with pytest.raises(FileNotFoundError, match="POLYMARKET_KEY_ID"):
             mc.get_market_client("polymarket")
 
     def test_unknown_venue_raises_value_error(self):

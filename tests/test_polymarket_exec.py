@@ -1,5 +1,6 @@
-"""Tests for the PM2 write half: market registry + PolymarketClient."""
+"""Tests for the PM2 write half: market registry + PolymarketClient (US API)."""
 
+import base64
 import inspect
 import json
 from types import SimpleNamespace
@@ -12,19 +13,21 @@ import market_registry
 import polymarket_exec_client as pec
 from polymarket_exec_client import PolymarketAPIError, PolymarketClient
 
+# A valid base64 Ed25519 secret (64 bytes) so the lazy signer can build.
+_SECRET = base64.b64encode(b"\x01" * 64).decode()
 
-def _opp(ticker="PM-mlb-sd-atl-ml", tokens=("111", "222")):
+
+def _opp(ticker="PM-mlb-sd-atl-ml", slug="padres-vs-braves-2026-04-01"):
     return SimpleNamespace(
         ticker=ticker, title="Padres vs. Braves",
-        details={"condition_id": "0x9bb9", "clob_token_ids": list(tokens)},
+        details={"condition_id": "0x9bb9", "market_slug": slug},
     )
 
 
-def _cfg(dry_run=True, key="0x" + "11" * 32, funder="0xFUNDER"):
+def _cfg(dry_run=True, key_id="aa6e3c16-uuid", secret=_SECRET):
     return SimpleNamespace(
-        polymarket=SimpleNamespace(private_key=key, funder_address=funder,
-                                   signature_type=1,
-                                   host="https://clob.polymarket.com"),
+        polymarket=SimpleNamespace(key_id=key_id, secret_key=secret,
+                                   host="https://api.polymarket.us"),
         system=SimpleNamespace(dry_run=dry_run),
     )
 
@@ -40,18 +43,24 @@ class TestMarketRegistry:
     def test_record_and_lookup_roundtrip(self):
         market_registry.record_opportunities([_opp()])
         entry = market_registry.lookup("PM-mlb-sd-atl-ml")
-        assert entry["clob_token_ids"] == ["111", "222"]
+        assert entry["market_slug"] == "padres-vs-braves-2026-04-01"
         assert entry["condition_id"] == "0x9bb9"
         assert market_registry.lookup("PM-unknown") is None
 
-    def test_skips_opps_without_tokens(self):
-        bad = SimpleNamespace(ticker="PM-x", title="", details={})
+    def test_falls_back_to_generic_slug_key(self):
+        opp = SimpleNamespace(ticker="PM-x", title="",
+                              details={"slug": "some-us-slug"})
+        market_registry.record_opportunities([opp])
+        assert market_registry.lookup("PM-x")["market_slug"] == "some-us-slug"
+
+    def test_skips_opps_without_slug(self):
+        bad = SimpleNamespace(ticker="PM-x", title="",
+                              details={"condition_id": "0x1", "clob_token_ids": ["1"]})
         market_registry.record_opportunities([bad])
         assert market_registry.lookup("PM-x") is None
 
     def test_prunes_expired_entries_on_write(self):
         market_registry.record_opportunities([_opp("PM-old")])
-        # Backdate the stored entry past MAX_AGE_DAYS, then trigger a write.
         raw = json.loads(market_registry.REGISTRY_PATH.read_text())
         raw["PM-old"]["recorded_at"] = "2000-01-01T00:00:00+00:00"
         market_registry.REGISTRY_PATH.write_text(json.dumps(raw))
@@ -82,56 +91,55 @@ class TestPolymarketClient:
                             tmp_path / "market_registry.json")
 
     def test_missing_creds_raise_with_guidance(self, monkeypatch):
-        monkeypatch.setattr(pec, "get_config", lambda: _cfg(key="", funder=""))
-        with pytest.raises(FileNotFoundError, match="POLYMARKET_PRIVATE_KEY"):
+        monkeypatch.setattr(pec, "get_config", lambda: _cfg(key_id="", secret=""))
+        with pytest.raises(FileNotFoundError, match="POLYMARKET_KEY_ID"):
             PolymarketClient()
 
     def test_construction_is_network_free(self, monkeypatch):
         monkeypatch.setattr(pec, "get_config", lambda: _cfg())
         client = PolymarketClient()
-        assert client._clob_instance is None  # lazy — nothing built yet
+        assert client._priv is None  # lazy — signer not built yet
 
-    def test_dry_run_blocks_order_without_clob_or_registry(self, monkeypatch):
+    def test_dry_run_blocks_order_without_network_or_registry(self, monkeypatch):
         monkeypatch.setattr(pec, "get_config", lambda: _cfg(dry_run=True))
         client = PolymarketClient()
         resp = client.create_order("PM-any", "yes", "buy", 5, yes_price_cents=44)
         assert resp["status"] == "dry_run_blocked"
-        assert client._clob_instance is None
+        assert client._priv is None
 
-    def test_live_order_resolves_no_side_to_token_1(self, monkeypatch):
+    def test_live_order_builds_no_side_body(self, monkeypatch):
         monkeypatch.setattr(pec, "get_config", lambda: _cfg(dry_run=False))
         market_registry.record_opportunities([_opp()])
         client = PolymarketClient()
-        clob = Mock()
-        clob.create_order.return_value = "SIGNED"
-        clob.post_order.return_value = {"orderID": "ord-1", "success": True}
-        client._clob_instance = clob
+        client._signed_request = Mock(return_value={"orderId": "ord-1"})
 
         resp = client.create_order("PM-mlb-sd-atl-ml", "no", "buy", 5,
                                    no_price_cents=57)
-        args = clob.create_order.call_args.args[0]
-        assert args.token_id == "222"       # NO side = second token
-        assert args.price == 0.57           # NO price used directly (no 1-minus)
-        assert args.size == 5.0
-        clob.post_order.assert_called_once()
-        assert resp["orderID"] == "ord-1"
+        method, path = client._signed_request.call_args.args[:2]
+        body = client._signed_request.call_args.kwargs["json_body"]
+        assert (method, path) == ("POST", "/v1/orders")
+        assert body["marketSlug"] == "padres-vs-braves-2026-04-01"
+        assert body["outcomeSide"] == "OUTCOME_SIDE_NO"
+        assert body["action"] == "ORDER_ACTION_BUY"
+        assert body["price"] == {"value": "0.57", "currency": "USD"}  # NO price, no 1-minus
+        assert body["quantity"] == 5.0
+        assert resp["orderId"] == "ord-1"
 
-    def test_live_order_yes_side_uses_token_0(self, monkeypatch):
+    def test_live_order_yes_side_body(self, monkeypatch):
         monkeypatch.setattr(pec, "get_config", lambda: _cfg(dry_run=False))
         market_registry.record_opportunities([_opp()])
         client = PolymarketClient()
-        clob = Mock()
-        clob.post_order.return_value = {}
-        client._clob_instance = clob
+        client._signed_request = Mock(return_value={})
         client.create_order("PM-mlb-sd-atl-ml", "yes", "buy", 10,
                             yes_price_cents=44)
-        args = clob.create_order.call_args.args[0]
-        assert args.token_id == "111" and args.price == 0.44
+        body = client._signed_request.call_args.kwargs["json_body"]
+        assert body["outcomeSide"] == "OUTCOME_SIDE_YES"
+        assert body["price"]["value"] == "0.44"
 
     def test_registry_miss_refuses_order(self, monkeypatch):
         monkeypatch.setattr(pec, "get_config", lambda: _cfg(dry_run=False))
         client = PolymarketClient()
-        with pytest.raises(PolymarketAPIError, match="registry"):
+        with pytest.raises(PolymarketAPIError, match="market_slug"):
             client.create_order("PM-never-scanned", "yes", "buy", 5,
                                 yes_price_cents=44)
 
@@ -140,6 +148,35 @@ class TestPolymarketClient:
         client = PolymarketClient()
         with pytest.raises(ValueError, match="no_price_cents"):
             client.create_order("PM-x", "no", "buy", 5, yes_price_cents=44)
+
+    def test_balance_parses_usd_and_ignores_reservation(self, monkeypatch):
+        monkeypatch.setattr(pec, "get_config", lambda: _cfg())
+        client = PolymarketClient()
+        client._signed_request = Mock(return_value={"balances": [
+            {"currency": "USD", "currentBalance": 60.12, "buyingPower": 60.12,
+             "balanceReservation": 50}]})
+        # Avoid a second network hop for position value.
+        client.get_positions = Mock(return_value={"positions": {}})
+        bal = client.get_balance_dollars()
+        assert bal["balance"] == 60.12
+        assert bal["buying_power"] == 60.12
+        assert bal["reservation"] == 50.0  # reported, but not subtracted
+
+    def test_signed_request_headers_and_message(self, monkeypatch):
+        monkeypatch.setattr(pec, "get_config", lambda: _cfg())
+        client = PolymarketClient()
+        captured = {}
+
+        def fake_request(method, url, headers=None, json=None, timeout=None):
+            captured.update(method=method, url=url, headers=headers)
+            return SimpleNamespace(raise_for_status=lambda: None,
+                                   content=b"{}", json=lambda: {})
+
+        monkeypatch.setattr(pec.requests, "request", fake_request)
+        client._signed_request("GET", "/v1/account/balances")
+        assert captured["url"] == "https://api.polymarket.us/v1/account/balances"
+        assert captured["headers"]["X-PM-Access-Key"] == "aa6e3c16-uuid"
+        assert set(("X-PM-Timestamp", "X-PM-Signature")) <= set(captured["headers"])
 
 
 class TestFactoryPolymarket:

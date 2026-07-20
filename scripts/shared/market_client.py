@@ -99,9 +99,9 @@ def get_market_client(venue: str = "kalshi") -> MarketClient:
         from kalshi_client import KalshiClient
         return KalshiClient()
     if v == "polymarket":
-        # PM2 write half. Raises FileNotFoundError with setup guidance when
-        # POLYMARKET_PRIVATE_KEY / POLYMARKET_FUNDER_ADDRESS are unset —
-        # same contract as KalshiClient without credentials.
+        # PM2 write half (Polymarket US retail API). Raises FileNotFoundError
+        # with setup guidance when POLYMARKET_KEY_ID / POLYMARKET_SECRET_KEY
+        # are unset — same contract as KalshiClient without credentials.
         from polymarket_exec_client import PolymarketClient
         return PolymarketClient()
     raise ValueError(f"Unknown venue {venue!r}. Valid venues: {', '.join(VENUES)}")
