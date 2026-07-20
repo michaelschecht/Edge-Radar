@@ -28,7 +28,10 @@ from rich.panel import Panel
 from rich import print as rprint
 
 from kalshi_client import KalshiClient
-from trade_log import load_trade_log, load_settlement_log, get_today_pnl, get_filled_cost
+from trade_log import (
+    load_trade_log, load_settlement_log, get_today_pnl, get_filled_cost,
+    settlement_revenue_dollars,
+)
 from ticker_display import parse_game_datetime, parse_matchup, parse_pick_team, TEAM_NAMES
 from logging_setup import setup_logging
 from app.config import get_config
@@ -576,8 +579,7 @@ def _save_dashboard_report(client, bal, positions, resting, today_trades, daily_
             no_count = float(s.get("no_count_fp", 0))
             yes_cost = float(s.get("yes_total_cost_dollars", 0))
             no_cost = float(s.get("no_total_cost_dollars", 0))
-            revenue_cents = s.get("revenue", 0)
-            revenue = revenue_cents / 100 if isinstance(revenue_cents, int) and revenue_cents > 1 else float(revenue_cents)
+            revenue = settlement_revenue_dollars(s.get("revenue", 0))
             fees = float(s.get("fee_cost", 0))
             result = s.get("market_result", "")
             side = "yes" if yes_count > 0 and (no_count == 0 or yes_cost > no_cost) else "no"

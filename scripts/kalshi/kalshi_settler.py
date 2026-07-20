@@ -25,7 +25,7 @@ from pathlib import Path
 from trade_log import (
     load_trade_log, save_trade_log,
     load_settlement_log, save_settlement_log,
-    trade_log_lock,
+    trade_log_lock, settlement_revenue_dollars,
     get_today_pnl, get_filled_contracts, get_filled_cost,
 )
 
@@ -61,14 +61,15 @@ def calculate_pnl(trade: dict, settlement: dict) -> dict:
     cost = get_filled_cost(trade)
     fees = float(trade.get("taker_fees") or 0) + float(trade.get("maker_fees") or 0)
 
-    # Revenue from settlement
-    revenue_cents = settlement.get("revenue", 0)
-    revenue_dollars = revenue_cents / 100 if isinstance(revenue_cents, int) else float(revenue_cents)
-
-    # If we don't have revenue from the API, calculate it
-    if revenue_dollars == 0 and contracts > 0:
-        won = (side == "yes" and result == "yes") or (side == "no" and result == "no")
-        revenue_dollars = contracts * 1.00 if won else 0.0
+    # Revenue is computed PER-TRADE from this trade's own filled contracts, NOT
+    # from the settlement's position-level `revenue` aggregate: a winning binary
+    # contract pays exactly $1.00. Kalshi settlements are keyed per-market, so if
+    # two trades share a ticker they both matched the same settlement — applying
+    # its aggregate revenue to each double-counted the position's payout (review
+    # #8). Deriving revenue from each trade's own filled contracts is additive
+    # and, for a single trade, identical to the aggregate (contracts x $1.00).
+    won_bet = (side == "yes" and result == "yes") or (side == "no" and result == "no")
+    revenue_dollars = round(contracts * 1.00, 4) if won_bet else 0.0
 
     net_pnl = revenue_dollars - cost - fees
 
@@ -319,8 +320,7 @@ def _settlement_to_record(s: dict) -> dict:
     no_count = float(s.get("no_count_fp", 0))
     yes_cost = float(s.get("yes_total_cost_dollars", 0))
     no_cost = float(s.get("no_total_cost_dollars", 0))
-    revenue_cents = s.get("revenue", 0)
-    revenue = revenue_cents / 100 if isinstance(revenue_cents, int) and revenue_cents > 1 else float(revenue_cents)
+    revenue = settlement_revenue_dollars(s.get("revenue", 0))
     fees = float(s.get("fee_cost", 0))
     result = s.get("market_result", "")
 

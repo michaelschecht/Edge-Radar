@@ -32,8 +32,27 @@ and the cross-process trade-log lock (M2).
   lock) → Phase 2 (short locked critical section that re-loads fresh, preserving any executor
   append made mid-fetch, then saves) so the lock is never held across network I/O.
   `filelock>=3.12.0` added to requirements. +7 tests incl. end-to-end concurrent-append test.
+- **#7 — execute batch aborted mid-placement on network errors.** The order loop only
+  caught `KalshiAPIError`; a `requests` `ConnectionError`/`Timeout` from `create_order`
+  propagated uncaught, aborting the batch part-placed with no failure record. `_request`
+  now translates transport errors into a typed `KalshiConnectionError` (subclass of
+  `KalshiAPIError`, `status_code=0`). The loop (extracted to a testable `_place_order_batch`)
+  records each failure and continues instead of aborting, flagging transport failures as
+  placement-UNKNOWN for reconciliation, with a circuit-breaker after 3 *consecutive* transport
+  failures (a dead network stops the batch instead of hanging every remaining order to its
+  timeout). Orders are **not** retried — a retried POST could double-place. +8 tests.
+- **#8 — settlement P&L double-count.** Kalshi settlements are keyed per-market, so two
+  trades sharing a ticker both matched the same settlement and each claimed the whole
+  position's aggregate `revenue` (double-counted P&L). `calculate_pnl` now derives revenue
+  **per-trade** from that trade's own filled contracts (a winning binary contract pays
+  exactly $1.00) — additive across trades and, for a single trade, identical to the aggregate.
+- **#9 — inconsistent revenue normalization.** The settler's `calculate_pnl`, the settler
+  report builder, and `risk_check` normalized the settlement `revenue` cents field three
+  different ways (two used a `> 1` guard that mis-read 1¢ as $1.00). Consolidated into one
+  shared `trade_log.settlement_revenue_dollars()` (any int is cents → /100) used by both
+  report builders; `calculate_pnl` no longer reads the raw field at all (#8). +7 tests.
 
-**535 tests passing** (was 520).
+**550 tests passing** (was 520).
 
 ---
 

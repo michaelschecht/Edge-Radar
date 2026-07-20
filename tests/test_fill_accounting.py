@@ -6,7 +6,7 @@ orders don't overstate exposure or distort P&L.
 """
 
 import pytest
-from trade_log import get_filled_contracts, get_filled_cost
+from trade_log import get_filled_contracts, get_filled_cost, settlement_revenue_dollars
 from kalshi_executor import log_trade, SizedOrder
 from opportunity import Opportunity
 
@@ -225,6 +225,72 @@ class TestSettlementAccounting:
         assert pnl["revenue"] == 0.0
         assert pnl["cost"] == 0.0
         assert pnl["net_pnl"] == 0.0
+
+
+# ── Per-trade revenue attribution (review #8: no double-count) ─────────────────
+
+class TestRevenueNoDoubleCount:
+    """Kalshi settlements are keyed per-market. When two trades share a ticker
+    they both match the same settlement; each must earn only its own filled
+    contracts' payout, not the whole position's aggregate revenue."""
+
+    @staticmethod
+    def _trade(contracts, cost):
+        return {
+            "side": "yes",
+            "filled_contracts": contracts,
+            "filled_cost": cost,
+            "taker_fees": "0",
+            "maker_fees": "0",
+        }
+
+    def test_two_trades_same_ticker_do_not_double_count(self):
+        from kalshi_settler import calculate_pnl
+
+        # An 8-contract winning position split across two 4-contract trades.
+        settlement = {"market_result": "yes", "revenue": 800}  # aggregate cents
+        p1 = calculate_pnl(self._trade(4, 1.6), settlement)
+        p2 = calculate_pnl(self._trade(4, 1.6), settlement)
+
+        assert p1["revenue"] == 4.0
+        assert p2["revenue"] == 4.0
+        # sums to the $8 position — NOT $16 (the old aggregate-per-trade bug)
+        assert p1["revenue"] + p2["revenue"] == 8.0
+
+    def test_single_trade_matches_aggregate(self):
+        from kalshi_settler import calculate_pnl
+
+        settlement = {"market_result": "yes", "revenue": 1000}  # $10 aggregate
+        p = calculate_pnl(self._trade(10, 4.0), settlement)
+        assert p["revenue"] == 10.0            # 10 * $1.00 == the aggregate
+        assert p["net_pnl"] == pytest.approx(10.0 - 4.0, abs=0.001)
+        assert p["won"] is True
+
+    def test_losing_trade_has_zero_revenue(self):
+        from kalshi_settler import calculate_pnl
+
+        settlement = {"market_result": "no", "revenue": 0}
+        p = calculate_pnl(self._trade(5, 2.5), settlement)
+        assert p["revenue"] == 0.0
+        assert p["won"] is False
+        assert p["net_pnl"] == pytest.approx(-2.5, abs=0.001)
+
+
+# ── Settlement revenue normalization (review #9: one shared rule) ──────────────
+
+class TestSettlementRevenueDollars:
+    def test_int_is_treated_as_cents(self):
+        assert settlement_revenue_dollars(1000) == 10.0
+
+    def test_one_cent_is_not_one_dollar(self):
+        # The #9 bug: the `> 1` guard read a 1-cent int as $1.00.
+        assert settlement_revenue_dollars(1) == 0.01
+
+    def test_zero(self):
+        assert settlement_revenue_dollars(0) == 0.0
+
+    def test_float_passthrough(self):
+        assert settlement_revenue_dollars(5.0) == 5.0
 
 
 # ── v2 create-order response shape (Kalshi create-order-v2 migration) ──────────

@@ -211,6 +211,18 @@ def get_filled_cost(trade: dict) -> float:
     return float(trade.get("cost_dollars", 0))
 
 
+def settlement_revenue_dollars(raw) -> float:
+    """Normalize a Kalshi settlement ``revenue`` field to dollars.
+
+    Kalshi returns ``revenue`` as an integer number of **cents**, so any int is
+    divided by 100. A non-int (already a float dollar value in some records) is
+    passed through unchanged. Single source of truth so the settler report and
+    ``risk_check`` agree — they previously disagreed on the 1-cent case (review
+    #9: one used a ``> 1`` guard that mis-read 1¢ as $1.00).
+    """
+    return raw / 100 if isinstance(raw, int) else float(raw)
+
+
 def get_open_trade_count(trades: list[dict] | None = None) -> int:
     """Count trades that haven't been settled yet."""
     if trades is None:
