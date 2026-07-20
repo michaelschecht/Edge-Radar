@@ -17,7 +17,11 @@ NO-side futures on a large field are near-locks with negligible edge.
 """
 
 import argparse
+import json
 import sys
+from dataclasses import asdict
+from datetime import datetime, timezone
+from pathlib import Path
 
 from rich import print as rprint
 from rich.table import Table
@@ -86,6 +90,34 @@ PM_FUTURES = {
 }
 
 _FILTER_ALL = ("futures", "all", "")
+
+
+def _route_filter(ticker_filter: str | None) -> tuple[str | None, list[str]]:
+    """Map the CLI --filter to (futures_filter, game_sports).
+
+    PM1d added per-game scanning next to futures:
+      (empty) / all      → all futures + all game sports
+      futures            → all futures only
+      worldcup|nfl|...   → that single future only
+      games              → all game sports only
+      mlb-games|nba-...  → that sport's games only
+    """
+    key = (ticker_filter or "").lower()
+    from polymarket_games_edge import PM_GAME_SPORTS
+    if key in ("", "all"):
+        return "futures", list(PM_GAME_SPORTS)
+    if key == "futures":
+        return "futures", []
+    if key == "games":
+        return None, list(PM_GAME_SPORTS)
+    if key.endswith("-games") and key[:-6] in PM_GAME_SPORTS:
+        return None, [key[:-6]]
+    if key in PM_FUTURES:
+        return key, []
+    rprint(f"[yellow]Unknown Polymarket filter '{ticker_filter}'. Valid: "
+           f"{', '.join(PM_FUTURES)} | futures | games | "
+           f"{', '.join(s + '-games' for s in PM_GAME_SPORTS)} | all.[/yellow]")
+    return None, []
 
 
 def detect_edge_futures_polymarket(
@@ -225,26 +257,72 @@ def scan_polymarket_futures(
     return opps[:top_n]
 
 
-def _preview(opps: list[Opportunity]) -> None:
+def _gate_statuses(opps: list[Opportunity]) -> list[str]:
+    """Preflight each opp against the risk gates (read-only — no live
+    portfolio state needed). Import inside so a missing executor never breaks
+    the read-only scan; "-" means the preflight was unavailable."""
+    try:
+        from kalshi_executor import preflight_gate_status
+    except Exception:
+        return ["-"] * len(opps)
+    return [preflight_gate_status(o) for o in opps]
+
+
+def save_dryrun(
+    opps: list[Opportunity],
+    gates: list[str],
+    ticker_filter: str | None,
+    min_edge: float,
+    log_path: Path | None = None,
+    report_dir: str | None = None,
+) -> Path:
+    """Persist one dry-run scan record so the Phase 1 edge-proving window has
+    evidence to evaluate (ROADMAP Priority 0: "prove edge → Phase 2").
+
+    Appends a run record — timestamp, filter, count, and every opportunity
+    with its gate verdict — to `data/polymarket/dryrun_log.jsonl` (append-only
+    time series; zero-opportunity runs are logged too, since "how often does
+    edge appear at all" is part of the evidence). Also writes the standard
+    markdown scan report to `reports/Polymarket/` when there are rows.
+    Returns the JSONL path.
+    """
+    path = log_path or (Path(__file__).resolve().parent.parent.parent
+                        / "data" / "polymarket" / "dryrun_log.jsonl")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "filter": ticker_filter or "futures",
+        "min_edge": min_edge,
+        "count": len(opps),
+        "opportunities": [
+            {**asdict(o), "gate": g} for o, g in zip(opps, gates)
+        ],
+    }
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, default=str) + "\n")
+
+    if opps:
+        from report_writer import save_scan_report
+        rpt = save_scan_report(opps, report_type="polymarket",
+                               filter_label=ticker_filter or "futures",
+                               min_edge=min_edge, output_dir=report_dir)
+        if rpt:
+            rprint(f"[dim]Report saved to {rpt}[/dim]")
+    rprint(f"[dim]Dry-run record appended to {path}[/dim]")
+    return path
+
+
+def _preview(opps: list[Opportunity], gates: list[str]) -> None:
     if not opps:
         rprint("\n[yellow]No Polymarket futures opportunities above the edge "
                "threshold.[/yellow]")
         return
 
-    # Show which gate each opp would hit (read-only preflight — no live
-    # portfolio state needed). Import here so a missing executor never breaks
-    # the read-only scan.
-    try:
-        from kalshi_executor import preflight_gate_status
-    except Exception:
-        preflight_gate_status = None
-
-    table = Table(title="Polymarket Futures — Edge Preview (DRY RUN, read-only)")
-    for col in ("#", "Future", "Candidate", "PM Ask", "Fair", "Edge",
+    table = Table(title="Polymarket — Edge Preview (DRY RUN, read-only)")
+    for col in ("#", "Bet", "Pick", "PM Ask", "Fair", "Edge",
                 "Conf", "Score", "Gate"):
         table.add_column(col)
-    for i, o in enumerate(opps, 1):
-        gate = preflight_gate_status(o) if preflight_gate_status else "-"
+    for i, (o, gate) in enumerate(zip(opps, gates), 1):
         table.add_row(
             str(i),
             o.details.get("bet_type", ""),
@@ -266,14 +344,20 @@ def main():
     sub = parser.add_subparsers(dest="cmd")
     scan_p = sub.add_parser("scan", help="Scan Polymarket futures for edge (dry-run)")
     scan_p.add_argument("--filter", dest="ticker_filter", default=None,
-                        help="futures | worldcup | nfl | mlb | nba | nhl")
+                        help="all (default: futures+games) | futures | worldcup|nfl|mlb|nba|nhl "
+                             "| games | mlb-games|nfl-games|nba-games|nhl-games")
     scan_p.add_argument("--min-edge", type=float, default=0.03)
     scan_p.add_argument("--top", type=int, default=20)
     scan_p.add_argument("--execute", action="store_true",
                         help="(Phase 2 — not implemented; refused)")
+    scan_p.add_argument("--save", action="store_true",
+                        help="Append this run to data/polymarket/dryrun_log.jsonl "
+                             "(edge-proving evidence) + write a markdown report")
+    scan_p.add_argument("--report-dir", type=str, default=None,
+                        help="Override report output directory for --save")
     # Accept-and-ignore flags the unified scan.py may forward, so the dispatch
     # contract matches the other scanners without erroring.
-    for ignored in ("--save", "--exclude-open", "--rescan"):
+    for ignored in ("--exclude-open", "--rescan"):
         scan_p.add_argument(ignored, action="store_true")
     scan_p.add_argument("--unit-size", type=float, default=None)
     scan_p.add_argument("--max-bets", type=int, default=None)
@@ -291,12 +375,31 @@ def main():
                "is read-only. See docs/ROADMAP.md Priority 0 (PM2).")
         sys.exit(2)
 
-    opps = scan_polymarket_futures(
-        min_edge=args.min_edge,
-        ticker_filter=args.ticker_filter,
-        top_n=args.top,
-    )
-    _preview(opps)
+    fut_filter, game_sports = _route_filter(args.ticker_filter)
+    opps: list[Opportunity] = []
+    if fut_filter:
+        opps += scan_polymarket_futures(
+            min_edge=args.min_edge,
+            ticker_filter=fut_filter,
+            top_n=args.top,
+        )
+    if game_sports:
+        # Lazy import: pulls the edge_detector consensus stack, which
+        # futures-only scans don't need.
+        from polymarket_games_edge import scan_polymarket_games
+        rprint(f"[bold]Polymarket games scan: {', '.join(game_sports)}[/bold]")
+        opps += scan_polymarket_games(
+            min_edge=args.min_edge,
+            sports=game_sports,
+            top_n=args.top,
+        )
+    opps.sort(key=lambda o: o.composite_score, reverse=True)
+    opps = opps[:args.top]
+    gates = _gate_statuses(opps)
+    _preview(opps, gates)
+    if args.save:
+        save_dryrun(opps, gates, args.ticker_filter, args.min_edge,
+                    report_dir=args.report_dir)
 
 
 if __name__ == "__main__":

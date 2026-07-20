@@ -138,6 +138,99 @@ def find_event(slug: str | None = None, search_terms: tuple[str, ...] = ()) -> d
     return best
 
 
+_TAG_ID_CACHE: dict[str, str] = {}
+
+
+def get_tag_id(slug: str) -> str | None:
+    """Resolve a Gamma tag slug (e.g. "mlb") to its numeric tag id, cached
+    per process. Tag ids are stable but discovering them by slug keeps the
+    config human-readable."""
+    if slug in _TAG_ID_CACHE:
+        return _TAG_ID_CACHE[slug]
+    try:
+        resp = requests.get(
+            f"{GAMMA_API}/tags/slug/{slug}",
+            headers={"User-Agent": _USER_AGENT},
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        tag_id = str(resp.json().get("id") or "")
+    except Exception as e:
+        log.warning("Gamma tag lookup for %r failed: %s", slug, e)
+        return None
+    if tag_id:
+        _TAG_ID_CACHE[slug] = tag_id
+    return tag_id or None
+
+
+def fetch_game_events(tag_id: str, limit: int = 100, max_pages: int = 3) -> list[dict]:
+    """Fetch open events for a sport tag (PM1d: per-game markets).
+
+    Game events are invisible to title search / default listing order — the
+    07-14 spike missed them entirely — but tag_id + open filtering surfaces
+    the full slate. Returns raw event dicts; callers filter to actual game
+    events (vs props/futures sharing the tag) via `iter_game_rows`.
+    """
+    out: list[dict] = []
+    for page in range(max_pages):
+        events = _get("/events", {
+            "tag_id": tag_id, "closed": "false", "active": "true",
+            "limit": limit, "offset": page * limit,
+        })
+        if not events:
+            break
+        out.extend(events)
+        if len(events) < limit:
+            break
+    return out
+
+
+# The three core game markets our sports model prices. Everything else on a
+# game event (NRFI, first-five variants, extra innings, player props) has
+# dead 2c/98c books and no consensus source — skipped.
+_CORE_GAME_MARKET_TYPES = ("moneyline", "spreads", "totals")
+
+
+def iter_game_rows(event: dict) -> list[dict]:
+    """Normalize a game event's core sub-markets (ML / spread / total).
+
+    Gamma marks each sub-market with `sportsMarketType`; outcomes for
+    moneyline/spreads are the two team names (index 0 = the bid/ask side),
+    totals are ["Over", "Under"]. `line` carries the spread/total strike and
+    `gameStartTime` the actual first pitch / tip-off (the event-level
+    startDate is just the listing time).
+    """
+    rows: list[dict] = []
+    for m in event.get("markets", []) or []:
+        if m.get("sportsMarketType") not in _CORE_GAME_MARKET_TYPES:
+            continue
+        if m.get("closed") or m.get("active") is False:
+            continue
+        outcomes = _parse_json_field(m.get("outcomes"), []) or []
+        prices = _parse_json_field(m.get("outcomePrices"), []) or []
+        if len(outcomes) != 2:
+            continue
+        best_bid = _to_float(m.get("bestBid"), 0.0)
+        best_ask = _to_float(m.get("bestAsk"), 0.0)
+        yes_price = best_ask if best_ask > 0 else _to_float(prices[0] if prices else 0, 0.0)
+        if yes_price <= 0 or yes_price >= 1.0:
+            continue
+        rows.append({
+            "market_type": m.get("sportsMarketType"),
+            "question": m.get("question", ""),
+            "outcomes": [str(o).strip() for o in outcomes],
+            "yes_price": yes_price,
+            "yes_bid": best_bid,
+            "line": _to_float(m.get("line"), 0.0) if m.get("line") is not None else None,
+            "book_spread": _to_float(m.get("spread"), 0.0),
+            "game_start": m.get("gameStartTime") or "",
+            "condition_id": m.get("conditionId", ""),
+            "clob_token_ids": _parse_json_field(m.get("clobTokenIds"), []),
+            "volume": _to_float(m.get("volume"), 0.0),
+        })
+    return rows
+
+
 def iter_future_candidates(event: dict) -> list[dict]:
     """Normalize an event's sub-markets into candidate dicts for edge detection.
 

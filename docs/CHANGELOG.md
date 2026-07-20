@@ -2,6 +2,178 @@
 
 ---
 
+## 2026-07-20 -- Session: PM1d — Polymarket per-game edge detection (ML/spread/total)
+
+### Why
+
+The operator asked whether Polymarket carries individual game markets. The
+07-14 spike said no ("0 MLB game markets") — that finding was **wrong**. Game
+events exist for every MLB/NFL/NBA/NHL game (moneyline + run-line spread +
+game total, tight 1–4¢ books) but are invisible to title search and default
+listing order; they surface only via tag_id + open filtering — the same
+discovery failure mode as the PM1b futures slugs. Game lines are the bigger
+prize: ~15 MLB games/day vs 4 slow futures boards, and games **settle daily**,
+so the PM2 edge-proving window can validate against real settlements in weeks
+instead of waiting for October futures resolution.
+
+### What landed
+
+- **`polymarket_games_edge.py`** — prices every open pre-game Polymarket
+  ML/spread/total against the SAME calibrated consensus model as Kalshi
+  sports: `consensus_fair_value` / `consensus_spread_prob` /
+  `consensus_total_prob` reused unchanged (de-vig, sharp-book weighted
+  median, sport-specific stdevs incl. C8 calibrated overrides; a synthetic
+  `KX<sport>` stdev-routing ticker feeds the prefix lookup). ML and totals
+  priced on both sides (second outcome's effective ask = 1 − best bid);
+  spreads YES-only. Category = game/spread/total, so the existing risk gates
+  compose naturally (verified: ~5% Under edges correctly held by the R28
+  NO-side 8% floor).
+- **Client additions** — `get_tag_id(slug)` (cached), `fetch_game_events`
+  (tag_id + open, paginated), `iter_game_rows` (normalizes via Gamma's
+  `sportsMarketType`; skips exotic NRFI/first-five/props — dead 2¢/98¢
+  books — and closed/degenerate rows).
+- **Guard rails:** pre-game only (mirrors Gate 4.8's default); 10¢
+  `MAX_BOOK_SPREAD` book-quality floor; and **start-time matching (±6h)**
+  between the PM game and the Odds API event — team matching alone priced
+  later series games against the wrong game's odds (caught live: 3 phantom
+  Twins/Rangers ML edges from July 22–23 games priced with July 21 odds; the
+  2026-06-03 Kalshi bug class). Doubleheaders that stay ambiguous are
+  refused.
+- **CLI routing:** `--filter` now takes `all` (futures+games, new default) |
+  `futures` | `worldcup|nfl|mlb|nba|nhl` | `games` | `<sport>-games`.
+  Games import lazily so futures-only scans skip the edge_detector stack.
+- **Scheduled task widened** (`Daily-Polymarket-DryRun`): now
+  `--filter all --min-edge 0.01 --top 40` so the evidence log records the
+  full funnel including near-misses (17 rows on first run vs 3 at the old
+  floor) — the gates still enforce real floors at execution. Re-validated
+  (`LastTaskResult=0`).
+- **Verified live:** 55 MLB games priced 1:1 against consensus; 2 genuine
+  edges (Under 12.5 totals, +4.3%/+5.0%, gate=edge per R28); 1 NFL preseason
+  game; NBA/NHL offseason gracefully empty.
+- **Tests:** +9 (`test_polymarket_games.py` — row normalization, both-sides
+  ML, spread strike negation, total over/under, filter routing, started-game
+  skip, and a regression test for the series-date mismatch). 587 total.
+
+---
+
+## 2026-07-20 -- Session: U1 hourly settle + R10/C6 measurement (no tuning)
+
+### Why
+
+Priority 2 head items while the Polymarket dry-run window accumulates: U1
+(hourly settlement) is a standalone quick win newly enabled by M2's trade-log
+lock; R10 (category-weighted composite) required a measurement pass before any
+weight could be chosen.
+
+### What landed
+
+- **U1 — `Hourly-Settle` task (every hour at :35).** Runs
+  `kalshi_settler.py settle` hourly (direct python, NightlySettle pattern).
+  Enabled by M2: the cross-process lock makes a settle that overlaps an
+  execute task merge-safe. Fresher settlements sharpen Gate 1 (daily-loss)
+  intraday, clear positions as games end, and run R4 resting-order cleanup
+  timely. `:35` is the only minute slot clear of every existing task.
+  `NightlySettle` kept ~1 week as belt-and-suspenders (settle is idempotent),
+  then retire. Validated on install (`LastTaskResult=0`). Task #22 in
+  `docs/task-schedules/README.md`.
+- **R10 — RESOLVED, no re-weighting.** The April premise (Total +32% >> ML
+  +11%) inverted: 90d shows ML +19.6% (n=70) vs Total -4.4% (n=42), and every
+  category flips sign between adjacent ~45d slices. The spread aggregate
+  (+45.3%) decomposes into WC spreads 5-31/-60% (realized ≈ the market price
+  — zero alpha on the claimed +6.6% edge, post-de-vig-fix) vs MLS spreads
+  +246.8% (n=14 longshot luck); combined soccer spreads land dead on model
+  fair. The dominant variation is sport×regime, not category — re-weighting
+  the composite on this data would fit noise (the C4 lesson). Watch-don't-
+  tune; revisit only on a stable same-signed gap across two independent ~90d
+  windows at n≥100. Writeup:
+  `docs/my-documents/temp/r10-category-weights/README.md` (local).
+- **C6 — CLOSED with the same pass.** April's Totals +32% didn't persist
+  (90d -4.4%); nothing pathological either. No action.
+- **Finding for the record:** the World Cup spread cohort ran at market, not
+  at model — tempers the 06-29 conclusion that WC always-YES spread edge was
+  "largely real." Soft follow-up: re-check soccer-spread edge realization
+  early in the next major tournament.
+
+---
+
+## 2026-07-20 -- Session: PM2a — venue-neutral MarketClient seam (execution plumbing)
+
+### Why
+
+PM2 (Polymarket execution) needs a venue-agnostic client boundary before any
+wallet code exists. The executor hardcoded `KalshiClient()`; extracting the
+seam now is decision-free (no real money, no wallet secrets) and shortens the
+risky half later, while the PM1c dry-run evidence window accumulates.
+
+### What landed
+
+- **`MarketClient` Protocol** (canonical `scripts/shared/market_client.py`,
+  re-exported via `app/domain/market_client.py` following the `Opportunity`
+  pattern): the 7-method contract the money paths actually use —
+  `get_balance_dollars`, `get_positions`, `create_order`, `get_orders`,
+  `cancel_order`, `get_fills`, `get_settlements` — with the KalshiClient-set
+  conventions documented (dollars not cents; legacy order shape translated
+  internally; DRY_RUN honored via `status="dry_run_blocked"`).
+- **`get_market_client(venue)` factory** — the single place a venue name
+  becomes a client (lazy imports so a venue's dependency stack only loads
+  when selected). `kalshi` resolves; `polymarket` raises a clear
+  NotImplementedError until the PM2 write half ships; unknown venues raise
+  ValueError.
+- **Executor `--venue` plumbing** (`run` + `status`): `KalshiClient()`
+  hardcode replaced with the factory; `--venue polymarket` refuses with a
+  clean message (exit 2), not a traceback. Verified live: `status` runs
+  through the factory against the real portfolio.
+- **Tests:** +21 (`test_market_client.py` — class-level KalshiClient
+  conformance incl. per-method signature coverage so drift is caught,
+  runtime_checkable behavior, factory routing/refusal/validation). 578 total.
+- Deliberately untouched: `webapp/services.py:161` keeps its direct
+  `KalshiClient()` — its Streamlit-secrets credential handling is
+  Kalshi-specific and migrates when a real second venue exists.
+
+### Next
+
+- PM2 write half (`PolymarketClient` via `py-clob-client`), gated on the
+  dry-run edge-proving window + operator answers (wallet choice, test
+  stakes, sports-only scope, arb vs independent edge).
+
+---
+
+## 2026-07-20 -- Session: PM1c — Polymarket dry-run evidence persistence
+
+### Why
+
+The Phase 1→2 gate is "prove edge in dry-run," but the Polymarket scanner
+accepted `--save` and silently discarded it — no evidence could ever
+accumulate to satisfy the gate.
+
+### What landed
+
+- **`--save` is now functional** on `polymarket_futures_edge.py` (flows through
+  `scan.py polymarket ... --save` unchanged): appends one run record —
+  timestamp, filter, min-edge, count, and every opportunity **with its
+  preflight gate verdict** — to `data/polymarket/dryrun_log.jsonl`
+  (append-only time series). Zero-opportunity runs are logged too: "how often
+  does edge appear at all" is part of the evidence.
+- **Markdown scan report** to the new `reports/Polymarket/` directory via
+  `report_writer` (new `"polymarket"` report type, reuses the futures table
+  layout). `--report-dir` override supported, matching the other scanners.
+- Gate preflight refactored out of the preview (`_gate_statuses`) so the
+  table and the persisted record share one computation.
+- **First live record captured:** NBA Spurs at 19¢ vs 23¢ fair (+4.0%), low
+  confidence, gate=`score` — correctly rejected.
+- **Tests:** +3 (`TestSaveDryrun` — JSONL shape + gate field + report,
+  zero-opp logging, multi-run accumulation). 557 total.
+
+### Scheduled (same day)
+
+- New `Daily-Polymarket-DryRun` Windows task (daily 9:40 AM PST) runs the
+  `--save` scan unattended, so the PM2 evidence log builds itself. Read-only,
+  no paired email (output to `logs/polymarket_dryrun_scan.log`), ~4 Odds API
+  requests/run. Validated on install (`LastTaskResult=0`, record appended).
+  See `docs/task-schedules/README.md` task #21.
+
+---
+
 ## 2026-07-20 -- Session: PM1b — Polymarket futures event discovery (NFL/MLB/NBA/NHL)
 
 ### Why
