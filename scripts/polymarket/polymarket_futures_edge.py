@@ -44,35 +44,42 @@ import polymarket_client as pm
 # Each entry: Polymarket event (slug + title search terms) → the Odds API
 # outright sport_key that prices it, plus a human label. Odds keys are the same
 # ones already validated by the Kalshi futures scanner (futures_edge.FUTURES_MAP).
-# `slug` is the precise Gamma lookup; `search` is the keyword fallback.
+# `slug` is the precise Gamma lookup for the *current* season's event; slugs
+# rot at season rollover (e.g. "...-2026" closes, "...-2027" opens), at which
+# point `find_event` falls back to `search` via Gamma /public-search — each
+# term matches when ALL of its words appear in an open event's title, and the
+# highest-volume match wins. Refresh the slug when the fallback fires.
+# Slugs verified live 2026-07-20 (PM1b).
 PM_FUTURES = {
     "worldcup": {
+        # 2026 event closed at the final (2026-07-20); dormant until the 2030
+        # cycle's event opens — the search fallback should then find it.
         "slug": "world-cup-winner",
         "search": ("world cup winner", "world cup champion"),
         "odds_sport_key": "soccer_fifa_world_cup_winner",
         "label": "World Cup Winner",
     },
     "nfl": {
-        "slug": None,
-        "search": ("super bowl", "nfl champion"),
+        "slug": "big-game-champion-2027",  # titled "NFL Champion 2027"
+        "search": ("nfl champion", "super bowl champion"),
         "odds_sport_key": "americanfootball_nfl_super_bowl_winner",
         "label": "NFL Super Bowl Champion",
     },
     "mlb": {
-        "slug": None,
-        "search": ("world series", "mlb champion"),
+        "slug": "mlb-world-series-champion-2026",
+        "search": ("world series champion", "mlb champion"),
         "odds_sport_key": "baseball_mlb_world_series_winner",
         "label": "MLB World Series Champion",
     },
     "nba": {
-        "slug": None,
-        "search": ("nba champion", "nba finals"),
+        "slug": "nba-2027-champion",
+        "search": ("nba champion",),
         "odds_sport_key": "basketball_nba_championship_winner",
         "label": "NBA Champion",
     },
     "nhl": {
-        "slug": None,
-        "search": ("stanley cup",),
+        "slug": "nhl-2027-champion-20260612185656162",
+        "search": ("nhl champion", "stanley cup champion"),
         "odds_sport_key": "icehockey_nhl_championship_winner",
         "label": "NHL Stanley Cup Champion",
     },

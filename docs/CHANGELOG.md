@@ -2,6 +2,44 @@
 
 ---
 
+## 2026-07-20 -- Session: PM1b — Polymarket futures event discovery (NFL/MLB/NBA/NHL)
+
+### Why
+
+Phase 1 of the Polymarket integration proved the pricing path on the World Cup
+only — the keyword-search fallback couldn't locate the Super Bowl / World Series /
+NBA / Stanley Cup boards, blocking year-round futures coverage (ROADMAP PM1b).
+
+### What landed
+
+- **Root cause:** the championship boards sit beyond the first 300 active Gamma
+  events, so `find_event`'s pagination fallback never reached them (and the NFL
+  board is titled "NFL Champion 2027", so "super bowl" terms couldn't match it).
+- **All four slugs wired into `PM_FUTURES`:** NFL `big-game-champion-2027`,
+  MLB `mlb-world-series-champion-2026`, NBA `nba-2027-champion`,
+  NHL `nhl-2027-champion-20260612185656162` (verified live 2026-07-20).
+- **`find_event` fallback rebuilt on Gamma `/public-search`** (new
+  `search_events()`): relevance-ranked search per term, open-events-only,
+  all-words-of-a-term title match (excludes e.g. Conn Smythe with "nhl champion"),
+  highest-volume winner (picks "World Cup Winner" over "Golden Boot Winner"),
+  then a re-fetch by slug since search results may truncate the markets list.
+  Slugs rot at season rollover; the fallback re-resolves all four boards from
+  dead slugs (live-proven), so next season heals without a code change.
+- **End-to-end verification:** `scan.py polymarket --filter futures` prices all
+  four sports vs Odds API outrights — 32/30/30/32 candidates each matched 1:1 to
+  sportsbook outcomes; one edge surfaced (NBA Spurs +4.0%, low confidence →
+  correctly gated on composite score). World Cup board closed at the final
+  (2026-07-20) and is correctly skipped — dormant until the 2030 cycle.
+- **Tests:** +4 (`TestFindEvent` — slug short-circuit, closed-filter +
+  volume-preference + full re-fetch, all-words matching, empty input). 554 total.
+
+### Next
+
+- **PM2** — Phase 2 execution (`MarketClient` Protocol, `py-clob-client`,
+  wallet secrets handling), after the dry-run edge-proving window.
+
+---
+
 ## 2026-07-20 -- Session: MLB recheck (M1), review residuals (#3/#6), trade-log lock (M2)
 
 ### Why

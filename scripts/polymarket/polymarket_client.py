@@ -30,8 +30,6 @@ except Exception:  # pragma: no cover - fallback if shared logging unavailable
 GAMMA_API = "https://gamma-api.polymarket.com"
 _USER_AGENT = "Edge-Radar/1.0 (+polymarket-futures-phase1)"
 _TIMEOUT = 20
-# Gamma /markets and /events cap responses at 100 rows; paginate with offset.
-_PAGE = 100
 
 
 def _parse_json_field(value, default=None):
@@ -87,13 +85,25 @@ def fetch_event_by_slug(slug: str) -> dict | None:
     return events[0] if events else None
 
 
+def search_events(query: str, limit: int = 20) -> list[dict]:
+    """Full-text event search via Gamma's /public-search (relevance-ranked).
+
+    Unlike paging /events, this finds championship boards regardless of how
+    deep they sit in the active-events list (PM1b: the Super Bowl / World
+    Series / NBA / NHL events were beyond the first 300 active events)."""
+    return _get("/public-search", {"q": query, "limit_per_type": limit})
+
+
 def find_event(slug: str | None = None, search_terms: tuple[str, ...] = ()) -> dict | None:
     """Locate a championship-future event.
 
-    Tries the exact `slug` first (cheap, precise). Falls back to a keyword scan
-    over a few pages of active events matching any of `search_terms` in the
-    event title, preferring the event with the most sub-markets (the real
-    outright board, not a one-off prop).
+    Tries the exact `slug` first (cheap, precise). Falls back to /public-search
+    over each of `search_terms`: keeps open events whose title contains every
+    word of at least one term, and prefers the highest-volume match (the real
+    outright board, not a low-liquidity prop — e.g. "World Cup Winner" over
+    "World Cup: Golden Boot Winner"). Slugs rot each season ("...-2026" closes,
+    "...-2027" opens), so this fallback is what keeps discovery working across
+    season rollovers without a config change.
     """
     if slug:
         ev = fetch_event_by_slug(slug)
@@ -104,19 +114,27 @@ def find_event(slug: str | None = None, search_terms: tuple[str, ...] = ()) -> d
         return None
     terms = tuple(t.lower() for t in search_terms)
     best = None
-    for page in range(3):  # up to 300 active events
-        events = _get("/events", {"closed": "false", "active": "true",
-                                   "limit": _PAGE, "offset": page * _PAGE})
-        if not events:
-            break
-        for e in events:
+    best_key = (-1.0, -1)
+    seen_slugs: set[str] = set()
+    for term in terms:
+        for e in search_events(term):
+            eslug = e.get("slug") or ""
+            if eslug in seen_slugs:
+                continue
+            seen_slugs.add(eslug)
+            if e.get("closed") or e.get("active") is False:
+                continue
             title = (e.get("title") or "").lower()
-            if any(t in title for t in terms):
-                n = len(e.get("markets", []))
-                if best is None or n > len(best.get("markets", [])):
-                    best = e
-        if len(events) < _PAGE:
-            break
+            if not any(all(w in title for w in t.split()) for t in terms):
+                continue
+            key = (_to_float(e.get("volume"), 0.0), len(e.get("markets", []) or []))
+            if key > best_key:
+                best, best_key = e, key
+    if best and best.get("slug"):
+        # Search results may carry a truncated markets list — re-fetch the
+        # full event by its slug before pricing candidates.
+        full = fetch_event_by_slug(best["slug"])
+        return full or best
     return best
 
 
