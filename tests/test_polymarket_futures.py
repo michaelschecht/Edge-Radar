@@ -62,6 +62,76 @@ class TestIterFutureCandidates:
         assert cands and cands[0]["yes_price"] == 0.39
 
 
+class TestFindEvent:
+    def test_slug_short_circuits_search(self, monkeypatch):
+        calls = []
+
+        def fake_get(path, params):
+            calls.append(path)
+            assert path == "/events", "search must not run when the slug resolves"
+            return [{"slug": "nba-2027-champion", "title": "NBA: 2027 Champion",
+                     "markets": []}]
+
+        monkeypatch.setattr(pm, "_get", fake_get)
+        ev = pm.find_event("nba-2027-champion", ("nba champion",))
+        assert ev["slug"] == "nba-2027-champion"
+        assert calls == ["/events"]
+
+    def test_search_fallback_skips_closed_prefers_volume_refetches_full(self, monkeypatch):
+        # Configured slug is dead (season rolled over). Search returns: last
+        # season's board (closed, huge volume), a conference sub-board (open,
+        # small volume), and the real new board (open, big volume). The open
+        # highest-volume match must win, then be re-fetched by slug for the
+        # full (untruncated) markets list.
+        search_results = [
+            {"slug": "last-season", "title": "NBA Champion", "closed": True,
+             "active": True, "volume": 1.7e9, "markets": [{}] * 30},
+            {"slug": "conf", "title": "NBA: 2027 Eastern Conference Champion",
+             "closed": False, "active": True, "volume": 43_000, "markets": [{}] * 18},
+            {"slug": "main", "title": "NBA: 2027 Champion",
+             "closed": False, "active": True, "volume": 8_600_000, "markets": [{}] * 36},
+        ]
+
+        def fake_get(path, params):
+            if path == "/public-search":
+                return search_results
+            if path == "/events" and params.get("slug") == "main":
+                return [{"slug": "main", "title": "NBA: 2027 Champion",
+                         "markets": [{}] * 36, "full_refetch": True}]
+            return []  # the dead configured slug resolves to nothing
+
+        monkeypatch.setattr(pm, "_get", fake_get)
+        ev = pm.find_event("dead-slug-2026", ("nba champion",))
+        assert ev["slug"] == "main"
+        assert ev.get("full_refetch"), "winner must be re-fetched by slug"
+
+    def test_search_requires_every_word_of_a_term_in_title(self, monkeypatch):
+        # "nhl champion" must NOT match the Conn Smythe board (no "champion"
+        # in its title) even though search relevance returned it first with
+        # more volume.
+        search_results = [
+            {"slug": "conn-smythe", "title": "NHL: 2027 Conn Smythe Trophy Winner",
+             "closed": False, "active": True, "volume": 999_999, "markets": [{}] * 117},
+            {"slug": "main", "title": "NHL: 2027 Champion",
+             "closed": False, "active": True, "volume": 360_000, "markets": [{}] * 38},
+        ]
+
+        def fake_get(path, params):
+            if path == "/public-search":
+                return search_results
+            if path == "/events" and params.get("slug") == "main":
+                return [{"slug": "main", "title": "NHL: 2027 Champion", "markets": []}]
+            return []
+
+        monkeypatch.setattr(pm, "_get", fake_get)
+        ev = pm.find_event(None, ("nhl champion",))
+        assert ev["slug"] == "main"
+
+    def test_no_slug_no_terms_returns_none(self, monkeypatch):
+        monkeypatch.setattr(pm, "_get", lambda path, params: [])
+        assert pm.find_event(None, ()) is None
+
+
 # ── polymarket_futures_edge ──────────────────────────────────────────────────
 
 def _fair(name_to_fv):
