@@ -105,19 +105,39 @@ The `PolymarketClient` was rebuilt on the US retail API using **raw `cryptograph
 - [x] `market_registry` → `market_slug` (US addresses by slug; one slug per market).
 - [x] Tests rewritten to the US scheme (mock `_signed_request`, no network).
 
-### ⚠️ Remaining blocker before live orders — slug namespace reconciliation
+### Futures repoint — DONE 2026-07-20 (US market data; live-verified)
 
-The edge scanners read the **international Gamma** API; its market slugs are a **different
-namespace** than Polymarket US (US position slug seen live: `tec-mlb-champ-2026-09-27-mil`).
-So the registry has no valid US `market_slug` yet, and `create_order` **correctly refuses**
-every live order until that's resolved. Options to reconcile (needs a decision):
+The **futures** scanner now reads the US market-data API directly, so edge is priced on the
+quotes that will actually fill and the US `market_slug` is recorded for execution:
 
-1. Point the execution-side market lookup at the **US market-data API** (`api.polymarket.us`
-   markets/search) instead of Gamma, so tickers resolve to real US slugs.
-2. Build a Gamma-event → US-slug mapping layer.
+- `polymarket_us_auth.py` — shared Ed25519 signer (used by exec + data clients).
+- `polymarket_us_data.py` — signed read client: paginates `GET /v1/markets?closed=false`,
+  keeps `sportsMarketType=="futures"`, groups by `question`, extracts per-team candidates
+  (YES ask = `bestAskQuote`, `market_slug`, league). Whole-word question matching + `exclude`
+  words isolate a championship (e.g. keeps "2027 NBA Champion", drops "WNBA Champion" and
+  conference boards).
+- `polymarket_futures_edge.py` — `PM_FUTURES` reworked to US championships (MLB World Series,
+  NFL, NBA, NHL — keyed by `question` + optional `league`); sources candidates from US data,
+  keeps the Odds-API consensus pricing, and records the real US slug to the registry.
+- Live proof: matched all 4 championships (30/32/30/32 teams), found Spurs NBA-champ +3.6%
+  edge, and registered `PM-tec-nba-champ-2027-06-18-w-sas → tec-nba-champ-2027-06-18-w-sas`.
+  620 tests pass.
 
-Until then: reads work, DRY_RUN dry-run scans work, but **no live order can be placed** — which
-matches the operator gate (live orders only after the dry-run edge window proves out).
+### Polymarket US inventory reality (why futures, not games)
+
+A full catalog sweep (3,000 open markets) found the US product is **not** a mirror of
+international Gamma:
+
+- **No per-game MLB/NBA/NHL/NFL ML+spread+total markets** like Gamma's. US game markets are
+  **moneyline-only** and **seasonal** (NBA/NHL/NFL/CBB/CFB/UFC/soccer) — zero open today
+  (offseason). **No spreads or totals anywhere**, and **no MLB per-game** at all.
+- **Futures are the deep, always-on surface** (~2,500 open: every league champion, division,
+  awards, plus soccer leagues, F1, NASCAR, golf, tennis).
+
+So PM1d's games edge detection (built on Gamma's MLB ML/spread/total) does **not** map to US.
+Execution went **futures-first**. The games repoint is a deferred, seasonal follow-on:
+moneyline-only, wired per-league as seasons start (like NCAAB), with spreads/totals/MLB
+dropped. The games scanner still reads Gamma today (dry-run only; not executable on US).
 
 ---
 

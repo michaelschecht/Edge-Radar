@@ -223,18 +223,27 @@ class TestScanOrchestration:
                             tmp_path / "market_registry.json")
 
     def test_scan_filters_by_min_edge_and_sorts(self, monkeypatch):
-        # Two candidates: one +8% edge, one +1% edge. min_edge=0.05 drops the small one.
-        monkeypatch.setattr(pmf.pm, "find_event", lambda slug, search: {"markets": [1]})
-        monkeypatch.setattr(pmf.pm, "iter_future_candidates", lambda ev: [
-            {"candidate": "Spain", "yes_price": 0.22, "yes_bid": 0.21},
-            {"candidate": "England", "yes_price": 0.21, "yes_bid": 0.20},
-        ])
+        # Two US candidates: one +8% edge, one +1% edge. min_edge=0.05 drops the small.
+        import polymarket_us_data as usd
+        monkeypatch.setattr(usd.PolymarketUSData, "__init__", lambda self: None)
+        monkeypatch.setattr(usd.PolymarketUSData, "fetch_open_futures",
+                            lambda self: [{"stub": True}])
+        monkeypatch.setattr(usd, "championship_candidates",
+                            lambda markets, terms, league=None, exclude=(): [
+                                {"candidate": "Los Angeles Dodgers", "yes_price": 0.22,
+                                 "yes_bid": 0.21, "market_slug": "tec-mlb-champ-lad"},
+                                {"candidate": "New York Yankees", "yes_price": 0.21,
+                                 "yes_bid": 0.20, "market_slug": "tec-mlb-champ-nyy"},
+                            ])
         monkeypatch.setattr(pmf, "fetch_outrights", lambda k: [{"stub": True}])
-        monkeypatch.setattr(pmf, "consensus_outright_fair_values",
-                            lambda ev: _fair({"Spain": 0.30, "England": 0.22}))
+        monkeypatch.setattr(pmf, "consensus_outright_fair_values", lambda ev: _fair(
+            {"Los Angeles Dodgers": 0.30, "New York Yankees": 0.22}))
 
-        opps = pmf.scan_polymarket_futures(min_edge=0.05, ticker_filter="worldcup")
-        assert [o.details["candidate"] for o in opps] == ["Spain"]  # England's +1% dropped
+        opps = pmf.scan_polymarket_futures(min_edge=0.05, ticker_filter="mlb")
+        assert [o.details["candidate"] for o in opps] == ["Los Angeles Dodgers"]
+        # US market_slug flows into details + ticker (execution registry needs it).
+        assert opps[0].details["market_slug"] == "tec-mlb-champ-lad"
+        assert opps[0].ticker == "PM-tec-mlb-champ-lad"
 
     def test_unknown_filter_returns_empty(self):
         assert pmf.scan_polymarket_futures(ticker_filter="cricket-world-domination") == []

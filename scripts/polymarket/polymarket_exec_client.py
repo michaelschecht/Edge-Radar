@@ -31,14 +31,13 @@ minimum (`minimumTradeQty`); sub-minimum orders are warned and will be
 rejected by the exchange. PM2c sizing must bump counts up or skip.
 """
 
-import base64
 import logging
-import time
 
 import requests
 
 from app.config import get_config
 import market_registry
+import polymarket_us_auth
 
 try:
     from logging_setup import setup_logging
@@ -113,11 +112,7 @@ class PolymarketClient:
     def _signer(self):
         """Build (once) the Ed25519 private key from the base64 secret."""
         if self._priv is None:
-            from cryptography.hazmat.primitives.asymmetric.ed25519 import (
-                Ed25519PrivateKey,
-            )
-            seed = base64.b64decode(self.secret_key)[:32]  # first 32B = seed
-            self._priv = Ed25519PrivateKey.from_private_bytes(seed)
+            self._priv = polymarket_us_auth.load_signer(self.secret_key)
         return self._priv
 
     def _signed_request(self, method: str, path: str,
@@ -125,15 +120,8 @@ class PolymarketClient:
         """Send an Ed25519-signed request. `path` must be the exact request
         path (no query string — the signed message is "{ts}{METHOD}{path}"
         and the body is not signed)."""
-        ts = str(int(time.time() * 1000))
-        sig = base64.b64encode(
-            self._signer().sign(f"{ts}{method}{path}".encode())).decode()
-        headers = {
-            "X-PM-Access-Key": self.key_id,
-            "X-PM-Timestamp": ts,
-            "X-PM-Signature": sig,
-            "Content-Type": "application/json",
-        }
+        headers = polymarket_us_auth.signed_headers(
+            self.key_id, self._signer(), method, path)
         try:
             resp = requests.request(method, self.host + path, headers=headers,
                                     json=json_body, timeout=_TIMEOUT)
