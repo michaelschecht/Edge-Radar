@@ -25,6 +25,7 @@ from pathlib import Path
 from trade_log import (
     load_trade_log, save_trade_log,
     load_settlement_log, save_settlement_log,
+    trade_log_lock,
     get_today_pnl, get_filled_contracts, get_filled_cost,
 )
 
@@ -151,13 +152,19 @@ def settle_trades(client: KalshiClient) -> dict:
     """
     Fetch settlements from Kalshi and update the trade log.
     Returns summary of what changed.
+
+    Two phases so we never hold the cross-process trade-log lock across network
+    I/O (M2): **Phase 1** does all the Kalshi fetching against a read-only
+    snapshot; **Phase 2** takes the lock, re-reads the logs fresh (so a trade an
+    executor appended while we were fetching is preserved, not clobbered),
+    applies the settlements, and saves.
     """
-    trade_log = load_trade_log()
-    settlement_log = load_settlement_log()
+    # ── Phase 1: fetch everything from Kalshi (no lock) ────────────────────────
+    snapshot = load_trade_log()
 
     # Find unsettled trades (skip zero-fill resting orders — they have no exposure)
     unsettled = [
-        t for t in trade_log
+        t for t in snapshot
         if t.get("closed_at") is None
         and t.get("status") != "error"
         and t.get("fill_status") != "resting"
@@ -189,86 +196,96 @@ def settle_trades(client: KalshiClient) -> dict:
         ticker = s.get("ticker", "")
         settlement_map[ticker] = s
 
+    # Fetch each unsettled market once — reused for both the settled/closed
+    # fallback (below) and the closing-price/CLV capture in Phase 2.
+    market_by_ticker: dict[str, dict] = {}
+    for ticker in unsettled_tickers:
+        try:
+            market_by_ticker[ticker] = client.get_market(ticker).get("market", {})
+        except Exception as e:
+            log.debug("Could not fetch market %s: %s", ticker, e)
+
     # Also check market status for tickers not in settlements
     # (market might be settled but we haven't received settlement yet)
     for ticker in unsettled_tickers:
         if ticker not in settlement_map:
-            try:
-                market = client.get_market(ticker).get("market", {})
-                status = market.get("status", "")
-                if status in ("settled", "closed"):
-                    result = market.get("result", "")
-                    if result:
-                        settlement_map[ticker] = {
-                            "ticker": ticker,
-                            "market_result": result,
-                            "revenue": 0,  # will be calculated
-                            "settled_time": market.get("close_time", ""),
-                        }
-                        rprint(f"  [dim]Market {ticker} is {status}, result={result}[/dim]")
-            except Exception as e:
-                log.debug("Could not check market %s: %s", ticker, e)
+            market = market_by_ticker.get(ticker, {})
+            status = market.get("status", "")
+            if status in ("settled", "closed"):
+                result = market.get("result", "")
+                if result:
+                    settlement_map[ticker] = {
+                        "ticker": ticker,
+                        "market_result": result,
+                        "revenue": 0,  # will be calculated
+                        "settled_time": market.get("close_time", ""),
+                    }
+                    rprint(f"  [dim]Market {ticker} is {status}, result={result}[/dim]")
 
-    # Match and update
+    # ── Phase 2: apply under the lock, re-reading fresh (no network here) ───────
     settled_count = 0
     still_open = 0
 
-    for trade in trade_log:
-        if trade.get("closed_at") is not None:
-            continue
-        if trade.get("status") == "error":
-            continue
+    with trade_log_lock():
+        trade_log = load_trade_log()
+        settlement_log = load_settlement_log()
 
-        ticker = trade.get("ticker", "")
-        settlement = settlement_map.get(ticker)
+        for trade in trade_log:
+            if trade.get("closed_at") is not None:
+                continue
+            if trade.get("status") == "error":
+                continue
 
-        if settlement is None:
-            still_open += 1
-            continue
+            ticker = trade.get("ticker", "")
+            settlement = settlement_map.get(ticker)
 
-        # Calculate P&L
-        pnl = calculate_pnl(trade, settlement)
+            if settlement is None:
+                still_open += 1
+                continue
 
-        # Capture closing price for CLV tracking
-        closing_price = None
-        try:
-            market_data = client.get_market(ticker).get("market", {})
-            if trade.get("side") == "yes":
-                closing_price = float(market_data.get("last_price", 0)) / 100
-            else:
-                last = float(market_data.get("last_price", 0)) / 100
-                closing_price = 1.0 - last if last > 0 else None
-        except Exception:
-            log.debug("Could not fetch closing price for %s", ticker)
+            # Calculate P&L
+            pnl = calculate_pnl(trade, settlement)
 
-        entry_price = trade.get("market_price_at_entry", 0)
-        clv = round(closing_price - entry_price, 4) if closing_price and entry_price else None
+            # Capture closing price for CLV tracking (from the Phase-1 market snapshot)
+            market_data = market_by_ticker.get(ticker, {})
+            closing_price = None
+            try:
+                if trade.get("side") == "yes":
+                    closing_price = float(market_data.get("last_price", 0)) / 100
+                else:
+                    last = float(market_data.get("last_price", 0)) / 100
+                    closing_price = 1.0 - last if last > 0 else None
+            except (TypeError, ValueError):
+                log.debug("Could not derive closing price for %s", ticker)
 
-        # Update trade record
-        trade["net_pnl"] = pnl["net_pnl"]
-        trade["closed_at"] = settlement.get("settled_time", datetime.now(timezone.utc).isoformat())
-        trade["settlement_result"] = pnl["result"]
-        trade["settlement_revenue"] = pnl["revenue"]
-        trade["settlement_won"] = pnl["won"]
-        trade["settlement_roi"] = pnl["roi"]
-        trade["closing_price"] = closing_price
-        trade["clv"] = clv
+            entry_price = trade.get("market_price_at_entry", 0)
+            clv = round(closing_price - entry_price, 4) if closing_price and entry_price else None
 
-        settled_count += 1
+            # Update trade record
+            trade["net_pnl"] = pnl["net_pnl"]
+            trade["closed_at"] = settlement.get("settled_time", datetime.now(timezone.utc).isoformat())
+            trade["settlement_result"] = pnl["result"]
+            trade["settlement_revenue"] = pnl["revenue"]
+            trade["settlement_won"] = pnl["won"]
+            trade["settlement_roi"] = pnl["roi"]
+            trade["closing_price"] = closing_price
+            trade["clv"] = clv
 
-        won_str = "[green]WON[/green]" if pnl["won"] else "[red]LOST[/red]"
-        rprint(
-            f"  {won_str} {ticker} "
-            f"({trade['side'].upper()}) "
-            f"P&L: ${pnl['net_pnl']:+.2f} "
-            f"(cost=${pnl['cost']:.2f}, rev=${pnl['revenue']:.2f}, fees=${pnl['fees']:.2f})"
-        )
+            settled_count += 1
 
-        settlement_log.append(build_settlement_record(trade, pnl, closing_price, clv))
+            won_str = "[green]WON[/green]" if pnl["won"] else "[red]LOST[/red]"
+            rprint(
+                f"  {won_str} {ticker} "
+                f"({trade['side'].upper()}) "
+                f"P&L: ${pnl['net_pnl']:+.2f} "
+                f"(cost=${pnl['cost']:.2f}, rev=${pnl['revenue']:.2f}, fees=${pnl['fees']:.2f})"
+            )
 
-    # Save
-    save_trade_log(trade_log)
-    save_settlement_log(settlement_log)
+            settlement_log.append(build_settlement_record(trade, pnl, closing_price, clv))
+
+        # Save (still inside the lock — atomic writes onto the fresh-read logs)
+        save_trade_log(trade_log)
+        save_settlement_log(settlement_log)
 
     rprint(f"\n  Settled: [green]{settled_count}[/green]  Still open: [yellow]{still_open}[/yellow]")
     return {"settled": settled_count, "still_open": still_open}

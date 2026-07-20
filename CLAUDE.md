@@ -83,7 +83,7 @@ Edge-Radar/
 │   ├── services.py                  # Wrapper around core scripts
 │   ├── theme.py                     # Dark terminal CSS
 │   └── views/                       # Page modules (scan, portfolio, settle)
-├── tests/                           # 528 pytest tests
+├── tests/                           # 535 pytest tests
 └── scripts/
     ├── scan.py                      # Unified entry point
     ├── doctor.py                    # Environment validator
