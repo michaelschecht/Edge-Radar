@@ -1,5 +1,7 @@
 """Tests for the PM1d Polymarket per-game edge detector (read-only)."""
 
+import pytest
+
 import polymarket_client as pm
 import polymarket_futures_edge as pmf
 import polymarket_games_edge as pmg
@@ -126,6 +128,14 @@ class TestRouteFilter:
 
 
 class TestScanOrchestration:
+    @pytest.fixture(autouse=True)
+    def _tmp_registry(self, tmp_path, monkeypatch):
+        # The scan records ticker→token mappings; keep test writes out of the
+        # real data/polymarket/market_registry.json.
+        import market_registry
+        monkeypatch.setattr(market_registry, "REGISTRY_PATH",
+                            tmp_path / "market_registry.json")
+
     def test_skips_started_games_and_ambiguous_matchups(self, monkeypatch):
         past = _ml_market(gameStartTime="2020-01-01 00:00:00+00")
         future_ok = _ml_market()

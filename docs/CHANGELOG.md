@@ -2,6 +2,59 @@
 
 ---
 
+## 2026-07-20 -- Session: PM2b — PolymarketClient write half (py-clob-client)
+
+### Why
+
+The wallet question resolved: the operator's funded Polymarket account is an
+email/Magic proxy wallet whose balance ≈ the intended bankroll, so it IS the
+dedicated trading wallet (decision revised from "create a separate wallet").
+That unblocked building the execution client — mock-tested now, live smoke
+test once the exported key lands in `.env`.
+
+### What landed
+
+- **`polymarket_exec_client.PolymarketClient`** — implements the
+  `MarketClient` contract via `py-clob-client` (new dep): EIP-712
+  wallet-signed CLOB orders (`signature_type=1` proxy accounts), balance via
+  CLOB collateral (+ Data-API position value), positions via the public Data
+  API, orders/cancel/fills via CLOB. `get_settlements` returns empty until
+  PM3. Lazy CLOB construction — init is network-free, and DRY_RUN order
+  paths (blocked with `status="dry_run_blocked"`, exactly like KalshiClient)
+  never touch the network.
+- **`market_registry`** — the `MarketClient` contract speaks Kalshi-shaped
+  tickers but the CLOB needs token ids; scanners now record
+  ticker → {condition_id, clob_token_ids} at scan time (7-day expiry,
+  atomic write), and `create_order` resolves through it (side→token is
+  structural: yes=0/no=1; NO price is used directly — no 1-minus, unlike
+  Kalshi's single-book API). A registry miss refuses the order.
+- **Factory flip:** `get_market_client("polymarket")` now returns the real
+  client; without credentials it raises the same style of setup-guidance
+  error as KalshiClient (no more blanket Phase-2 refusal).
+- **Config:** `PolymarketCredentials` in `app.config`
+  (`POLYMARKET_PRIVATE_KEY` / `POLYMARKET_FUNDER_ADDRESS` /
+  `POLYMARKET_SIGNATURE_TYPE`, default 1) + documented `.env.example` block
+  with the full-account-access warning.
+- **Known venue constraint:** ~5-share minimum order on most markets — at
+  $1 units a 50¢ contract sizes below it. Logged as a warning; PM2c wiring
+  must bump to the minimum or skip.
+- **Test hygiene fix:** the scan orchestration tests were writing fixture
+  entries into the real `market_registry.json`; registry path now
+  monkeypatched in every scan-invoking test, polluted file purged and
+  repopulated clean from a live scan (13 real entries).
+- **Tests:** +18 (605 total) — registry roundtrip/prune, conformance
+  signature coverage, creds guidance, network-free construction, dry-run
+  block, yes/no token+price resolution, registry-miss refusal, factory.
+
+### Remaining (PM2c)
+
+- Live auth smoke test (blocked on the operator exporting the key to
+  `.env`), execution-pipeline wiring (gates → sized orders →
+  `create_order`, min-share handling, flip the scanner `--execute`
+  refusal), then first live orders after the edge window proves out.
+
+---
+
 ## 2026-07-20 -- Session: PM1d — Polymarket per-game edge detection (ML/spread/total)
 
 ### Why

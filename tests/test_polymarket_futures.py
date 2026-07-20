@@ -1,5 +1,7 @@
 """Tests for the Phase 1 Polymarket futures edge detector (read-only)."""
 
+import pytest
+
 import polymarket_client as pm
 import polymarket_futures_edge as pmf
 from opportunity import Opportunity
@@ -212,6 +214,14 @@ class TestSaveDryrun:
 
 
 class TestScanOrchestration:
+    @pytest.fixture(autouse=True)
+    def _tmp_registry(self, tmp_path, monkeypatch):
+        # The scan records ticker→token mappings; keep test writes out of the
+        # real data/polymarket/market_registry.json.
+        import market_registry
+        monkeypatch.setattr(market_registry, "REGISTRY_PATH",
+                            tmp_path / "market_registry.json")
+
     def test_scan_filters_by_min_edge_and_sorts(self, monkeypatch):
         # Two candidates: one +8% edge, one +1% edge. min_edge=0.05 drops the small one.
         monkeypatch.setattr(pmf.pm, "find_event", lambda slug, search: {"markets": [1]})

@@ -262,4 +262,9 @@ def scan_polymarket_games(min_edge: float = 0.03,
                f"→ [green]{found}[/green] edge(s)")
 
     opps.sort(key=lambda o: o.composite_score, reverse=True)
-    return opps[:top_n]
+    opps = opps[:top_n]
+    # Record ticker → CLOB token mappings so the PM2 execution client can
+    # resolve orders for these opportunities later.
+    import market_registry
+    market_registry.record_opportunities(opps)
+    return opps
