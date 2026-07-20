@@ -2,6 +2,41 @@
 
 ---
 
+## 2026-07-20 -- Session: MLB recheck (M1), review residuals (#3/#6), trade-log lock (M2)
+
+### Why
+
+Post-review follow-through. The 2026-07-14 repo review left three tracked items;
+this session closed the MLB executable-bets recheck (M1), two small safety residuals,
+and the cross-process trade-log lock (M2).
+
+### What landed
+
+- **M1 — MLB executable-bets recheck (RESOLVED, no code change).** Ran on a full
+  15-game slate: MLB now surfaces **15 opportunities** (vs 0 across the prior 30-day
+  window), confirming the World-Cup crowding was the cause and is structurally gone.
+  All rows gate on `edge` with sub-1% edges on efficient lines (Mkt≈Fair within ~1¢) —
+  NOT the 2–3%-blocked-by-floor bucket, so `MIN_EDGE_THRESHOLD_MLB` / `MIN_COMPOSITE_SCORE`
+  left unchanged. Odds quota confirmed healthy (3,988 across keys; one dead 401 key noted).
+- **#6 — Odds API key redaction.** A `requests` exception stringifies the full URL with
+  `?apiKey=<secret>`; it was logged verbatim at three sites. New `odds_api.redact_secrets()`
+  masks `apiKey=<value>` before logging (edge_detector fetch + event fetch, futures_edge). +5 tests.
+- **#3 — Longshot report crash guard.** `betting_analysis._render_longshot` now None-guards
+  `edge`/`fair_value` (renders `—`) like the ledger, so one incomplete settlement no longer
+  raises `TypeError` and kills the whole analysis report. +3 tests (new `test_betting_analysis.py`).
+- **M2 — Cross-process trade-log lock.** `_atomic_write_json` (shipped 07-14) closed the
+  corruption hole but not the concurrent read-modify-write lost-update race. Added
+  `trade_log_lock()` (cross-process `filelock`, graceful no-op fallback) + `append_trades()`
+  (re-reads under the lock before saving → merges instead of clobbering). Executor's two
+  write sites now use `append_trades`. Settler split into Phase 1 (Kalshi network I/O, no
+  lock) → Phase 2 (short locked critical section that re-loads fresh, preserving any executor
+  append made mid-fetch, then saves) so the lock is never held across network I/O.
+  `filelock>=3.12.0` added to requirements. +7 tests incl. end-to-end concurrent-append test.
+
+**535 tests passing** (was 520).
+
+---
+
 ## 2026-07-14 -- Polymarket Phase 1: read-only championship-futures edge detection (dry-run)
 
 ### Why

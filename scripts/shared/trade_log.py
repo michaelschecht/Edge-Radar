@@ -7,12 +7,84 @@ Used by kalshi_executor.py, kalshi_settler.py, and future prediction executor.
 """
 
 import json
+import logging
 import os
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
 from paths import TRADE_LOG_PATH, SETTLEMENT_LOG_PATH
+
+log = logging.getLogger("trade_log")
+
+# ── Cross-process lock (M2) ───────────────────────────────────────────────────
+#
+# `_atomic_write_json` prevents corruption from an interrupted write, but not a
+# *lost update* when two processes both do load→mutate→save: the second save
+# clobbers the first's change. For the trade log a lost append = an untracked
+# live position, so every writer that mutates the log must hold this lock across
+# its read-modify-write cycle, re-reading fresh *inside* the lock.
+#
+# One lock file guards BOTH logs (the settler mutates them together). We use the
+# `filelock` library when present (robust cross-platform advisory lock); if it's
+# somehow unavailable we degrade to a no-op so a missing dependency can never
+# block a live trade write — the atomic-write guarantee still holds, only the
+# lost-update protection is lost, and that's logged once.
+_LOCK_TIMEOUT_SECONDS = 30.0
+
+try:
+    from filelock import FileLock, Timeout as _FileLockTimeout
+
+    _HAVE_FILELOCK = True
+except ImportError:  # pragma: no cover - defensive fallback
+    _HAVE_FILELOCK = False
+    _warned_no_filelock = False
+
+
+def _lock_path() -> Path:
+    """Lock file path, derived from the current ``TRADE_LOG_PATH`` at call time
+    so it follows a monkeypatched log location in tests."""
+    return TRADE_LOG_PATH.parent / ".trade_log.lock"
+
+
+@contextmanager
+def trade_log_lock(timeout: float = _LOCK_TIMEOUT_SECONDS):
+    """Hold a cross-process lock guarding the trade + settlement logs.
+
+    Wrap any load→mutate→save cycle in this and re-read the log *inside* the
+    ``with`` block, so a concurrent writer's changes are merged rather than
+    clobbered. On lock-acquire timeout the write still proceeds (falling back to
+    atomic-write-only semantics) rather than dropping a trade — a blocked write
+    is worse than a rare lost-update, and it's logged.
+    """
+    if not _HAVE_FILELOCK:
+        global _warned_no_filelock
+        if not _warned_no_filelock:
+            log.warning(
+                "filelock not installed — trade-log writes fall back to "
+                "atomic-write-only (no cross-process lost-update protection)."
+            )
+            _warned_no_filelock = True
+        yield
+        return
+
+    lock_path = _lock_path()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock = FileLock(str(lock_path), timeout=timeout)
+    try:
+        lock.acquire()
+    except _FileLockTimeout:
+        log.warning(
+            "trade_log_lock: timed out after %ss waiting for %s; proceeding "
+            "without the lock (atomic write only).", timeout, lock_path,
+        )
+        yield
+        return
+    try:
+        yield
+    finally:
+        lock.release()
 
 
 def _atomic_write_json(path: Path, data) -> None:
@@ -24,11 +96,9 @@ def _atomic_write_json(path: Path, data) -> None:
     (or a crash) never observes a half-written trade/settlement log — the file
     is either the old contents or the complete new contents.
 
-    NOTE: this closes the *corruption-on-interrupted-write* hole. It does NOT
-    serialize concurrent read-modify-write cycles across processes — callers
-    that do load→append→save (executor, settler) should still avoid running
-    simultaneously, or a lost-update race remains. A cross-process lock is a
-    separate, larger change tracked in the repo review.
+    NOTE: this closes the *corruption-on-interrupted-write* hole. Serializing
+    concurrent read-modify-write cycles across processes is a separate concern
+    handled by ``trade_log_lock`` (M2) — hold that lock and re-read inside it.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
@@ -58,8 +128,29 @@ def load_trade_log() -> list[dict]:
 
 
 def save_trade_log(trades: list[dict]) -> None:
-    """Save the trade log to disk (atomic write — see ``_atomic_write_json``)."""
+    """Save the trade log to disk (atomic write — see ``_atomic_write_json``).
+
+    This overwrites the whole file. To append without clobbering a concurrent
+    writer's records, use ``append_trades`` (which re-reads under the lock).
+    """
     _atomic_write_json(TRADE_LOG_PATH, trades)
+
+
+def append_trades(records: list[dict]) -> list[dict]:
+    """Append ``records`` to the trade log without losing concurrent writes.
+
+    Acquires the cross-process lock, re-reads the current log from disk, extends
+    it with ``records``, and saves atomically — so a trade written by another
+    process between our caller's load and this call is preserved instead of
+    clobbered. Returns the full, freshly-persisted log.
+    """
+    if not records:
+        return load_trade_log()
+    with trade_log_lock():
+        trades = load_trade_log()
+        trades.extend(records)
+        save_trade_log(trades)
+        return trades
 
 
 def load_settlement_log() -> list[dict]:

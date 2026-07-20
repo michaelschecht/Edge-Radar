@@ -55,6 +55,7 @@ streamlit>=1.33.0                  # Streamlit web UI (uses @st.dialog, st.fragm
 
 # === Utilities ===
 rich>=13.7.0                      # Terminal tables & formatted output
+filelock>=3.12.0                  # Cross-process lock for trade/settlement log writes (M2)
 # loguru==0.7.2                   # planned — structured logging
 # tqdm==4.66.1                    # planned — progress bars for backtests
 

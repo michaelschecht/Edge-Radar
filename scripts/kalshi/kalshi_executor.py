@@ -32,7 +32,7 @@ from dataclasses import dataclass, asdict
 # Shared imports
 import paths  # noqa: F401 -- path constants -- configures sys.path
 from opportunity import Opportunity
-from trade_log import load_trade_log, save_trade_log, get_today_pnl
+from trade_log import load_trade_log, append_trades, get_today_pnl
 
 from dotenv import load_dotenv
 from rich.console import Console
@@ -825,7 +825,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
 
 
 # ── Trade Logging ─────────────────────────────────────────────────────────────
-# load_trade_log, save_trade_log, get_today_pnl imported from scripts.shared.trade_log
+# load_trade_log, append_trades, get_today_pnl imported from scripts.shared.trade_log
 
 
 def _order_field(order: dict, *keys: str, default: str = "0") -> str:
@@ -908,8 +908,11 @@ def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
         "dry_run": False,
     }
 
+    # Persist through the fresh-read-under-lock path so a concurrent writer
+    # (settler / another execute run) can't clobber this new position; mirror
+    # into the caller's in-memory snapshot for the rest of the batch.
     trade_log.append(trade_record)
-    save_trade_log(trade_log)
+    append_trades([trade_record])
     return trade_record
 
 
@@ -1373,8 +1376,9 @@ def execute_pipeline(
 
         except KalshiAPIError as e:
             rprint(f"  [red]FAIL[/red] {opp.ticker}: {e.message[:80]}")
-            # Log the failure
-            trade_log.append({
+            # Log the failure (fresh-read-under-lock append, not a whole-list
+            # overwrite, so we don't clobber a concurrent writer's records).
+            error_record = {
                 "trade_id": str(uuid.uuid4()),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "ticker": opp.ticker,
@@ -1383,8 +1387,9 @@ def execute_pipeline(
                 "error": str(e.message)[:200],
                 "net_pnl": 0,
                 "closed_at": None,
-            })
-            save_trade_log(trade_log)
+            }
+            trade_log.append(error_record)
+            append_trades([error_record])
 
     # ── Post-execution summary
     rprint(f"\n[bold]Execution complete[/bold]")
