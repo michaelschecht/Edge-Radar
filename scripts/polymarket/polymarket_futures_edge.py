@@ -92,6 +92,34 @@ PM_FUTURES = {
 _FILTER_ALL = ("futures", "all", "")
 
 
+def _route_filter(ticker_filter: str | None) -> tuple[str | None, list[str]]:
+    """Map the CLI --filter to (futures_filter, game_sports).
+
+    PM1d added per-game scanning next to futures:
+      (empty) / all      → all futures + all game sports
+      futures            → all futures only
+      worldcup|nfl|...   → that single future only
+      games              → all game sports only
+      mlb-games|nba-...  → that sport's games only
+    """
+    key = (ticker_filter or "").lower()
+    from polymarket_games_edge import PM_GAME_SPORTS
+    if key in ("", "all"):
+        return "futures", list(PM_GAME_SPORTS)
+    if key == "futures":
+        return "futures", []
+    if key == "games":
+        return None, list(PM_GAME_SPORTS)
+    if key.endswith("-games") and key[:-6] in PM_GAME_SPORTS:
+        return None, [key[:-6]]
+    if key in PM_FUTURES:
+        return key, []
+    rprint(f"[yellow]Unknown Polymarket filter '{ticker_filter}'. Valid: "
+           f"{', '.join(PM_FUTURES)} | futures | games | "
+           f"{', '.join(s + '-games' for s in PM_GAME_SPORTS)} | all.[/yellow]")
+    return None, []
+
+
 def detect_edge_futures_polymarket(
     cand: dict, fair_values: dict[str, dict], label: str, event_slug: str
 ) -> Opportunity | None:
@@ -290,8 +318,8 @@ def _preview(opps: list[Opportunity], gates: list[str]) -> None:
                "threshold.[/yellow]")
         return
 
-    table = Table(title="Polymarket Futures — Edge Preview (DRY RUN, read-only)")
-    for col in ("#", "Future", "Candidate", "PM Ask", "Fair", "Edge",
+    table = Table(title="Polymarket — Edge Preview (DRY RUN, read-only)")
+    for col in ("#", "Bet", "Pick", "PM Ask", "Fair", "Edge",
                 "Conf", "Score", "Gate"):
         table.add_column(col)
     for i, (o, gate) in enumerate(zip(opps, gates), 1):
@@ -316,7 +344,8 @@ def main():
     sub = parser.add_subparsers(dest="cmd")
     scan_p = sub.add_parser("scan", help="Scan Polymarket futures for edge (dry-run)")
     scan_p.add_argument("--filter", dest="ticker_filter", default=None,
-                        help="futures | worldcup | nfl | mlb | nba | nhl")
+                        help="all (default: futures+games) | futures | worldcup|nfl|mlb|nba|nhl "
+                             "| games | mlb-games|nfl-games|nba-games|nhl-games")
     scan_p.add_argument("--min-edge", type=float, default=0.03)
     scan_p.add_argument("--top", type=int, default=20)
     scan_p.add_argument("--execute", action="store_true",
@@ -346,11 +375,26 @@ def main():
                "is read-only. See docs/ROADMAP.md Priority 0 (PM2).")
         sys.exit(2)
 
-    opps = scan_polymarket_futures(
-        min_edge=args.min_edge,
-        ticker_filter=args.ticker_filter,
-        top_n=args.top,
-    )
+    fut_filter, game_sports = _route_filter(args.ticker_filter)
+    opps: list[Opportunity] = []
+    if fut_filter:
+        opps += scan_polymarket_futures(
+            min_edge=args.min_edge,
+            ticker_filter=fut_filter,
+            top_n=args.top,
+        )
+    if game_sports:
+        # Lazy import: pulls the edge_detector consensus stack, which
+        # futures-only scans don't need.
+        from polymarket_games_edge import scan_polymarket_games
+        rprint(f"[bold]Polymarket games scan: {', '.join(game_sports)}[/bold]")
+        opps += scan_polymarket_games(
+            min_edge=args.min_edge,
+            sports=game_sports,
+            top_n=args.top,
+        )
+    opps.sort(key=lambda o: o.composite_score, reverse=True)
+    opps = opps[:args.top]
     gates = _gate_statuses(opps)
     _preview(opps, gates)
     if args.save:

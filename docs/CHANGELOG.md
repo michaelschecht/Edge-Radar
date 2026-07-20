@@ -2,6 +2,60 @@
 
 ---
 
+## 2026-07-20 -- Session: PM1d — Polymarket per-game edge detection (ML/spread/total)
+
+### Why
+
+The operator asked whether Polymarket carries individual game markets. The
+07-14 spike said no ("0 MLB game markets") — that finding was **wrong**. Game
+events exist for every MLB/NFL/NBA/NHL game (moneyline + run-line spread +
+game total, tight 1–4¢ books) but are invisible to title search and default
+listing order; they surface only via tag_id + open filtering — the same
+discovery failure mode as the PM1b futures slugs. Game lines are the bigger
+prize: ~15 MLB games/day vs 4 slow futures boards, and games **settle daily**,
+so the PM2 edge-proving window can validate against real settlements in weeks
+instead of waiting for October futures resolution.
+
+### What landed
+
+- **`polymarket_games_edge.py`** — prices every open pre-game Polymarket
+  ML/spread/total against the SAME calibrated consensus model as Kalshi
+  sports: `consensus_fair_value` / `consensus_spread_prob` /
+  `consensus_total_prob` reused unchanged (de-vig, sharp-book weighted
+  median, sport-specific stdevs incl. C8 calibrated overrides; a synthetic
+  `KX<sport>` stdev-routing ticker feeds the prefix lookup). ML and totals
+  priced on both sides (second outcome's effective ask = 1 − best bid);
+  spreads YES-only. Category = game/spread/total, so the existing risk gates
+  compose naturally (verified: ~5% Under edges correctly held by the R28
+  NO-side 8% floor).
+- **Client additions** — `get_tag_id(slug)` (cached), `fetch_game_events`
+  (tag_id + open, paginated), `iter_game_rows` (normalizes via Gamma's
+  `sportsMarketType`; skips exotic NRFI/first-five/props — dead 2¢/98¢
+  books — and closed/degenerate rows).
+- **Guard rails:** pre-game only (mirrors Gate 4.8's default); 10¢
+  `MAX_BOOK_SPREAD` book-quality floor; and **start-time matching (±6h)**
+  between the PM game and the Odds API event — team matching alone priced
+  later series games against the wrong game's odds (caught live: 3 phantom
+  Twins/Rangers ML edges from July 22–23 games priced with July 21 odds; the
+  2026-06-03 Kalshi bug class). Doubleheaders that stay ambiguous are
+  refused.
+- **CLI routing:** `--filter` now takes `all` (futures+games, new default) |
+  `futures` | `worldcup|nfl|mlb|nba|nhl` | `games` | `<sport>-games`.
+  Games import lazily so futures-only scans skip the edge_detector stack.
+- **Scheduled task widened** (`Daily-Polymarket-DryRun`): now
+  `--filter all --min-edge 0.01 --top 40` so the evidence log records the
+  full funnel including near-misses (17 rows on first run vs 3 at the old
+  floor) — the gates still enforce real floors at execution. Re-validated
+  (`LastTaskResult=0`).
+- **Verified live:** 55 MLB games priced 1:1 against consensus; 2 genuine
+  edges (Under 12.5 totals, +4.3%/+5.0%, gate=edge per R28); 1 NFL preseason
+  game; NBA/NHL offseason gracefully empty.
+- **Tests:** +9 (`test_polymarket_games.py` — row normalization, both-sides
+  ML, spread strike negation, total over/under, filter routing, started-game
+  skip, and a regression test for the series-date mismatch). 587 total.
+
+---
+
 ## 2026-07-20 -- Session: U1 hourly settle + R10/C6 measurement (no tuning)
 
 ### Why
