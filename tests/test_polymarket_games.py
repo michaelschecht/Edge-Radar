@@ -123,7 +123,8 @@ class TestRouteFilter:
         assert pmf._route_filter("futures") == ("futures", [])
         assert pmf._route_filter("games") == (None, ["mlb", "nfl", "nba", "nhl"])
         assert pmf._route_filter("mlb-games") == (None, ["mlb"])
-        assert pmf._route_filter("worldcup") == ("worldcup", [])
+        assert pmf._route_filter("nba") == ("nba", [])  # a US futures key
+        assert pmf._route_filter("worldcup") == (None, [])  # dropped in US repoint
         assert pmf._route_filter("cricket") == (None, [])
 
 

@@ -3,14 +3,20 @@ polymarket_futures_edge.py — Polymarket championship-futures edge detector (Ph
 
 Reuses Edge-Radar's existing sportsbook fair-value model (`futures_edge`) — the
 same `fetch_outrights` + `consensus_outright_fair_values` de-vig that prices
-Kalshi futures — but sources the *market* side from Polymarket's Gamma API
-instead of Kalshi. Each Polymarket candidate (e.g. "Spain" in "World Cup Winner")
-is compared to the consensus sportsbook fair value for that team, and any
-underpricing becomes a normalized `Opportunity`.
+Kalshi futures — but sources the *market* side from the **Polymarket US** retail
+API (`polymarket_us_data`), the venue the operator actually trades on. Each US
+candidate (e.g. "Los Angeles Dodgers" in "World Series Champion") is compared to
+the consensus sportsbook fair value for that team, and any underpricing becomes
+a normalized `Opportunity` carrying the US `market_slug` (so the execution
+registry can address the order).
+
+Repointed from international Gamma to US 2026-07-20: US and Gamma are separate
+order books, so edge must be priced on the US quotes that will actually fill —
+and only the US slug can address an order. See docs/setup/polymarket-us-setup.md.
 
 Phase 1 is **read-only / dry-run**: it previews opportunities and shows which
-risk gate each would hit, but places NO orders. Execution is Phase 2 (wallet /
-py-clob-client) and is intentionally refused here. See docs/ROADMAP.md Priority 0.
+risk gate each would hit, but places NO orders. Execution is Phase 2. See
+docs/ROADMAP.md Priority 0.
 
 Scope (v1): YES-side only (back a candidate to win) — the meaningful futures bet.
 NO-side futures on a large field are near-locks with negligible edge.
@@ -42,48 +48,38 @@ except Exception:  # pragma: no cover
     import logging
     log = logging.getLogger("polymarket_futures_edge")
 
-import polymarket_client as pm
 
-
-# Each entry: Polymarket event (slug + title search terms) → the Odds API
-# outright sport_key that prices it, plus a human label. Odds keys are the same
-# ones already validated by the Kalshi futures scanner (futures_edge.FUTURES_MAP).
-# `slug` is the precise Gamma lookup for the *current* season's event; slugs
-# rot at season rollover (e.g. "...-2026" closes, "...-2027" opens), at which
-# point `find_event` falls back to `search` via Gamma /public-search — each
-# term matches when ALL of its words appear in an open event's title, and the
-# highest-volume match wins. Refresh the slug when the fallback fires.
-# Slugs verified live 2026-07-20 (PM1b).
+# Each entry identifies a Polymarket US championship by the `question` its
+# per-team markets share (matched word-wise via `championship_candidates`),
+# optionally scoped to a team `league`, with `exclude` words to drop near-miss
+# questions (e.g. conference champions). `odds_sport_key` is the Odds API
+# outright feed that prices it — the same keys the Kalshi futures scanner uses.
+# Question strings verified live against api.polymarket.us 2026-07-20.
+#
+# Note: World Cup was dropped in the US repoint — the 2026 event is over and the
+# US product carries no World Cup futures. Soccer-league titles (EPL, LaLiga,
+# UCL, MLS, …) exist on US and are candidates for a later add.
 PM_FUTURES = {
-    "worldcup": {
-        # 2026 event closed at the final (2026-07-20); dormant until the 2030
-        # cycle's event opens — the search fallback should then find it.
-        "slug": "world-cup-winner",
-        "search": ("world cup winner", "world cup champion"),
-        "odds_sport_key": "soccer_fifa_world_cup_winner",
-        "label": "World Cup Winner",
-    },
-    "nfl": {
-        "slug": "big-game-champion-2027",  # titled "NFL Champion 2027"
-        "search": ("nfl champion", "super bowl champion"),
-        "odds_sport_key": "americanfootball_nfl_super_bowl_winner",
-        "label": "NFL Super Bowl Champion",
-    },
     "mlb": {
-        "slug": "mlb-world-series-champion-2026",
-        "search": ("world series champion", "mlb champion"),
+        "terms": ("world series champion",), "league": "mlb", "exclude": (),
         "odds_sport_key": "baseball_mlb_world_series_winner",
         "label": "MLB World Series Champion",
     },
+    "nfl": {
+        "terms": ("pro football champion",), "league": "nfl", "exclude": (),
+        "odds_sport_key": "americanfootball_nfl_super_bowl_winner",
+        "label": "NFL Champion",
+    },
     "nba": {
-        "slug": "nba-2027-champion",
-        "search": ("nba champion",),
+        # NBA team markets carry no league tag, so scope by question words and
+        # exclude conference/MVP boards that also contain "nba"+"champion".
+        "terms": ("nba champion",), "league": None,
+        "exclude": ("conference", "mvp", "eastern", "western"),
         "odds_sport_key": "basketball_nba_championship_winner",
         "label": "NBA Champion",
     },
     "nhl": {
-        "slug": "nhl-2027-champion-20260612185656162",
-        "search": ("nhl champion", "stanley cup champion"),
+        "terms": ("stanley cup champion",), "league": None, "exclude": (),
         "odds_sport_key": "icehockey_nhl_championship_winner",
         "label": "NHL Stanley Cup Champion",
     },
@@ -171,9 +167,14 @@ def detect_edge_futures_polymarket(
     conf_score = {"high": 9, "medium": 6, "low": 3}[confidence]
     composite = 0.4 * edge_score + 0.3 * conf_score + 0.2 * liquidity + 0.1 * 5
 
-    # Synthetic, stable ticker so downstream (dedup, logging) has a handle.
-    cid = (cand.get("condition_id") or "").replace("0x", "")[:10]
-    ticker = f"PM-{event_slug}-{cid or candidate.replace(' ', '')[:12]}"
+    # Stable ticker — prefer the US market slug (unique + directly resolvable
+    # by the execution registry); fall back to a synthetic handle.
+    market_slug = cand.get("market_slug", "")
+    if market_slug:
+        ticker = f"PM-{market_slug}"[:64]
+    else:
+        cid = (cand.get("condition_id") or "").replace("0x", "")[:10]
+        ticker = f"PM-{event_slug}-{cid or candidate.replace(' ', '')[:12]}"[:64]
 
     return Opportunity(
         ticker=ticker,
@@ -194,8 +195,8 @@ def detect_edge_futures_polymarket(
             "bet_type": label,
             "n_books": n_books,
             "fair_range": f"{matched_fair['min']:.3f} - {matched_fair['max']:.3f}",
+            "market_slug": cand.get("market_slug", ""),
             "condition_id": cand.get("condition_id", ""),
-            "clob_token_ids": cand.get("clob_token_ids", []),
             "pm_volume": cand.get("volume", 0.0),
         },
     )
@@ -222,19 +223,29 @@ def scan_polymarket_futures(
     if not keys:
         return []
 
-    rprint(f"[bold]Polymarket futures scan: {', '.join(keys)}[/bold]")
+    rprint(f"[bold]Polymarket US futures scan: {', '.join(keys)}[/bold]")
+
+    # Fetch the US futures board once and reuse it across championships.
+    try:
+        from polymarket_us_data import PolymarketUSData, championship_candidates
+        markets = PolymarketUSData().fetch_open_futures()
+    except FileNotFoundError:
+        rprint("  [dim]Polymarket US credentials not set (POLYMARKET_KEY_ID / "
+               "POLYMARKET_SECRET_KEY) — skipping futures.[/dim]")
+        return []
+    except Exception as e:  # network / API — dry-run scan must not crash
+        rprint(f"  [dim]Polymarket US market-data fetch failed: {e} — skipping.[/dim]")
+        return []
+
     opps: list[Opportunity] = []
     for key in keys:
         cfg = PM_FUTURES[key]
         label = cfg["label"]
 
-        event = pm.find_event(cfg.get("slug"), cfg.get("search", ()))
-        if not event:
-            rprint(f"  [dim]{label}: no active Polymarket event found — skipping.[/dim]")
-            continue
-        candidates = pm.iter_future_candidates(event)
+        candidates = championship_candidates(
+            markets, cfg["terms"], cfg.get("league"), cfg.get("exclude", ()))
         if not candidates:
-            rprint(f"  [dim]{label}: event found but no tradable candidates.[/dim]")
+            rprint(f"  [dim]{label}: no open US markets — skipping.[/dim]")
             continue
 
         events = fetch_outrights(cfg["odds_sport_key"])
@@ -250,12 +261,12 @@ def scan_polymarket_futures(
             if opp and opp.edge >= min_edge:
                 opps.append(opp)
                 found += 1
-        rprint(f"  {label}: {len(candidates)} candidates, {len(fair_values)} "
+        rprint(f"  {label}: {len(candidates)} US candidates, {len(fair_values)} "
                f"sportsbook outcomes → [green]{found}[/green] edge(s)")
 
     opps.sort(key=lambda o: o.composite_score, reverse=True)
     opps = opps[:top_n]
-    # Record ticker → CLOB token mappings so the PM2 execution client can
+    # Record ticker → US market_slug mappings so the execution client can
     # resolve orders for these opportunities later.
     import market_registry
     market_registry.record_opportunities(opps)
