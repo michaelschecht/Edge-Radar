@@ -39,7 +39,7 @@ from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
 
-from kalshi_client import KalshiClient, KalshiAPIError, make_prod_client
+from kalshi_client import KalshiClient, KalshiAPIError, KalshiConnectionError, make_prod_client
 from edge_detector import scan_all_markets
 from ticker_display import _detect_sport, is_game_started
 from app.config import get_config, reset_config
@@ -916,6 +916,112 @@ def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
     return trade_record
 
 
+# Stop a batch after this many *consecutive* transport failures — a transient
+# blip on one order shouldn't abort the rest, but a dead network would otherwise
+# make every remaining create_order hang to its 15s timeout.
+MAX_CONSECUTIVE_CONN_ERRORS = 3
+
+
+def _place_order_batch(client: KalshiClient, to_execute: list, trade_log: list) -> list:
+    """Place each sized order, recording a trade or a failure record per order.
+
+    Resilient to per-order failures (issue #7): a ``KalshiAPIError`` (real HTTP
+    status) or a ``KalshiConnectionError`` (no response) no longer aborts the
+    whole batch mid-placement — each is recorded and the loop continues. Runs of
+    consecutive transport failures short-circuit the batch (the network is down).
+    Orders are NOT retried: a retried POST could double-place. Returns the list
+    of successfully-placed trade records.
+    """
+    results: list = []
+
+    def _record_failure(ticker: str, side: str, message: str) -> None:
+        """Append an error record for an order that didn't place, using the
+        fresh-read-under-lock append so we don't clobber a concurrent writer."""
+        error_record = {
+            "trade_id": str(uuid.uuid4()),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "ticker": ticker,
+            "side": side,
+            "status": "error",
+            "error": str(message)[:200],
+            "net_pnl": 0,
+            "closed_at": None,
+        }
+        trade_log.append(error_record)
+        append_trades([error_record])
+
+    consecutive_conn_errors = 0
+
+    for s in to_execute:
+        opp = s.opportunity
+        try:
+            # Determine price based on side
+            kwargs = {
+                "ticker": opp.ticker,
+                "side": opp.side,
+                "action": "buy",
+                "count": s.contracts,
+                "time_in_force": "good_till_canceled",
+            }
+            if opp.side == "yes":
+                kwargs["yes_price_cents"] = s.price_cents
+            else:
+                kwargs["no_price_cents"] = s.price_cents
+
+            order_resp = client.create_order(**kwargs)
+            order = order_resp.get("order", order_resp)
+            status = order.get("status", "unknown")
+
+            record = log_trade(order_resp, s, trade_log)
+            results.append(record)
+            consecutive_conn_errors = 0  # a response arrived — transport is healthy
+
+            fill = int(float(_order_field(order, "fill_count", "fill_count_fp") or "0"))
+            fees = order.get("taker_fees_dollars", "0")
+            fill_tag = ""
+            if fill == 0:
+                fill_tag = " [yellow](RESTING — no fills yet)[/yellow]"
+            elif fill < s.contracts:
+                fill_tag = f" [yellow](PARTIAL — {fill}/{s.contracts} filled)[/yellow]"
+            rprint(
+                f"  [green]OK[/green] {opp.ticker} "
+                f"{opp.side.upper()} x{s.contracts} @ ${s.price_cents/100:.2f} "
+                f"-- status={status} filled={fill}/{s.contracts} fees=${fees}"
+                f"{fill_tag}"
+            )
+
+        except KalshiConnectionError as e:
+            # No HTTP response — the order may or may not have reached Kalshi.
+            # Record it flagged for reconciliation and move on; the batch is not
+            # aborted for one blip, but a run of these means the network is down.
+            consecutive_conn_errors += 1
+            rprint(
+                f"  [red]NET-FAIL[/red] {opp.ticker}: {e.message[:80]} "
+                f"[dim](no response — may or may not have placed)[/dim]"
+            )
+            _record_failure(
+                opp.ticker, opp.side,
+                f"transport failure (placement UNKNOWN — reconcile): {e.message}",
+            )
+            if consecutive_conn_errors >= MAX_CONSECUTIVE_CONN_ERRORS:
+                remaining = len(to_execute) - len(results) - consecutive_conn_errors
+                rprint(
+                    f"[red bold]Network unreachable after "
+                    f"{consecutive_conn_errors} consecutive failures -- "
+                    f"stopping batch ({max(remaining, 0)} orders not attempted).[/red bold]"
+                )
+                break
+
+        except KalshiAPIError as e:
+            # A real HTTP status (4xx/5xx/429) — transport is fine, so reset the
+            # network-failure counter and keep placing the rest of the batch.
+            consecutive_conn_errors = 0
+            rprint(f"  [red]FAIL[/red] {opp.ticker}: {e.message[:80]}")
+            _record_failure(opp.ticker, opp.side, e.message)
+
+    return results
+
+
 # ── Execution Pipeline ────────────────────────────────────────────────────────
 
 def load_opportunities_from_file(prediction: bool = False) -> list[Opportunity]:
@@ -1335,61 +1441,7 @@ def execute_pipeline(
             f"\n[bold]Placing {len(to_execute)} orders, total cost: "
             f"[green]${placing_cost:.2f}[/green][/bold]"
         )
-    results = []
-
-    for s in to_execute:
-        opp = s.opportunity
-        try:
-            # Determine price based on side
-            kwargs = {
-                "ticker": opp.ticker,
-                "side": opp.side,
-                "action": "buy",
-                "count": s.contracts,
-                "time_in_force": "good_till_canceled",
-            }
-            if opp.side == "yes":
-                kwargs["yes_price_cents"] = s.price_cents
-            else:
-                kwargs["no_price_cents"] = s.price_cents
-
-            order_resp = client.create_order(**kwargs)
-            order = order_resp.get("order", order_resp)
-            status = order.get("status", "unknown")
-
-            record = log_trade(order_resp, s, trade_log)
-            results.append(record)
-
-            fill = int(float(_order_field(order, "fill_count", "fill_count_fp") or "0"))
-            fees = order.get("taker_fees_dollars", "0")
-            fill_tag = ""
-            if fill == 0:
-                fill_tag = " [yellow](RESTING — no fills yet)[/yellow]"
-            elif fill < s.contracts:
-                fill_tag = f" [yellow](PARTIAL — {fill}/{s.contracts} filled)[/yellow]"
-            rprint(
-                f"  [green]OK[/green] {opp.ticker} "
-                f"{opp.side.upper()} x{s.contracts} @ ${s.price_cents/100:.2f} "
-                f"-- status={status} filled={fill}/{s.contracts} fees=${fees}"
-                f"{fill_tag}"
-            )
-
-        except KalshiAPIError as e:
-            rprint(f"  [red]FAIL[/red] {opp.ticker}: {e.message[:80]}")
-            # Log the failure (fresh-read-under-lock append, not a whole-list
-            # overwrite, so we don't clobber a concurrent writer's records).
-            error_record = {
-                "trade_id": str(uuid.uuid4()),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "ticker": opp.ticker,
-                "side": opp.side,
-                "status": "error",
-                "error": str(e.message)[:200],
-                "net_pnl": 0,
-                "closed_at": None,
-            }
-            trade_log.append(error_record)
-            append_trades([error_record])
+    results = _place_order_batch(client, to_execute, trade_log)
 
     # ── Post-execution summary
     rprint(f"\n[bold]Execution complete[/bold]")

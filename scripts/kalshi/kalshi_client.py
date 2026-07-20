@@ -153,14 +153,23 @@ class KalshiClient:
         sign_path = urlparse(url).path
         headers = self._auth_headers(method.upper(), sign_path)
 
-        resp = requests.request(
-            method=method.upper(),
-            url=url,
-            headers=headers,
-            params=params,
-            json=body,
-            timeout=timeout,
-        )
+        try:
+            resp = requests.request(
+                method=method.upper(),
+                url=url,
+                headers=headers,
+                params=params,
+                json=body,
+                timeout=timeout,
+            )
+        except requests.exceptions.RequestException as e:
+            # No HTTP response arrived (connection refused/reset, DNS, timeout).
+            # Translate to a typed error so callers catch it as a KalshiAPIError
+            # instead of a raw traceback. NOT retried here — retrying a POST
+            # (create_order) after a lost response could double-place an order;
+            # the batch executor decides what to do per request.
+            log.error("Kalshi API transport error on %s %s: %s", method.upper(), path, e)
+            raise KalshiConnectionError(f"{type(e).__name__}: {e}")
 
         if resp.status_code == 429:
             log.warning("Rate limited by Kalshi API")
@@ -489,6 +498,20 @@ class KalshiAPIError(Exception):
 class KalshiRateLimitError(KalshiAPIError):
     def __init__(self, message: str = "Rate limited"):
         super().__init__(429, message)
+
+
+class KalshiConnectionError(KalshiAPIError):
+    """Raised when the HTTP request never got a response (DNS failure, refused
+    connection, read/connect timeout). A subclass of ``KalshiAPIError`` so
+    existing ``except KalshiAPIError`` handlers catch it, but distinct so a
+    caller (e.g. the batch executor) can tell a transport failure — where a POST
+    may or may not have reached the server — apart from a real API status.
+
+    ``status_code`` is 0 (no HTTP response was received).
+    """
+
+    def __init__(self, message: str):
+        super().__init__(0, message)
 
 
 # ── CLI quick test ────────────────────────────────────────────────────────────
