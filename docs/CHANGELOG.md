@@ -2,6 +2,33 @@
 
 ---
 
+## 2026-07-20 -- Session note: PM2b live verification — auth works, wallet identity mismatch found
+
+### What happened
+
+First live test of the PM2b `PolymarketClient` against the operator's real
+account. The signing chain **works end-to-end**: exported key valid, EIP-712
+signing + CLOB L2 credential derivation succeeded (`signature_type=1`;
+signer EOA distinct from funder, as expected for a Magic proxy account).
+
+But the configured account is **empty** — confirmed three independent ways
+(CLOB collateral read, raw on-chain USDC/USDC.e balances via Polygon RPC,
+Data-API portfolio value = 0). The operator sees the funds in the phone app
+while the desktop session (same email) shows $0: Polymarket/Magic creates a
+**separate wallet per sign-in method** (Google vs Apple vs typed-email magic
+link), so the desktop-exported key + address belong to an empty twin
+account. The public username lookup (`toastyllama6297`) dead-ends (no web
+profile), so the funded address must come from the phone side.
+
+### Status
+
+**Blocked on operator action — logged as PM2c-0, the most urgent roadmap
+item** (full fix steps in the ROADMAP Priority 0 table): re-login on desktop
+with the phone's exact sign-in method, re-export key + address from that
+session, update `.env`, re-run the read-only verification.
+
+---
+
 ## 2026-07-20 -- Session: PM2b — PolymarketClient write half (py-clob-client)
 
 ### Why
