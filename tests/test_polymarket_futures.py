@@ -170,6 +170,47 @@ class TestDetectEdgeFutures:
         assert opp is None
 
 
+class TestSaveDryrun:
+    def _opp(self):
+        cand = {"candidate": "Spain", "yes_price": 0.22, "yes_bid": 0.219,
+                "condition_id": "0xabc123def456", "clob_token_ids": ["1"], "volume": 5.0}
+        return pmf.detect_edge_futures_polymarket(
+            cand, _fair({"Spain": 0.30}), "World Cup Winner", "worldcup")
+
+    def test_appends_jsonl_with_gates_and_writes_report(self, tmp_path):
+        import json
+        log = tmp_path / "dryrun_log.jsonl"
+        opp = self._opp()
+        pmf.save_dryrun([opp], ["ok"], "worldcup", 0.03,
+                        log_path=log, report_dir=str(tmp_path / "reports"))
+        lines = log.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 1
+        rec = json.loads(lines[0])
+        assert rec["filter"] == "worldcup"
+        assert rec["count"] == 1
+        assert rec["opportunities"][0]["gate"] == "ok"
+        assert rec["opportunities"][0]["edge"] == opp.edge
+        reports = list((tmp_path / "reports").glob("*_polymarket_scan.md"))
+        assert len(reports) == 1
+        assert "Spain" in reports[0].read_text(encoding="utf-8")
+
+    def test_zero_opp_run_logged_no_report(self, tmp_path):
+        import json
+        log = tmp_path / "dryrun_log.jsonl"
+        pmf.save_dryrun([], [], "futures", 0.03,
+                        log_path=log, report_dir=str(tmp_path / "reports"))
+        rec = json.loads(log.read_text(encoding="utf-8").strip())
+        assert rec["count"] == 0 and rec["opportunities"] == []
+        assert not (tmp_path / "reports").exists()
+
+    def test_successive_runs_accumulate(self, tmp_path):
+        log = tmp_path / "dryrun_log.jsonl"
+        pmf.save_dryrun([], [], "futures", 0.03, log_path=log)
+        pmf.save_dryrun([self._opp()], ["ok"], "futures", 0.03,
+                        log_path=log, report_dir=str(tmp_path / "reports"))
+        assert len(log.read_text(encoding="utf-8").strip().splitlines()) == 2
+
+
 class TestScanOrchestration:
     def test_scan_filters_by_min_edge_and_sorts(self, monkeypatch):
         # Two candidates: one +8% edge, one +1% edge. min_edge=0.05 drops the small one.

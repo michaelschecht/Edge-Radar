@@ -2,6 +2,39 @@
 
 ---
 
+## 2026-07-20 -- Session: PM1c — Polymarket dry-run evidence persistence
+
+### Why
+
+The Phase 1→2 gate is "prove edge in dry-run," but the Polymarket scanner
+accepted `--save` and silently discarded it — no evidence could ever
+accumulate to satisfy the gate.
+
+### What landed
+
+- **`--save` is now functional** on `polymarket_futures_edge.py` (flows through
+  `scan.py polymarket ... --save` unchanged): appends one run record —
+  timestamp, filter, min-edge, count, and every opportunity **with its
+  preflight gate verdict** — to `data/polymarket/dryrun_log.jsonl`
+  (append-only time series). Zero-opportunity runs are logged too: "how often
+  does edge appear at all" is part of the evidence.
+- **Markdown scan report** to the new `reports/Polymarket/` directory via
+  `report_writer` (new `"polymarket"` report type, reuses the futures table
+  layout). `--report-dir` override supported, matching the other scanners.
+- Gate preflight refactored out of the preview (`_gate_statuses`) so the
+  table and the persisted record share one computation.
+- **First live record captured:** NBA Spurs at 19¢ vs 23¢ fair (+4.0%), low
+  confidence, gate=`score` — correctly rejected.
+- **Tests:** +3 (`TestSaveDryrun` — JSONL shape + gate field + report,
+  zero-opp logging, multi-run accumulation). 557 total.
+
+### Next
+
+- Run `scan.py polymarket --filter futures --save` on a cadence (manual or a
+  scheduled task alongside Weekly-Futures-Execution) to build the PM2 case.
+
+---
+
 ## 2026-07-20 -- Session: PM1b — Polymarket futures event discovery (NFL/MLB/NBA/NHL)
 
 ### Why

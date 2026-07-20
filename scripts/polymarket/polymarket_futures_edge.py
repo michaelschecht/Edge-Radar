@@ -17,7 +17,11 @@ NO-side futures on a large field are near-locks with negligible edge.
 """
 
 import argparse
+import json
 import sys
+from dataclasses import asdict
+from datetime import datetime, timezone
+from pathlib import Path
 
 from rich import print as rprint
 from rich.table import Table
@@ -225,26 +229,72 @@ def scan_polymarket_futures(
     return opps[:top_n]
 
 
-def _preview(opps: list[Opportunity]) -> None:
+def _gate_statuses(opps: list[Opportunity]) -> list[str]:
+    """Preflight each opp against the risk gates (read-only — no live
+    portfolio state needed). Import inside so a missing executor never breaks
+    the read-only scan; "-" means the preflight was unavailable."""
+    try:
+        from kalshi_executor import preflight_gate_status
+    except Exception:
+        return ["-"] * len(opps)
+    return [preflight_gate_status(o) for o in opps]
+
+
+def save_dryrun(
+    opps: list[Opportunity],
+    gates: list[str],
+    ticker_filter: str | None,
+    min_edge: float,
+    log_path: Path | None = None,
+    report_dir: str | None = None,
+) -> Path:
+    """Persist one dry-run scan record so the Phase 1 edge-proving window has
+    evidence to evaluate (ROADMAP Priority 0: "prove edge → Phase 2").
+
+    Appends a run record — timestamp, filter, count, and every opportunity
+    with its gate verdict — to `data/polymarket/dryrun_log.jsonl` (append-only
+    time series; zero-opportunity runs are logged too, since "how often does
+    edge appear at all" is part of the evidence). Also writes the standard
+    markdown scan report to `reports/Polymarket/` when there are rows.
+    Returns the JSONL path.
+    """
+    path = log_path or (Path(__file__).resolve().parent.parent.parent
+                        / "data" / "polymarket" / "dryrun_log.jsonl")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "filter": ticker_filter or "futures",
+        "min_edge": min_edge,
+        "count": len(opps),
+        "opportunities": [
+            {**asdict(o), "gate": g} for o, g in zip(opps, gates)
+        ],
+    }
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, default=str) + "\n")
+
+    if opps:
+        from report_writer import save_scan_report
+        rpt = save_scan_report(opps, report_type="polymarket",
+                               filter_label=ticker_filter or "futures",
+                               min_edge=min_edge, output_dir=report_dir)
+        if rpt:
+            rprint(f"[dim]Report saved to {rpt}[/dim]")
+    rprint(f"[dim]Dry-run record appended to {path}[/dim]")
+    return path
+
+
+def _preview(opps: list[Opportunity], gates: list[str]) -> None:
     if not opps:
         rprint("\n[yellow]No Polymarket futures opportunities above the edge "
                "threshold.[/yellow]")
         return
 
-    # Show which gate each opp would hit (read-only preflight — no live
-    # portfolio state needed). Import here so a missing executor never breaks
-    # the read-only scan.
-    try:
-        from kalshi_executor import preflight_gate_status
-    except Exception:
-        preflight_gate_status = None
-
     table = Table(title="Polymarket Futures — Edge Preview (DRY RUN, read-only)")
     for col in ("#", "Future", "Candidate", "PM Ask", "Fair", "Edge",
                 "Conf", "Score", "Gate"):
         table.add_column(col)
-    for i, o in enumerate(opps, 1):
-        gate = preflight_gate_status(o) if preflight_gate_status else "-"
+    for i, (o, gate) in enumerate(zip(opps, gates), 1):
         table.add_row(
             str(i),
             o.details.get("bet_type", ""),
@@ -271,9 +321,14 @@ def main():
     scan_p.add_argument("--top", type=int, default=20)
     scan_p.add_argument("--execute", action="store_true",
                         help="(Phase 2 — not implemented; refused)")
+    scan_p.add_argument("--save", action="store_true",
+                        help="Append this run to data/polymarket/dryrun_log.jsonl "
+                             "(edge-proving evidence) + write a markdown report")
+    scan_p.add_argument("--report-dir", type=str, default=None,
+                        help="Override report output directory for --save")
     # Accept-and-ignore flags the unified scan.py may forward, so the dispatch
     # contract matches the other scanners without erroring.
-    for ignored in ("--save", "--exclude-open", "--rescan"):
+    for ignored in ("--exclude-open", "--rescan"):
         scan_p.add_argument(ignored, action="store_true")
     scan_p.add_argument("--unit-size", type=float, default=None)
     scan_p.add_argument("--max-bets", type=int, default=None)
@@ -296,7 +351,11 @@ def main():
         ticker_filter=args.ticker_filter,
         top_n=args.top,
     )
-    _preview(opps)
+    gates = _gate_statuses(opps)
+    _preview(opps, gates)
+    if args.save:
+        save_dryrun(opps, gates, args.ticker_filter, args.min_edge,
+                    report_dir=args.report_dir)
 
 
 if __name__ == "__main__":
