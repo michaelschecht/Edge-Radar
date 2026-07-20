@@ -2,6 +2,46 @@
 
 ---
 
+## 2026-07-20 -- Session: U1 hourly settle + R10/C6 measurement (no tuning)
+
+### Why
+
+Priority 2 head items while the Polymarket dry-run window accumulates: U1
+(hourly settlement) is a standalone quick win newly enabled by M2's trade-log
+lock; R10 (category-weighted composite) required a measurement pass before any
+weight could be chosen.
+
+### What landed
+
+- **U1 — `Hourly-Settle` task (every hour at :35).** Runs
+  `kalshi_settler.py settle` hourly (direct python, NightlySettle pattern).
+  Enabled by M2: the cross-process lock makes a settle that overlaps an
+  execute task merge-safe. Fresher settlements sharpen Gate 1 (daily-loss)
+  intraday, clear positions as games end, and run R4 resting-order cleanup
+  timely. `:35` is the only minute slot clear of every existing task.
+  `NightlySettle` kept ~1 week as belt-and-suspenders (settle is idempotent),
+  then retire. Validated on install (`LastTaskResult=0`). Task #22 in
+  `docs/task-schedules/README.md`.
+- **R10 — RESOLVED, no re-weighting.** The April premise (Total +32% >> ML
+  +11%) inverted: 90d shows ML +19.6% (n=70) vs Total -4.4% (n=42), and every
+  category flips sign between adjacent ~45d slices. The spread aggregate
+  (+45.3%) decomposes into WC spreads 5-31/-60% (realized ≈ the market price
+  — zero alpha on the claimed +6.6% edge, post-de-vig-fix) vs MLS spreads
+  +246.8% (n=14 longshot luck); combined soccer spreads land dead on model
+  fair. The dominant variation is sport×regime, not category — re-weighting
+  the composite on this data would fit noise (the C4 lesson). Watch-don't-
+  tune; revisit only on a stable same-signed gap across two independent ~90d
+  windows at n≥100. Writeup:
+  `docs/my-documents/temp/r10-category-weights/README.md` (local).
+- **C6 — CLOSED with the same pass.** April's Totals +32% didn't persist
+  (90d -4.4%); nothing pathological either. No action.
+- **Finding for the record:** the World Cup spread cohort ran at market, not
+  at model — tempers the 06-29 conclusion that WC always-YES spread edge was
+  "largely real." Soft follow-up: re-check soccer-spread edge realization
+  early in the next major tournament.
+
+---
+
 ## 2026-07-20 -- Session: PM2a — venue-neutral MarketClient seam (execution plumbing)
 
 ### Why

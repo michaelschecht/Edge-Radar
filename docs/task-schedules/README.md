@@ -19,6 +19,7 @@
 <details>
 <summary><b>Changelog</b></summary>
 
+- **2026-07-20** — added `Hourly-Settle` (every hour at :35) — U1: hourly `kalshi_settler.py settle`, enabled by the M2 cross-process trade-log lock (concurrent settle+execute now merge-safe). Sharpens Gate 1 daily-loss accuracy intraday. `NightlySettle` kept as belt-and-suspenders during a validation week, then retire. Validated live (`LastTaskResult=0`).
 - **2026-07-20** — added `Daily-Polymarket-DryRun` (daily 9:40 AM) — read-only Polymarket championship-futures scan appending to the PM2 edge-proving evidence log (`data/polymarket/dryrun_log.jsonl`). Places no orders; no paired email (output logs to `logs/polymarket_dryrun_scan.log`). Validated live (`LastTaskResult=0`).
 - **2026-06-20** — added `Weekly-Futures-Execution` (Sat 9:00 AM, first futures automation) + paired `Email-Weekly-Futures` (Sat 9:20 AM); `futures_edge.py` now always writes a report on `--save` for 0-order-week proof-of-life. Both validated live (`LastTaskResult=0`, 0 bets, all gated).
 - **2026-06-20** — per-task logging on every email shell script (`logs/email_*.log` with exit-code banners; see [Troubleshooting → Email task logs](#email-task-logs-added-2026-06-20)).
@@ -56,6 +57,7 @@
 | 19 | `Weekly-Futures-Execution` | **Sat** 9:00 AM | Scans + executes championship/outright **futures** (NFL Super Bowl, NBA/NHL/MLB titles, NCAAB MOP, golf majors) via `scan.py futures --execute` (budget 5%, max 3, unit $1, `--exclude-open`). Offseason series with no Odds API outright data are skipped; golf only prices the 4 majors during their weeks. First futures automation (added 2026-06-20) |
 | 20 | `Email-Weekly-Futures` | **Sat** 9:20 AM | Emails the weekly futures execution report (20-min buffer after task #19). Sends even on 0-order weeks as proof-of-life. Subject `Edge-Radar \| Weekly Futures Execution Report` |
 | 21 | `Daily-Polymarket-DryRun` | Daily 9:40 AM | **Read-only** Polymarket championship-futures scan (`scan.py polymarket --filter futures --save`) — appends each run to the PM2 edge-proving evidence log `data/polymarket/dryrun_log.jsonl` + markdown to `reports/Polymarket/`. Places NO orders (Phase 1); ~4 Odds API requests/run |
+| 22 | `Hourly-Settle` | **Every hour** at :35 | U1: runs `kalshi_settler.py settle` hourly (direct python, same pattern as NightlySettle). Keeps the trade log fresh all day → Gate 1 daily-loss checks see intraday settlements. Safe alongside the execute tasks via the M2 cross-process lock. Subsumes `NightlySettle` (kept during validation week) |
 | 16 | `R8-Review` | **One-shot 2026-05-29 6:00 AM** | R8 cross-category dedup A/B review (~30 days post-ship). Slices ML/Total/Spread same-game cohorts and recommends per-sport `CROSS_CATEGORY_DEDUP_<SPORT>` flips |
 | 17 | `U2-Review` | **One-shot 2026-05-14 7:00 AM** | U2 daily-summary digest 2-week post-ship review. Scans last 14 `daily_summary_*.md` files for firing-reliability + section coverage, spawns `claude -p` for code review pass, writes recommendations + operational checklist |
 
@@ -94,6 +96,8 @@
 11:30 PM  Daily    ─ Reconcile
 11:45 PM  Sun      ─ Weekly-Analysis       (end-of-week 7-day report)
 11:55 PM  Sun      ─ Email-Weekly-Analysis (emails the weekly report)
+
+  :35 every hour   ─ Hourly-Settle          (settle sweep; :35 slot is clear of all task minutes)
 ```
 
 ### Fires-Per-Day Totals
@@ -106,6 +110,8 @@
 | Sun | 3 (same-day + email + Polymarket-DryRun) + WeeklyAccountGraph @ 9:00 | 2 | 2 | 4 (NextDay + email + Calibration + Backtest) | 4 (Settle + Reconcile + Weekly-Analysis + Email) | **16** |
 
 **Monthly add-on:** on the **1st of each month** an additional `MonthlyCalibration` fire lands at 2:00 AM (adds +1 to that day's total).
+
+**Hourly add-on (2026-07-20):** `Hourly-Settle` fires 24×/day at :35 — excluded from the per-day totals above to keep them readable.
 
 ---
 
@@ -648,6 +654,29 @@ schtasks /Create /TN "\Edge-Radar\Daily-Polymarket-DryRun" `
 
 ---
 
+### 22. `Hourly-Settle` — Every hour at :35
+
+| Property | Value |
+|:---------|:------|
+| **Schedule** | Hourly (`/SC HOURLY /MO 1 /ST 00:35`) |
+| **Executable** | `.venv\Scripts\python.exe` (direct invocation — no .bat wrapper, same pattern as NightlySettle) |
+| **Arguments** | `scripts\kalshi\kalshi_settler.py settle` |
+| **Purpose** | U1: settle throughout the day instead of once at 11 PM. Keeps `data/history` fresh so **Gate 1 (daily loss limit)** sees intraday settlements, positions clear as games end, and R4 resting-order cleanup runs timely |
+| **Why now** | Enabled by **M2** (2026-07-20): the cross-process trade-log lock + merge-safe `append_trades` make a settle that overlaps an execute task merge instead of clobber — exactly the race that made hourly settling unsafe before |
+| **Why :35** | The only minute slot clear of every existing task (:00 executes, :05 SameDay, :20/:25 emails, :30 Reconcile/NextDay, :40 Polymarket, :45 Weekly-Analysis, :50 Daily-Summary, :55 email) |
+| **NightlySettle** | Kept as belt-and-suspenders during a ~1-week validation (settle is idempotent — the 11:00 PM run just finds nothing new after the 10:35 PM sweep). Retire it once Hourly-Settle shows a week of `LastTaskResult=0` |
+
+**Install (one-time, from PowerShell):**
+```powershell
+schtasks /Create /TN "\Edge-Radar\Hourly-Settle" `
+  /TR "D:\AI_Agents\Specialized_Agents\Edge_Radar\.venv\Scripts\python.exe D:\AI_Agents\Specialized_Agents\Edge_Radar\scripts\kalshi\kalshi_settler.py settle" `
+  /SC HOURLY /MO 1 /ST 00:35 /F
+```
+
+**Validated 2026-07-20 (install day):** registered, fired via `Start-ScheduledTask` → `LastTaskResult=0`, next fire on the :35.
+
+---
+
 ### 17. `U2-Review` — One-shot 2026-05-14 7:00 AM PT (10:00 AM ET)
 
 | Property | Value |
@@ -824,6 +853,7 @@ MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Email-NextDay"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Daily-Polymarket-DryRun"
 
 # Maintenance
+MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Hourly-Settle"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\NightlySettle"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Reconcile"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Calibration"
