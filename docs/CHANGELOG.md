@@ -28,10 +28,13 @@ accumulate to satisfy the gate.
 - **Tests:** +3 (`TestSaveDryrun` — JSONL shape + gate field + report,
   zero-opp logging, multi-run accumulation). 557 total.
 
-### Next
+### Scheduled (same day)
 
-- Run `scan.py polymarket --filter futures --save` on a cadence (manual or a
-  scheduled task alongside Weekly-Futures-Execution) to build the PM2 case.
+- New `Daily-Polymarket-DryRun` Windows task (daily 9:40 AM PST) runs the
+  `--save` scan unattended, so the PM2 evidence log builds itself. Read-only,
+  no paired email (output to `logs/polymarket_dryrun_scan.log`), ~4 Odds API
+  requests/run. Validated on install (`LastTaskResult=0`, record appended).
+  See `docs/task-schedules/README.md` task #21.
 
 ---
 
