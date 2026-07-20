@@ -114,6 +114,33 @@ class KalshiProdCredentials:
 
 
 @dataclass(frozen=True)
+class PolymarketCredentials:
+    """PM2 execution credentials (wallet-signed CLOB orders).
+
+    The operator's account is an email/Magic proxy wallet: `private_key` is
+    the key exported from Polymarket (Settings → Export Private Key),
+    `funder_address` is the proxy wallet address that actually holds the
+    USDC (shown as the deposit address / profile address), and
+    `signature_type` is 1 for email/Magic accounts (2 = browser-wallet
+    Gnosis proxy, 0 = plain EOA). The key controls the full account balance
+    — keep the account balance ≈ the intended trading bankroll.
+    """
+    private_key: str = ""
+    funder_address: str = ""
+    signature_type: int = 1
+    host: str = "https://clob.polymarket.com"
+
+    @classmethod
+    def from_env(cls) -> "PolymarketCredentials":
+        return cls(
+            private_key=_str("POLYMARKET_PRIVATE_KEY", ""),
+            funder_address=_str("POLYMARKET_FUNDER_ADDRESS", ""),
+            signature_type=_int("POLYMARKET_SIGNATURE_TYPE", 1),
+            host=_str("POLYMARKET_CLOB_HOST", "https://clob.polymarket.com").rstrip("/"),
+        )
+
+
+@dataclass(frozen=True)
 class OddsApiCredentials:
     keys: list[str] = field(default_factory=list)
     single_key: str = ""  # ODDS_API_KEY — fallback used by odds_api.py
@@ -364,6 +391,7 @@ class ScanCacheConfig:
 class Config:
     kalshi: KalshiCredentials
     kalshi_prod: KalshiProdCredentials
+    polymarket: PolymarketCredentials
     odds: OddsApiCredentials
     alpaca: AlpacaCredentials
     telegram: TelegramCredentials
@@ -380,6 +408,7 @@ class Config:
         cfg = cls(
             kalshi=KalshiCredentials.from_env(),
             kalshi_prod=KalshiProdCredentials.from_env(),
+            polymarket=PolymarketCredentials.from_env(),
             odds=OddsApiCredentials.from_env(),
             alpaca=AlpacaCredentials.from_env(),
             telegram=TelegramCredentials.from_env(),

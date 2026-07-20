@@ -99,10 +99,9 @@ def get_market_client(venue: str = "kalshi") -> MarketClient:
         from kalshi_client import KalshiClient
         return KalshiClient()
     if v == "polymarket":
-        raise NotImplementedError(
-            "Polymarket execution is Phase 2 (PM2) and not implemented yet — "
-            "Phase 1 is read-only (scan.py polymarket). The dry-run "
-            "edge-proving window must complete first. See docs/ROADMAP.md "
-            "Priority 0."
-        )
+        # PM2 write half. Raises FileNotFoundError with setup guidance when
+        # POLYMARKET_PRIVATE_KEY / POLYMARKET_FUNDER_ADDRESS are unset —
+        # same contract as KalshiClient without credentials.
+        from polymarket_exec_client import PolymarketClient
+        return PolymarketClient()
     raise ValueError(f"Unknown venue {venue!r}. Valid venues: {', '.join(VENUES)}")

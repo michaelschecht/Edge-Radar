@@ -84,8 +84,16 @@ class TestGetMarketClient:
         monkeypatch.setattr("kalshi_client.KalshiClient", DummyKalshi)
         assert isinstance(mc.get_market_client(" Kalshi "), DummyKalshi)
 
-    def test_polymarket_refuses_until_pm2(self):
-        with pytest.raises(NotImplementedError, match="Phase 2"):
+    def test_polymarket_without_creds_raises_setup_guidance(self, monkeypatch):
+        # PM2 write half exists; without configured credentials the client
+        # (and thus the factory) must fail with the .env setup message.
+        import polymarket_exec_client as pec
+        from types import SimpleNamespace
+        monkeypatch.setattr(pec, "get_config", lambda: SimpleNamespace(
+            polymarket=SimpleNamespace(private_key="", funder_address="",
+                                       signature_type=1, host="h"),
+            system=SimpleNamespace(dry_run=True)))
+        with pytest.raises(FileNotFoundError, match="POLYMARKET_PRIVATE_KEY"):
             mc.get_market_client("polymarket")
 
     def test_unknown_venue_raises_value_error(self):

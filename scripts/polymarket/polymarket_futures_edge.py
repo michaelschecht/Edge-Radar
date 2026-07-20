@@ -254,7 +254,12 @@ def scan_polymarket_futures(
                f"sportsbook outcomes → [green]{found}[/green] edge(s)")
 
     opps.sort(key=lambda o: o.composite_score, reverse=True)
-    return opps[:top_n]
+    opps = opps[:top_n]
+    # Record ticker → CLOB token mappings so the PM2 execution client can
+    # resolve orders for these opportunities later.
+    import market_registry
+    market_registry.record_opportunities(opps)
+    return opps
 
 
 def _gate_statuses(opps: list[Opportunity]) -> list[str]:

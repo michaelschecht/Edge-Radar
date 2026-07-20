@@ -50,6 +50,9 @@ agentmail>=0.4.5                  # Daily edge report email delivery
 # === Odds & Stats APIs ===
 # No official SDK — use requests directly with API keys
 
+# === Polymarket (PM2 execution) ===
+py-clob-client>=0.34.0             # Polymarket CLOB: EIP-712 order signing, order lifecycle
+
 # === Web Dashboard ===
 streamlit>=1.33.0                  # Streamlit web UI (uses @st.dialog, st.fragment)
 
