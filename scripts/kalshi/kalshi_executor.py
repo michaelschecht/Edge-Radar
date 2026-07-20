@@ -40,6 +40,7 @@ from rich.table import Table
 from rich import print as rprint
 
 from kalshi_client import KalshiClient, KalshiAPIError, KalshiConnectionError, make_prod_client
+from market_client import get_market_client, VENUES
 from edge_detector import scan_all_markets
 from ticker_display import _detect_sport, is_game_started
 from app.config import get_config, reset_config
@@ -1638,15 +1639,24 @@ def main():
                             "to stay within budget while preserving Kelly edge-weighting.")
     run_p.add_argument("--exclude-open", action="store_true",
                        help="Exclude markets where you already have an open position")
+    run_p.add_argument("--venue", type=str, default="kalshi", choices=VENUES,
+                       help="Execution venue (default kalshi; polymarket is Phase 2 and refuses)")
 
     status_p = sub.add_parser("status", help="Show portfolio status")
     status_p.add_argument("--save", action="store_true",
                           help="Save status report to reports/Accounts/Kalshi/")
+    status_p.add_argument("--venue", type=str, default="kalshi", choices=VENUES,
+                          help="Execution venue (default kalshi; polymarket is Phase 2 and refuses)")
 
     args = parser.parse_args()
 
-    # Client for execution and portfolio queries
-    client = KalshiClient()
+    # Client for execution and portfolio queries — routed through the
+    # venue-neutral factory (PM2 seam). Today only "kalshi" resolves.
+    try:
+        client = get_market_client(getattr(args, "venue", "kalshi"))
+    except NotImplementedError as e:
+        rprint(f"[red bold]Refused:[/red bold] {e}")
+        sys.exit(2)
 
     # Production client for market data (if configured)
     prod_client = make_prod_client()

@@ -2,6 +2,48 @@
 
 ---
 
+## 2026-07-20 -- Session: PM2a — venue-neutral MarketClient seam (execution plumbing)
+
+### Why
+
+PM2 (Polymarket execution) needs a venue-agnostic client boundary before any
+wallet code exists. The executor hardcoded `KalshiClient()`; extracting the
+seam now is decision-free (no real money, no wallet secrets) and shortens the
+risky half later, while the PM1c dry-run evidence window accumulates.
+
+### What landed
+
+- **`MarketClient` Protocol** (canonical `scripts/shared/market_client.py`,
+  re-exported via `app/domain/market_client.py` following the `Opportunity`
+  pattern): the 7-method contract the money paths actually use —
+  `get_balance_dollars`, `get_positions`, `create_order`, `get_orders`,
+  `cancel_order`, `get_fills`, `get_settlements` — with the KalshiClient-set
+  conventions documented (dollars not cents; legacy order shape translated
+  internally; DRY_RUN honored via `status="dry_run_blocked"`).
+- **`get_market_client(venue)` factory** — the single place a venue name
+  becomes a client (lazy imports so a venue's dependency stack only loads
+  when selected). `kalshi` resolves; `polymarket` raises a clear
+  NotImplementedError until the PM2 write half ships; unknown venues raise
+  ValueError.
+- **Executor `--venue` plumbing** (`run` + `status`): `KalshiClient()`
+  hardcode replaced with the factory; `--venue polymarket` refuses with a
+  clean message (exit 2), not a traceback. Verified live: `status` runs
+  through the factory against the real portfolio.
+- **Tests:** +21 (`test_market_client.py` — class-level KalshiClient
+  conformance incl. per-method signature coverage so drift is caught,
+  runtime_checkable behavior, factory routing/refusal/validation). 578 total.
+- Deliberately untouched: `webapp/services.py:161` keeps its direct
+  `KalshiClient()` — its Streamlit-secrets credential handling is
+  Kalshi-specific and migrates when a real second venue exists.
+
+### Next
+
+- PM2 write half (`PolymarketClient` via `py-clob-client`), gated on the
+  dry-run edge-proving window + operator answers (wallet choice, test
+  stakes, sports-only scope, arb vs independent edge).
+
+---
+
 ## 2026-07-20 -- Session: PM1c — Polymarket dry-run evidence persistence
 
 ### Why
