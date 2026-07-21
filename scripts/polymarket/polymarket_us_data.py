@@ -129,6 +129,10 @@ def championship_candidates(markets: list[dict], terms: tuple[str, ...],
         ask = _amount(m.get("bestAskQuote")) or _amount(ys.get("price"))
         if not name or ask <= 0:
             continue
+        try:
+            min_shares = int(float(m.get("minimumTradeQty") or 0))
+        except (TypeError, ValueError):
+            min_shares = 0
         out.append({
             "candidate": name,
             "yes_price": round(ask, 4),
@@ -138,5 +142,8 @@ def championship_candidates(markets: list[dict], terms: tuple[str, ...],
             "clob_token_ids": [],
             "volume": 0.0,
             "league": team.get("league"),
+            # Per-order share minimum enforced by the exchange; 0 = unknown
+            # (sizing falls back to the client's conservative default).
+            "min_order_shares": min_shares,
         })
     return out

@@ -247,3 +247,57 @@ class TestScanOrchestration:
 
     def test_unknown_filter_returns_empty(self):
         assert pmf.scan_polymarket_futures(ticker_filter="cricket-world-domination") == []
+
+
+# ── PM2c: --execute wiring ───────────────────────────────────────────────────
+
+class TestExecuteRouting:
+    """PM2c: the scanner routes --execute through the shared execute_pipeline
+    with venue="polymarket", and only US-slug opportunities are executable."""
+
+    def _opps(self):
+        with_slug = pmf.detect_edge_futures_polymarket(
+            {"candidate": "Spain", "yes_price": 0.22, "yes_bid": 0.219,
+             "market_slug": "tec-champ-esp", "min_order_shares": 5},
+            _fair({"Spain": 0.30}), "Champion", "nfl")
+        no_slug = pmf.detect_edge_futures_polymarket(
+            {"candidate": "France", "yes_price": 0.22, "yes_bid": 0.219},
+            _fair({"France": 0.30}), "Champion", "nfl")
+        assert with_slug and no_slug
+        return [with_slug, no_slug]
+
+    def test_execute_routes_slug_opps_through_pipeline(self, monkeypatch):
+        import sys as _sys
+        import market_client
+        import kalshi_executor
+
+        opps = self._opps()
+        monkeypatch.setattr(pmf, "scan_polymarket_futures",
+                            lambda **kw: opps)
+        monkeypatch.setattr(pmf, "_gate_statuses", lambda o: ["ok"] * len(o))
+        client = object()
+        monkeypatch.setattr(market_client, "get_market_client",
+                            lambda venue: client if venue == "polymarket" else None)
+        captured = {}
+
+        def fake_pipeline(**kw):
+            captured.update(kw)
+            return []
+
+        monkeypatch.setattr(kalshi_executor, "execute_pipeline", fake_pipeline)
+        monkeypatch.setattr(_sys, "argv",
+                            ["polymarket_futures_edge.py", "scan",
+                             "--filter", "nfl", "--execute"])
+        pmf.main()
+
+        assert captured["venue"] == "polymarket"
+        assert captured["execute"] is True
+        assert captured["client"] is client
+        # The Gamma-sourced opp (no US market_slug) must not reach execution.
+        assert [o.details["candidate"] for o in captured["opportunities"]] == ["Spain"]
+
+    def test_min_order_shares_flow_into_details(self):
+        with_slug, no_slug = self._opps()
+        assert with_slug.details["min_order_shares"] == 5
+        # Unreported minimum falls back to the exec client's default.
+        assert no_slug.details["min_order_shares"] == pmf._PM_MIN_ORDER_SHARES

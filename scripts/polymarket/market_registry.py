@@ -8,13 +8,13 @@ both sides — no per-token bookkeeping). The scanners are the only components
 that know a ticker's market, so every scan records the mapping here and the
 execution client resolves it at order time.
 
-⚠️ Namespace caveat (2026-07-20): the edge scanners read the **international
-Gamma** API, whose market slugs are a *different namespace* than Polymarket
-US (e.g. the US position slug `tec-mlb-champ-2026-09-27-mil`). Until the
-scanners record a genuine **US** `market_slug` in `opp.details["market_slug"]`,
-this registry stays empty for execution and `create_order` correctly refuses
-live orders. Reconciling Gamma edge detection with US order slugs is the open
-PM2c item — see docs/setup/polymarket-us-setup.md.
+Namespace status (2026-07-20): the **futures** scanner reads Polymarket US
+market data and records genuine US slugs here — those opportunities are
+executable. The **games** scanner still reads international Gamma (a
+different slug namespace) and deliberately records nothing (its details
+carry no `market_slug`/`slug` key), so `create_order` correctly refuses any
+games ticker. The games repoint is a deferred seasonal follow-on — see
+docs/setup/polymarket-us-setup.md.
 
 Entries expire after `MAX_AGE_DAYS` so the file can't grow without bound and
 a stale mapping can't place an order on a long-gone market.
@@ -62,6 +62,9 @@ def record_opportunities(opps: list) -> None:
             "market_slug": str(market_slug),
             "condition_id": details.get("condition_id", ""),
             "title": getattr(o, "title", ""),
+            # PM2c: exchange-enforced per-order share minimum (0 = unknown;
+            # the exec client falls back to its conservative default).
+            "min_order_shares": int(details.get("min_order_shares") or 0),
             "recorded_at": now.isoformat(),
         }
     REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)

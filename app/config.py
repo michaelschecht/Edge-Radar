@@ -125,10 +125,18 @@ class PolymarketCredentials:
     signed per-call (see `polymarket_exec_client`); there is no on-chain
     wallet, funder address, or signature type. Full setup + the verified auth
     contract: docs/setup/polymarket-us-setup.md.
+
+    `dry_run` (env `POLYMARKET_DRY_RUN`, default **true**) is the PM2c
+    venue-scoped safety: Polymarket orders are blocked unless BOTH the global
+    `DRY_RUN` and `POLYMARKET_DRY_RUN` are false. The operator runs Kalshi
+    live (`DRY_RUN=false`), so without this flag, wiring the Polymarket
+    execution pipeline would have gone live instantly — the phased plan
+    requires the dry-run edge window to prove out first (ROADMAP Priority 0).
     """
     key_id: str = ""
     secret_key: str = ""
     host: str = "https://api.polymarket.us"
+    dry_run: bool = True
 
     @classmethod
     def from_env(cls) -> "PolymarketCredentials":
@@ -136,6 +144,7 @@ class PolymarketCredentials:
             key_id=_str("POLYMARKET_KEY_ID", ""),
             secret_key=_str("POLYMARKET_SECRET_KEY", ""),
             host=_str("POLYMARKET_API_HOST", "https://api.polymarket.us").rstrip("/"),
+            dry_run=_bool("POLYMARKET_DRY_RUN", True),
         )
 
 

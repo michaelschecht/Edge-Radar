@@ -150,6 +150,20 @@ class TestLogTradeFillScenarios:
         assert record["cost_dollars"] == 0.0
         assert record["fill_status"] == "resting"
 
+    def test_venue_defaults_to_kalshi(self):
+        record = log_trade(_make_api_response(), _make_sized(_make_opp()), [])
+        assert record["venue"] == "kalshi"
+
+    def test_venue_tagged_from_opportunity_details(self):
+        """PM2c: a Polymarket opp stamps its venue on the trade record, and
+        the US API's camelCase orderId is picked up."""
+        opp = _make_opp()
+        opp.details["venue"] = "polymarket"
+        api = {"orderId": "us-ord-9", "status": "accepted"}
+        record = log_trade(api, _make_sized(opp), [])
+        assert record["venue"] == "polymarket"
+        assert record["order_id"] == "us-ord-9"
+
     def test_resting_order_not_counted_as_exposure(self):
         """A resting order should contribute $0 to wagered totals."""
         record = {

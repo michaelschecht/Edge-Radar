@@ -14,9 +14,14 @@ Repointed from international Gamma to US 2026-07-20: US and Gamma are separate
 order books, so edge must be priced on the US quotes that will actually fill —
 and only the US slug can address an order. See docs/setup/polymarket-us-setup.md.
 
-Phase 1 is **read-only / dry-run**: it previews opportunities and shows which
-risk gate each would hit, but places NO orders. Execution is Phase 2. See
-docs/ROADMAP.md Priority 0.
+Execution (PM2c, wired 2026-07-20): `--execute` routes futures opportunities
+through the shared `execute_pipeline` (risk gates, Kelly sizing, venue
+minimum-share bump, budget caps) with `venue="polymarket"`. Orders remain
+**dry-run blocked** until BOTH `DRY_RUN=false` and `POLYMARKET_DRY_RUN=false`
+— the venue-scoped flag (default true) holds Polymarket back while the
+dry-run edge window accumulates evidence. Games opportunities (Gamma-sourced,
+no US slug) are excluded from execution automatically. See docs/ROADMAP.md
+Priority 0.
 
 Scope (v1): YES-side only (back a candidate to win) — the meaningful futures bet.
 NO-side futures on a large field are near-locks with negligible edge.
@@ -33,6 +38,7 @@ from rich import print as rprint
 from rich.table import Table
 
 from opportunity import Opportunity
+from polymarket_exec_client import MIN_ORDER_SHARES as _PM_MIN_ORDER_SHARES
 
 # Reuse the sportsbook fair-value side from the Kalshi futures scanner unchanged.
 from futures_edge import (
@@ -198,6 +204,11 @@ def detect_edge_futures_polymarket(
             "market_slug": cand.get("market_slug", ""),
             "condition_id": cand.get("condition_id", ""),
             "pm_volume": cand.get("volume", 0.0),
+            # PM2c: per-order share minimum the exchange enforces; sizing
+            # bumps up to it or rejects. Falls back to the exec client's
+            # conservative default when the market doesn't report one.
+            "min_order_shares": int(cand.get("min_order_shares") or 0)
+                                or _PM_MIN_ORDER_SHARES,
         },
     )
 
@@ -352,7 +363,8 @@ def _preview(opps: list[Opportunity], gates: list[str]) -> None:
         )
     rprint(table)
     rprint(f"\n[dim]{len(opps)} opportunit(ies). Gate 'ok' = would pass the "
-           f"per-opportunity risk gates. Execution is Phase 2 (not implemented).[/dim]")
+           f"per-opportunity risk gates. Add --execute to route through the "
+           f"execution pipeline (orders blocked until POLYMARKET_DRY_RUN=false).[/dim]")
 
 
 def main():
@@ -365,31 +377,40 @@ def main():
     scan_p.add_argument("--min-edge", type=float, default=0.03)
     scan_p.add_argument("--top", type=int, default=20)
     scan_p.add_argument("--execute", action="store_true",
-                        help="(Phase 2 — not implemented; refused)")
+                        help="Route futures opportunities through the risk-gate/"
+                             "sizing pipeline and place orders (PM2c). Orders stay "
+                             "blocked (dry_run_blocked) until BOTH DRY_RUN=false "
+                             "and POLYMARKET_DRY_RUN=false — see docs/setup/"
+                             "polymarket-us-setup.md")
     scan_p.add_argument("--save", action="store_true",
                         help="Append this run to data/polymarket/dryrun_log.jsonl "
                              "(edge-proving evidence) + write a markdown report")
     scan_p.add_argument("--report-dir", type=str, default=None,
                         help="Override report output directory for --save")
+    scan_p.add_argument("--unit-size", type=float, default=None,
+                        help="Dollar amount per bet (default: UNIT_SIZE from .env)")
+    scan_p.add_argument("--max-bets", type=int, default=5,
+                        help="Maximum number of bets to place")
+    scan_p.add_argument("--min-bets", type=int, default=None,
+                        help="Minimum approved bets required to proceed")
+    scan_p.add_argument("--pick", type=str, default=None,
+                        help="Comma-separated preview row numbers to execute (e.g. '1,3')")
+    scan_p.add_argument("--ticker", type=str, nargs="+", default=None,
+                        help="Execute only these specific tickers")
+    scan_p.add_argument("--budget", type=str, default=None,
+                        help="Max total cost for the batch ('10%%' of bankroll or dollars)")
     # Accept-and-ignore flags the unified scan.py may forward, so the dispatch
-    # contract matches the other scanners without erroring.
+    # contract matches the other scanners without erroring. --exclude-open is
+    # redundant here: the pipeline's Gate 5 already rejects tickers matching
+    # open Polymarket positions (get_positions normalizes to PM-{slug}).
     for ignored in ("--exclude-open", "--rescan"):
         scan_p.add_argument(ignored, action="store_true")
-    scan_p.add_argument("--unit-size", type=float, default=None)
-    scan_p.add_argument("--max-bets", type=int, default=None)
-    scan_p.add_argument("--budget", type=str, default=None)
     scan_p.add_argument("--date", type=str, default=None)
 
     args = parser.parse_args()
     if args.cmd != "scan":
         parser.print_help()
         sys.exit(0)
-
-    if args.execute:
-        rprint("[red bold]Refused:[/red bold] Polymarket execution-pipeline "
-               "wiring is Phase 2 and not implemented in the scanner yet. "
-               "Phase 1 is read-only. See docs/ROADMAP.md Priority 0 (PM2c).")
-        sys.exit(2)
 
     fut_filter, game_sports = _route_filter(args.ticker_filter)
     opps: list[Opportunity] = []
@@ -412,7 +433,45 @@ def main():
     opps.sort(key=lambda o: o.composite_score, reverse=True)
     opps = opps[:args.top]
     gates = _gate_statuses(opps)
-    _preview(opps, gates)
+
+    wants_pipeline = (args.execute or args.unit_size is not None
+                      or args.budget is not None)
+    if wants_pipeline and opps:
+        # PM2c: only opportunities carrying a US market_slug are executable.
+        # The games scanner still reads international Gamma (different slug
+        # namespace, not orderable on the US API) and records no slug — so
+        # this filter cleanly excludes games until their seasonal US repoint.
+        executable = [o for o in opps if (o.details or {}).get("market_slug")]
+        dropped = len(opps) - len(executable)
+        if dropped:
+            rprint(f"[yellow]{dropped} opportunit(ies) without a US market_slug "
+                   f"(Gamma-sourced games) excluded from execution — dry-run "
+                   f"evidence only.[/yellow]")
+        if not executable:
+            rprint("[yellow]Nothing executable on Polymarket US in this scan.[/yellow]")
+        else:
+            from market_client import get_market_client
+            try:
+                client = get_market_client("polymarket")
+            except FileNotFoundError as e:
+                rprint(f"[red bold]Refused:[/red bold] {e}")
+                sys.exit(2)
+            from kalshi_executor import execute_pipeline, UNIT_SIZE, parse_budget_arg
+            execute_pipeline(
+                client=client,
+                opportunities=executable,
+                execute=args.execute,
+                max_bets=args.max_bets,
+                unit_size=args.unit_size or UNIT_SIZE,
+                pick_rows=args.pick,
+                pick_tickers=args.ticker,
+                budget=parse_budget_arg(args.budget),
+                min_bets=args.min_bets,
+                venue="polymarket",
+            )
+    else:
+        _preview(opps, gates)
+
     if args.save:
         save_dryrun(opps, gates, args.ticker_filter, args.min_edge,
                     report_dir=args.report_dir)

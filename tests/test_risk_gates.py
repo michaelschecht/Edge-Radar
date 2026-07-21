@@ -1581,3 +1581,61 @@ class TestReloadRiskConfig:
             assert result.contracts == 0
         finally:
             self._restore(ke, snap)
+
+
+# ── PM2c: venue minimum-order size ───────────────────────────────────────────
+
+class TestVenueMinShares:
+    """PM2c: `size_order` bumps counts up to a venue's per-order share minimum
+    (`opp.details["min_order_shares"]`, recorded by the Polymarket US scanner)
+    or rejects when the bump would breach MAX_BET_SIZE / bankroll. Opps without
+    the details key (all Kalshi opps) are untouched."""
+
+    def _pm_opp(self, price=0.50, min_shares=5, **kw):
+        opp = _opp(ticker="PM-tec-nba-champ-2027-sas", price=price, **kw)
+        opp.details["venue"] = "polymarket"
+        opp.details["min_order_shares"] = min_shares
+        return opp
+
+    def test_bumps_to_venue_minimum(self):
+        # $0.50 x $1 unit → 2 contracts (quarter-Kelly at $20 bankroll gives
+        # only 1), below the 5-share minimum → bumped.
+        result = size_order(self._pm_opp(), bankroll=20.0, open_positions=0,
+                            daily_pnl=0.0, unit_size=1.00)
+        assert result.risk_approval == "APPROVED_BUMPED_MIN_SHARES"
+        assert result.contracts == 5
+        assert result.cost_dollars == 2.50
+
+    def test_no_bump_when_already_at_minimum(self):
+        # Flat sizing already reaches the 2-share minimum → normal approval.
+        result = size_order(self._pm_opp(min_shares=2), bankroll=20.0,
+                            open_positions=0, daily_pnl=0.0, unit_size=1.00)
+        assert result.risk_approval == "APPROVED"
+        assert result.contracts == 2
+
+    def test_rejects_when_bump_exceeds_bankroll(self):
+        result = size_order(self._pm_opp(), bankroll=2.00, open_positions=0,
+                            daily_pnl=0.0, unit_size=1.00)
+        assert result.risk_approval.startswith("REJECTED")
+        assert "below_venue_min_shares" in result.risk_approval
+        assert result.contracts == 0
+
+    def test_rejects_when_max_bet_cap_undercuts_minimum(self):
+        # Kelly at $100 bankroll sizes 5 shares ($2.50); a $2.00 MAX_BET_SIZE
+        # caps that to 4 — below the 5-share minimum, and re-bumping would
+        # breach the cap → reject (the check runs AFTER the caps).
+        import kalshi_executor as ke
+        original = ke.MAX_BET_SIZE
+        try:
+            ke.MAX_BET_SIZE = 2.00
+            result = size_order(self._pm_opp(), bankroll=100.0,
+                                open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            assert "below_venue_min_shares" in result.risk_approval
+        finally:
+            ke.MAX_BET_SIZE = original
+
+    def test_kalshi_opp_without_details_key_unaffected(self):
+        result = size_order(_opp(), bankroll=20.0, open_positions=0,
+                            daily_pnl=0.0, unit_size=1.00)
+        assert result.risk_approval == "APPROVED"
+        assert result.contracts == 2  # flat $1 unit at $0.50 — no bump

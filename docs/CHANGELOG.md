@@ -2,6 +2,41 @@
 
 ---
 
+## 2026-07-20 -- PM2c: Polymarket execution pipeline wired (orders gated behind POLYMARKET_DRY_RUN)
+
+### What shipped
+
+Resolved **PM2c** (execution-pipeline wiring — the last code step of ROADMAP Priority 0
+Phase 2). `python scripts/scan.py polymarket --execute` now routes US-slug futures
+opportunities through the shared `execute_pipeline` with `venue="polymarket"` — the same
+risk gates, Kelly sizing, and ratio/budget caps as Kalshi — then `create_order` on the US
+API. `--unit-size / --budget / --max-bets / --min-bets / --pick / --ticker` supported.
+
+- **Two-flag dry-run safety (new `POLYMARKET_DRY_RUN`, default true)** — Polymarket orders
+  return `dry_run_blocked` unless BOTH `DRY_RUN=false` and `POLYMARKET_DRY_RUN=false`.
+  Required because `.env` runs Kalshi live: without a venue-scoped flag, flipping the
+  scanner's `--execute` refusal would have placed live Polymarket orders immediately,
+  contradicting the "prove edge in dry-run first" phase gate.
+- **Venue minimum order size** — `minimumTradeQty` captured at scan time into
+  `opp.details["min_order_shares"]` + the registry; `size_order` bumps sub-minimum counts
+  up (post-caps) or rejects (`below_venue_min_shares`) when the bump would breach
+  `MAX_BET_SIZE`/bankroll; the pipeline drops rows the ratio/budget caps push back under.
+- **Positions normalized** — `PolymarketClient.get_positions` also emits Kalshi-shaped
+  `market_positions` with `PM-{marketSlug}` tickers (the scanner's own convention), so
+  Gate 5, per-event counts, and `status --venue polymarket` work unchanged.
+- **Venue-tagged trade log** — records carry `venue`; `orderId` (US camelCase) accepted.
+  Gate 1 (daily loss) spans venues by design. Batch placement now survives non-Kalshi
+  exceptions (one failed order can't abort the batch); the Kalshi resting-order janitor is
+  skipped for non-Kalshi venues; Gamma games opps (no US slug) are excluded from execution.
+
+Live-verified end-to-end in preview mode: $60.12 balance, 2 US positions counted through
+the normalized shape, four championships priced, the one live edge (Spurs) correctly
+gate-rejected on composite score, client initialized `dry_run=True` despite global
+`DRY_RUN=false`. **+15 tests (635 total).** Remaining: prove edge in the daily dry-run
+window → deliberately flip `POLYMARKET_DRY_RUN`; seasonal games repoint; PM3 settlement/ops.
+
+---
+
 ## 2026-07-20 -- Polymarket US repoint: execution rebuilt (Ed25519) + futures scanner on US data
 
 ### What shipped

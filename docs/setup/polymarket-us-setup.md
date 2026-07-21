@@ -1,10 +1,11 @@
 # Polymarket US — API Setup & Integration Status
 
-> **Status (2026-07-20):** Account funded + verified. API keys generated and in `.env`.
-> **Auth verified live** — a read-only Ed25519-signed probe hit the funded account
-> (see [Verified live](#verified-live-2026-07-20)). Execution code (`PolymarketClient`)
-> **needs a rewrite** — see [Code rework required](#code-rework-required).
-> Read-only edge detection (PM1) is **unaffected** and keeps working.
+> **Status (2026-07-20):** Account funded + verified; auth verified live. `PolymarketClient`
+> rebuilt on the US retail API, futures scanner repointed to US data, and the **execution
+> pipeline is fully wired** (`scan.py polymarket --execute`) — all live-verified.
+> **Orders stay `dry_run_blocked`** until BOTH `DRY_RUN=false` and `POLYMARKET_DRY_RUN=false`
+> (see [Execution pipeline](#execution-pipeline--done-2026-07-20-pm2c-635-tests-live-verified-in-preview));
+> flip the venue flag only after the daily dry-run window proves edge.
 
 ---
 
@@ -122,6 +123,35 @@ quotes that will actually fill and the US `market_slug` is recorded for executio
 - Live proof: matched all 4 championships (30/32/30/32 teams), found Spurs NBA-champ +3.6%
   edge, and registered `PM-tec-nba-champ-2027-06-18-w-sas → tec-nba-champ-2027-06-18-w-sas`.
   620 tests pass.
+
+### Execution pipeline — DONE 2026-07-20 (PM2c; 635 tests; live-verified in preview)
+
+`python scripts/scan.py polymarket --filter futures --execute` now routes US-slug futures
+opportunities through the shared `execute_pipeline` (`venue="polymarket"`) — the same risk
+gates, Kelly sizing, and ratio/budget caps as Kalshi — then `create_order` on the US API.
+`--unit-size / --budget / --max-bets / --min-bets / --pick / --ticker` all work.
+
+- **Two-flag dry-run (the PM2c safety):** orders return `dry_run_blocked` unless **BOTH**
+  `DRY_RUN=false` **and** `POLYMARKET_DRY_RUN=false` (new env var, default **true**). The
+  operator runs Kalshi live (`DRY_RUN=false`), so the venue flag is what holds Polymarket
+  back until the dry-run edge window proves out. Flip it deliberately, never as a side
+  effect.
+- **Venue minimum order size:** each market's `minimumTradeQty` is captured at scan time
+  into `opp.details["min_order_shares"]` and the registry. `size_order` bumps sub-minimum
+  counts up to it (post-caps, so a capped count can't slip under) or rejects
+  (`below_venue_min_shares`) when the bump would breach `MAX_BET_SIZE`/bankroll; the
+  pipeline drops rows the ratio/budget caps push back below minimum.
+- **Positions normalized:** `get_positions` also returns Kalshi-shaped `market_positions`
+  with `PM-{marketSlug}` tickers (matching the scanner's ticker convention), so Gate 5
+  (duplicate ticker), per-event counts, and `kalshi_executor.py status --venue polymarket`
+  consume Polymarket positions unchanged.
+- **Trade log:** records carry `venue` (`"polymarket"`/`"kalshi"`; absent = kalshi on old
+  records). Gate 1 (daily loss) intentionally spans venues — one operator, one risk budget.
+- **Excluded from execution:** games opportunities (Gamma-sourced, no US slug) are filtered
+  out automatically; the Kalshi resting-order janitor is skipped for non-Kalshi venues.
+- Live verification (2026-07-20, preview mode): balance $60.12, 2 US positions counted,
+  four championships priced, the one live edge (Spurs) correctly gate-rejected on
+  composite score.
 
 ### Polymarket US inventory reality (why futures, not games)
 
