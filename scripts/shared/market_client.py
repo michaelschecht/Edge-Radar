@@ -26,8 +26,8 @@ route through it rather than instantiating `KalshiClient()` directly.
 
 from typing import Protocol, runtime_checkable
 
-# Venues the factory understands. "polymarket" is registered but refuses
-# until the PM2 write half (py-clob-client, wallet signing) ships.
+# Venues the factory understands. "polymarket" targets the Polymarket US
+# retail API (Ed25519-signed); the client refuses only when its API keys are unset.
 VENUES = ("kalshi", "polymarket")
 
 
@@ -91,8 +91,8 @@ class MarketClient(Protocol):
 def get_market_client(venue: str = "kalshi") -> MarketClient:
     """Build the execution client for `venue`.
 
-    Imports lazily so a venue's dependency stack (RSA signing, future
-    py-clob-client) is only loaded when that venue is actually selected.
+    Imports lazily so a venue's dependency stack (Kalshi RSA signing,
+    Polymarket US Ed25519 signing) is only loaded when that venue is selected.
     """
     v = (venue or "kalshi").strip().lower()
     if v == "kalshi":

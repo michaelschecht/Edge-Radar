@@ -386,9 +386,9 @@ def main():
         sys.exit(0)
 
     if args.execute:
-        rprint("[red bold]Refused:[/red bold] Polymarket execution is Phase 2 "
-               "(wallet / py-clob-client) and is not implemented yet. Phase 1 "
-               "is read-only. See docs/ROADMAP.md Priority 0 (PM2).")
+        rprint("[red bold]Refused:[/red bold] Polymarket execution-pipeline "
+               "wiring is Phase 2 and not implemented in the scanner yet. "
+               "Phase 1 is read-only. See docs/ROADMAP.md Priority 0 (PM2c).")
         sys.exit(2)
 
     fut_filter, game_sports = _route_filter(args.ticker_filter)
