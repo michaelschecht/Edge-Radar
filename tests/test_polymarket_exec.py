@@ -24,10 +24,15 @@ def _opp(ticker="PM-mlb-sd-atl-ml", slug="padres-vs-braves-2026-04-01"):
     )
 
 
-def _cfg(dry_run=True, key_id="aa6e3c16-uuid", secret=_SECRET):
+def _cfg(dry_run=True, key_id="aa6e3c16-uuid", secret=_SECRET,
+         pm_dry_run=None):
+    """pm_dry_run defaults to mirroring the global flag so pre-PM2c tests
+    that pass dry_run=False still exercise the live-order path."""
     return SimpleNamespace(
         polymarket=SimpleNamespace(key_id=key_id, secret_key=secret,
-                                   host="https://api.polymarket.us"),
+                                   host="https://api.polymarket.us",
+                                   dry_run=dry_run if pm_dry_run is None
+                                   else pm_dry_run),
         system=SimpleNamespace(dry_run=dry_run),
     )
 
@@ -107,6 +112,32 @@ class TestPolymarketClient:
         assert resp["status"] == "dry_run_blocked"
         assert client._priv is None
 
+    def test_venue_dry_run_blocks_even_when_global_is_live(self, monkeypatch):
+        """PM2c two-flag safety: DRY_RUN=false (live Kalshi) must NOT unlock
+        Polymarket orders while POLYMARKET_DRY_RUN stays true."""
+        monkeypatch.setattr(pec, "get_config",
+                            lambda: _cfg(dry_run=False, pm_dry_run=True))
+        client = PolymarketClient()
+        assert client.dry_run is True
+        resp = client.create_order("PM-any", "yes", "buy", 5, yes_price_cents=44)
+        assert resp["status"] == "dry_run_blocked"
+
+    def test_live_requires_both_flags_false(self, monkeypatch):
+        monkeypatch.setattr(pec, "get_config",
+                            lambda: _cfg(dry_run=False, pm_dry_run=False))
+        assert PolymarketClient().dry_run is False
+        # Global dry-run still blocks even if the venue flag is flipped.
+        monkeypatch.setattr(pec, "get_config",
+                            lambda: _cfg(dry_run=True, pm_dry_run=False))
+        assert PolymarketClient().dry_run is True
+
+    def test_config_missing_venue_flag_defaults_blocked(self, monkeypatch):
+        """A config namespace without the dry_run attr (old shape) stays safe."""
+        cfg = _cfg(dry_run=False)
+        del cfg.polymarket.dry_run
+        monkeypatch.setattr(pec, "get_config", lambda: cfg)
+        assert PolymarketClient().dry_run is True
+
     def test_live_order_builds_no_side_body(self, monkeypatch):
         monkeypatch.setattr(pec, "get_config", lambda: _cfg(dry_run=False))
         market_registry.record_opportunities([_opp()])
@@ -161,6 +192,40 @@ class TestPolymarketClient:
         assert bal["balance"] == 60.12
         assert bal["buying_power"] == 60.12
         assert bal["reservation"] == 50.0  # reported, but not subtracted
+
+    def test_positions_normalize_to_market_positions(self, monkeypatch):
+        """PM2c: positions gain a Kalshi-shaped market_positions list whose
+        tickers use the scanner's PM-{slug} convention, so the pipeline's
+        Gate 5 and show_status consume them unchanged."""
+        monkeypatch.setattr(pec, "get_config", lambda: _cfg())
+        client = PolymarketClient()
+        client._signed_request = Mock(return_value={"positions": {
+            "tec-mlb-champ-2026-09-27-mil": {
+                "netPosition": 12, "cost": {"value": "4.98"},
+                "realized": {"value": "0"},
+            },
+            "closed-out-market": {"netPosition": 0},
+        }})
+        resp = client.get_positions()
+        mps = resp["market_positions"]
+        assert len(mps) == 1  # zero net position filtered out
+        assert mps[0]["ticker"] == "PM-tec-mlb-champ-2026-09-27-mil"
+        assert mps[0]["position_fp"] == "12.0"
+        assert mps[0]["market_exposure_dollars"] == "4.98"
+        assert "tec-mlb-champ-2026-09-27-mil" in resp["positions"]  # raw kept
+
+    def test_min_share_warning_uses_registry_minimum(self, monkeypatch, caplog):
+        monkeypatch.setattr(pec, "get_config",
+                            lambda: _cfg(dry_run=False, pm_dry_run=False))
+        opp = _opp()
+        opp.details["min_order_shares"] = 10
+        market_registry.record_opportunities([opp])
+        client = PolymarketClient()
+        client._signed_request = Mock(return_value={"orderId": "x"})
+        with caplog.at_level("WARNING"):
+            client.create_order("PM-mlb-sd-atl-ml", "yes", "buy", 7,
+                                yes_price_cents=44)
+        assert "10-share minimum" in caplog.text
 
     def test_signed_request_headers_and_message(self, monkeypatch):
         monkeypatch.setattr(pec, "get_config", lambda: _cfg())

@@ -102,6 +102,15 @@ class TestChampionshipCandidates:
         board = [_mkt("World Series Champion", "Dead Team", "mlb", 0.0, 0.0, "s")]
         assert usd.championship_candidates(board, ("world series champion",)) == []
 
+    def test_captures_minimum_trade_qty(self):
+        board = self._board()
+        board[0]["minimumTradeQty"] = "5"
+        cands = usd.championship_candidates(
+            board, ("world series champion",), league="mlb")
+        by_name = {c["candidate"]: c for c in cands}
+        assert by_name["Los Angeles Dodgers"]["min_order_shares"] == 5
+        assert by_name["New York Yankees"]["min_order_shares"] == 0  # unreported
+
 
 class TestFetchOpenFutures:
     def test_paginates_and_filters(self, monkeypatch):

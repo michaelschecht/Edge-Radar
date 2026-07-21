@@ -68,7 +68,8 @@ Market types:
   sports       Kalshi sports betting (NBA, NHL, MLB, NFL, NCAA, etc.)
   futures      Championship & season-long futures
   prediction   Crypto, weather, S&P 500, politics
-  polymarket   Polymarket championship futures (Phase 1: read-only / dry-run)
+  polymarket   Polymarket US futures + games (execution wired; orders blocked
+               until DRY_RUN=false AND POLYMARKET_DRY_RUN=false)
 
 Aliases:  sport, pred, poly, pm
 

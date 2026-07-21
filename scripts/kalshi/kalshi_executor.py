@@ -815,6 +815,32 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         actual_cost = contracts * opp.market_price
         bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
 
+    # ── Venue minimum-order size (PM2c). Some venues enforce a per-order
+    # share minimum (Polymarket US `minimumTradeQty`, recorded by the scanner
+    # into `details["min_order_shares"]`). Runs AFTER the caps above so a
+    # capped count can't slip below the minimum. Bump the count up when the
+    # bumped cost still respects MAX_BET_SIZE and the bankroll; otherwise
+    # reject — a sub-minimum order would just be rejected by the exchange.
+    try:
+        min_shares = int((opp.details or {}).get("min_order_shares") or 0)
+    except (TypeError, ValueError, AttributeError):
+        min_shares = 0
+    if 0 < contracts < min_shares:
+        bumped_cost = min_shares * opp.market_price
+        if bumped_cost > MAX_BET_SIZE or bumped_cost > bankroll:
+            return SizedOrder(
+                opportunity=opp, contracts=0, price_cents=0,
+                cost_dollars=0, bankroll_pct=0,
+                risk_approval=(
+                    f"REJECTED: below_venue_min_shares (sized {contracts} < "
+                    f"min {min_shares}; bumping would cost ${bumped_cost:.2f})"
+                ),
+            )
+        contracts = min_shares
+        actual_cost = bumped_cost
+        bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
+        approval = "APPROVED_BUMPED_MIN_SHARES"
+
     return SizedOrder(
         opportunity=opp,
         contracts=contracts,
@@ -872,8 +898,12 @@ def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
 
     trade_record = {
         "trade_id": str(uuid.uuid4()),
-        "order_id": order.get("order_id", ""),
+        # Kalshi uses order_id; Polymarket US returns orderId.
+        "order_id": order.get("order_id") or order.get("orderId", ""),
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        # PM2c: venue tag so settlement/reporting can split by venue (PM3).
+        # Absent on pre-PM2c records — readers must default to "kalshi".
+        "venue": (opp.details or {}).get("venue", "kalshi"),
         "ticker": opp.ticker,
         "title": opp.title,
         "category": opp.category,
@@ -935,12 +965,14 @@ def _place_order_batch(client: KalshiClient, to_execute: list, trade_log: list) 
     """
     results: list = []
 
-    def _record_failure(ticker: str, side: str, message: str) -> None:
+    def _record_failure(ticker: str, side: str, message: str,
+                        venue: str = "kalshi") -> None:
         """Append an error record for an order that didn't place, using the
         fresh-read-under-lock append so we don't clobber a concurrent writer."""
         error_record = {
             "trade_id": str(uuid.uuid4()),
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "venue": venue,
             "ticker": ticker,
             "side": side,
             "status": "error",
@@ -955,6 +987,7 @@ def _place_order_batch(client: KalshiClient, to_execute: list, trade_log: list) 
 
     for s in to_execute:
         opp = s.opportunity
+        opp_venue = (opp.details or {}).get("venue", "kalshi")
         try:
             # Determine price based on side
             kwargs = {
@@ -1003,6 +1036,7 @@ def _place_order_batch(client: KalshiClient, to_execute: list, trade_log: list) 
             _record_failure(
                 opp.ticker, opp.side,
                 f"transport failure (placement UNKNOWN — reconcile): {e.message}",
+                venue=opp_venue,
             )
             if consecutive_conn_errors >= MAX_CONSECUTIVE_CONN_ERRORS:
                 remaining = len(to_execute) - len(results) - consecutive_conn_errors
@@ -1018,7 +1052,17 @@ def _place_order_batch(client: KalshiClient, to_execute: list, trade_log: list) 
             # network-failure counter and keep placing the rest of the batch.
             consecutive_conn_errors = 0
             rprint(f"  [red]FAIL[/red] {opp.ticker}: {e.message[:80]}")
-            _record_failure(opp.ticker, opp.side, e.message)
+            _record_failure(opp.ticker, opp.side, e.message, venue=opp_venue)
+
+        except Exception as e:
+            # Non-Kalshi venue errors (e.g. PolymarketAPIError, which wraps
+            # both HTTP and transport failures) — record and continue so one
+            # order can't abort the batch. The exception type isn't imported
+            # here to keep the executor free of per-venue dependencies. The
+            # conn-error counter is left untouched: we can't tell transport
+            # from API, so neither reset nor short-circuit on it.
+            rprint(f"  [red]FAIL[/red] {opp.ticker}: {str(e)[:80]}")
+            _record_failure(opp.ticker, opp.side, str(e), venue=opp_venue)
 
     return results
 
@@ -1140,12 +1184,19 @@ def execute_pipeline(
     fingerprint: dict | None = None,
     cached_rows: list["SizedOrder"] | None = None,
     cache_age_seconds: int | None = None,
+    venue: str = "kalshi",
 ) -> list[dict]:
     """
     Run the full pipeline: risk-check, size, and optionally execute.
 
     Args:
-        client: Authenticated KalshiClient
+        client: Authenticated MarketClient for `venue` (KalshiClient today;
+                PolymarketClient via `scan.py polymarket --execute`)
+        venue: Execution venue (PM2c). Non-Kalshi venues skip the Kalshi-
+                shaped resting-order janitor; everything else — gates, sizing,
+                caps, trade logging — is venue-neutral. The shared trade log
+                means Gate 1 (daily loss) spans venues, which is intended:
+                one operator, one daily risk budget.
         opportunities: Scored opportunities from edge detector
         execute: If True, actually place orders. If False, preview only.
         max_bets: Maximum number of bets to place in one run
@@ -1162,9 +1213,10 @@ def execute_pipeline(
         cache_age_seconds: Age of the cached rows, used only for the replay
                   banner.
     """
-    # ── Resting-order janitor (R4): cancel stale zero-fill orders before new ones
+    # ── Resting-order janitor (R4): cancel stale zero-fill orders before new
+    # ones. Kalshi-only — it parses Kalshi order shapes (PM ops are PM3).
     dry_run_for_janitor = get_config().system.dry_run
-    if execute and not dry_run_for_janitor and RESTING_ORDER_MAX_HOURS > 0:
+    if venue == "kalshi" and execute and not dry_run_for_janitor and RESTING_ORDER_MAX_HOURS > 0:
         cancelled = cancel_stale_resting_orders(client)
         if cancelled:
             rprint(
@@ -1345,6 +1397,25 @@ def execute_pipeline(
                 rprint(f"  Budget cap: [yellow]${pre_budget_cost:.2f} -> ${post_budget_cost:.2f}[/yellow] (limit ${budget_dollars:.2f})")
             else:
                 rprint(f"  Budget cap: [green]${pre_budget_cost:.2f} within ${budget_dollars:.2f} limit[/green]")
+
+        # ── Venue minimum re-check (PM2c): the ratio/budget caps above can
+        # scale a bumped order back below its venue's per-order minimum. Drop
+        # those rows — restoring the count would defeat the cap, and a
+        # sub-minimum order would just be rejected by the exchange.
+        below_min = [
+            s for s in to_execute
+            if 0 < s.contracts < int((s.opportunity.details or {}).get("min_order_shares") or 0)
+        ]
+        if below_min:
+            to_execute = [s for s in to_execute if s not in below_min]
+            rprint(f"  [yellow]Dropped {len(below_min)} order(s) capped below "
+                   f"the venue share minimum:[/yellow]")
+            for s in below_min:
+                rprint(f"    [dim]SKIP {s.opportunity.ticker}: {s.contracts} < "
+                       f"{(s.opportunity.details or {}).get('min_order_shares')} min[/dim]")
+            if not to_execute:
+                rprint("[yellow]No orders left after the venue-minimum check.[/yellow]")
+                return []
 
     from ticker_display import (
         parse_game_datetime, format_bet_label, format_pick_label, sport_from_ticker,
@@ -1640,21 +1711,23 @@ def main():
     run_p.add_argument("--exclude-open", action="store_true",
                        help="Exclude markets where you already have an open position")
     run_p.add_argument("--venue", type=str, default="kalshi", choices=VENUES,
-                       help="Execution venue (default kalshi; polymarket is Phase 2 and refuses)")
+                       help="Execution venue (default kalshi). The run command scans Kalshi "
+                            "markets, so only kalshi is accepted here — Polymarket execution "
+                            "routes through `scan.py polymarket --execute` (PM2c)")
 
     status_p = sub.add_parser("status", help="Show portfolio status")
     status_p.add_argument("--save", action="store_true",
                           help="Save status report to reports/Accounts/Kalshi/")
     status_p.add_argument("--venue", type=str, default="kalshi", choices=VENUES,
-                          help="Execution venue (default kalshi; polymarket is Phase 2 and refuses)")
+                          help="Venue to show portfolio status for (default kalshi)")
 
     args = parser.parse_args()
 
     # Client for execution and portfolio queries — routed through the
-    # venue-neutral factory (PM2 seam). Today only "kalshi" resolves.
+    # venue-neutral factory (PM2 seam).
     try:
         client = get_market_client(getattr(args, "venue", "kalshi"))
-    except NotImplementedError as e:
+    except (NotImplementedError, FileNotFoundError) as e:
         rprint(f"[red bold]Refused:[/red bold] {e}")
         sys.exit(2)
 
@@ -1670,6 +1743,12 @@ def main():
         show_status(client, save=args.save)
 
     elif args.command == "run":
+        if getattr(args, "venue", "kalshi") != "kalshi":
+            rprint("[red bold]Refused:[/red bold] `run` scans Kalshi markets — a "
+                   "non-Kalshi venue would price nothing it can execute. Use "
+                   "`python scripts/scan.py polymarket --execute` for Polymarket (PM2c).")
+            sys.exit(2)
+
         # Get opportunities
         if args.from_file:
             rprint(f"[bold]Loading {'prediction' if args.prediction else 'sports'} opportunities from file...[/bold]")

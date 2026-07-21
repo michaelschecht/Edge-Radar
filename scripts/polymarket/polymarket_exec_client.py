@@ -17,18 +17,24 @@ Auth (verified live 2026-07-20 — see docs/setup/polymarket-us-setup.md):
   - `secret_key` is base64; its first 32 bytes are the Ed25519 seed.
 
 Safety:
-  - DRY_RUN honored exactly like KalshiClient: blocked orders return
-    `{"status": "dry_run_blocked", ...}` without touching the network.
+  - Dry-run is **two-flag** (PM2c): orders are blocked — returning
+    `{"status": "dry_run_blocked", ...}` without touching the network —
+    unless BOTH the global `DRY_RUN` and the venue-scoped `POLYMARKET_DRY_RUN`
+    are false. The operator runs Kalshi live, so the venue flag (default
+    true) is what actually holds Polymarket back until the dry-run edge
+    window proves out (ROADMAP Priority 0).
   - Construction is network-free (the signer is built lazily), so the factory
     and dry-run order paths never hit the API.
   - `create_order` refuses (raises) when the registry has no US `market_slug`
-    for the ticker — which is the current state until the scanners record US
-    slugs (they read international Gamma today; see `market_registry`).
+    for the ticker — a Gamma-sourced opportunity (the games scanner) or a
+    never-scanned market can't be ordered.
   - Settlement reads are PM3; `get_settlements` returns an empty page.
 
-Venue constraint worth knowing at sizing time: markets carry a per-order
-minimum (`minimumTradeQty`); sub-minimum orders are warned and will be
-rejected by the exchange. PM2c sizing must bump counts up or skip.
+Venue constraint enforced at sizing time (PM2c): markets carry a per-order
+minimum (`minimumTradeQty`), captured by the scan into `market_registry` and
+`opp.details["min_order_shares"]`; `size_order` bumps counts up to it or
+rejects. Sub-minimum orders reaching this client are warned and will be
+rejected by the exchange.
 """
 
 import logging
@@ -88,7 +94,11 @@ class PolymarketClient:
         self.key_id = key_id or cfg.polymarket.key_id
         self.secret_key = secret_key or cfg.polymarket.secret_key
         self.host = (host or cfg.polymarket.host).rstrip("/")
-        self.dry_run = cfg.system.dry_run
+        # Two-flag dry-run (PM2c): live only when BOTH the global DRY_RUN and
+        # the venue-scoped POLYMARKET_DRY_RUN are false. The getattr default
+        # keeps a config missing the venue flag on the safe (blocked) side.
+        self.dry_run = cfg.system.dry_run or getattr(
+            cfg.polymarket, "dry_run", True)
 
         if not self.key_id or not self.secret_key:
             raise FileNotFoundError(
@@ -167,10 +177,34 @@ class PolymarketClient:
     def get_positions(self, limit: int = 100, cursor: str | None = None,
                       ticker: str | None = None, event_ticker: str | None = None,
                       count_filter: str | None = None) -> dict:
-        """Open positions from the US Portfolio API (raw venue shape — an
-        object keyed by `marketSlug`; field adapters are PM3)."""
+        """Open positions from the US Portfolio API.
+
+        Returns the raw venue shape under `positions` (an object keyed by
+        `marketSlug`) PLUS a Kalshi-shaped `market_positions` list (PM2c) so
+        the executor pipeline's duplicate-ticker gate (Gate 5), per-event
+        counts, and `show_status` consume Polymarket positions unchanged.
+        The normalized `ticker` is `PM-{marketSlug}` — the same convention
+        the scanners use to mint tickers, so an open position matches the
+        scanner ticker for the same market exactly.
+        """
         data = self._signed_request("GET", "/v1/portfolio/positions")
-        return {"positions": data.get("positions", data)}
+        raw = data.get("positions", data)
+        market_positions = []
+        rows = raw.items() if isinstance(raw, dict) else (
+            (p.get("marketSlug", ""), p) for p in raw or [])
+        for slug, p in rows:
+            slug = slug or (p.get("marketMetadata") or {}).get("slug", "")
+            net = _amount(p.get("netPosition"))
+            if not slug or net == 0:
+                continue
+            market_positions.append({
+                "ticker": f"PM-{slug}"[:64],
+                "market_slug": slug,
+                "position_fp": str(net),
+                "market_exposure_dollars": str(_amount(p.get("cost"))),
+                "realized_pnl_dollars": str(_amount(p.get("realized"))),
+            })
+        return {"positions": raw, "market_positions": market_positions}
 
     # ── Orders ────────────────────────────────────────────────────────────────
 
@@ -209,11 +243,15 @@ class PolymarketClient:
                 "record international Gamma data — reconcile before live orders "
                 "(see docs/setup/polymarket-us-setup.md).")
 
-        if count < MIN_ORDER_SHARES:
+        try:
+            min_shares = int(entry.get("min_order_shares") or MIN_ORDER_SHARES)
+        except (TypeError, ValueError):
+            min_shares = MIN_ORDER_SHARES
+        if count < min_shares:
             log.warning(
-                "Polymarket order for %s is %d share(s) — below the typical "
-                "%d-share venue minimum; the exchange will likely reject it.",
-                ticker, count, MIN_ORDER_SHARES)
+                "Polymarket order for %s is %d share(s) — below the market's "
+                "%d-share minimum; the exchange will likely reject it.",
+                ticker, count, min_shares)
 
         body = {
             "marketSlug": market_slug,
