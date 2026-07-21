@@ -4,7 +4,8 @@ polymarket_client.py — read-only Polymarket (Gamma API) client.
 Phase 1 of the Polymarket integration (docs/ROADMAP.md Priority 0). This is a
 **read-only** client: it fetches championship-futures markets and their prices
 from the public Gamma API (https://gamma-api.polymarket.com, no auth, no wallet).
-It places NO orders — order placement is Phase 2 (CLOB / py-clob-client).
+It places NO orders — execution is the Polymarket US retail API (Phase 2).
+Now used only by the games scanner; the futures scanner reads US data directly.
 
 Gamma data model (verified live 2026-07-14):
   - A championship future (e.g. "World Cup Winner") is an **event** with a

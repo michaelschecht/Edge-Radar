@@ -2,6 +2,37 @@
 
 ---
 
+## 2026-07-20 -- Polymarket US repoint: execution rebuilt (Ed25519) + futures scanner on US data
+
+### What shipped
+
+Resolved **PM2c-0**. The operator's funded account is the **CFTC-regulated Polymarket US**
+product (iOS-app only), which uses an **Ed25519 retail API** (`api.polymarket.us`) — not the
+international EIP-712 / `py-clob-client` scheme the earlier PM2b client assumed. (The prior
+"$0 empty twin wallet" diagnosis was wrong — it was the wrong product/API entirely, not a
+per-sign-in-method Magic account.)
+
+- **Auth + execution client rebuilt** — `PolymarketClient` on signed requests (shared
+  `polymarket_us_auth` Ed25519 signer, raw `cryptography` + `requests`, no SDK); `app.config`
+  creds → `POLYMARKET_KEY_ID` / `POLYMARKET_SECRET_KEY`; `market_registry` → US `market_slug`.
+  Verified live ($60.12 buying power, real positions).
+- **Futures scanner repointed to US market data** — new `polymarket_us_data` read client
+  (paginates `GET /v1/markets`, groups championships by `question`, extracts each team's YES
+  ask + US slug); prices US quotes vs the Odds-API consensus and records the real
+  `marketSlug`. Verified live (Spurs NBA-champ +3.6%). World Cup dropped (over + not on US).
+- **Config cleanup** — retired `POLYMARKET_PRIVATE_KEY` / `_FUNDER_ADDRESS` / `_SIGNATURE_TYPE`
+  and the `py-clob-client` dependency; added `POLYMARKET_KEY_ID` / `POLYMARKET_SECRET_KEY`.
+- **Inventory finding** — Polymarket US is **not** a Gamma mirror: game markets are
+  moneyline-only + seasonal (no spreads/totals, no MLB per-game); futures are the deep,
+  always-on surface. The games scanner still reads Gamma (dry-run only, not executable on
+  US); its repoint is a deferred seasonal follow-on.
+
+**620 tests pass.** Remaining before live orders: execution-pipeline wiring (size →
+`create_order`, ~5-share minimum, flip the scanner `--execute` refusal). Full detail:
+`docs/setup/polymarket-us-setup.md`.
+
+---
+
 ## 2026-07-20 -- Session note: PM2b live verification — auth works, wallet identity mismatch found
 
 ### What happened
