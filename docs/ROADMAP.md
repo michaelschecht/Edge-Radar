@@ -389,6 +389,12 @@ Re-measure at 4 weeks. If ≥25% bucket is still negative, tighten to a harder c
 
 Index only — detailed notes are in the collapsed section below.
 
+### 2026-07-20 — MLB Spread/Total Coverage Gap Closed (health-check finding)
+
+| ID | Item |
+|----|------|
+| — | **`KXMLBSPREAD` + `KXMLBTOTAL` wired into the scanner.** Health-check ("not much coming through") found the two series live on Kalshi with open markets but absent from `FILTER_SHORTCUTS`/`CATEGORY_MAP`/`KALSHI_TO_ODDS_SPORT` — MLB scanned **moneyline-only all season** (the series launched after MLB was wired in March; every other major sport had all three types). The R2-calibrated baseball stdevs (margin 4.025 / total 3.45) were already in place, so the fix is three map entries; all detection/dedup/display machinery is prefix-generic. Live shapes verified (bracket-style, line in `floor_strike`). First scan: MLB 106→407 markets (103 spreads, 176 totals); 7 gate-`ok` rows at +8–12% claimed edge — **all deep-bracket Unders (high-line NO-side favorites), an uncalibrated sub-population**: normal-CDF tails vs right-skewed MLB run distributions may overstate Under fair values (Coors Under 17.5 among them). Gates governing it: R28 NO-floor 8%, bracket dedup, per-event cap 2, $1 units. Posture: let the automation bet small and watch the first settlements — same play as the 06-29 soccer-spread lean, which proved real. +5 tests (640). |
+
 ### 2026-07-14 — Repo Review + Money-Path Fixes + Longshot Floor + Config Reconcile
 
 | ID | Item |

@@ -91,6 +91,7 @@ CATEGORY_MAP = {
     "KXATPMATCH":    "game",
     "KXWTAMATCH":    "game",
     # --- Spread ---
+    "KXMLBSPREAD":   "spread",
     "KXNBASPREAD":   "spread",
     "KXNHLSPREAD":   "spread",
     "KXNCAAMBSPREAD":"spread",
@@ -98,6 +99,7 @@ CATEGORY_MAP = {
     "KXMLSSPREAD":   "spread",
     "KXWCSPREAD":    "spread",
     # --- Total ---
+    "KXMLBTOTAL":    "total",
     "KXNHLTOTAL":    "total",
     "KXNBATOTAL":    "total",
     "KXNCAAMBTOTAL": "total",
@@ -131,6 +133,8 @@ CATEGORY_MAP = {
 KALSHI_TO_ODDS_SPORT = {
     # --- MLB ---
     "KXMLBGAME":       "baseball_mlb",
+    "KXMLBSPREAD":     "baseball_mlb",
+    "KXMLBTOTAL":      "baseball_mlb",
     # --- NHL ---
     "KXNHLGAME":       "icehockey_nhl",
     "KXNHLTOTAL":      "icehockey_nhl",
@@ -2034,7 +2038,9 @@ FILTER_SHORTCUTS = {
     # --- US Major Leagues ---
     "nba":     ["KXNBAGAME", "KXNBASPREAD", "KXNBATOTAL", "KXNBABLK", "KXNBA3PT", "KXNBAREB", "KXNBAAST", "KXNBASTL", "KXNBAPTS", "KXNBAMVP", "KXNBAROY", "KXNBADPOY"],
     "nhl":     ["KXNHLGAME", "KXNHLSPREAD", "KXNHLTOTAL", "KXNHLGOAL", "KXNHLPTS", "KXNHLAST", "KXNHLFIRSTGOAL", "KXNHLHART", "KXNHLNORRIS", "KXNHLCALDER"],
-    "mlb":     ["KXMLBGAME", "KXMLBPLAYOFFS"],
+    # KXMLBSPREAD/KXMLBTOTAL added 2026-07-20 — the series launched on Kalshi
+    # after MLB was first wired (March), so MLB ran moneyline-only all season.
+    "mlb":     ["KXMLBGAME", "KXMLBSPREAD", "KXMLBTOTAL", "KXMLBPLAYOFFS"],
     "nfl":     ["KXNFLGAME", "KXNFLSPREAD", "KXNFLTOTAL", "KXNFLDRAFT"],
     # --- College Sports ---
     "ncaamb":  ["KXNCAAMBGAME", "KXNCAAMBSPREAD", "KXNCAAMBTOTAL", "KXNCAAMBMOP"],

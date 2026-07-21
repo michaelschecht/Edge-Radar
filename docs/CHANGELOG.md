@@ -2,6 +2,35 @@
 
 ---
 
+## 2026-07-20 -- MLB spreads + totals wired (KXMLBSPREAD/KXMLBTOTAL coverage gap)
+
+### What shipped
+
+A "not much coming through" health check found `KXMLBSPREAD` and `KXMLBTOTAL` live on
+Kalshi with open markets but never scanned — MLB ran **moneyline-only all season**. The
+series launched after MLB was first wired (March 2026); every other major sport already
+scanned all three market types, and the R2-calibrated baseball stdevs were in place.
+
+- Fix: three map entries in `edge_detector.py` (`FILTER_SHORTCUTS["mlb"]`, `CATEGORY_MAP`,
+  `KALSHI_TO_ODDS_SPORT`). Everything downstream (spread/total detectors, stdev lookup via
+  the `KXMLB` prefix, bracket dedup, series dedup, ticker display) is prefix-generic.
+- Live market shapes verified: bracket-style, line in `floor_strike` (e.g.
+  `KXMLBSPREAD-...-SEA9` = "Seattle wins by over 8.5 runs", `KXMLBTOTAL-...-9` =
+  "Over 8.5 runs").
+- First scan: MLB 106 → **407 markets** (103 spreads + 176 totals); 7 gate-`ok` rows at
+  +8–12% claimed edge on the next slate — all deep-bracket **Unders** (high-line NO-side
+  favorites). ⚠️ This is an **uncalibrated sub-population**: the normal-CDF total model may
+  overstate Under probability against MLB's right-skewed run distribution (fat blowout
+  tail; a Coors Field Under 17.5 is in the first batch). Existing guards apply (R28 NO-side
+  8% floor, correlated-bracket dedup, per-event cap, $1 units). Posture: bet small via the
+  normal automation and review the first settlements — the 06-29 soccer-spread precedent
+  (always-YES lean proved real) cuts either way.
+
+**+5 tests (640 total).** Health check otherwise clean: all 22 scheduled tasks exit 0,
+Odds API quota 3,919 remaining, MLS/MLB data pulls verified, hourly settle running.
+
+---
+
 ## 2026-07-20 -- PM2c: Polymarket execution pipeline wired (orders gated behind POLYMARKET_DRY_RUN)
 
 ### What shipped

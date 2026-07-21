@@ -975,6 +975,48 @@ class TestWorldCupMappings:
         assert _get_total_stdev("KXWCTOTAL-26JUN27CODUZB-5") == SPORT_TOTAL_STDEV["soccer"]
 
 
+class TestMlbSpreadTotalMappings:
+    """KXMLBSPREAD / KXMLBTOTAL wiring — added 2026-07-20.
+
+    The series launched on Kalshi after MLB was first wired (March 2026), so
+    MLB scanned moneyline-only all season while every other major sport had
+    spread/total coverage. The R2-calibrated baseball stdevs were already in
+    place; these assert the prefix/category/odds-key wiring that routes the
+    markets through the existing (generic) spread/total edge detection.
+    Live market shapes verified 2026-07-20: bracket-style, line in
+    `floor_strike` (e.g. KXMLBSPREAD-26JUL202140CINSEA-SEA9 = "Seattle wins
+    by over 8.5 runs", KXMLBTOTAL-26JUL211840MINCLE-9 = "Over 8.5 runs").
+    """
+
+    def test_mlb_filter_includes_spread_and_total(self):
+        from edge_detector import FILTER_SHORTCUTS
+        assert "KXMLBSPREAD" in FILTER_SHORTCUTS["mlb"]
+        assert "KXMLBTOTAL" in FILTER_SHORTCUTS["mlb"]
+        assert "KXMLBGAME" in FILTER_SHORTCUTS["mlb"]  # unchanged
+
+    def test_spread_total_categories(self):
+        assert CATEGORY_MAP["KXMLBSPREAD"] == "spread"
+        assert CATEGORY_MAP["KXMLBTOTAL"] == "total"
+
+    def test_odds_sport_key(self):
+        assert KALSHI_TO_ODDS_SPORT["KXMLBSPREAD"] == "baseball_mlb"
+        assert KALSHI_TO_ODDS_SPORT["KXMLBTOTAL"] == "baseball_mlb"
+
+    def test_stdev_resolves_to_baseball(self):
+        # KXMLB -> baseball_mlb in _PREFIX_TO_SPORT (prefix match covers the
+        # new series), so the R2-calibrated run stdevs price these markets.
+        assert _get_margin_stdev("KXMLBSPREAD-26JUL202140CINSEA-SEA9") == \
+            SPORT_MARGIN_STDEV["baseball_mlb"]
+        assert _get_total_stdev("KXMLBTOTAL-26JUL211840MINCLE-9") == \
+            SPORT_TOTAL_STDEV["baseball_mlb"]
+
+    def test_ticker_display_handles_new_series(self):
+        from ticker_display import sport_from_ticker, bet_type_from_ticker
+        assert sport_from_ticker("KXMLBSPREAD-26JUL202140CINSEA-SEA9") == "MLB"
+        assert bet_type_from_ticker("KXMLBSPREAD-26JUL202140CINSEA-SEA9") == "Spread"
+        assert bet_type_from_ticker("KXMLBTOTAL-26JUL211840MINCLE-9") == "Total"
+
+
 class TestNbaConsensusBooks:
     """R29: Enforce stricter consensus book limits for NBA confidence."""
 
