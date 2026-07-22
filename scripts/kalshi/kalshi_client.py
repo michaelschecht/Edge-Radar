@@ -407,8 +407,15 @@ class KalshiClient:
         return body
 
     def cancel_order(self, order_id: str) -> dict:
-        """Cancel a resting order."""
-        return self._delete(f"/portfolio/orders/{order_id}")
+        """Cancel a resting order.
+
+        Uses the v2 endpoint (``DELETE /portfolio/events/orders/{order_id}``) —
+        the v1 ``DELETE /portfolio/orders/{order_id}`` now returns HTTP 410
+        ``deprecated_v1_order_endpoint``. The v2 response is a slim
+        ``{order_id, client_order_id, reduced_by, ts_ms}`` object rather than
+        the v1 full order object. The v1 GET order endpoints remain current.
+        """
+        return self._delete(f"{V2_ORDERS_PATH}/{order_id}")
 
     def get_order(self, order_id: str) -> dict:
         """Get details of a specific order."""
