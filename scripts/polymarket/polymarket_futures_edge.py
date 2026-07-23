@@ -357,13 +357,38 @@ def save_dryrun(
     return path
 
 
+def _order_mode() -> tuple[bool, str]:
+    """(orders_live, human description) for the current two-flag state.
+
+    Read live rather than hardcoded: once `POLYMARKET_DRY_RUN=false` the old
+    "orders blocked" footer became actively misleading, which is the last
+    thing a preview should be about real money. Fails safe to "blocked" if
+    the config can't be read.
+    """
+    try:
+        from app.config import get_config
+        cfg = get_config()
+        gdr = bool(cfg.system.dry_run)
+        vdr = bool(getattr(cfg.polymarket, "dry_run", True))
+    except Exception:
+        return False, "order mode unknown — assuming blocked"
+    if not gdr and not vdr:
+        return True, "DRY_RUN=false AND POLYMARKET_DRY_RUN=false"
+    blockers = [n for n, v in (("DRY_RUN", gdr),
+                               ("POLYMARKET_DRY_RUN", vdr)) if v]
+    return False, "blocked by " + " and ".join(f"{b}=true" for b in blockers)
+
+
 def _preview(opps: list[Opportunity], gates: list[str]) -> None:
     if not opps:
         rprint("\n[yellow]No Polymarket futures opportunities above the edge "
                "threshold.[/yellow]")
         return
 
-    table = Table(title="Polymarket — Edge Preview (DRY RUN, read-only)")
+    live, mode = _order_mode()
+    table = Table(title="Polymarket — Edge Preview ("
+                        + ("LIVE ORDERS ARMED" if live else "DRY RUN")
+                        + ", read-only until --execute)")
     for col in ("#", "US", "Bet", "Pick", "PM Ask", "Fair", "Edge",
                 "Conf", "Score", "Gate"):
         table.add_column(col)
@@ -391,8 +416,14 @@ def _preview(opps: list[Opportunity], gates: list[str]) -> None:
     rprint(f"\n[dim]{len(opps)} opportunit(ies); [bold]{n_exec} executable on "
            f"Polymarket US[/bold] (US YES = has a market_slug; '-' = Gamma-sourced "
            f"game, dry-run evidence only). Gate 'ok' = would pass the "
-           f"per-opportunity risk gates. Add --execute to route through the "
-           f"execution pipeline (orders blocked until POLYMARKET_DRY_RUN=false).[/dim]")
+           f"per-opportunity risk gates.[/dim]")
+    if live:
+        rprint(f"[red bold]LIVE ORDERS ARMED[/red bold] [red]({mode}) — "
+               f"--execute will place REAL orders on any row that clears the "
+               f"gates. Set POLYMARKET_DRY_RUN=true to halt this venue.[/red]")
+    else:
+        rprint(f"[dim]Add --execute to route through the execution pipeline "
+               f"(orders {mode}).[/dim]")
 
 
 def main():
