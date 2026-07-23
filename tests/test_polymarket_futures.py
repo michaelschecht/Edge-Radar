@@ -366,3 +366,46 @@ class TestCompositeCalibrationParity:
     def test_realistic_edge_can_clear_but_thin_edge_cannot(self):
         assert self._score(0.05, 4, 0.20) >= 6.0
         assert self._score(0.02, 4, 0.20) < 6.0
+
+
+class TestOrderModeBanner:
+    """The preview footer must report the REAL two-flag state. Once
+    POLYMARKET_DRY_RUN flipped to false the old hardcoded 'orders blocked
+    until POLYMARKET_DRY_RUN=false' line became actively misleading about
+    real money — the one thing a preview must never be."""
+
+    @staticmethod
+    def _cfg(global_dry, venue_dry):
+        return type("C", (), {
+            "system": type("S", (), {"dry_run": global_dry})(),
+            "polymarket": type("P", (), {"dry_run": venue_dry})(),
+        })()
+
+    def _mode(self, monkeypatch, global_dry, venue_dry):
+        import app.config
+        monkeypatch.setattr(app.config, "get_config",
+                            lambda: self._cfg(global_dry, venue_dry))
+        return pmf._order_mode()
+
+    def test_live_only_when_both_flags_false(self, monkeypatch):
+        live, msg = self._mode(monkeypatch, False, False)
+        assert live is True
+        assert "POLYMARKET_DRY_RUN=false" in msg
+
+    def test_venue_flag_alone_blocks(self, monkeypatch):
+        live, msg = self._mode(monkeypatch, False, True)
+        assert live is False
+        assert "POLYMARKET_DRY_RUN=true" in msg
+
+    def test_global_flag_alone_blocks(self, monkeypatch):
+        live, msg = self._mode(monkeypatch, True, False)
+        assert live is False
+        assert "DRY_RUN=true" in msg
+
+    def test_unreadable_config_fails_safe_to_blocked(self, monkeypatch):
+        import app.config
+        def boom(): raise RuntimeError("no config")
+        monkeypatch.setattr(app.config, "get_config", boom)
+        live, msg = pmf._order_mode()
+        assert live is False          # never claim "armed" on a read failure
+        assert "unknown" in msg

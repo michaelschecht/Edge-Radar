@@ -3,11 +3,11 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Domain-Polymarket%20US-8b5cf6?style=for-the-badge&labelColor=09090b" alt="Polymarket US">
   <img src="https://img.shields.io/badge/Auth-Ed25519%20Retail%20API-0078d4?style=for-the-badge&labelColor=09090b" alt="Auth">
-  <img src="https://img.shields.io/badge/Orders-Dry--Run%20Blocked-e74c3c?style=for-the-badge&labelColor=09090b" alt="Orders blocked">
+  <img src="https://img.shields.io/badge/Orders-LIVE-e74c3c?style=for-the-badge&labelColor=09090b" alt="Orders live">
   <img src="https://img.shields.io/badge/Executable-Futures%20Only-f59e0b?style=for-the-badge&labelColor=09090b" alt="Futures only">
 </p>
 
-Domain guides for the **Polymarket** integration — the second venue Edge-Radar trades, alongside [Kalshi](../kalshi/README.md). This folder is the authoritative record of what is wired, what is executable, and what is deliberately still read-only.
+Domain guides for the **Polymarket** integration — the second venue Edge-Radar trades, alongside [Kalshi](../kalshi/README.md). This folder is the authoritative record of what is wired, what is executable, and what is deliberately still read-only. **Orders are live** — see the callout below.
 
 ---
 
@@ -15,7 +15,7 @@ Domain guides for the **Polymarket** integration — the second venue Edge-Radar
 > **Two facts shape everything in this folder.**
 >
 > 1. **The funded account is Polymarket *US*** — the CFTC-regulated product (iOS-app only), which uses an **Ed25519 retail API** at `api.polymarket.us`. It is **not** the international EIP-712 / `py-clob-client` exchange most documentation describes. See the [API Reference](./polymarket-api/POLYMARKET_API_REFERENCE.md).
-> 2. **Orders are blocked by a two-flag rule.** A Polymarket order is placed only when **both** `DRY_RUN=false` **and** `POLYMARKET_DRY_RUN=false`. The venue flag defaults to `true` and is absent from `.env`, so Kalshi runs live while Polymarket accumulates dry-run evidence. Flip it deliberately — never as a side effect.
+> 2. ⚠️ **Orders are LIVE as of 2026-07-23.** A Polymarket order is placed only when **both** `DRY_RUN=false` **and** `POLYMARKET_DRY_RUN=false` — and **both are now false**. The daily `Daily-Polymarket-Execution` task passes `--execute`, so any row clearing the risk gates becomes an unattended wager (capped at `--max-bets 2 --budget 10%`). **To halt this venue without touching Kalshi, set `POLYMARKET_DRY_RUN=true`.**
 
 ---
 
@@ -84,7 +84,7 @@ Each board is identified by the `question` its per-team markets share, then pric
 | **PM2c-0** | Rebuilt on the US retail API; futures repointed to US data | ✅ Done |
 | **PM2c** | Execution pipeline wired end-to-end | ✅ Code-complete |
 | **C10** | Futures composite unblocked — Gate 4 was arithmetically unreachable | ✅ Done |
-| **PM2 (live)** | First live orders after a qualifying edge appears | ⏸️ Awaiting edge |
+| **PM2 (live)** | Orders armed 2026-07-23 (`POLYMARKET_DRY_RUN=false`); daily task executes | ⚠️ **Live — awaiting first qualifying edge** |
 | **PM3** | Settlement & ops — settler, venue surfacing, venue-aware dedup | 📋 Planned |
 
 ### The C10 finding (2026-07-23) — why nothing had cleared
@@ -97,9 +97,12 @@ Fixed by aligning both futures paths to the sports scale. It is **not a floodgat
 
 ---
 
-## 🔍 Dry-run evidence
+## 🔍 Evidence log
 
-The Phase 1 → Phase 2 gate is *"prove edge in dry-run."* A scheduled task (`Daily-Polymarket-DryRun`, 9:40 AM) runs a read-only scan and appends every run to an append-only evidence log.
+A scheduled task (**`Daily-Polymarket-Execution`**, daily 9:40 AM) scans and appends every run to an append-only evidence log.
+
+> [!CAUTION]
+> **This task places real orders as of 2026-07-23.** It passes `--execute`, and both `DRY_RUN` and `POLYMARKET_DRY_RUN` are `false`, so any row clearing the risk gates becomes an unattended wager. Batch capped at `--max-bets 2 --budget 10%`. It was renamed from `Daily-Polymarket-DryRun` — the old name asserted the opposite of what it now does. Halt this venue with `POLYMARKET_DRY_RUN=true`; the scan keeps logging evidence either way.
 
 | Artifact | Path |
 |:---------|:-----|

@@ -71,6 +71,25 @@ README links across to it as a sibling venue, `docs/setup/polymarket-us-setup.md
 into the domain folder (and is now scoped to key generation + `.env` wiring), and every new
 page carries a footer nav back to its index. `CLAUDE.md`'s project tree lists the new folder.
 
+### Scheduler changes (live money)
+
+- **`Daily-Polymarket-DryRun` -> `Daily-Polymarket-Execution`.** The task now passes
+  `--execute` with batch caps (`--max-bets 2 --budget 10%`), so the daily 9:40 AM run can
+  place real unattended Polymarket wagers. Renamed because the old name asserted the
+  opposite of what it does; re-registered from exported XML preserving trigger and
+  principal, old task unregistered, re-validated (`LastTaskResult=0`, 4 opportunities
+  risk-checked, **0 orders placed**). The evidence log still writes either way -- `--save`
+  runs outside the execute branch. Only futures are orderable; Gamma games are
+  auto-excluded. The paired `Email-Polymarket-DryRun` job keeps its name (it only emails
+  the report).
+- **`Weekly-Futures-Execution` disabled.** C10 made Kalshi futures clear Gate 4 for the
+  first time, so Saturday's run would have been the first-ever live futures order through
+  an unexercised path. Disabled pending a manual futures cycle in preview.
+
+Note: the scheduler `.bat` files are gitignored (`.gitignore:87` -- they hardcode local
+paths), so `docs/task-schedules/README.md` is the only tracked record of what the
+automation actually runs.
+
 ### Known issue (pre-existing, unrelated)
 
 `tests/test_risk_gates.py::TestVenueMinShares` has 2 failures that reproduce on a clean
