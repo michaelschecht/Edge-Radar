@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Documentation-Index-0078d4?style=for-the-badge&labelColor=09090b" alt="Documentation Index">
-  <img src="https://img.shields.io/badge/Platform-Kalshi-e74c3c?style=for-the-badge&labelColor=09090b" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-Kalshi%20%7C%20Polymarket-e74c3c?style=for-the-badge&labelColor=09090b" alt="Platform">
   <img src="https://img.shields.io/badge/Stack-Python%20%7C%20Streamlit-2ea44f?style=for-the-badge&labelColor=09090b" alt="Stack">
   <img src="https://img.shields.io/badge/Status-Active%20Execution-8b5cf6?style=for-the-badge&labelColor=09090b" alt="Status">
 </p>
@@ -32,6 +32,14 @@ Only `README.md` and `CHANGELOG.md` live at the root of `docs/`. Everything else
 *   [KALSHI_API_REFERENCE.md](./kalshi/kalshi-sports-betting/KALSHI_API_REFERENCE.md) — Kalshi REST/auth reference (RSA signing, endpoints).
 *   [FUTURES_GUIDE.md](./kalshi/kalshi-futures-betting/FUTURES_GUIDE.md) — Championship and division futures de-vigging models.
 *   [PREDICTION_MARKETS_GUIDE.md](./kalshi/kalshi-prediction-betting/PREDICTION_MARKETS_GUIDE.md) — Scanners for Weather (NWS), Crypto (CoinGecko), and S&P 500.
+
+### 🟣 Polymarket Integration — [`polymarket/`](./polymarket/)
+*   **[polymarket/README.md](./polymarket/README.md) — start here: coverage matrix (what's executable vs evidence-only), integration status, and links to every Polymarket guide.**
+*   [FUTURES_GUIDE.md](./polymarket/polymarket-futures-betting/FUTURES_GUIDE.md) — Championship futures: the **only executable surface** on Polymarket US.
+*   [GAMES_GUIDE.md](./polymarket/polymarket-games-betting/GAMES_GUIDE.md) — Per-game ML/spread/total via Gamma (dry-run evidence only, not orderable on US).
+*   [EXECUTION_GUIDE.md](./polymarket/polymarket-execution/EXECUTION_GUIDE.md) — Two-flag dry-run safety, shared risk gates, venue min-share handling, slug registry.
+*   [POLYMARKET_API_REFERENCE.md](./polymarket/polymarket-api/POLYMARKET_API_REFERENCE.md) — Ed25519 retail API: signing scheme, endpoints, response shapes.
+*   [polymarket-us-setup.md](./setup/polymarket-us-setup.md) — Generating API keys and wiring `.env`.
 
 ### ⚙️ Scripts & CLI — [`scripts/`](./scripts/)
 *   [SCRIPTS_REFERENCE.md](./scripts/SCRIPTS_REFERENCE.md) — Complete CLI reference for every script, flag, and batch command.

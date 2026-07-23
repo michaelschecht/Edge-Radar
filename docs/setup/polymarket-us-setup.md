@@ -1,5 +1,12 @@
 # Polymarket US — API Setup & Integration Status
 
+> 📁 **Domain guides live in [`docs/polymarket/`](../polymarket/README.md)** — coverage matrix,
+> [futures](../polymarket/polymarket-futures-betting/FUTURES_GUIDE.md),
+> [games](../polymarket/polymarket-games-betting/GAMES_GUIDE.md),
+> [execution](../polymarket/polymarket-execution/EXECUTION_GUIDE.md), and the
+> [API reference](../polymarket/polymarket-api/POLYMARKET_API_REFERENCE.md).
+> This page stays focused on **key generation and `.env` wiring**.
+
 > **Status (2026-07-20):** Account funded + verified; auth verified live. `PolymarketClient`
 > rebuilt on the US retail API, futures scanner repointed to US data, and the **execution
 > pipeline is fully wired** (`scan.py polymarket --execute`) — all live-verified.
@@ -153,6 +160,37 @@ gates, Kelly sizing, and ratio/budget caps as Kalshi — then `create_order` on 
   four championships priced, the one live edge (Spurs) correctly gate-rejected on
   composite score.
 
+### Edge-window finding — the gate was unreachable (C10, 2026-07-23)
+
+Four days of the scheduled dry-run (8 runs, 79 rows) returned **zero** gate-passing
+opportunities — 73 rejected on `edge`, 6 on `score`. Root cause was not market
+conditions but **gate arithmetic**: the futures composite scaled edge as
+`min(10, edge * 20)` (saturating at a 50% edge) where the sports composite uses
+`min(edge / 0.01, 10)` (saturating at 10%). Same weights, same structure, one term
+**5x stricter**, dating to the launch-day commit with no recorded rationale.
+
+Clearing `MIN_COMPOSITE_SCORE=6.0` therefore required roughly **11% edge at high
+confidence / 23% medium / 34% low**, against championship-futures edges that run
+**1–4%** in practice. Since futures are the **only** executable market type on
+Polymarket US, no Polymarket order could ever clear Gate 4 — the "prove edge in
+dry-run, then flip `POLYMARKET_DRY_RUN`" plan could not terminate. The same bug
+explains **0 futures bets across 85 settled Kalshi trades**.
+
+**Fixed** by aligning both futures paths to the sports scale. The bar becomes
+~2.1% / 4.4% / 6.6% at typical liquidity, so the composite gate binds in the same
+region as the 3–4% `MIN_EDGE_THRESHOLD` floors instead of dominating them. It is
+**not a floodgate**: replayed against the 4 days of evidence it approves none of
+the 9 observed US candidates on its own — each remains blocked by Gate 3 (edge),
+Gate 3.5 (price floor) or Gate 4.5 (confidence). Full rationale: `CLAUDE.md` C10
+and ROADMAP C10.
+
+**Evidence-log split (same date).** 66 of the 79 logged rows were Gamma-sourced
+*games* with no US `market_slug` — auto-excluded from execution, so the log read
+far busier than the 13-row tradable universe. Runs now record `executable_count`,
+each row carries an `executable` flag, and the preview shows a `US` column.
+
+---
+
 ### Polymarket US inventory reality (why futures, not games)
 
 A full catalog sweep (3,000 open markets) found the US product is **not** a mirror of
@@ -205,3 +243,11 @@ client = PolymarketUS(key_id=..., secret_key=...)   # client.account.balances(),
 - Auth docs: https://docs.polymarket.us/api-reference/authentication
 - Docs index: https://docs.polymarket.us
 - Developer portal: https://polymarket.us/developer
+
+---
+
+<p align="center">
+  <b><a href="../polymarket/README.md">← Polymarket Index</a></b> ·
+  <b><a href="../README.md">Docs Index</a></b> ·
+  <b><a href="../polymarket/polymarket-api/POLYMARKET_API_REFERENCE.md">API Reference</a></b>
+</p>

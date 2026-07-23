@@ -2,6 +2,84 @@
 
 ---
 
+## 2026-07-23 -- Futures composite unblocked (C10) + Polymarket evidence-log split
+
+### What shipped
+
+The Polymarket dry-run window was not converging: four days of scheduled evidence
+(8 runs, 79 rows) produced **zero** gate-passing opportunities -- 73 rejected on
+`edge`, 6 on `score`. The cause turned out not to be market conditions but **gate
+arithmetic**.
+
+The futures composite scaled edge as `min(10, edge * 20)` -- saturating at a **50%**
+edge -- while the sports composite uses `min(edge / 0.01, 10)`, saturating at **10%**.
+Identical weights and structure otherwise; one term **5x stricter**, with no recorded
+rationale (launch-day commit `1d92f0f`, where the `* 20` appears copied from the
+`liquidity` line directly above it).
+
+Clearing `MIN_COMPOSITE_SCORE=6.0` therefore required roughly **11% edge at high
+confidence / 23% medium / 34% low**, against championship-futures edges that run
+**1-4%** in practice. Two consequences, both long-standing and previously unexplained:
+
+- **0 futures bets across 85 settled Kalshi trades.**
+- **Polymarket US was permanently unexecutable** -- futures are its only executable
+  market type, so the PM2 "prove edge in dry-run, then flip `POLYMARKET_DRY_RUN`"
+  gate could never terminate no matter how long it ran.
+
+**Fix:** aligned both futures paths (`scripts/kalshi/futures_edge.py`,
+`scripts/polymarket/polymarket_futures_edge.py`) to `min(edge / 0.01, 10)`. The bar
+becomes ~2.1% / 4.4% / 6.6% at typical liquidity, so the composite gate binds in the
+same region as the 3-4% `MIN_EDGE_THRESHOLD` floors instead of dominating them.
+
+**Deliberately not a floodgate.** Replayed against the four days of live Polymarket
+evidence, the new scale approves **none** of the 9 observed US candidates on its own --
+each remains independently blocked by Gate 3 (edge floor), Gate 3.5 (price floor) or
+Gate 4.5 (confidence). Live-verified on a real scan: NHL 4.36 -> 4.8, Spurs 3.57 -> 4.4,
+all still correctly gated on `edge`.
+
+The futures `high: 9` confidence weight was **left alone** -- C4 capped high->medium for
+*sports* on the F49 evidence and explicitly scoped futures out; there is still no futures
+settlement data to justify either choice.
+
+### Also
+
+- **Evidence-log split.** 66 of the 79 logged Polymarket rows were Gamma-sourced *games*
+  carrying no US `market_slug` -- auto-excluded from execution, so the log read far busier
+  than the 13-row tradable universe actually was. Runs now record `executable_count`, each
+  row carries an `executable` flag, and the preview gained a `US` column (ASCII-only: the
+  scan runs headless under Task Scheduler, where a cp1252 console raises
+  `UnicodeEncodeError` on non-ASCII).
+
++6 tests (645), including cross-venue scoring parity between the Kalshi and Polymarket
+futures composites.
+
+### Polymarket documentation folder
+
+Added `docs/polymarket/`, mirroring the `docs/kalshi/` layout, as the authoritative
+record of the integration:
+
+| File | Covers |
+|:-----|:-------|
+| `polymarket/README.md` | Hub -- coverage matrix (executable vs evidence-only), integration status PM0->PM3, dry-run evidence artifacts, common commands |
+| `polymarket-futures-betting/FUTURES_GUIDE.md` | The only executable surface: question-grouping, whole-word matching, price reading, edge model, C10 composite |
+| `polymarket-games-betting/GAMES_GUIDE.md` | Gamma per-game ML/spread/total, why it can't trade on US, the three guard rails |
+| `polymarket-execution/EXECUTION_GUIDE.md` | Two-flag dry-run, pipeline flow, venue min shares, slug registry, position normalization, order mapping |
+| `polymarket-api/POLYMARKET_API_REFERENCE.md` | Ed25519 scheme, endpoints, response shapes, and the three signing details that cost debugging time |
+
+Navigation is wired both ways: `docs/README.md` gained a Polymarket section, the Kalshi
+README links across to it as a sibling venue, `docs/setup/polymarket-us-setup.md` points up
+into the domain folder (and is now scoped to key generation + `.env` wiring), and every new
+page carries a footer nav back to its index. `CLAUDE.md`'s project tree lists the new folder.
+
+### Known issue (pre-existing, unrelated)
+
+`tests/test_risk_gates.py::TestVenueMinShares` has 2 failures that reproduce on a clean
+checkout: the tests read the operator's live `.env` at import time and assume the
+documented `KELLY_FRACTION=0.25` while `.env` carries `1`. Test-isolation defect, not a
+sizing bug.
+
+---
+
 ## 2026-07-20 -- MLB spreads + totals wired (KXMLBSPREAD/KXMLBTOTAL coverage gap)
 
 ### What shipped

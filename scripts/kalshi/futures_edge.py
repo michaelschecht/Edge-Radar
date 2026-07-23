@@ -412,8 +412,32 @@ def detect_edge_futures(market: dict, fair_values: dict[str, dict], label: str =
     bid_ask_spread = yes_ask - yes_bid if yes_bid > 0 else 1.0
     liquidity = max(0, 10 - bid_ask_spread * 20)
 
-    # Composite score
-    edge_score = min(10, edge * 20)
+    # Composite score.
+    #
+    # C10 (2026-07-23): edge scale aligned to the sports composite
+    # (`edge / 0.01`, saturating at 10% edge). It was `edge * 20` — i.e.
+    # `edge / 0.05`, saturating at 50% — from the launch-day commit (1d92f0f),
+    # with no recorded rationale; the `* 20` appears copied from the liquidity
+    # line directly above. That made the futures composite **5x stricter on
+    # edge than sports** and put Gate 4 out of reach of any realistic futures
+    # edge: clearing MIN_COMPOSITE_SCORE=6.0 needed ~11% edge at high
+    # confidence / ~23% medium / ~34% low, versus championship-futures edges
+    # that run 1-4% in practice. Consequence: **0 futures bets in 85 settled
+    # trades**, and it blocked the Polymarket US surface entirely (futures are
+    # the only executable US market type).
+    #
+    # Aligned, the bar becomes ~2.1% (high) / ~4.4% (medium) / ~6.6% (low) at
+    # typical liquidity, so the composite gate binds in the same region as the
+    # 3-4% MIN_EDGE_THRESHOLD floors instead of dominating them. Verified
+    # against 4 days of live Polymarket evidence: this approves none of the 9
+    # observed candidates on its own — each remains independently blocked by
+    # the price floor (Gate 3.5), edge floor (Gate 3), or confidence (Gate 4.5).
+    #
+    # NOTE: the `high: 9` weight is deliberately left alone. C4 capped
+    # high->medium for *sports* on the F49 evidence that "high" over-claims
+    # edge; it explicitly scoped futures out, and there is still no futures
+    # settlement data to justify either choice here.
+    edge_score = min(edge / 0.01, 10)
     conf_score = {"high": 9, "medium": 6, "low": 3}[confidence]
     composite = 0.4 * edge_score + 0.3 * conf_score + 0.2 * liquidity + 0.1 * 5
 

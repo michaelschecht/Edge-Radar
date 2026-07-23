@@ -212,6 +212,25 @@ class TestSaveDryrun:
                         log_path=log, report_dir=str(tmp_path / "reports"))
         assert len(log.read_text(encoding="utf-8").strip().splitlines()) == 2
 
+    def test_flags_executable_vs_gamma_evidence_rows(self, tmp_path):
+        """Only US-slug opps can reach create_order; Gamma game rows are
+        evidence only. The log must separate them or the Phase 1→2 'prove
+        edge' gate reads far busier than the tradable universe really is."""
+        import json
+        log = tmp_path / "dryrun_log.jsonl"
+        us_opp, gamma_opp = self._opp(), self._opp()
+        us_opp.details["market_slug"] = "tec-nba-champ-2027-06-18-w-sas"
+        gamma_opp.details.pop("market_slug", None)   # Gamma game: no US slug
+
+        pmf.save_dryrun([us_opp, gamma_opp], ["ok", "edge"], "all", 0.01,
+                        log_path=log, report_dir=str(tmp_path / "reports"))
+        rec = json.loads(log.read_text(encoding="utf-8").strip())
+
+        assert rec["count"] == 2
+        assert rec["executable_count"] == 1
+        assert rec["opportunities"][0]["executable"] is True
+        assert rec["opportunities"][1]["executable"] is False
+
 
 class TestScanOrchestration:
     @pytest.fixture(autouse=True)
@@ -301,3 +320,49 @@ class TestExecuteRouting:
         assert with_slug.details["min_order_shares"] == 5
         # Unreported minimum falls back to the exec client's default.
         assert no_slug.details["min_order_shares"] == pmf._PM_MIN_ORDER_SHARES
+
+
+class TestCompositeCalibrationParity:
+    """C10 (2026-07-23): the Polymarket futures composite mirrors the Kalshi
+    one, so its edge scale must stay aligned (`edge / 0.01`). This path is the
+    one that matters most in practice — futures are the *only* executable
+    market type on Polymarket US, so the old 5x-strict scale made the whole
+    venue permanently unexecutable."""
+
+    @staticmethod
+    def _score(edge: float, n_books: int, spread: float) -> float:
+        ask = 0.20
+        cand = {"candidate": "Spain", "yes_price": ask, "yes_bid": ask - 0.01}
+        fv = {"Spain": {"fair_value": ask + edge, "n_books": n_books,
+                        "min": ask + edge - spread / 2,
+                        "max": ask + edge + spread / 2}}
+        opp = pmf.detect_edge_futures_polymarket(cand, fv, "World Cup Winner",
+                                                 "worldcup")
+        assert opp is not None and abs(opp.edge - edge) < 1e-6
+        return opp.composite_score
+
+    def test_edge_saturates_at_ten_percent(self):
+        expected = 0.4 * 10 + 0.3 * 9 + 0.2 * 9.8 + 0.5
+        assert self._score(0.10, 8, 0.01) == pytest.approx(round(expected, 1),
+                                                           abs=0.05)
+
+    def test_matches_kalshi_futures_scoring_exactly(self):
+        """Same inputs must score identically on both venues — the two
+        formulas are intentionally one calibration, not two."""
+        from futures_edge import detect_edge_futures
+        for edge, n_books, spread in ((0.05, 4, 0.20), (0.10, 8, 0.01),
+                                      (0.02, 4, 0.20)):
+            ask = 0.20
+            k = detect_edge_futures(
+                {"ticker": "KX-T", "yes_sub_title": "Spain",
+                 "yes_ask_dollars": ask, "yes_bid_dollars": ask - 0.01,
+                 "no_ask_dollars": 0.0},
+                {"Spain": {"fair_value": ask + edge, "n_books": n_books,
+                           "min": ask + edge - spread / 2,
+                           "max": ask + edge + spread / 2}}, "T")
+            assert k.composite_score == pytest.approx(
+                self._score(edge, n_books, spread), abs=0.05)
+
+    def test_realistic_edge_can_clear_but_thin_edge_cannot(self):
+        assert self._score(0.05, 4, 0.20) >= 6.0
+        assert self._score(0.02, 4, 0.20) < 6.0

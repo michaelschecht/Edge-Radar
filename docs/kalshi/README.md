@@ -94,6 +94,7 @@ Crypto (BTC, ETH, XRP, DOGE, SOL), weather (13 cities), S&P 500, mentions, compa
 
 <p align="center">
   <b><a href="../README.md">← Docs Index</a></b> ·
+  <b><a href="../polymarket/README.md">Polymarket Guides</a></b> ·
   <b><a href="../scripts/SCRIPTS_REFERENCE.md">Scripts Reference</a></b> ·
   <b><a href="../setup/ARCHITECTURE.md">Architecture</a></b>
 </p>
