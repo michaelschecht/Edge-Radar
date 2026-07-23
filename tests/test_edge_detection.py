@@ -1489,3 +1489,56 @@ class TestTennisMappings:
         ev = _h2h_event("Stefanos Tsitsipas", "Novak Djokovic",
                         4.5, 1.2, "2026-06-20T09:00:00Z")
         assert find_market_event(market, [ev]) is None
+
+
+class TestFuturesCompositeCalibration:
+    """C10 (2026-07-23): the futures composite scales edge as `edge / 0.01`,
+    matching the sports composite in `edge_detector.py`.
+
+    It was `edge * 20` (saturating at 50% edge, not 10%) from the launch-day
+    commit, making futures 5x stricter on edge than sports: clearing
+    MIN_COMPOSITE_SCORE=6.0 required ~11% edge at high confidence against
+    championship edges that run 1-4%. Result was 0 futures bets in 85 settled
+    trades, and it made Polymarket US (futures-only) permanently unexecutable.
+    """
+
+    @staticmethod
+    def _market(yes_ask: float, yes_bid: float) -> dict:
+        return {"ticker": "KXNBA-27-SAS", "yes_sub_title": "San Antonio Spurs",
+                "yes_ask_dollars": yes_ask, "yes_bid_dollars": yes_bid,
+                "no_ask_dollars": 0.0}
+
+    @staticmethod
+    def _fair(fair_value: float, n_books: int, spread: float) -> dict:
+        return {"San Antonio Spurs": {
+            "fair_value": fair_value, "n_books": n_books,
+            "min": fair_value - spread / 2, "max": fair_value + spread / 2}}
+
+    def _score(self, edge: float, n_books: int, spread: float) -> float:
+        from futures_edge import detect_edge_futures
+        ask = 0.20
+        opp = detect_edge_futures(self._market(ask, ask - 0.01),
+                                  self._fair(ask + edge, n_books, spread),
+                                  "NBA Champion")
+        assert opp is not None and abs(opp.edge - edge) < 1e-6
+        return opp.composite_score
+
+    def test_edge_saturates_at_ten_percent_not_fifty(self):
+        # The regression guard: under the old `edge * 20`, a 10% edge scored
+        # only 2.0 on the edge term; aligned it saturates the term at 10.0.
+        # 8 books + tight spread -> high (conf 9), liquidity 10 - 0.01*20 = 9.8.
+        expected = 0.4 * 10 + 0.3 * 9 + 0.2 * 9.8 + 0.5
+        assert self._score(0.10, n_books=8, spread=0.01) == pytest.approx(
+            round(expected, 1), abs=0.05)
+
+    def test_realistic_medium_confidence_edge_can_clear_gate_four(self):
+        # A 5% edge at medium confidence is the shape futures actually
+        # produces. It must be able to clear MIN_COMPOSITE_SCORE=6.0; under
+        # the old scale it topped out at ~4.6 and never could.
+        assert self._score(0.05, n_books=4, spread=0.20) >= 6.0
+
+    def test_thin_edge_still_rejected(self):
+        # Not a floodgate: the 1-4% edges that dominate real futures boards
+        # stay below the gate on their own merits.
+        assert self._score(0.02, n_books=4, spread=0.20) < 6.0
+        assert self._score(0.04, n_books=1, spread=0.20) < 6.0

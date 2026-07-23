@@ -169,7 +169,13 @@ def detect_edge_futures_polymarket(
     bid_ask_spread = (yes_price - yes_bid) if yes_bid > 0 else 1.0
     liquidity = max(0.0, 10 - bid_ask_spread * 20)
 
-    edge_score = min(10, edge * 20)
+    # C10 (2026-07-23): edge scale aligned to the sports composite, matching
+    # the Kalshi futures path this formula mirrors. See the full rationale at
+    # the `edge_score` line in `scripts/kalshi/futures_edge.py` — in short, the
+    # old `edge * 20` was 5x stricter on edge than sports and put Gate 4 out of
+    # reach of every realistic futures edge, which is what kept the Polymarket
+    # US surface (futures-only) permanently unexecutable.
+    edge_score = min(edge / 0.01, 10)
     conf_score = {"high": 9, "medium": 6, "low": 3}[confidence]
     composite = 0.4 * edge_score + 0.3 * conf_score + 0.2 * liquidity + 0.1 * 5
 
@@ -312,18 +318,30 @@ def save_dryrun(
     edge appear at all" is part of the evidence). Also writes the standard
     markdown scan report to `reports/Polymarket/` when there are rows.
     Returns the JSONL path.
+
+    Each opportunity carries an `executable` flag and the record an
+    `executable_count`. Only opps with a US `market_slug` can ever reach
+    `create_order` — the games scanner still reads international Gamma, whose
+    rows are dry-run evidence only. Without this split the log conflates two
+    surfaces and the Phase 1→2 "prove edge" gate reads as far busier than the
+    tradable universe actually is (4 days of live evidence: 66 of 79 rows were
+    non-executable Gamma games).
     """
     path = log_path or (Path(__file__).resolve().parent.parent.parent
                         / "data" / "polymarket" / "dryrun_log.jsonl")
     path.parent.mkdir(parents=True, exist_ok=True)
+    logged = [
+        {**asdict(o), "gate": g,
+         "executable": bool((o.details or {}).get("market_slug"))}
+        for o, g in zip(opps, gates)
+    ]
     record = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "filter": ticker_filter or "futures",
         "min_edge": min_edge,
         "count": len(opps),
-        "opportunities": [
-            {**asdict(o), "gate": g} for o, g in zip(opps, gates)
-        ],
+        "executable_count": sum(1 for o in logged if o["executable"]),
+        "opportunities": logged,
     }
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, default=str) + "\n")
@@ -346,12 +364,20 @@ def _preview(opps: list[Opportunity], gates: list[str]) -> None:
         return
 
     table = Table(title="Polymarket — Edge Preview (DRY RUN, read-only)")
-    for col in ("#", "Bet", "Pick", "PM Ask", "Fair", "Edge",
+    for col in ("#", "US", "Bet", "Pick", "PM Ask", "Fair", "Edge",
                 "Conf", "Score", "Gate"):
         table.add_column(col)
+    n_exec = 0
     for i, (o, gate) in enumerate(zip(opps, gates), 1):
+        # Only US-slug rows are orderable; Gamma games are evidence only.
+        executable = bool((o.details or {}).get("market_slug"))
+        n_exec += executable
         table.add_row(
             str(i),
+            # ASCII only: this runs headless under Windows Task Scheduler,
+            # where a cp1252 console raises UnicodeEncodeError on non-ASCII
+            # and would kill the daily evidence run.
+            "[green]YES[/green]" if executable else "[dim]-[/dim]",
             o.details.get("bet_type", ""),
             o.details.get("candidate", ""),
             f"{o.market_price:.2f}",
@@ -362,7 +388,9 @@ def _preview(opps: list[Opportunity], gates: list[str]) -> None:
             gate,
         )
     rprint(table)
-    rprint(f"\n[dim]{len(opps)} opportunit(ies). Gate 'ok' = would pass the "
+    rprint(f"\n[dim]{len(opps)} opportunit(ies); [bold]{n_exec} executable on "
+           f"Polymarket US[/bold] (US YES = has a market_slug; '-' = Gamma-sourced "
+           f"game, dry-run evidence only). Gate 'ok' = would pass the "
            f"per-opportunity risk gates. Add --execute to route through the "
            f"execution pipeline (orders blocked until POLYMARKET_DRY_RUN=false).[/dim]")
 
