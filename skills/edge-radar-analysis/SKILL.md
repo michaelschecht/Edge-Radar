@@ -8,9 +8,11 @@ allowed-tools: Read, Bash, Glob, Grep
 
 # Edge-Radar Analysis Skill
 
-You are executing `/edge-radar-analysis`. This skill produces a **comprehensive post-hoc performance report** for a rolling window of settled bets, pulled from local data (`data/history/kalshi_settlements.json` — populated by the nightly `kalshi_settler.py` task at 11 PM).
+You are executing `/edge-radar-analysis`. This skill produces a **comprehensive post-hoc performance report** for a rolling window of settled bets, pulled from local data (`data/history/kalshi_settlements.json` — populated by `kalshi_settler.py`, which runs **hourly at :35** (U1, 2026-07-20) plus the 11 PM `NightlySettle` backstop).
 
 Use this for weekly reviews, ad-hoc "how am I doing" checks, and calibration attribution after risk-gate changes ship.
+
+> **Scope: Kalshi only.** Settlement records carry no `venue` field — all 354 are Kalshi. Polymarket execution went live 2026-07-23 but **no Polymarket order has ever filled** (every candidate is still stopped by the 3% edge gate), so nothing from that venue reaches this report yet. If Polymarket starts filling, check whether `betting_analysis.py` needs a venue split before quoting blended ROI.
 
 ## Parse Arguments
 
@@ -83,16 +85,22 @@ Full CLI flags:
    - Top and bottom sport by ROI.
    - YES vs NO divergence.
    - Any edge-bucket inversion (≥25% claimed edge with poor ROI).
-   - Longshot record.
+   - Longshot record — **always with and without its top winner** (see Freshness Awareness).
    - Current streak.
 5. If the user asks follow-up questions, re-read specific sections rather than regenerating.
 
 ## Freshness Awareness
 
-`data/history/kalshi_settlements.json` is populated by `kalshi_settler.py`, scheduled as the Windows task installed via `python scripts/schedulers/automation/install_windows_task.py install settle` (nightly 11 PM).
+`data/history/kalshi_settlements.json` is populated by `kalshi_settler.py`. Two Windows tasks write it:
 
-- If the user asks about "today's" bets and the settler hasn't run since those games ended, the report will be missing them. Suggest manually running the settler (`python scripts/kalshi/kalshi_settler.py settle` or `make settle`) before generating the report.
-- **Schema changed 2026-04-27 (R5).** Settlements written from this point carry `composite_score`, `risk_approval`, `bankroll_pct`, `category`, `title`, `closing_price`, `clv`, `edge_source`, `unit_size`, `fill_status` in addition to the legacy fields. Pre-R5 settlements (the historical 178 orphans) only carry the legacy schema — these show as `null` for the new fields and are excluded from any slicing on those dimensions. They still contribute to win rate / Brier / edge-bucket math (which only need `won`, `cost`, `revenue`, `edge_estimated`, `confidence`).
+| Task | Cadence | Note |
+|---|---|---|
+| `Hourly-Settle` | every hour at **:35** | U1 (2026-07-20). Enabled by M2's cross-process trade-log lock, which made concurrent settle+execute merge-safe. Sharpens Gate 1 daily-loss accuracy intraday. |
+| `NightlySettle` | 11:00 PM | Original backstop (`install_windows_task.py install settle`). Was slated for retirement ~1 week after U1; still live as of 2026-07-23. |
+
+- Freshness is now much better than it used to be — worst case the data is ~1 hour stale, not ~24. If the user asks about games that finished within the hour, suggest `make settle` (or `python scripts/kalshi/kalshi_settler.py settle`) before generating.
+- **Schema changed 2026-04-27 (R5).** Settlements written from this point carry `composite_score`, `risk_approval`, `bankroll_pct`, `category`, `title`, `closing_price`, `clv`, `edge_source`, `unit_size`, `fill_status` in addition to the legacy fields. Pre-R5 settlements (**190 of the current 354** — recount before quoting, it only grows as a share denominator) carry only the legacy schema, show as `null` for the new fields, and are excluded from any slicing on those dimensions. They still contribute to win rate / Brier / edge-bucket math (which only need `won`, `cost`, `revenue`, `edge_estimated`, `confidence`).
+- **Beware single-trade artifacts in thin slices.** Several buckets are small enough that one outlier drives the headline — as of 2026-07-23 the sub-15¢ longshot bucket shows +47.5% ROI over 53 bets, but 99% of that P&L is one trade. When reporting any slice under ~50 bets, state the record **with and without its top winner**.
 - For an audit of the trade-log/settlement join health and per-field coverage, run `python scripts/kalshi/risk_check.py --report reconciliation`.
 
 ## Scheduling
@@ -153,4 +161,11 @@ If the user hasn't provided these, ask them to run `python scripts/kalshi/risk_c
 - **`/edge-radar`** — unified scan/bet/status/settle command.
 - **`scripts/kalshi/daily_summary.py`** (U2, 2026-04-30) — daily morning digest. Different scope: 24h rolling window + open exposure + today-pending events + live balance, designed as a quick wake-up signal. Use this skill for retrospective / weekly+ analysis; `daily_summary.py` for the single-morning view. Both pull from `data/history/kalshi_settlements.json` so freshness caveats are identical.
 - **`scripts/kalshi/model_calibration.py`** — complementary calibration-focused report (Brier decomposition, cross-tabs, prescriptive recommendations). `betting_analysis.py` is broader and less prescriptive.
-- **Roadmap items this report surfaces evidence for:** R7 (min market price floor — longshot section), R10 (category-weighted composite — by category), R12 (R2 attribution check at 100 trades — headline Brier + calibration section), C6 (totals bias audit — category + sport cross-reference).
+- **Roadmap items this report surfaces evidence for:**
+  - **R7** (min market price floor) — longshot section. Live floor has moved twice: 0.06 → 0.12 (2026-07-14) → **0.10** (2026-07-22, deliberate re-opening of the longshot lane). This is the report's most-watched open experiment; recheck the sub-15¢ bucket after ~30 more settles past 2026-07-22.
+  - **C4** (2026-06-24, high→medium composite cap) — the By Confidence section is the scoreboard. C4 fired because High showed 41.5% WR / +13.5% ROI vs Medium 53.2% / +44.4%, and lost to Medium even at equal claimed edge. Confirm High hasn't re-inflated.
+  - **C10** (2026-07-23, futures composite edge scale) — futures were structurally unreachable at Gate 4, which is why **0 of the 85 logged trades are futures**. Any futures row appearing in By Category is the first evidence the fix works.
+  - **R28** (NO-side global 8% edge floor) — By Side. Fired on a 90d read of NO at −7% vs YES +48% ROI.
+  - **R10** (category-weighted composite) — by category. Resolved 2026-07-20 without re-weighting; the April premise had inverted.
+  - **R12** (R2 attribution check at 100 trades) — headline Brier + calibration section.
+  - **C6** (totals bias audit) — category + sport cross-reference. Measured 2026-07-20, no tuning applied.
