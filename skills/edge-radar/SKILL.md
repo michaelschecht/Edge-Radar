@@ -641,7 +641,7 @@ As of 2026-07-23 the live execution cadence is four Kalshi runs a day plus one P
 
 `Weekly-Futures-Execution` is **Disabled** (the paired `Email-Weekly-Futures` report still runs). `R8-Review` and `U2-Review` are registered with one-shot triggers whose start boundaries have passed — they have **never run and will never fire** until re-registered.
 
-> **The three intraday Kalshi executes each pass `--budget 12%`**, despite `.bat` headers that long described a de-escalating 12% → 8% → 5% ladder. The real daily ceiling is ~36% of bankroll. Headers were corrected 2026-07-23; the flags were left as-is pending an operator decision.
+> **The three intraday Kalshi executes each pass `--budget 12%` — this is deliberate** (operator-confirmed 2026-07-23). Stale `.bat` headers had long described a de-escalating 12% → 8% → 5% ladder that was never implemented and is not wanted; the headers were corrected to match the flags. **Don't "fix" these back down to the ladder.** The shared ceiling is ~36% of bankroll per day in theory, but `--budget` is a per-batch cap and Gate 5 (`--exclude-open`) plus series dedup keep real deployment to a few dollars a day.
 
 ### Bat Scripts (Manual)
 

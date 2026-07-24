@@ -2,6 +2,97 @@
 
 ---
 
+## 2026-07-23 -- Wager-quality audit: config intent recorded, skills resynced
+
+### Audit result
+
+Reviewed every wager placed since 2026-07-20 (15 trades) and the last four days of
+scheduled runs. **No misconfigured or erroneous wagers.** All 12 daily tasks exited 0;
+`doctor.py` clean. Every trade carried `risk_approval: APPROVED`, `fill_status: filled`,
+and a correct venue tag, and each mapped to the right scheduled task by timestamp. All
+8 NO-side bets cleared the R28 8% global floor (0.081-0.149); all composites >= 6.0; no
+prediction-category or in-progress-game leakage. Settled P&L since 07-15: 10W-4L,
+$10.96 staked, **+$3.71 / +33.9% ROI**.
+
+### Config intent recorded
+
+Two `.env` changes made 2026-07-22 read as drift because the surrounding comments still
+described the prior values. Both are deliberate; documented as such in `.env`, `CLAUDE.md`,
+and the `/edge-radar` skill:
+
+- **`KELLY_FRACTION` 0.25 -> 1**, to size longshots up. Worth stating precisely, because
+  the name misleads: `kalshi_executor.py:785` divides it by
+  `batch_size = min(len(opportunities), --max-bets)`, and every scheduler passes
+  `--max-bets 5`, so the effective multiplier is **0.20 Kelly**, not 1.0 (previously 0.05).
+  The practical effect is that low-priced legs now size off Kelly instead of falling back
+  to the `UNIT_SIZE` flat floor -- 11c spread legs at 6-11 contracts where they were 4.
+- **`MIN_MARKET_PRICE` 0.12 -> 0.10**, deliberately re-opening the longshot lane that R7
+  closed on 2026-07-14.
+
+**The longshot evidence is weaker than the headline suggests.** Sub-15c is 6W-47L over 53
+settled bets at +47.5% ROI -- but **99% of that P&L is one trade**
+(`KXMLSSPREAD-26MAY16SEALAG-LAG1`, +$20.59). Ex that bet the lane is roughly breakeven,
+and it is -100% in June / -33% in July. Separately, the 15-25c bucket is the *worst* on the
+board at -19.2%, so R7's original "lottery-ticket floor" premise is itself weakly supported.
+Flagged as an open experiment in both `.env` and `CLAUDE.md`; recheck after ~30 more
+sub-15c settles.
+
+- **`--budget 12%` on all three intraday executes is intentional** (operator-confirmed).
+  Stale `.bat` headers described a de-escalating 12% -> 8% -> 5% ladder that was never
+  implemented and is not wanted. Headers corrected to match the flags, with an explicit
+  "do not restore the ladder" note in `same_day_execute_late.bat`,
+  `no_date_filter_execution_midday.bat`, and the skill.
+
+### Polymarket status corrected
+
+`CLAUDE.md` still claimed orders stay `dry_run_blocked` while the venue accumulated
+dry-run evidence. Both `DRY_RUN` and `POLYMARKET_DRY_RUN` have been false since
+2026-07-23 and `Daily-Polymarket-Execution` passes `--execute`, so **the venue is live**.
+Nothing has filled -- every candidate is still stopped at Gate 3 (observed edges 1.1-2.6%
+vs the 3% floor) -- and `--max-bets 2 --budget 10%` bounds exposure, but the doc read as
+though a safety flag was engaged that isn't.
+
+### Skills resynced (91 commits of drift)
+
+`/edge-radar` and `/edge-radar-analysis` were last touched at `9b2cff1` (L1 Phase 1).
+Everything since was invisible to them, most importantly **the entire Polymarket venue**:
+no `polymarket` market type, no `poly`/`pm` aliases, none of the 11 filter values. Also
+added or corrected:
+
+- Five undocumented risk-gate changes -- R28 (4.6b), L1 (4.8) and its staleness knobs,
+  R29, C4, C10, C8. Gate count 13 -> 15, plus the R18 Gate-column legend.
+- `MIN_MARKET_PRICE` was documented as **$0.06**, its April value, two moves stale.
+- A warning that the live `.env` overrides many shipped defaults (`MAX_DAILY_LOSS` is $30,
+  not $250), pointing at `make doctor` for ground truth.
+- Live registered task schedule replacing the stale installer-profile table; MLB
+  spread/total; tennis/Wimbledon/World Cup filters; v1->v2 order-endpoint migration; M2
+  trade-log lock; `scripts/schedulers/*` being gitignored.
+- Test count 347 -> 651; Makefile 18 -> 22 targets.
+- `/edge-radar-analysis`: settler is **hourly at :35** (U1) plus the 11 PM backstop, not
+  nightly-only -- worst-case staleness ~1h, not ~24h. Pre-R5 legacy-schema orphans
+  178 -> 190 of 354. Scope note that settlements carry no `venue` field and Polymarket has
+  never filled, so the report is Kalshi-only. New rule: report any slice under ~50 bets
+  with *and without* its top winner.
+
+### Open items (not fixed -- no code changed this session)
+
+- **Trade-log orphans.** Six `status: "error"` World Cup records from the 2026-06-20 v1->v2
+  410 outage (four were successfully re-placed 06-22) and two zero-fill `resting` orders
+  whose markets have since closed sit in `kalshi_trades.json` as permanently "open."
+  Harmless to gating -- Gate 5 reads live Kalshi positions, which correctly showed 2/50 --
+  but they inflate any log-derived exposure count and pollute backtests.
+- **The pytest suite writes into production `logs/`.** All 64 lines of
+  `kalshi_executor_2026-07-23.log` are test fixtures (`KXMLB-TEST`, "Kalshi API 500: API
+  down"); the day's real runs logged nothing there. A genuine executor failure would be
+  indistinguishable from this noise.
+- **`R8-Review` and `U2-Review` have never run and never will** -- one-shot triggers with
+  start boundaries in the past (2026-05-29, 2026-05-14), no repetition, blank NextRun.
+  That is the cross-category and 2-week calibration feedback loop, dead since install.
+
+Docs only; no behavior change.
+
+---
+
 ## 2026-07-23 -- Futures composite unblocked (C10) + Polymarket evidence-log split
 
 ### What shipped
