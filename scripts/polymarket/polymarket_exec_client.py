@@ -164,7 +164,14 @@ class PolymarketClient:
         try:
             positions = self.get_positions().get("positions") or {}
             rows = positions.values() if isinstance(positions, dict) else positions
-            portfolio_value = round(sum(_amount(p.get("currentValue")) for p in rows), 2)
+            # The US Portfolio API names the mark-to-market field `cashValue`;
+            # `currentValue` was assumed at build time and never exists, so this
+            # silently summed to $0.00 against real open exposure until
+            # 2026-07-25. `currentValue` is kept as a fallback in case the venue
+            # ever returns it.
+            portfolio_value = round(sum(
+                _amount(p.get("cashValue") or p.get("currentValue"))
+                for p in rows), 2)
         except Exception:  # balance is load-bearing; value is best-effort
             log.warning("Polymarket position-value fetch failed; reporting 0")
 

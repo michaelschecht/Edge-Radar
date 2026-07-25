@@ -19,6 +19,7 @@
 <details>
 <summary><b>Changelog</b></summary>
 
+- **2026-07-25** — **`Email-Polymarket-DryRun` renamed to `Email-Polymarket-Execution`.** The 07-23 entry below deferred this rename as cosmetic; it wasn't. The email announced itself as a "Daily Polymarket Dry-Run Report" while the paired task placed live orders, and its prompt never asked whether an order had been placed — so the one fact that matters most on an execute-enabled venue was the one the email didn't have to report. Re-registered preserving the daily 10:00 AM trigger/principal/settings; old task unregistered and `Polymarket-DryRun-Report.sh` deleted (superseded by `Polymarket-Execution-Report.sh`). Prompt now requires an **Execution Outcome** section led by whether an order filled. Log paths keep their `dryrun` filenames on purpose — append-only history from the dry-run window. `NextRunTime=2026-07-26 10:00 AM`.
 - **2026-07-23** — **`Daily-Polymarket-DryRun` now places real orders.** Added `--execute` plus batch caps (`--max-bets 2 --budget 10%`) after `POLYMARKET_DRY_RUN` was set to `false` in `.env`. The task keeps writing the evidence log either way (`--save` runs outside the execute branch). **Renamed to `Daily-Polymarket-Execution`** the same day (re-registered from exported XML, preserving trigger + principal; old task unregistered; re-validated `LastTaskResult=0`). The paired `Email-Polymarket-DryRun` job keeps its name for now — it only emails the report and is unaffected. Only futures are orderable; Gamma games are auto-excluded. Verified end-to-end same day: 4 opportunities risk-checked, **0 orders placed** (all rejected on `edge_below_threshold`, 1.1–2.6% vs the 3.0% floor), evidence log still written, exit 0.
 - **2026-07-23** — **`Weekly-Futures-Execution` disabled.** C10 (futures composite recalibration) made Kalshi futures clear Gate 4 for the first time — the task had never been capable of placing a bet before, so its next Saturday run would have been the first-ever live futures order through an unexercised path. Disabled pending a manual futures cycle in preview. Re-enable with `Enable-ScheduledTask -TaskPath "\Edge-Radar-MikesAILab\" -TaskName "Weekly-Futures-Execution"`.
 - **2026-07-21** — added `Email-Polymarket-DryRun` (daily 10:00 AM, 20-min buffer after the 9:40 scan) — pairs the Polymarket dry-run scan with an email like every other daily task. Emails the day's `reports/Polymarket/` report; on 0-opportunity days (no report written) it checks `logs/polymarket_dryrun_scan.log` and sends a short no-opportunities proof-of-life instead. Script: `Run-Reports/Polymarket-DryRun-Report.sh`, log: `logs/email_polymarket_dryrun.log`.
@@ -61,7 +62,7 @@
 | 20 | `Email-Weekly-Futures` | **Sat** 9:20 AM | Emails the weekly futures execution report (20-min buffer after task #19). Sends even on 0-order weeks as proof-of-life. Subject `Edge-Radar \| Weekly Futures Execution Report` |
 | 21 | `Daily-Polymarket-Execution` | Daily 9:40 AM | ⚠️ **PLACES REAL ORDERS since 2026-07-23** (renamed from `Daily-Polymarket-DryRun` same day). Polymarket scan — championship futures **+ per-game ML/spread/total (PM1d)** — `scan.py polymarket --filter all --min-edge 0.01 --top 40 --max-bets 2 --budget 10% --save --execute`. Still appends the full funnel to `data/polymarket/dryrun_log.jsonl` + markdown to `reports/Polymarket/`. **Only futures are orderable** — Gamma-sourced games carry no US `market_slug` and are auto-excluded from execution. Full risk-gate chain applies; batch capped at 2 bets / 10% of bankroll. Halt this venue with `POLYMARKET_DRY_RUN=true` |
 | 22 | `Hourly-Settle` | **Every hour** at :35 | U1: runs `kalshi_settler.py settle` hourly (direct python, same pattern as NightlySettle). Keeps the trade log fresh all day → Gate 1 daily-loss checks see intraday settlements. Safe alongside the execute tasks via the M2 cross-process lock. Subsumes `NightlySettle` (kept during validation week) |
-| 23 | `Email-Polymarket-DryRun` | Daily 10:00 AM | Emails the daily Polymarket dry-run report (20-min buffer after task #21). On 0-opportunity days (no report written) sends a short no-opportunities proof-of-life after confirming the scan ran in `logs/polymarket_dryrun_scan.log`. Subject `Edge-Radar \| Daily Polymarket Dry-Run Report` |
+| 23 | `Email-Polymarket-Execution` | Daily 10:00 AM | Emails the daily Polymarket scan + execution report (20-min buffer after task #21), led by whether any order was placed. On 0-opportunity days (no report written) sends a short no-opportunities proof-of-life after confirming the scan ran in `logs/polymarket_dryrun_scan.log`. Subject `Edge-Radar \| Daily Polymarket Execution Report` |
 | 16 | `R8-Review` | **One-shot 2026-05-29 6:00 AM** | R8 cross-category dedup A/B review (~30 days post-ship). Slices ML/Total/Spread same-game cohorts and recommends per-sport `CROSS_CATEGORY_DEDUP_<SPORT>` flips |
 | 17 | `U2-Review` | **One-shot 2026-05-14 7:00 AM** | U2 daily-summary digest 2-week post-ship review. Scans last 14 `daily_summary_*.md` files for firing-reliability + section coverage, spawns `claude -p` for code review pass, writes recommendations + operational checklist |
 
@@ -88,7 +89,7 @@
  9:00 AM  Sat      ─ Weekly-Futures-Execution (futures scan + execute) [DISABLED 2026-07-23]
  9:20 AM  Sat      ─ Email-Weekly-Futures     (emails the futures report)
  9:40 AM  Daily    ─ Daily-Polymarket-Execution (PM scan + EXECUTE -- places real orders)
-10:00 AM  Daily    ─ Email-Polymarket-DryRun  (emails the PM dry-run report)
+10:00 AM  Daily    ─ Email-Polymarket-Execution (emails the PM execution report)
 11:00 AM  Daily    ─ All-Sports-NoDateFilter-Midday-Execution
 11:20 AM  Daily    ─ Email-NoDateFilter-Midday
  2:00 PM  Daily    ─ All-Sports-SameDay-Late-Execution
@@ -644,7 +645,7 @@ MSYS_NO_PATHCONV=1 schtasks /create /tn "\Edge-Radar\Email-Weekly-Futures" \
 | **Purpose** | ⚠️ **Places real orders.** Polymarket scan: championship futures (NFL, MLB World Series, NBA, NHL Stanley Cup) **plus PM1d per-game markets** (MLB/NFL/NBA/NHL moneyline, run-line spread, game total — priced by the same calibrated consensus model as Kalshi sports). Appends every run — timestamp, filter, opportunity count, each opportunity with its preflight gate verdict and `executable` flag, **including 0-opportunity runs** — to the evidence log (`--save` runs outside the execute branch, so the funnel is recorded either way). `--min-edge 0.01` widens what gets *recorded*; the risk gates still enforce the real floors (3% edge). **Only futures are orderable** — Gamma-sourced games carry no US `market_slug` and are auto-excluded from execution |
 | **Output** | `data\polymarket\dryrun_log.jsonl` (append-only evidence) + `reports\Polymarket\YYYY-MM-DD_futures_polymarket_scan.md` (only when rows surface) |
 | **Log** | `logs\polymarket_dryrun_scan.log` |
-| **Paired email** | `Email-Polymarket-DryRun` daily 10:00 AM (task #23, added 2026-07-21) |
+| **Paired email** | `Email-Polymarket-Execution` daily 10:00 AM (task #23, added 2026-07-21 as `Email-Polymarket-DryRun`, renamed 2026-07-25) |
 | **Cost** | ~4 Odds API requests per run (one per active outright sport key) |
 
 **Why daily 9:40 AM PST:** quiet slot — after the 5:05/5:25 morning pair, before the 11:00/11:20 midday pair, and clear of Saturday's 9:00/9:20 futures pair. Morning outright lines are posted and sharp. Daily (vs the weekly Kalshi futures cadence) because the edge-proving window wants sample size, and a read-only run is cheap.
@@ -689,27 +690,33 @@ schtasks /Create /TN "\Edge-Radar\Hourly-Settle" `
 
 ---
 
-### 23. `Email-Polymarket-DryRun` — Daily 10:00 AM PST (1:00 PM ET)
+### 23. `Email-Polymarket-Execution` — Daily 10:00 AM PST (1:00 PM ET)
+
+> **Renamed 2026-07-25** from `Email-Polymarket-DryRun`. The scan it reports on stopped being a dry run on 2026-07-23, but the email kept calling itself one — subject line, task name, and prompt all said "dry run" while the paired task was placing live orders.
 
 | Property | Value |
 |:---------|:------|
 | **Schedule** | Daily |
-| **Script** | `scripts\custom\Shell-Scripts\Run-Reports\Polymarket-DryRun-Report.sh` (Git Bash, same pattern as the other email tasks) |
-| **Purpose** | Emails the day's Polymarket dry-run scan report from `reports\Polymarket\` to `mikeschecht@gmail.com` via a `claude -p` + agentmail run. The scan only writes a report when rows surface, so on 0-opportunity days the script instead checks the tail of `logs\polymarket_dryrun_scan.log` (did today's scan run, exit code) and sends a short no-opportunities proof-of-life email |
-| **Log** | `logs\email_polymarket_dryrun.log` |
-| **Subject** | `Edge-Radar \| Daily Polymarket Dry-Run Report` |
+| **Script** | `scripts\custom\Shell-Scripts\Run-Reports\Polymarket-Execution-Report.sh` (Git Bash, same pattern as the other email tasks) |
+| **Purpose** | Emails the day's Polymarket scan report from `reports\Polymarket\` to `mikeschecht@gmail.com` via a `claude -p` + agentmail run. The scan only writes a report when rows surface, so on 0-opportunity days the script instead checks the tail of `logs\polymarket_dryrun_scan.log` (did today's scan run, exit code) and sends a short no-opportunities proof-of-life email |
+| **Log** | `logs\email_polymarket_dryrun.log` (kept — append-only history from the dry-run window) |
+| **Subject** | `Edge-Radar \| Daily Polymarket Execution Report` |
 
 **Why 10:00 AM:** the standard 20-minute buffer after the 9:40 AM `Daily-Polymarket-Execution` scan (same gap as every other execute/email pair), and clear of Saturday's 9:00/9:20 futures pair.
+
+**Prompt requirements (2026-07-25).** Beyond reproducing the report tables verbatim, the prompt now requires an **Execution Outcome** section built from the scan log: how many opportunities were risk-checked, approved, and rejected (quoting the gate reason), and — leading the email — **whether any order was actually placed**. Before the rename the prompt never asked about orders at all; execution detail only appeared when the agent volunteered it. Two further guards were added: the agent is told not to call the run a dry run, and told that the Summary table's `total` row is a **bet-type count** (over/under), not a sum — it had flagged that as an "internal inconsistency" in the 07-24 and 07-25 emails, which was a misread.
 
 **Install (one-time, from PowerShell):**
 ```powershell
 $action = New-ScheduledTaskAction -Execute '"C:\Program Files\Git\bin\bash.exe"' `
-  -Argument '"<REPO>\scripts\custom\Shell-Scripts\Run-Reports\Polymarket-DryRun-Report.sh"'
+  -Argument '"<REPO>\scripts\custom\Shell-Scripts\Run-Reports\Polymarket-Execution-Report.sh"'
 $trigger = New-ScheduledTaskTrigger -Daily -At 10:00AM
-Register-ScheduledTask -TaskPath '\Edge-Radar\' -TaskName 'Email-Polymarket-DryRun' `
+Register-ScheduledTask -TaskPath '\Edge-Radar-MikesAILab\' -TaskName 'Email-Polymarket-Execution' `
   -Action $action -Trigger $trigger `
   -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 72))
 ```
+
+**Re-validated 2026-07-25 (post-rename):** re-registered preserving the original trigger (daily 10:00 AM), principal, and settings; old task unregistered and `Polymarket-DryRun-Report.sh` deleted, so there is exactly one task and one script. `NextRunTime=2026-07-26 10:00 AM`, script passes `bash -n`, `$REPO` resolves correctly.
 
 **Validated 2026-07-21 (install day):** registered (State=Ready), fired via `Start-ScheduledTask` with the day's report present (`2026-07-21_all_polymarket_scan.md`) — report emailed successfully.
 
@@ -792,7 +799,7 @@ Keep these in place — useful reference for how to structure per-sport scans if
 05:05 AM  All-Sports-SameDay-Execution         → bets today's NBA/MLB/NHL games
 05:25 AM  Email-SameDay                        → email same-day report
 09:40 AM  Daily-Polymarket-Execution           → PM scan + EXECUTE (places real orders)
-10:00 AM  Email-Polymarket-DryRun              → email PM dry-run report
+10:00 AM  Email-Polymarket-Execution           → email PM execution report
 11:00 AM  All-Sports-NoDateFilter-Midday-Exec  → midday wide-net (no date filter)
 11:20 AM  Email-NoDateFilter-Midday            → email midday wide-net report
 02:00 PM  All-Sports-SameDay-Late-Execution    → late same-day catch-up
@@ -808,7 +815,7 @@ Keep these in place — useful reference for how to structure per-sport scans if
 05:05 AM  All-Sports-SameDay-Execution  (Sunday's NBA/MLB/NFL)
 05:25 AM  Email-SameDay
 09:40 AM  Daily-Polymarket-Execution    (PM scan + EXECUTE)
-10:00 AM  Email-Polymarket-DryRun       (emails the PM dry-run report)
+10:00 AM  Email-Polymarket-Execution    (emails the PM execution report)
 11:00 AM  All-Sports-NoDateFilter-Midday-Execution
 11:20 AM  Email-NoDateFilter-Midday
 02:00 PM  All-Sports-SameDay-Late-Execution
@@ -828,7 +835,7 @@ Keep these in place — useful reference for how to structure per-sport scans if
 05:05 AM  All-Sports-SameDay-Execution
 05:25 AM  Email-SameDay
 09:40 AM  Daily-Polymarket-Execution        (PM scan + EXECUTE)
-10:00 AM  Email-Polymarket-DryRun           (emails the PM dry-run report)
+10:00 AM  Email-Polymarket-Execution        (emails the PM execution report)
 11:00 AM  All-Sports-NoDateFilter-Midday-Execution
 11:20 AM  Email-NoDateFilter-Midday
 02:00 PM  All-Sports-SameDay-Late-Execution
@@ -845,7 +852,7 @@ Keep these in place — useful reference for how to structure per-sport scans if
 09:00 AM  Weekly-Futures-Execution          (futures scan + execute; often 0 bets)
 09:20 AM  Email-Weekly-Futures              (futures report — proof-of-life even on 0-bet weeks)
 09:40 AM  Daily-Polymarket-Execution        (PM scan + EXECUTE)
-10:00 AM  Email-Polymarket-DryRun           (emails the PM dry-run report)
+10:00 AM  Email-Polymarket-Execution        (emails the PM execution report)
 11:00 AM  All-Sports-NoDateFilter-Midday-Execution
 11:20 AM  Email-NoDateFilter-Midday
 02:00 PM  All-Sports-SameDay-Late-Execution
@@ -893,7 +900,7 @@ MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Email-NextDay"
 
 # Polymarket dry-run evidence scan (read-only) + its email
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar-MikesAILab\Daily-Polymarket-Execution"
-MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Email-Polymarket-DryRun"
+MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Email-Polymarket-Execution"
 
 # Maintenance
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Hourly-Settle"
@@ -994,7 +1001,7 @@ Each email shell script now tees its `claude -p` stdout+stderr to a per-task log
 | `Email-NextDay` | `logs/email_nextday.log` |
 | `Email-Daily-Summary` | `logs/email_daily_summary.log` |
 | `Email-Weekly-Analysis` | `logs/email_weekly_analysis.log` |
-| `Email-Polymarket-DryRun` | `logs/email_polymarket_dryrun.log` |
+| `Email-Polymarket-Execution` | `logs/email_polymarket_dryrun.log` (name kept — history predates the rename) |
 | `Email-NoDateFilter` (legacy) | `logs/email_nodatefilter.log` |
 
 `logs/` is gitignored. When an email task shows a non-zero `LastTaskResult`, read the tail of its log first — the actual Claude/agentmail error is now captured there instead of being lost.

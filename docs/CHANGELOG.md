@@ -2,6 +2,85 @@
 
 ---
 
+## 2026-07-25 -- Polymarket task audit: portfolio value was always $0.00
+
+### Audit result
+
+Reviewed the 07-24 and 07-25 `Daily-Polymarket-Execution` runs and their paired emails.
+**Both tasks ran clean, exit 0, zero orders placed.** Every executable row died at Gate 3
+(edge < 3%): 07-24 rejected `PM-tec-nhl-champ-...-was` (1.3%) and `...-nj` (1.1%); 07-25
+rejected the same Capitals row. The paired emails sent successfully both days.
+
+Two structural observations from the run logs:
+
+- **The C10 composite fix is still unexercised.** Making Gate 4 reachable changed nothing,
+  because nothing survives Gate 3 to reach it. Consistent with what C10 predicted, but it
+  means the fix has no live validation yet.
+- **The executable funnel is collapsing: 4 -> 2 -> 1** across 07-23/24/25. Today the whole
+  venue produced one orderable candidate -- a $0.04 NHL futures longshot that would also
+  fail Gate 3.5 (`MIN_MARKET_PRICE=0.10`) even if its edge tripled. Until the seasonal US
+  games repoint lands, this task realistically cannot fill an order; 39 of today's 40 rows
+  were Gamma-sourced games, auto-excluded from execution.
+
+### Bug: Polymarket portfolio value always reported $0.00
+
+`polymarket_exec_client.py:167` summed `p["currentValue"]`, but the US Portfolio API names
+the mark-to-market field **`cashValue`**. The key is simply absent, so the best-effort
+`except` never fired and the sum silently returned zero against real open exposure. Live
+account: **$0.00 -> $11.03**. Fixed, `currentValue` kept as a fallback, regression tests
+added for both paths.
+
+### Polymarket zero-fill claim corrected
+
+`CLAUDE.md` claimed "No Polymarket order has filled yet." The account holds **two open
+positions** in `tec-mlb-champ-2026-09-27` (MIL 59 sh, NYY 36 sh, ~$9.88 cost, $10.99
+value). They are **not system trades** -- `kalshi_trades.json` has 0 Polymarket-tagged rows
+out of 90, and both carry `updateTime: 2026-07-06` -- they were hand-placed in the iOS app.
+But they *are* visible to the risk gates: they are the `Positions: 2/50` line in the scan
+banner and they occupy Gate 5 / Gate 6 slots for those two markets. Claim rescoped to
+Edge-Radar-placed orders, with the hand-placed pair documented.
+
+### `Email-Polymarket-DryRun` renamed to `Email-Polymarket-Execution`
+
+The scan stopped being a dry run on 2026-07-23, but the email still announced itself as a
+"Daily Polymarket Dry-Run Report" while the paired task placed live orders. The 07-23
+rename deferred this as cosmetic; it wasn't -- **the prompt never asked whether an order
+had been placed**, so the one fact that matters most on an execute-enabled venue was the
+one the email was never required to report. The prompt now mandates an **Execution
+Outcome** section led by whether an order filled (ticker/side/qty/cost when it did).
+
+Two further prompt guards: the agent is told not to call the run a dry run, and told that
+the Summary table's `total` row is a **bet-type count** (over/under), not a sum -- it had
+reported that as an "internal inconsistency" in the 07-24 and 07-25 emails, which was a
+misread of `report_writer.py:78` (categories sorted by count, so `total` lands first).
+
+Task re-registered preserving the daily 10:00 AM trigger, principal and settings; old task
+unregistered and `Polymarket-DryRun-Report.sh` deleted, so exactly one task and one script
+remain. Log paths keep their `dryrun` filenames on purpose -- append-only history from the
+dry-run window, and the scan `.bat` still writes to them.
+
+### Test suite: `TestVenueMinShares` un-coupled from live `.env`
+
+Two cases had been failing since 2026-07-22 (`assert 4 == 2` on `contracts`). They pass
+`unit_size=1.00` but never pinned `KELLY_FRACTION`, which is a `kalshi_executor` module
+global sourced from the operator's `.env` -- when it went `0.25 -> 1`, Kelly started
+clearing the flat unit floor those cases assume. Pinned to the code default via an autouse
+fixture; the class tests venue min-share bumps, not Kelly sizing. **Full suite: 653 passed.**
+
+> **Wider risk:** `kalshi_executor` snapshots every gate threshold into module globals at
+> import, so any test calling `size_order` without pinning them inherits operator config.
+> Nothing else fails today, but the longshot experiment is open -- if `MIN_MARKET_PRICE` or
+> the Kelly fraction moves again and tests break in a way that looks unrelated, start here.
+
+### Known gap: live automation is untracked
+
+`scripts/custom/` and `scripts/schedulers/*` are both gitignored, so the email scripts and
+scan `.bat` files exist only on this machine -- the header-comment corrections made today
+to `daily_polymarket_scan.bat` and the new `Polymarket-Execution-Report.sh` cannot be
+committed. Worth resolving separately; a rebuild of this box would lose all task wiring.
+
+---
+
 ## 2026-07-23 -- Wager-quality audit: config intent recorded, skills resynced
 
 ### Audit result
