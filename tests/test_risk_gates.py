@@ -1591,6 +1591,20 @@ class TestVenueMinShares:
     or rejects when the bump would breach MAX_BET_SIZE / bankroll. Opps without
     the details key (all Kalshi opps) are untouched."""
 
+    @pytest.fixture(autouse=True)
+    def _pin_kelly(self, monkeypatch):
+        """Pin KELLY_FRACTION to the code default (0.25).
+
+        These cases exercise the venue min-share bump, not Kelly, and are
+        written for the regime where flat unit sizing wins at a $20 bankroll.
+        `kalshi_executor.KELLY_FRACTION` is a module global sourced from the
+        operator's live `.env`, so without this the class silently retunes
+        itself to whatever the bankroll experiment of the day is set to — it
+        broke on 2026-07-22 when KELLY_FRACTION went 0.25 -> 1 and Kelly
+        started clearing the unit floor."""
+        import kalshi_executor as ke
+        monkeypatch.setattr(ke, "KELLY_FRACTION", 0.25)
+
     def _pm_opp(self, price=0.50, min_shares=5, **kw):
         opp = _opp(ticker="PM-tec-nba-champ-2027-sas", price=price, **kw)
         opp.details["venue"] = "polymarket"

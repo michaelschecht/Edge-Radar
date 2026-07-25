@@ -193,6 +193,32 @@ class TestPolymarketClient:
         assert bal["buying_power"] == 60.12
         assert bal["reservation"] == 50.0  # reported, but not subtracted
 
+    def test_balance_sums_position_value_from_cash_value(self, monkeypatch):
+        """The US Portfolio API names the mark-to-market field `cashValue`.
+        The client originally read `currentValue`, which never exists, so
+        portfolio_value silently reported $0.00 against real open exposure
+        (caught 2026-07-25 with two live MLB-champ positions worth ~$11)."""
+        monkeypatch.setattr(pec, "get_config", lambda: _cfg())
+        client = PolymarketClient()
+        client._signed_request = Mock(return_value={"balances": [
+            {"currency": "USD", "currentBalance": 60.12, "buyingPower": 60.12}]})
+        client.get_positions = Mock(return_value={"positions": {
+            "tec-mlb-champ-2026-09-27-mil": {"cashValue": {"value": "5.6640"}},
+            "tec-mlb-champ-2026-09-27-nyy": {"cashValue": {"value": "5.3300"}},
+        }})
+        assert client.get_balance_dollars()["portfolio_value"] == 10.99
+
+    def test_balance_position_value_falls_back_to_current_value(self, monkeypatch):
+        """`currentValue` stays wired as a fallback in case the venue adds it."""
+        monkeypatch.setattr(pec, "get_config", lambda: _cfg())
+        client = PolymarketClient()
+        client._signed_request = Mock(return_value={"balances": [
+            {"currency": "USD", "currentBalance": 60.12, "buyingPower": 60.12}]})
+        client.get_positions = Mock(return_value={"positions": {
+            "some-market": {"currentValue": {"value": "3.25"}},
+        }})
+        assert client.get_balance_dollars()["portfolio_value"] == 3.25
+
     def test_positions_normalize_to_market_positions(self, monkeypatch):
         """PM2c: positions gain a Kalshi-shaped market_positions list whose
         tickers use the scanner's PM-{slug} convention, so the pipeline's
