@@ -72,12 +72,14 @@ fixture; the class tests venue min-share bumps, not Kelly sizing. **Full suite: 
 > Nothing else fails today, but the longshot experiment is open -- if `MIN_MARKET_PRICE` or
 > the Kelly fraction moves again and tests break in a way that looks unrelated, start here.
 
-### Known gap: live automation is untracked
+### Note: live automation is intentionally untracked
 
-`scripts/custom/` and `scripts/schedulers/*` are both gitignored, so the email scripts and
-scan `.bat` files exist only on this machine -- the header-comment corrections made today
-to `daily_polymarket_scan.bat` and the new `Polymarket-Execution-Report.sh` cannot be
-committed. Worth resolving separately; a rebuild of this box would lose all task wiring.
+`scripts/custom/` and `scripts/schedulers/*` are gitignored **by design** -- they are the
+operator's personal files and stay out of the repo (operator-confirmed 2026-07-25). So the
+header-comment corrections made today to `daily_polymarket_scan.bat` and the new
+`Polymarket-Execution-Report.sh` are local-only and by design absent from these commits.
+**Do not propose tracking them.** When editing task wiring, expect the change to live on
+this machine only, and record the *behaviour* here in docs rather than the script itself.
 
 ---
 
