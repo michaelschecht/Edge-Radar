@@ -20,7 +20,7 @@ from favorites import save_favorite, delete_favorite, load_favorites
 from theme import page_header, section_label, CYAN, AMBER, RED, GREEN, DIM
 
 MARKET_TYPES = ["sports", "futures", "prediction"]
-DEFAULT_UNIT_SIZE = 0.50
+DEFAULT_UNIT_SIZE = 1.00  # C11 (2026-07-27): matches live .env / scheduler --unit-size 1
 
 # Category options per market type
 CATEGORIES_BY_TYPE = {

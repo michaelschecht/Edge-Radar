@@ -225,6 +225,7 @@ Each script has a dedicated doc with full flag tables, examples, methodology, an
 | Script | Purpose | Docs |
 | :--- | :--- | :--- |
 | `backtest/backtester.py` | Strategy backtesting — equity curve, Sharpe, drawdown, signal breakdowns, strategy simulation | [backtester.md](per-script/backtester.md) |
+| `backtest/correlation_check.py` | Intra-cluster outcome correlation, pooled vs stratified (C11b) | |
 | `model_calibration.py` | Brier score, calibration curve, dimension breakdowns, recommendations | |
 
 **Backtester usage:**
@@ -249,6 +250,26 @@ python scripts/backtest/backtester.py --after 2026-04-01      # Recent trades on
 | `--simulate` | `false` | Run strategy comparison across filter combinations |
 | `--save` | `false` | Save markdown report to `reports/backtest/` |
 | `--quiet` | `false` | Skip terminal output (useful with `--save`) |
+
+**Correlation check usage:**
+
+Answers "do same-night / same-league / same-direction bets resolve together?" — i.e. whether a slate needs sizing damped beyond what the `batch_size` divisor already does. A cluster is `(series, market type, date, side)`.
+
+```bash
+python scripts/backtest/correlation_check.py                    # all settled trades
+python scripts/backtest/correlation_check.py --since 2026-06-01 # recent window
+python scripts/backtest/correlation_check.py --category total   # one category
+```
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--path PATH` | `data/history/kalshi_settlements.json` | Settlements file |
+| `--since DATE` | *(none)* | Only settlements on/after YYYY-MM-DD |
+| `--category CAT` | *(all)* | Restrict to one category (total, spread, game) |
+| `--seed N` | `11` | Permutation-test seed |
+
+> [!IMPORTANT]
+> **Read the stratified number, not the pooled one.** Clusters sit inside strata with very different base rates (totals win ~82%, spreads ~24%), and pooling unequal-mean groups manufactures apparent within-group concordance — Simpson's paradox. The 2026-07-27 reading was pooled ρ **+0.181** (p=0.0018) versus stratified ρ **+0.048**, and for totals specifically — the four-MLB-unders case that prompted the question — stratified ρ **−0.187 (p=0.75), i.e. nothing**. That is why no correlation guard was built. The script prints both figures side by side so the artifact stays visible. Re-run as settlements accumulate: 28 clustered totals bets cannot detect a small ρ, so this is "no evidence of correlation", not proof of independence.
 
 ---
 
@@ -349,7 +370,7 @@ Pre-built `.bat` scripts that scan all major sports in a single command and exec
 ### Shared Configuration
 
 All execution scripts use:
-- `--unit-size .5` — Kelly sizes up from there for high-edge bets
+- `--unit-size 1` — Kelly sizes up from there for high-edge bets (and is the floor that protects low-priced legs from the budget cap, C11b)
 - `--max-bets 10` — total across all sports
 - `--exclude-open` — skip markets with existing positions
 - `--save` — execution report (Sport, Bet, Type, Pick, Qty, Price, Cost, Edge)

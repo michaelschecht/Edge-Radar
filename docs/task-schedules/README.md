@@ -157,7 +157,7 @@ echo --- Portfolio Status (Before) ---
 
 echo --- Scanning and Executing ---
 .venv\Scripts\python.exe scripts\scan.py sports ^
-  --unit-size .5 --max-bets 7 --min-bets 3 --budget 12%% ^
+  --unit-size 1 --max-bets 7 --min-bets 3 --budget 12%% ^
   --date today --exclude-open --save ^
   --report-dir "reports\Sports\schedulers\same-day-executions" --execute
 
@@ -304,7 +304,7 @@ The full pipeline is ~20 tasks; you don't need them all. **Minimal core = `All-S
 |:---------|:------|
 | **Schedule** | Daily |
 | **Script** | `scripts\schedulers\same_day_executions\same_day_execute.bat` |
-| **Flags** | `--unit-size .5 --max-bets 7 --min-bets 1 --budget 12% --date today --exclude-open` |
+| **Flags** | `--unit-size 1 --max-bets 7 --min-bets 1 --budget 12% --date today --exclude-open` |
 | **Purpose** | Places bets on today's games across NBA/NHL/MLB/NFL |
 | **Report output** | `reports\Sports\schedulers\same-day-executions\YYYY-MM-DD_sports_execution.md` |
 | **Max exposure** | 12% of bankroll / 7 bets |
@@ -339,7 +339,7 @@ The full pipeline is ~20 tasks; you don't need them all. **Minimal core = `All-S
 |:---------|:------|
 | **Schedule** | Daily |
 | **Script** | `scripts\schedulers\no_date_filter_executions\no_date_filter_execution_midday.bat` |
-| **Flags** | `--unit-size .5 --max-bets 5 --min-bets 1 --budget 8% --exclude-open` (no `--date`) |
+| **Flags** | `--unit-size 1 --max-bets 5 --min-bets 1 --budget 8% --exclude-open` (no `--date`) |
 | **Purpose** | Midday wide-net scan across all sports + all dates. The only NoDateFilter run after the Mon/Thu 5:20 AM task was retired 2026-05-17 |
 | **Report output** | `reports\Sports\schedulers\no-date-filter-midday-executions\YYYY-MM-DD_sports_execution.md` |
 | **Max exposure** | 8% of bankroll / 5 bets |
@@ -371,7 +371,7 @@ The full pipeline is ~20 tasks; you don't need them all. **Minimal core = `All-S
 |:---------|:------|
 | **Schedule** | Daily |
 | **Script** | `scripts\schedulers\same_day_executions\same_day_execute_late.bat` |
-| **Flags** | `--unit-size .5 --max-bets 4 --min-bets 1 --budget 5% --date today --exclude-open` |
+| **Flags** | `--unit-size 1 --max-bets 4 --min-bets 1 --budget 5% --date today --exclude-open` |
 | **Purpose** | Late same-day scan — catches late-breaking news on tonight's games |
 | **Report output** | `reports\Sports\schedulers\same-day-late-executions\YYYY-MM-DD_sports_execution.md` |
 | **Max exposure** | 5% of bankroll / 4 bets (third bite at the same-day apple after 5:05 AM + 11:00 AM) |
@@ -400,7 +400,7 @@ The full pipeline is ~20 tasks; you don't need them all. **Minimal core = `All-S
 |:---------|:------|
 | **Schedule** | Weekly Sun, Mon, Tue, Wed, Thu |
 | **Script** | `scripts\schedulers\next_day_executions\next_day_execute.bat` |
-| **Flags** | `--unit-size .5 --max-bets 6 --min-bets 1 --budget 12% --date tomorrow --exclude-open` |
+| **Flags** | `--unit-size 1 --max-bets 6 --min-bets 1 --budget 12% --date tomorrow --exclude-open` |
 | **Purpose** | Locks in early lines for tomorrow's games |
 | **Report output** | `reports\Sports\schedulers\next-day-executions\YYYY-MM-DD_sports_execution.md` |
 | **Max exposure** | 12% of bankroll / 6 bets |

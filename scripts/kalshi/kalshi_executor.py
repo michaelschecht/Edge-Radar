@@ -779,9 +779,15 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     # Flat unit sizing (baseline)
     flat_contracts = unit_size_contracts(opp.market_price, unit_size)
 
-    # Kelly sizing divided by batch size: bet = (fraction / N) * edge * bankroll
+    # Kelly sizing divided by batch size:
+    #   bet = (fraction / N) * edge / (1 - price) * bankroll
     # This ensures total batch exposure stays proportional to what single-bet
     # Kelly would allocate, preventing over-commitment on simultaneous bets.
+    # Note the /N divisor doubles as a crude correlation guard: a slate of N
+    # bets that all resolve on the same underlying (e.g. four MLB unders on one
+    # night) splits a single Kelly allocation rather than stacking N of them.
+    # That is why KELLY_FRACTION is effectively a *portfolio* Kelly fraction —
+    # at 1.0 a fully correlated slate reaches full Kelly. Keep it <= 0.5.
     effective_kelly = KELLY_FRACTION / max(1, batch_size)
 
     # R1 & R28: dampen Kelly on NO bets. Apply global NO-side multiplier first.
@@ -792,7 +798,22 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         if opp.market_price < NO_SIDE_KELLY_PRICE_FLOOR:
             effective_kelly *= NO_SIDE_KELLY_MULTIPLIER
 
-    kelly_bet = effective_kelly * trusted_edge(opp.edge) * bankroll
+    # C11 (2026-07-27): divide by (1 - price). Kelly for a binary contract is
+    #   f* = (q - p) / (1 - p) = edge / (1 - price)
+    # where p is the price and q the fair value. The `/ (1 - price)` term was
+    # missing, which is the even-money (b=1) approximation — exact only at 50c
+    # and increasingly wrong toward either extreme. It under-sized favorites by
+    # 1/(1-p): 2.5x at 60c, 5.0x at 80c, 5.9x at 83c. In practice every bet
+    # above ~60c fell back to the flat UNIT_SIZE floor and got 1 contract
+    # (mean contracts by entry price: sub-40c 5.56, 40-60c 1.83, 60c+ 1.17),
+    # despite 60c+ being the best-calibrated segment in the book — 44/52 vs a
+    # 73.6% break-even, p=0.044, and the only price band whose realized win
+    # rate beats break-even by more than noise. Re-sized over the 367 settled
+    # trades this turns the 60c+ segment from +$10.02 to +$47.52 at the same
+    # ROI. Longshot sizing is nearly unchanged (1.18x at 15c) — there the flat
+    # unit floor binds, not Kelly.
+    price_complement = max(0.01, 1.0 - opp.market_price)
+    kelly_bet = effective_kelly * trusted_edge(opp.edge) * bankroll / price_complement
     kelly_contracts = max(1, int(kelly_bet / opp.market_price)) if kelly_bet > 0 else flat_contracts
 
     # Use the larger of flat and Kelly (Kelly scales up for high-edge bets)
@@ -1104,34 +1125,104 @@ def _parse_pick_rows(pick_str: str, total: int) -> list[int]:
     return sorted(set(indices))
 
 
-def _apply_budget_cap(orders: list[SizedOrder], budget: float) -> list[SizedOrder]:
-    """Proportionally scale down contracts so total cost stays within budget.
+def _apply_budget_cap(
+    orders: list[SizedOrder],
+    budget: float,
+    unit_size: float | None = None,
+) -> list[SizedOrder]:
+    """Scale down contracts so total cost stays within budget.
 
-    Preserves Kelly's edge-based weighting — higher-edge bets keep more
-    capital — while enforcing the total ceiling.  Each bet keeps at least
-    1 contract, so the actual total may slightly undershoot the budget due
-    to contract rounding.
+    Proportional scaling preserves Kelly's edge-based weighting — higher-edge
+    bets keep more capital — while enforcing the total ceiling. Each bet keeps
+    at least 1 contract, so the actual total may slightly undershoot the budget
+    due to contract rounding.
+
+    C11b (2026-07-27): the proportional pass must not shave a bet *below its
+    flat unit floor*. That floor encodes "if we are betting this at all, bet at
+    least ``unit_size``" — silently undercutting it defeats its purpose. The
+    budget is a fixed pool, so once C11 let favorites size off real Kelly they
+    began crowding everything else out: on the 07-27 slate an 18c leg went from
+    6 contracts ($1.08) to 2 ($0.36), roughly a third of its intended size,
+    which would have quietly starved the `MIN_MARKET_PRICE=0.10` longshot
+    experiment rather than testing it.
+
+    So: scale proportionally, clamp each order back up to its floor, and if the
+    clamped total still exceeds budget, drop whole orders — lowest composite
+    score first — until it fits. Fewer properly-sized positions beat a batch of
+    undersized ones, and the caller reports what was dropped.
+
+    Never scales an order *up*: the floor is clamped to the order's own count,
+    which `MAX_BET_SIZE` / bankroll caps may already have pushed below
+    `unit_size_contracts`. A lone surviving order honors the budget over its
+    floor (a floor above the whole budget is a config problem, not a sizing
+    one). ``unit_size=None`` restores the pre-C11b pure-proportional behavior.
     """
+    if not orders:
+        return orders
+
     total = sum(s.cost_dollars for s in orders)
     if total <= budget or total <= 0:
         return orders
 
-    scale = budget / total
-    bankroll = budget / 0.10 if budget else 1  # rough; recalc'd below
+    def _floor(s: SizedOrder) -> int:
+        if unit_size is None:
+            return 1
+        price = s.opportunity.market_price
+        if price <= 0 or price >= 1:
+            return 1
+        return max(1, min(s.contracts, unit_size_contracts(price, unit_size)))
+
+    def _count_at(s: SizedOrder, scale: float, use_floor: bool) -> int:
+        n = int(s.contracts * scale)
+        if use_floor:
+            n = max(n, _floor(s))
+        return max(1, min(n, s.contracts))
+
+    def _total_at(subset: list[SizedOrder], scale: float, use_floor: bool) -> float:
+        return sum(
+            round(_count_at(s, scale, use_floor) * s.opportunity.market_price, 2)
+            for s in subset
+        )
+
+    # Drop bets only when the *floors alone* cannot fit. Shaving the legs that
+    # still sit above their floor is always preferable to deleting a position:
+    # the naive "clamp, then drop if over" order would kill a whole bet to
+    # reclaim a few cents of overage.
+    working = list(orders)
+    while len(working) > 1 and _total_at(working, 0.0, True) > budget:
+        weakest = min(
+            working,
+            key=lambda s: (s.opportunity.composite_score, -s.opportunity.market_price),
+        )
+        working = [s for s in working if s is not weakest]
+
+    use_floor = len(working) > 1
+
+    # Largest scale whose total still fits. Contract counts are integral and
+    # monotone in `scale`, so bisection lands on the best feasible allocation
+    # instead of the one a single proportional pass happens to produce.
+    lo, hi = 0.0, 1.0
+    if _total_at(working, hi, use_floor) > budget:
+        for _ in range(40):
+            mid = (lo + hi) / 2
+            if _total_at(working, mid, use_floor) <= budget:
+                lo = mid
+            else:
+                hi = mid
+    else:
+        lo = hi
 
     capped: list[SizedOrder] = []
-    for s in orders:
-        new_contracts = max(1, int(s.contracts * scale))
-        new_cost = round(new_contracts * s.opportunity.market_price, 2)
+    for s in working:
+        n = _count_at(s, lo, use_floor)
         capped.append(SizedOrder(
             opportunity=s.opportunity,
-            contracts=new_contracts,
+            contracts=n,
             price_cents=s.price_cents,
-            cost_dollars=new_cost,
-            bankroll_pct=s.bankroll_pct * scale,
+            cost_dollars=round(n * s.opportunity.market_price, 2),
+            bankroll_pct=s.bankroll_pct * (n / s.contracts) if s.contracts else 0.0,
             risk_approval=s.risk_approval,
         ))
-
     return capped
 
 
@@ -1392,9 +1483,21 @@ def execute_pipeline(
             budget_dollars = budget * bankroll if budget <= 1 else budget
             pre_budget_cost = sum(s.cost_dollars for s in to_execute)
             if pre_budget_cost > budget_dollars:
-                to_execute = _apply_budget_cap(to_execute, budget_dollars)
+                pre_budget_tickers = {s.opportunity.ticker for s in to_execute}
+                to_execute = _apply_budget_cap(
+                    to_execute, budget_dollars, unit_size=unit_size
+                )
                 post_budget_cost = sum(s.cost_dollars for s in to_execute)
                 rprint(f"  Budget cap: [yellow]${pre_budget_cost:.2f} -> ${post_budget_cost:.2f}[/yellow] (limit ${budget_dollars:.2f})")
+                # C11b: the cap now drops whole bets rather than shaving every
+                # leg below its unit floor — say which ones went.
+                dropped = pre_budget_tickers - {s.opportunity.ticker for s in to_execute}
+                if dropped:
+                    rprint(
+                        f"    [dim]Dropped {len(dropped)} lowest-composite bet(s) so the "
+                        f"rest stay at their ${unit_size:.2f} unit floor: "
+                        f"{', '.join(sorted(dropped))}[/dim]"
+                    )
             else:
                 rprint(f"  Budget cap: [green]${pre_budget_cost:.2f} within ${budget_dollars:.2f} limit[/green]")
 

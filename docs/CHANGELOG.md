@@ -2,6 +2,186 @@
 
 ---
 
+## 2026-07-27 -- C11b: correlation guard measured and dropped; budget cap made floor-aware
+
+### The correlation guard does not survive measurement
+
+C11 left "add a correlation guard for same-night/same-league/same-direction slates" as the
+open follow-up. Measuring it first killed the premise.
+
+The naive read is convincing: pairwise concordance within clusters is 0.591 against 0.501
+expected, **rho +0.181, permutation p = 0.0018**. That is Simpson's paradox. Clusters live
+inside strata with very different base rates -- totals win 82% of the time, spreads 24% --
+and pooling unequal-mean groups manufactures apparent within-group concordance.
+
+Judging each cluster against its own (series, type, side) base rate, with a permutation test
+that shuffles *within* stratum:
+
+| slice   | clusters | bets | pooled rho | stratified rho | perm p |
+|:--------|:---------|:-----|:-----------|:---------------|:-------|
+| ALL     | 80       | 243  | +0.181     | **+0.048**     | 0.036  |
+| totals  | 11       | 28   | -0.010     | **-0.187**     | 0.75   |
+| spreads | 18       | 42   | -0.067     | -0.111         | 0.69   |
+| game    | 12       | 35   | +0.054     | +0.027         | 0.26   |
+
+Totals -- the four-MLB-unders case that motivated the idea -- show nothing. Even at the
+aggregate +0.048, four bets behave like ~3.8 independent ones, which no sizing mechanism
+needs to model. **No guard was built.** Added `scripts/backtest/correlation_check.py`, which
+reports both figures side by side so the artifact stays visible; re-run as settlements
+accumulate, since 28 clustered totals bets cannot detect a small rho.
+
+### Correction to C11
+
+The "32% of bankroll" figure used to justify `KELLY_FRACTION=0.5` was computed from
+`size_order` in isolation and ignored `--budget`, which every scheduler passes (12% sports,
+10% futures/Polymarket) and which proportionally scales the entire batch. Real blast radius
+was already bounded at ~$11.03. The 0.5 value stands on its own merits -- full portfolio
+Kelly is too aggressive -- but not for the reason originally given.
+
+### Regression found and fixed
+
+Because the budget is a **fixed pool**, C11's correctly-sized favorites crowd everything
+else out. On the 07-27 slate the 18c MLS leg fell from 6 contracts ($1.08) to 2 ($0.36) --
+about a third of its intended size -- which would have quietly starved the
+`MIN_MARKET_PRICE=0.10` longshot experiment rather than testing it.
+
+`_apply_budget_cap` now:
+
+- **never shaves an order below its flat unit floor** `round(unit_size / price)`. That floor
+  encodes "if we are betting this at all, bet at least `unit_size`"; the proportional pass
+  was silently overriding it.
+- **bisects for the largest feasible scale** instead of taking a single proportional pass,
+  so it packs the budget properly ($10.89 of $11.03 on the 07-27 slate, vs $9.36 before).
+- **drops whole orders -- lowest composite first -- only when the floors alone cannot fit.**
+  An earlier draft clamped first and dropped on any overage, which deleted a whole position
+  to reclaim $0.23. Shaving legs that still sit above their floor always comes first.
+- never scales an order *up*: the floor is clamped to the order's own count, which the
+  `MAX_BET_SIZE` / bankroll caps may already have pushed below `unit_size_contracts`.
+
+`unit_size=None` restores the pre-C11b pure-proportional behaviour.
+
+### Scheduler override
+
+The `.bat` files passed `--unit-size .5` explicitly, which **overrode the `.env`
+`UNIT_SIZE=1.00`** set in C11 for every automated run -- so the longshot protection never
+reached automation at all. All 16 now pass `--unit-size 1`. (These live under
+`scripts/schedulers/`, which is gitignored by design.)
+
+Net effect on the 07-27 slate: longshot leg back to **6 contracts**, batch $10.89 of the
+$11.03 budget, nothing dropped.
+
+### Tests
+
+New `TestBudgetCapUnitFloor` (8 cases): under-budget passthrough, floor honored under
+pressure, the pre-C11b behaviour still reproducible via `unit_size=None`, drop-lowest-
+composite when floors do not fit, never-scale-up, single-order honors budget over floor,
+always-within-budget across five budget levels, empty input. Full suite **667 passed**.
+
+### Docs propagated
+
+Swept the repo for both the old and new forms of every touched value/flag, then updated:
+
+- **`.env.example`** -- `KELLY_FRACTION` and `UNIT_SIZE` rationale blocks: which knob moves
+  which lane, the portfolio-fraction caveat, the `f* = edge / (1 - price)` formula, and a
+  warning that scheduler `.bat` files pass `--unit-size` explicitly so CLI beats `.env`.
+- **`CLAUDE.md`** -- C11 + C11b notes, live-`.env` block, `--unit-size` example, test count.
+- **`docs/ROADMAP.md`** -- C11 + C11b as shipped rows in Priority 2, new Completed index
+  entry, `Last updated` bumped to 2026-07-27.
+- **`docs/setup/ARCHITECTURE.md`** -- budget-cap section rewritten for the floor-aware /
+  bisecting / drop-only-when-floors-do-not-fit behaviour.
+- **`docs/scripts/SCRIPTS_REFERENCE.md`** -- registered `backtest/correlation_check.py` with
+  usage, flags, and a callout to read the stratified rho rather than the pooled one.
+- **`docs/scripts/per-script/kalshi_executor.md`** -- sizing formula corrected to include
+  `/ (1 - market_price)`, plus the which-knob-moves-what and portfolio-fraction notes.
+- **`docs/task-schedules/README.md`** -- documented scheduler flags now `--unit-size 1`.
+- **`skills/edge-radar/SKILL.md`** -- sizing formula, budget-cap description (both the flag
+  table and the risk-limits section), live `KELLY_FRACTION`/`UNIT_SIZE`/`MAX_BET_SIZE`
+  values, `--unit-size` examples, test count.
+- **`skills/edge-radar-analysis/SKILL.md`** -- `correlation_check.py` added to Related with
+  the Simpson's-paradox caveat and a re-run trigger.
+- **`webapp/views/scan_page.py`** -- `DEFAULT_UNIT_SIZE` 0.50 -> 1.00 to match live config.
+- **`.claude/html/index.html`** -- "1/4-Kelly" -> "fractional Kelly" (live value is 0.5).
+- **Memory** -- new `project-scheduler-flags-override-env` (CLI flags beat `.env`; simulate
+  the full `size_order` -> ratio cap -> budget cap chain), and
+  `project-longshot-kelly-experiment` rewritten now that `KELLY_FRACTION` is no longer part
+  of that experiment.
+
+Historical references to the old values in `docs/CHANGELOG.md` and the ROADMAP's Findings /
+Completed sections were left intact as record.
+
+---
+
+## 2026-07-27 -- C11: Kelly was missing the (1 - price) divisor
+
+### The bug
+
+`size_order()` in `scripts/kalshi/kalshi_executor.py` sized off `kelly_fraction * edge *
+bankroll`. Kelly for a binary contract is `f* = (q - p) / (1 - p)` = `edge / (1 - price)`;
+the `/ (1 - price)` term was absent. That is the even-money (`b=1`) approximation -- exact
+only at 50c, and increasingly wrong toward either extreme.
+
+Favorites were under-sized by `1/(1-p)`: **2.5x at 60c, 5.0x at 80c, 5.9x at 83c**. Because
+the flat `UNIT_SIZE` floor then won at high prices, nearly every bet above ~60c collapsed to
+a single contract. Mean contracts by entry price: sub-40c **5.56**, 40-60c **1.83**, 60c+
+**1.17**.
+
+### Why it mattered
+
+The starved segment is the best-calibrated one in the book. Over 367 settled trades,
+realized win rate *over break-even*:
+
+| band   | n   | avg px | model fair | real WR | break-even | WR - BE | overclaim |
+|:-------|:----|:-------|:-----------|:--------|:-----------|:--------|:----------|
+| <40c   | 149 | 0.211  | 0.410      | 0.255   | 0.221      | +0.034  | **+0.155** |
+| 40-60c | 166 | 0.494  | 0.628      | 0.542   | 0.504      | +0.039  | +0.086    |
+| >=60c  | 52  | 0.726  | 0.817      | 0.846   | 0.736      | **+0.111** | -0.029 |
+
+60c+ is 44/52 against a 73.6% break-even -- one-sided binomial **p=0.044**, the only price
+band distinguishable from noise. Model calibration inverts with price: a 15.5-point
+overclaim below 40c versus *conservative* by 2.9 points at 60c+. Last 30 days: 60c+
+**+4.7% ROI** vs sub-60c **-48.3%**. Re-sized over the settled history, the 60c+ segment
+goes **+$10.02 -> +$47.52 at the same ROI**.
+
+### Shipped
+
+- `kalshi_executor.py` -- divide the Kelly bet by `max(0.01, 1 - market_price)`. Single
+  sizing site; Polymarket shares it via `size_order`.
+- `.env` `KELLY_FRACTION` **1 -> 0.5**. The executor divides this by `batch_size`, which
+  doubles as a crude correlation guard -- so it is a *portfolio* Kelly fraction. At 1.0 a
+  fully correlated slate reaches full Kelly: the 07-27 slate of four MLB unders would have
+  been $29.43, **32% of bankroll and ~98% of `MAX_DAILY_LOSS` in one evening**. At 0.5 the
+  same slate is $16.35 (17.8%), verified live.
+- `.env` `UNIT_SIZE` **.50 -> 1.00**. Longshots bind on the flat floor, not Kelly, so
+  lowering `KELLY_FRACTION` alone would have cut sub-30c sizing **39%** ($6.15 -> $3.76).
+  This holds the lane at its prior size ($6.15 -> $7.10). **`UNIT_SIZE` is the longshot
+  knob; `KELLY_FRACTION` is the favorites knob** -- they bind at different prices and are
+  independently tunable. `KELLY_FRACTION=1` was set on 07-22 to size longshots up, which
+  was the wrong knob.
+- `.env` `MAX_BET_SIZE` **15 -> 8**, backstop only. Nothing recent reaches it (largest
+  projected position 5.6% of bankroll), but at ~$92 bankroll $15 is 16.3% on one position,
+  breaching the CLAUDE.md 10% hard stop -- a cap that was unreachable while Kelly was broken.
+- `MIN_MARKET_PRICE` (Gate 3.5) untouched -- a reject threshold, independent of sizing. The
+  07-22 longshot experiment continues unaffected.
+
+### Tests
+
+New `TestKellyPriceComplement` (7 cases): dollars-at-risk scale as `1/(1-p)`, 50c reference
+point, favorites no longer collapse to the flat unit, longshots barely move, no divide-by-
+zero at 99c, and R1/R28 NO-side damping still composes. Full suite **659 passed**.
+
+Also added a shared `sizing_defaults` fixture and applied it to the five gate-test classes
+that assert a bare `"APPROVED"`. Those read `MAX_BET_SIZE`/`KELLY_FRACTION` from the live
+`.env` at import time, so lowering `MAX_BET_SIZE` flipped twelve unrelated gate tests to
+`APPROVED_CAPPED_MAX_BET`. Same class of breakage hit the venue-min-shares tests on 07-22.
+
+### Still open
+
+A real correlation guard for same-night / same-league / same-threshold slates. Dividing by
+`batch_size` is only a proxy -- it assumes every leg in a batch is perfectly correlated,
+which over-damps independent slates and under-damps ones like tonight's four MLB unders.
+
+---
+
 ## 2026-07-25 -- Polymarket task audit: portfolio value was always $0.00
 
 ### Audit result

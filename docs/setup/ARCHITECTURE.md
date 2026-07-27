@@ -308,11 +308,17 @@ The result is capped by (in order): max bet size ($100), bet ratio cap, and avai
 
 ### Budget Cap (Batch-Level)
 
-An optional `--budget` flag caps the **total cost of all bets in a batch**. When the sum exceeds the budget, every bet is proportionally scaled down. Each bet keeps at least 1 contract. Higher-edge bets retain proportionally more capital — Kelly's weighting is preserved.
+An optional `--budget` flag caps the **total cost of all bets in a batch**. When the sum exceeds the budget, bets are scaled down while preserving Kelly's edge-weighting — higher-edge bets retain proportionally more capital. Each bet keeps at least 1 contract.
+
+The budget is a **fixed pool**, so sizing one class of bet up necessarily takes capital from the others. Since C11b (2026-07-27) the cap therefore:
+
+1. **never shaves a bet below its flat unit floor** `round(unit_size / price)` — that floor encodes "if we are betting this at all, bet at least `unit_size`", and the old proportional pass silently overrode it (an 18¢ leg fell from 6 contracts to 2 once corrected Kelly let favorites consume the pool);
+2. **bisects for the largest feasible scale** instead of taking one proportional pass, so it packs the budget properly rather than undershooting;
+3. **drops whole orders — lowest composite score first — only when the floors alone cannot fit.** Shaving legs that still sit above their floor always comes first, so a few cents of overage can never delete a position.
 
 ```bash
 # Cap total batch cost to 10% of bankroll
-python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date today --exclude-open
+python scripts/scan.py sports --unit-size 1 --max-bets 5 --budget 10% --date today --exclude-open
 ```
 
 > [!TIP]

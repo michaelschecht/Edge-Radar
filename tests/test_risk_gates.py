@@ -17,8 +17,30 @@ from kalshi_executor import (
     cancel_stale_resting_orders,
     dedup_correlated_brackets,
     preflight_gate_status,
+    _apply_budget_cap,
 )
 from kalshi_client import KalshiAPIError
+
+
+@pytest.fixture
+def sizing_defaults(monkeypatch):
+    """Pin the sizing knobs to the documented code defaults.
+
+    Any test asserting a bare ``"APPROVED"`` verdict is implicitly asserting
+    that no *sizing cap* fired — but ``MAX_BET_SIZE`` and ``KELLY_FRACTION``
+    are module globals snapshotted from the operator's live ``.env`` at import
+    time. Without pinning, a bankroll experiment silently breaks gate tests
+    that have nothing to do with sizing.
+
+    This has now bitten twice: 2026-07-22 (KELLY_FRACTION 0.25 -> 1 broke the
+    venue-min-shares class, see ``_pin_kelly``) and 2026-07-27 (C11, where
+    MAX_BET_SIZE 15 -> 8 plus the Kelly price-complement fix pushed twelve
+    gate tests into ``APPROVED_CAPPED_MAX_BET``). Classes that assert clean
+    approvals should depend on this rather than inherit the .env of the day.
+    """
+    import kalshi_executor as ke
+    monkeypatch.setattr(ke, "MAX_BET_SIZE", 100.0)
+    monkeypatch.setattr(ke, "KELLY_FRACTION", 0.25)
 
 
 # ── unit_size_contracts ──────────────────────────────────────────────────────
@@ -69,6 +91,10 @@ class TestUnitSizeContracts:
 
 class TestSizeOrderRiskGates:
     """Test that each risk gate correctly rejects or approves."""
+
+    @pytest.fixture(autouse=True)
+    def _pin_sizing(self, sizing_defaults):
+        """These cases assert gate verdicts, not sizing — see `sizing_defaults`."""
 
     def _make_opp(self, edge=0.10, confidence="high", score=8.0, price=0.50):
         return Opportunity(
@@ -295,6 +321,10 @@ class TestMinMarketPriceGate:
 class TestMinConfidenceGate:
     """Gate 4.5: reject opportunities whose confidence falls below MIN_CONFIDENCE."""
 
+    @pytest.fixture(autouse=True)
+    def _pin_sizing(self, sizing_defaults):
+        """These cases assert gate verdicts, not sizing — see `sizing_defaults`."""
+
     def _opp(self, confidence: str) -> Opportunity:
         return Opportunity(
             ticker="KXMLBGAME-26APR21NYYKAC-NYY",
@@ -506,11 +536,16 @@ class TestNoSideKellyMultiplier:
             # with multiplier, low-price YES would collapse; without it, it's
             # comfortably above a half-Kelly baseline.
             # We can't compare to YES at 40c directly (different price) but we
-            # can confirm sizing scales with (1/price), not (0.5/price):
+            # can confirm sizing scales with the full Kelly shape, not half of it.
             high = size_order(yes_high, bankroll=10000.0, open_positions=0,
                               daily_pnl=0.0, unit_size=1.00)
-            # Expected full-Kelly ratio ≈ 0.40/0.20 = 2×. Half-Kelly would be 1×.
-            assert low.contracts >= high.contracts * 1.5
+            # C11: contracts scale as 1 / ((1 - price) * price), so the expected
+            # full-Kelly ratio is (1/(0.8*0.2)) / (1/(0.6*0.4)) = 6.25 / 4.167 = 1.5x.
+            # (Pre-C11 this was 0.40/0.20 = 2x — the old assertion `>= high * 1.5`
+            # survived the change only by 0.5 of a contract, so pin it properly.)
+            # A wrongly-applied NO multiplier would halve `low` to 0.75x instead.
+            assert low.contracts == pytest.approx(high.contracts * 1.5, rel=0.01)
+            assert low.contracts > high.contracts  # and definitively not halved
         finally:
             kalshi_executor.KELLY_FRACTION = orig_kelly
             kalshi_executor.MAX_BET_SIZE = orig_max
@@ -650,10 +685,10 @@ class TestTrustedEdge:
             )
             result = size_order(opp, bankroll=400.0, open_positions=0, daily_pnl=0.0, unit_size=1.00)
             # cap=0.15, decay=0.5 → trusted_edge(0.30) = 0.225
-            # Kelly bet = 0.25 * 0.225 * 400 = $22.50 → 225 contracts at $0.10
-            # Raw Kelly would be 0.25 * 0.30 * 400 = $30 → 300 contracts
+            # C11: Kelly bet = 0.25 * 0.225 * 400 / (1 - 0.10) = $25.00 → 250 contracts at $0.10
+            # Raw (untrusted) edge would give 0.25 * 0.30 * 400 / 0.90 = $33.33 → 333 contracts
             assert result.risk_approval == "APPROVED"
-            assert result.contracts < 300     # below what raw edge would give
+            assert result.contracts < 333     # below what raw edge would give
             assert result.contracts >= 200    # but still scales well above flat unit (10)
         finally:
             kalshi_executor.KELLY_FRACTION = orig_kelly
@@ -661,10 +696,185 @@ class TestTrustedEdge:
             kalshi_executor.MIN_MARKET_PRICE = orig_floor
 
 
+# ── C11b: floor-aware budget cap ─────────────────────────────────────────────
+
+class TestBudgetCapUnitFloor:
+    """C11b (2026-07-27): the budget cap scales proportionally but must not
+    shave a bet below its flat unit floor.
+
+    The budget is a fixed pool, so once C11 let favorites size off real Kelly
+    they crowded everything else out — on the 07-27 slate an 18c leg fell from
+    6 contracts to 2, about a third of its intended size. When even the floors
+    don't fit, whole bets are dropped (lowest composite first) instead.
+    """
+
+    def _order(self, price, contracts, score=7.0, ticker=None):
+        opp = _opp(ticker=ticker or f"KXMLBTOTAL-26JUL27X{int(price * 100)}",
+                   price=price, score=score)
+        return SizedOrder(
+            opportunity=opp, contracts=contracts,
+            price_cents=int(price * 100),
+            cost_dollars=round(contracts * price, 2),
+            bankroll_pct=0.01, risk_approval="APPROVED",
+        )
+
+    def test_under_budget_is_untouched(self):
+        orders = [self._order(0.80, 3), self._order(0.18, 6)]
+        out = _apply_budget_cap(orders, budget=100.0, unit_size=1.00)
+        assert [o.contracts for o in out] == [3, 6]
+
+    def test_low_priced_leg_keeps_its_unit_floor(self):
+        # Favorites eat the pool; the 18c leg must stay at floor = round(1/0.18) = 6.
+        assert unit_size_contracts(0.18, 1.00) == 6
+        orders = [self._order(0.83, 10, score=8.0), self._order(0.18, 6, score=6.9)]
+        out = _apply_budget_cap(orders, budget=5.00, unit_size=1.00)
+        longshot = [o for o in out if o.opportunity.market_price == 0.18][0]
+        assert longshot.contracts == 6
+
+    def test_proportional_pass_would_have_undercut_the_floor(self):
+        # Same inputs with unit_size=None (pre-C11b behaviour) shave it instead —
+        # this is the regression the floor clamp fixes.
+        orders = [self._order(0.83, 10, score=8.0), self._order(0.18, 6, score=6.9)]
+        out = _apply_budget_cap(orders, budget=5.00, unit_size=None)
+        longshot = [o for o in out if o.opportunity.market_price == 0.18][0]
+        assert longshot.contracts < 6
+
+    def test_drops_lowest_composite_when_floors_do_not_fit(self):
+        # Three legs whose floors alone total $3.00 against a $2.20 budget.
+        orders = [
+            self._order(0.50, 2, score=9.0, ticker="KXMLBTOTAL-26JUL27-AAA"),
+            self._order(0.50, 2, score=8.0, ticker="KXMLBTOTAL-26JUL27-BBB"),
+            self._order(0.50, 2, score=5.0, ticker="KXMLBTOTAL-26JUL27-CCC"),
+        ]
+        out = _apply_budget_cap(orders, budget=2.20, unit_size=1.00)
+        kept = {o.opportunity.ticker for o in out}
+        assert "KXMLBTOTAL-26JUL27-CCC" not in kept   # weakest dropped
+        assert len(out) == 2
+        assert sum(o.cost_dollars for o in out) <= 2.20
+        # survivors stay whole rather than all three being shaved to 1 contract
+        assert all(o.contracts == 2 for o in out)
+
+    def test_never_scales_an_order_up(self):
+        # A MAX_BET_SIZE-capped order can sit below its unit floor; the budget
+        # cap must not use the floor as an excuse to grow it.
+        orders = [self._order(0.10, 3, score=8.0), self._order(0.80, 8, score=7.0)]
+        assert unit_size_contracts(0.10, 1.00) == 10   # floor well above 3
+        out = _apply_budget_cap(orders, budget=2.00, unit_size=1.00)
+        cheap = [o for o in out if o.opportunity.market_price == 0.10][0]
+        assert cheap.contracts <= 3
+
+    def test_single_order_honors_budget_over_floor(self):
+        orders = [self._order(0.10, 20, score=8.0)]
+        out = _apply_budget_cap(orders, budget=0.50, unit_size=1.00)
+        assert len(out) == 1
+        assert out[0].cost_dollars <= 0.50 + 0.10
+
+    def test_always_lands_within_budget(self):
+        for budget in (0.60, 1.10, 2.40, 3.90, 7.50):
+            orders = [
+                self._order(0.83, 9, score=8.2, ticker="KXMLBTOTAL-26JUL27-A"),
+                self._order(0.50, 4, score=7.1, ticker="KXMLBTOTAL-26JUL27-B"),
+                self._order(0.18, 6, score=6.5, ticker="KXMLBTOTAL-26JUL27-C"),
+            ]
+            out = _apply_budget_cap(orders, budget=budget, unit_size=1.00)
+            total = sum(o.cost_dollars for o in out)
+            assert total <= budget + 0.85, f"budget {budget}: got {total}"
+            assert all(o.contracts >= 1 for o in out)
+
+    def test_empty_input(self):
+        assert _apply_budget_cap([], budget=10.0, unit_size=1.00) == []
+
+
+# ── C11: Kelly price-complement divisor ──────────────────────────────────────
+
+class TestKellyPriceComplement:
+    """C11 (2026-07-27): Kelly for a binary contract is edge / (1 - price).
+
+    The `/ (1 - price)` term was missing — the even-money approximation, exact
+    only at 50c. It under-sized favorites by 1/(1-p) and, because the flat
+    UNIT_SIZE floor then won at high prices, pinned essentially every bet above
+    ~60c to a single contract.
+    """
+
+    def _opp(self, price: float, edge: float = 0.10) -> Opportunity:
+        return Opportunity(
+            ticker="KXMLBGAME-26APR24-LAD", title="Test", category="game",
+            side="yes", market_price=price, fair_value=price + edge, edge=edge,
+            edge_source="test", confidence="high",
+            liquidity_score=8.0, composite_score=9.0, details={},
+        )
+
+    @pytest.fixture(autouse=True)
+    def _pin(self, monkeypatch):
+        import kalshi_executor as ke
+        monkeypatch.setattr(ke, "KELLY_FRACTION", 0.50)
+        monkeypatch.setattr(ke, "MAX_BET_SIZE", 100000.0)
+        monkeypatch.setattr(ke, "MIN_MARKET_PRICE", 0.0)
+        monkeypatch.setattr(ke, "_PER_SPORT_MIN_EDGE", {})
+
+    def _contracts(self, price, edge=0.10, bankroll=100000.0):
+        r = size_order(self._opp(price, edge), bankroll=bankroll,
+                       open_positions=0, daily_pnl=0.0, unit_size=1.00)
+        assert r.risk_approval.startswith("APPROVED")
+        return r.contracts
+
+    def test_dollars_at_risk_scale_with_one_over_complement(self):
+        # At fixed edge, dollars staked scale as 1/(1-p): 80c should draw 5x
+        # the dollars of 0c-complement-equivalent... concretely 4x that of 20c
+        # ((1/0.2) / (1/0.8) = 4).
+        d20 = self._contracts(0.20) * 0.20
+        d80 = self._contracts(0.80) * 0.80
+        assert d80 / d20 == pytest.approx(4.0, rel=0.02)
+
+    def test_fifty_cent_bet_is_unchanged_by_the_fix(self):
+        # 1/(1-0.5) = 2, and the pre-C11 formula is the b=1 special case, so a
+        # 50c bet is the one price where old and new agree up to that factor.
+        # Pin it as the reference point: $0.50*0.10*100000/0.5 = $10,000 → 20000 ct
+        assert self._contracts(0.50) == 20000
+
+    def test_favorite_no_longer_collapses_to_flat_unit(self):
+        # The regression this fixes: at a realistic bankroll an 83c bet with a
+        # solid edge used to fall back to the flat floor (1 contract).
+        # unit_size=1.00 at 83c → flat floor is 1 contract.
+        assert unit_size_contracts(0.83, 1.00) == 1
+        assert self._contracts(0.83, edge=0.088, bankroll=91.91) > 1
+
+    def test_longshot_sizing_barely_moves(self):
+        # The fix is a favorites correction; at 15c the multiplier is only 1.18x,
+        # and in practice the flat unit floor dominates there anyway.
+        # 0.5*0.10*100/0.85 = $5.88 → 39 contracts at 15c; flat floor is 7.
+        assert unit_size_contracts(0.15, 1.00) == 7
+        assert self._contracts(0.15, bankroll=100.0) == 39
+
+    def test_extreme_price_does_not_divide_by_zero(self):
+        # market_price is clamped upstream, but guard the complement anyway.
+        r = size_order(self._opp(0.99, edge=0.005), bankroll=100.0,
+                       open_positions=0, daily_pnl=0.0, unit_size=1.00)
+        assert r.contracts >= 0
+        assert "REJECTED" in r.risk_approval or r.contracts >= 1
+
+    def test_no_side_multiplier_still_composes(self):
+        # C11 must not disturb R1/R28 damping: at equal price the NO multiplier
+        # is the only difference, so the (1-p) term cancels and NO stays halved.
+        import kalshi_executor as ke
+        yes = size_order(self._opp(0.40), bankroll=100000.0, open_positions=0,
+                         daily_pnl=0.0, unit_size=1.00)
+        no_opp = self._opp(0.40)
+        no_opp.side = "no"
+        with patch.object(ke, "NO_SIDE_KELLY_MULTIPLIER_GLOBAL", 0.50):
+            no = size_order(no_opp, bankroll=100000.0, open_positions=0,
+                            daily_pnl=0.0, unit_size=1.00)
+        assert no.contracts == pytest.approx(yes.contracts // 2, abs=2)
+
+
 # ── Per-sport MIN_EDGE_THRESHOLD override ─────────────────────────────────────
 
 class TestPerSportMinEdge:
     """Sport-specific edge thresholds via _PER_SPORT_MIN_EDGE."""
+
+    @pytest.fixture(autouse=True)
+    def _pin_sizing(self, sizing_defaults):
+        """These cases assert gate verdicts, not sizing — see `sizing_defaults`."""
 
     def _opp(self, ticker: str, edge: float = 0.05) -> Opportunity:
         return Opportunity(
@@ -822,6 +1032,10 @@ class TestRecentMatchupsFromLog:
 class TestSeriesDedupGate:
     """Gate 7: reject opportunities whose matchup was bet in the window."""
 
+    @pytest.fixture(autouse=True)
+    def _pin_sizing(self, sizing_defaults):
+        """These cases assert gate verdicts, not sizing — see `sizing_defaults`."""
+
     def _opp(self, ticker: str) -> Opportunity:
         return Opportunity(
             ticker=ticker, title="Test", category="game", side="yes",
@@ -962,6 +1176,10 @@ class TestPerSportSeriesDedupConstruction:
 class TestPerSportSeriesDedupGate:
     """size_order() Gate 7 honors the per-sport window in the rejection check
     and reports the actual sport-specific window in the rejection message."""
+
+    @pytest.fixture(autouse=True)
+    def _pin_sizing(self, sizing_defaults):
+        """These cases assert gate verdicts, not sizing — see `sizing_defaults`."""
 
     def _opp(self, ticker: str) -> Opportunity:
         return Opportunity(

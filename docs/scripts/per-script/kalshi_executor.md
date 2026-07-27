@@ -68,7 +68,13 @@ The pipeline rejects opportunities that fail any of gates 1-7 (including 4.5 and
 
 ### Sizing
 
-Uses **Kelly with flat unit floor**: `bet = max(unit_size, kelly_fraction * trusted_edge(edge) * bankroll) / market_price` contracts. Kelly scales up high-edge bets; low-edge bets stay at the flat unit minimum. The result is capped by gates 7-8 above.
+Uses **Kelly with flat unit floor**: `bet = max(unit_size, kelly_fraction * trusted_edge(edge) / (1 - market_price) * bankroll) / market_price` contracts. Kelly scales up high-edge bets; low-edge bets stay at the flat unit minimum. The result is capped by gates 7-8 above.
+
+**Kelly price complement (C11, 2026-07-27).** The `/ (1 - market_price)` term is the actual Kelly formula for a binary contract — `f* = (q - p) / (1 - p)`, i.e. `edge / (1 - price)`. It was missing until 2026-07-27: the even-money (`b=1`) approximation, exact only at 50¢ and increasingly wrong toward either extreme. Favorites were under-sized by `1/(1-p)` — 2.5x at 60¢, 5.0x at 80¢, 5.9x at 83¢ — and because the flat unit floor then won at high prices, nearly every bet above ~60¢ collapsed to a single contract (mean contracts by entry price: sub-40¢ 5.56, 40-60¢ 1.83, 60¢+ 1.17). That starved the best-calibrated band in the book: 60¢+ beats break-even by +11.1 points (44/52 vs a 73.6% break-even, one-sided binomial p=0.044), the only price band distinguishable from noise.
+
+**Which knob moves what.** Below ~30¢ the flat floor `round(unit_size / price)` binds and Kelly never clears it, so `UNIT_SIZE` alone sets longshot size. Above ~60¢ Kelly binds and `UNIT_SIZE` is irrelevant (at 83¢ it asks for 1 contract), so `KELLY_FRACTION` is the favorites knob. They bind at different prices and are independently tunable.
+
+**`KELLY_FRACTION` is a *portfolio* fraction.** It is divided by `batch_size = min(len(opportunities), --max-bets)`, and that divisor doubles as a crude correlation guard — a slate whose legs share an underlying splits one Kelly allocation instead of stacking N. The consequence is that at `KELLY_FRACTION=1` a fully correlated slate reaches **full Kelly**. Keep it at or below 0.5.
 
 `trusted_edge()` soft-caps the edge used in the Kelly calculation at `KELLY_EDGE_CAP` (default 0.15). Excess is multiplied by `KELLY_EDGE_DECAY` (default 0.5) — so a 25% claimed edge sizes like 20%, a 35% like 25%. Raw edge is unchanged in gate 3, composite score, reports, and the trade journal. Introduced 2026-04-18 after calibration showed claimed edges ≥25% realize -35% ROI.
 
