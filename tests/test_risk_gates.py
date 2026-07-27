@@ -17,6 +17,7 @@ from kalshi_executor import (
     cancel_stale_resting_orders,
     dedup_correlated_brackets,
     preflight_gate_status,
+    _apply_budget_cap,
 )
 from kalshi_client import KalshiAPIError
 
@@ -693,6 +694,95 @@ class TestTrustedEdge:
             kalshi_executor.KELLY_FRACTION = orig_kelly
             kalshi_executor.MAX_BET_SIZE = orig_max
             kalshi_executor.MIN_MARKET_PRICE = orig_floor
+
+
+# ── C11b: floor-aware budget cap ─────────────────────────────────────────────
+
+class TestBudgetCapUnitFloor:
+    """C11b (2026-07-27): the budget cap scales proportionally but must not
+    shave a bet below its flat unit floor.
+
+    The budget is a fixed pool, so once C11 let favorites size off real Kelly
+    they crowded everything else out — on the 07-27 slate an 18c leg fell from
+    6 contracts to 2, about a third of its intended size. When even the floors
+    don't fit, whole bets are dropped (lowest composite first) instead.
+    """
+
+    def _order(self, price, contracts, score=7.0, ticker=None):
+        opp = _opp(ticker=ticker or f"KXMLBTOTAL-26JUL27X{int(price * 100)}",
+                   price=price, score=score)
+        return SizedOrder(
+            opportunity=opp, contracts=contracts,
+            price_cents=int(price * 100),
+            cost_dollars=round(contracts * price, 2),
+            bankroll_pct=0.01, risk_approval="APPROVED",
+        )
+
+    def test_under_budget_is_untouched(self):
+        orders = [self._order(0.80, 3), self._order(0.18, 6)]
+        out = _apply_budget_cap(orders, budget=100.0, unit_size=1.00)
+        assert [o.contracts for o in out] == [3, 6]
+
+    def test_low_priced_leg_keeps_its_unit_floor(self):
+        # Favorites eat the pool; the 18c leg must stay at floor = round(1/0.18) = 6.
+        assert unit_size_contracts(0.18, 1.00) == 6
+        orders = [self._order(0.83, 10, score=8.0), self._order(0.18, 6, score=6.9)]
+        out = _apply_budget_cap(orders, budget=5.00, unit_size=1.00)
+        longshot = [o for o in out if o.opportunity.market_price == 0.18][0]
+        assert longshot.contracts == 6
+
+    def test_proportional_pass_would_have_undercut_the_floor(self):
+        # Same inputs with unit_size=None (pre-C11b behaviour) shave it instead —
+        # this is the regression the floor clamp fixes.
+        orders = [self._order(0.83, 10, score=8.0), self._order(0.18, 6, score=6.9)]
+        out = _apply_budget_cap(orders, budget=5.00, unit_size=None)
+        longshot = [o for o in out if o.opportunity.market_price == 0.18][0]
+        assert longshot.contracts < 6
+
+    def test_drops_lowest_composite_when_floors_do_not_fit(self):
+        # Three legs whose floors alone total $3.00 against a $2.20 budget.
+        orders = [
+            self._order(0.50, 2, score=9.0, ticker="KXMLBTOTAL-26JUL27-AAA"),
+            self._order(0.50, 2, score=8.0, ticker="KXMLBTOTAL-26JUL27-BBB"),
+            self._order(0.50, 2, score=5.0, ticker="KXMLBTOTAL-26JUL27-CCC"),
+        ]
+        out = _apply_budget_cap(orders, budget=2.20, unit_size=1.00)
+        kept = {o.opportunity.ticker for o in out}
+        assert "KXMLBTOTAL-26JUL27-CCC" not in kept   # weakest dropped
+        assert len(out) == 2
+        assert sum(o.cost_dollars for o in out) <= 2.20
+        # survivors stay whole rather than all three being shaved to 1 contract
+        assert all(o.contracts == 2 for o in out)
+
+    def test_never_scales_an_order_up(self):
+        # A MAX_BET_SIZE-capped order can sit below its unit floor; the budget
+        # cap must not use the floor as an excuse to grow it.
+        orders = [self._order(0.10, 3, score=8.0), self._order(0.80, 8, score=7.0)]
+        assert unit_size_contracts(0.10, 1.00) == 10   # floor well above 3
+        out = _apply_budget_cap(orders, budget=2.00, unit_size=1.00)
+        cheap = [o for o in out if o.opportunity.market_price == 0.10][0]
+        assert cheap.contracts <= 3
+
+    def test_single_order_honors_budget_over_floor(self):
+        orders = [self._order(0.10, 20, score=8.0)]
+        out = _apply_budget_cap(orders, budget=0.50, unit_size=1.00)
+        assert len(out) == 1
+        assert out[0].cost_dollars <= 0.50 + 0.10
+
+    def test_always_lands_within_budget(self):
+        for budget in (0.60, 1.10, 2.40, 3.90, 7.50):
+            orders = [
+                self._order(0.83, 9, score=8.2, ticker="KXMLBTOTAL-26JUL27-A"),
+                self._order(0.50, 4, score=7.1, ticker="KXMLBTOTAL-26JUL27-B"),
+                self._order(0.18, 6, score=6.5, ticker="KXMLBTOTAL-26JUL27-C"),
+            ]
+            out = _apply_budget_cap(orders, budget=budget, unit_size=1.00)
+            total = sum(o.cost_dollars for o in out)
+            assert total <= budget + 0.85, f"budget {budget}: got {total}"
+            assert all(o.contracts >= 1 for o in out)
+
+    def test_empty_input(self):
+        assert _apply_budget_cap([], budget=10.0, unit_size=1.00) == []
 
 
 # ── C11: Kelly price-complement divisor ──────────────────────────────────────

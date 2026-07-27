@@ -2,6 +2,83 @@
 
 ---
 
+## 2026-07-27 -- C11b: correlation guard measured and dropped; budget cap made floor-aware
+
+### The correlation guard does not survive measurement
+
+C11 left "add a correlation guard for same-night/same-league/same-direction slates" as the
+open follow-up. Measuring it first killed the premise.
+
+The naive read is convincing: pairwise concordance within clusters is 0.591 against 0.501
+expected, **rho +0.181, permutation p = 0.0018**. That is Simpson's paradox. Clusters live
+inside strata with very different base rates -- totals win 82% of the time, spreads 24% --
+and pooling unequal-mean groups manufactures apparent within-group concordance.
+
+Judging each cluster against its own (series, type, side) base rate, with a permutation test
+that shuffles *within* stratum:
+
+| slice   | clusters | bets | pooled rho | stratified rho | perm p |
+|:--------|:---------|:-----|:-----------|:---------------|:-------|
+| ALL     | 80       | 243  | +0.181     | **+0.048**     | 0.036  |
+| totals  | 11       | 28   | -0.010     | **-0.187**     | 0.75   |
+| spreads | 18       | 42   | -0.067     | -0.111         | 0.69   |
+| game    | 12       | 35   | +0.054     | +0.027         | 0.26   |
+
+Totals -- the four-MLB-unders case that motivated the idea -- show nothing. Even at the
+aggregate +0.048, four bets behave like ~3.8 independent ones, which no sizing mechanism
+needs to model. **No guard was built.** Added `scripts/backtest/correlation_check.py`, which
+reports both figures side by side so the artifact stays visible; re-run as settlements
+accumulate, since 28 clustered totals bets cannot detect a small rho.
+
+### Correction to C11
+
+The "32% of bankroll" figure used to justify `KELLY_FRACTION=0.5` was computed from
+`size_order` in isolation and ignored `--budget`, which every scheduler passes (12% sports,
+10% futures/Polymarket) and which proportionally scales the entire batch. Real blast radius
+was already bounded at ~$11.03. The 0.5 value stands on its own merits -- full portfolio
+Kelly is too aggressive -- but not for the reason originally given.
+
+### Regression found and fixed
+
+Because the budget is a **fixed pool**, C11's correctly-sized favorites crowd everything
+else out. On the 07-27 slate the 18c MLS leg fell from 6 contracts ($1.08) to 2 ($0.36) --
+about a third of its intended size -- which would have quietly starved the
+`MIN_MARKET_PRICE=0.10` longshot experiment rather than testing it.
+
+`_apply_budget_cap` now:
+
+- **never shaves an order below its flat unit floor** `round(unit_size / price)`. That floor
+  encodes "if we are betting this at all, bet at least `unit_size`"; the proportional pass
+  was silently overriding it.
+- **bisects for the largest feasible scale** instead of taking a single proportional pass,
+  so it packs the budget properly ($10.89 of $11.03 on the 07-27 slate, vs $9.36 before).
+- **drops whole orders -- lowest composite first -- only when the floors alone cannot fit.**
+  An earlier draft clamped first and dropped on any overage, which deleted a whole position
+  to reclaim $0.23. Shaving legs that still sit above their floor always comes first.
+- never scales an order *up*: the floor is clamped to the order's own count, which the
+  `MAX_BET_SIZE` / bankroll caps may already have pushed below `unit_size_contracts`.
+
+`unit_size=None` restores the pre-C11b pure-proportional behaviour.
+
+### Scheduler override
+
+The `.bat` files passed `--unit-size .5` explicitly, which **overrode the `.env`
+`UNIT_SIZE=1.00`** set in C11 for every automated run -- so the longshot protection never
+reached automation at all. All 16 now pass `--unit-size 1`. (These live under
+`scripts/schedulers/`, which is gitignored by design.)
+
+Net effect on the 07-27 slate: longshot leg back to **6 contracts**, batch $10.89 of the
+$11.03 budget, nothing dropped.
+
+### Tests
+
+New `TestBudgetCapUnitFloor` (8 cases): under-budget passthrough, floor honored under
+pressure, the pre-C11b behaviour still reproducible via `unit_size=None`, drop-lowest-
+composite when floors do not fit, never-scale-up, single-order honors budget over floor,
+always-within-budget across five budget levels, empty input. Full suite **667 passed**.
+
+---
+
 ## 2026-07-27 -- C11: Kelly was missing the (1 - price) divisor
 
 ### The bug
