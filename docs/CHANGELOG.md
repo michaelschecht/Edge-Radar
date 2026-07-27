@@ -2,6 +2,77 @@
 
 ---
 
+## 2026-07-27 -- C11: Kelly was missing the (1 - price) divisor
+
+### The bug
+
+`size_order()` in `scripts/kalshi/kalshi_executor.py` sized off `kelly_fraction * edge *
+bankroll`. Kelly for a binary contract is `f* = (q - p) / (1 - p)` = `edge / (1 - price)`;
+the `/ (1 - price)` term was absent. That is the even-money (`b=1`) approximation -- exact
+only at 50c, and increasingly wrong toward either extreme.
+
+Favorites were under-sized by `1/(1-p)`: **2.5x at 60c, 5.0x at 80c, 5.9x at 83c**. Because
+the flat `UNIT_SIZE` floor then won at high prices, nearly every bet above ~60c collapsed to
+a single contract. Mean contracts by entry price: sub-40c **5.56**, 40-60c **1.83**, 60c+
+**1.17**.
+
+### Why it mattered
+
+The starved segment is the best-calibrated one in the book. Over 367 settled trades,
+realized win rate *over break-even*:
+
+| band   | n   | avg px | model fair | real WR | break-even | WR - BE | overclaim |
+|:-------|:----|:-------|:-----------|:--------|:-----------|:--------|:----------|
+| <40c   | 149 | 0.211  | 0.410      | 0.255   | 0.221      | +0.034  | **+0.155** |
+| 40-60c | 166 | 0.494  | 0.628      | 0.542   | 0.504      | +0.039  | +0.086    |
+| >=60c  | 52  | 0.726  | 0.817      | 0.846   | 0.736      | **+0.111** | -0.029 |
+
+60c+ is 44/52 against a 73.6% break-even -- one-sided binomial **p=0.044**, the only price
+band distinguishable from noise. Model calibration inverts with price: a 15.5-point
+overclaim below 40c versus *conservative* by 2.9 points at 60c+. Last 30 days: 60c+
+**+4.7% ROI** vs sub-60c **-48.3%**. Re-sized over the settled history, the 60c+ segment
+goes **+$10.02 -> +$47.52 at the same ROI**.
+
+### Shipped
+
+- `kalshi_executor.py` -- divide the Kelly bet by `max(0.01, 1 - market_price)`. Single
+  sizing site; Polymarket shares it via `size_order`.
+- `.env` `KELLY_FRACTION` **1 -> 0.5**. The executor divides this by `batch_size`, which
+  doubles as a crude correlation guard -- so it is a *portfolio* Kelly fraction. At 1.0 a
+  fully correlated slate reaches full Kelly: the 07-27 slate of four MLB unders would have
+  been $29.43, **32% of bankroll and ~98% of `MAX_DAILY_LOSS` in one evening**. At 0.5 the
+  same slate is $16.35 (17.8%), verified live.
+- `.env` `UNIT_SIZE` **.50 -> 1.00**. Longshots bind on the flat floor, not Kelly, so
+  lowering `KELLY_FRACTION` alone would have cut sub-30c sizing **39%** ($6.15 -> $3.76).
+  This holds the lane at its prior size ($6.15 -> $7.10). **`UNIT_SIZE` is the longshot
+  knob; `KELLY_FRACTION` is the favorites knob** -- they bind at different prices and are
+  independently tunable. `KELLY_FRACTION=1` was set on 07-22 to size longshots up, which
+  was the wrong knob.
+- `.env` `MAX_BET_SIZE` **15 -> 8**, backstop only. Nothing recent reaches it (largest
+  projected position 5.6% of bankroll), but at ~$92 bankroll $15 is 16.3% on one position,
+  breaching the CLAUDE.md 10% hard stop -- a cap that was unreachable while Kelly was broken.
+- `MIN_MARKET_PRICE` (Gate 3.5) untouched -- a reject threshold, independent of sizing. The
+  07-22 longshot experiment continues unaffected.
+
+### Tests
+
+New `TestKellyPriceComplement` (7 cases): dollars-at-risk scale as `1/(1-p)`, 50c reference
+point, favorites no longer collapse to the flat unit, longshots barely move, no divide-by-
+zero at 99c, and R1/R28 NO-side damping still composes. Full suite **659 passed**.
+
+Also added a shared `sizing_defaults` fixture and applied it to the five gate-test classes
+that assert a bare `"APPROVED"`. Those read `MAX_BET_SIZE`/`KELLY_FRACTION` from the live
+`.env` at import time, so lowering `MAX_BET_SIZE` flipped twelve unrelated gate tests to
+`APPROVED_CAPPED_MAX_BET`. Same class of breakage hit the venue-min-shares tests on 07-22.
+
+### Still open
+
+A real correlation guard for same-night / same-league / same-threshold slates. Dividing by
+`batch_size` is only a proxy -- it assumes every leg in a batch is perfectly correlated,
+which over-damps independent slates and under-damps ones like tonight's four MLB unders.
+
+---
+
 ## 2026-07-25 -- Polymarket task audit: portfolio value was always $0.00
 
 ### Audit result

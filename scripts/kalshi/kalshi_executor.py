@@ -779,9 +779,15 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     # Flat unit sizing (baseline)
     flat_contracts = unit_size_contracts(opp.market_price, unit_size)
 
-    # Kelly sizing divided by batch size: bet = (fraction / N) * edge * bankroll
+    # Kelly sizing divided by batch size:
+    #   bet = (fraction / N) * edge / (1 - price) * bankroll
     # This ensures total batch exposure stays proportional to what single-bet
     # Kelly would allocate, preventing over-commitment on simultaneous bets.
+    # Note the /N divisor doubles as a crude correlation guard: a slate of N
+    # bets that all resolve on the same underlying (e.g. four MLB unders on one
+    # night) splits a single Kelly allocation rather than stacking N of them.
+    # That is why KELLY_FRACTION is effectively a *portfolio* Kelly fraction —
+    # at 1.0 a fully correlated slate reaches full Kelly. Keep it <= 0.5.
     effective_kelly = KELLY_FRACTION / max(1, batch_size)
 
     # R1 & R28: dampen Kelly on NO bets. Apply global NO-side multiplier first.
@@ -792,7 +798,22 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         if opp.market_price < NO_SIDE_KELLY_PRICE_FLOOR:
             effective_kelly *= NO_SIDE_KELLY_MULTIPLIER
 
-    kelly_bet = effective_kelly * trusted_edge(opp.edge) * bankroll
+    # C11 (2026-07-27): divide by (1 - price). Kelly for a binary contract is
+    #   f* = (q - p) / (1 - p) = edge / (1 - price)
+    # where p is the price and q the fair value. The `/ (1 - price)` term was
+    # missing, which is the even-money (b=1) approximation — exact only at 50c
+    # and increasingly wrong toward either extreme. It under-sized favorites by
+    # 1/(1-p): 2.5x at 60c, 5.0x at 80c, 5.9x at 83c. In practice every bet
+    # above ~60c fell back to the flat UNIT_SIZE floor and got 1 contract
+    # (mean contracts by entry price: sub-40c 5.56, 40-60c 1.83, 60c+ 1.17),
+    # despite 60c+ being the best-calibrated segment in the book — 44/52 vs a
+    # 73.6% break-even, p=0.044, and the only price band whose realized win
+    # rate beats break-even by more than noise. Re-sized over the 367 settled
+    # trades this turns the 60c+ segment from +$10.02 to +$47.52 at the same
+    # ROI. Longshot sizing is nearly unchanged (1.18x at 15c) — there the flat
+    # unit floor binds, not Kelly.
+    price_complement = max(0.01, 1.0 - opp.market_price)
+    kelly_bet = effective_kelly * trusted_edge(opp.edge) * bankroll / price_complement
     kelly_contracts = max(1, int(kelly_bet / opp.market_price)) if kelly_bet > 0 else flat_contracts
 
     # Use the larger of flat and Kelly (Kelly scales up for high-edge bets)
