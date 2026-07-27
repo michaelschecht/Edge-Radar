@@ -90,7 +90,7 @@ Edge-Radar/
 │   ├── services.py                  # Wrapper around core scripts
 │   ├── theme.py                     # Dark terminal CSS
 │   └── views/                       # Page modules (scan, portfolio, settle)
-├── tests/                           # 550 pytest tests
+├── tests/                           # 667 pytest tests
 └── scripts/
     ├── scan.py                      # Unified entry point
     ├── doctor.py                    # Environment validator
@@ -175,7 +175,7 @@ Shipped with two paired `.env` changes, because the fix alone is not safe: **`KE
 
 **C11b (2026-07-27): the correlation guard was measured and dropped; the budget cap became floor-aware instead.** C11 left "add a correlation guard" open. Measuring it first (`scripts/backtest/correlation_check.py`) killed the premise: the naive pooled estimate of intra-cluster correlation is **rho +0.181, p=0.0018**, but that is Simpson's paradox — clusters sit inside strata with very different base rates (totals win 82%, spreads 24%) and pooling unequal-mean groups manufactures apparent within-group concordance. Judging each cluster against *its own* base rate, with a permutation test that shuffles within stratum, gives **rho +0.048** overall and, for **totals specifically — the four-MLB-unders case that motivated the whole idea — rho −0.187 (p=0.75), i.e. nothing**. Even at the aggregate figure, four bets behave like ~3.8 independent ones. No guard was built. Re-run the script as settlements accumulate; 28 clustered totals bets cannot detect a small rho, so this is "no evidence of correlation", not proof of independence.
 
-The same investigation corrected a C11 overstatement and surfaced a real regression. **Correction:** the "32% of bankroll" figure used to justify `KELLY_FRACTION=0.5` came from `size_order` in isolation and ignored `--budget`, which every scheduler passes (12% for sports, 10% for futures/Polymarket) and which proportionally scales the whole batch. Blast radius was already bounded at ~$11; 0.5 is still right (full portfolio Kelly is too hot) but not for the reason first given. **Regression:** because the budget is a *fixed pool*, C11's correctly-sized favorites crowd everything else out — on the 07-27 slate the 18c MLS leg fell from 6 contracts ($1.08) to 2 ($0.36), which would have quietly starved the `MIN_MARKET_PRICE=0.10` longshot experiment instead of testing it. Fix: `_apply_budget_cap` now (a) never shaves an order below its flat unit floor `round(unit_size / price)`, (b) bisects for the largest feasible scale rather than taking one proportional pass, and (c) drops whole orders — lowest composite first — *only* when the floors alone cannot fit, so a few cents of overage can no longer delete a position. Also: the scheduler `.bat` files passed `--unit-size .5`, which overrode the `.env` `UNIT_SIZE=1.00` for every automated run; all 16 now pass `--unit-size 1`. Net on the 07-27 slate: longshot leg back to **6 contracts**, batch $10.89 of an $11.03 budget.
+The same investigation corrected a C11 overstatement and surfaced a real regression. **Correction:** the "32% of bankroll" figure used to justify `KELLY_FRACTION=0.5` came from `size_order` in isolation and ignored `--budget`, which every scheduler passes (12% for sports, 10% for futures/Polymarket) and which proportionally scales the whole batch. Blast radius was already bounded at ~$11; 0.5 is still right (full portfolio Kelly is too hot) but not for the reason first given. **Regression:** because the budget is a *fixed pool*, C11's correctly-sized favorites crowd everything else out — on the 07-27 slate the 18c MLS leg fell from 6 contracts ($1.08) to 2 ($0.36), which would have quietly starved the `MIN_MARKET_PRICE=0.10` longshot experiment instead of testing it. Fix: `_apply_budget_cap` now (a) never shaves an order below its flat unit floor `round(unit_size / price)`, (b) bisects for the largest feasible scale rather than taking one proportional pass, and (c) drops whole orders — lowest composite first — *only* when the floors alone cannot fit, so a few cents of overage can no longer delete a position. Also: the scheduler `.bat` files passed `--unit-size 1`, which overrode the `.env` `UNIT_SIZE=1.00` for every automated run; all 16 now pass `--unit-size 1`. Net on the 07-27 slate: longshot leg back to **6 contracts**, batch $10.89 of an $11.03 budget.
 
 ### Dry Run Mode
 
@@ -269,7 +269,7 @@ python scripts/scan.py futures --filter nba-futures
 python scripts/scan.py prediction --filter crypto
 
 # Execute with budget cap
-python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date today --exclude-open --execute
+python scripts/scan.py sports --unit-size 1 --max-bets 5 --budget 10% --date today --exclude-open --execute
 
 # Portfolio
 python scripts/kalshi/risk_check.py --report positions

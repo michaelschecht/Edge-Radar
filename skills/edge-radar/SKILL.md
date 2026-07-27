@@ -46,7 +46,7 @@ Parse the user's intent from the arguments. The skill supports natural language 
 | `--save` | off | Save results as markdown report to `reports/` |
 | `--date DATE` | (none) | Filter by date: `today`, `tomorrow`, `YYYY-MM-DD`, `mar31`, `03-30` |
 | `--exclude-open` | off | Skip markets with existing open positions |
-| `--budget X` | (none) | Max total batch cost — `10%` (of bankroll) or `15` (flat dollars). Proportionally scales down contracts to stay within budget while preserving Kelly edge-weighting |
+| `--budget X` | (none) | Max total batch cost — `10%` (of bankroll) or `15` (flat dollars). Scales contracts down to fit while preserving Kelly edge-weighting, but never below a bet's flat unit floor; drops lowest-composite bets if the floors alone don't fit (C11b) |
 | `--pick '1,3,5'` | (none) | Cherry-pick specific rows from preview |
 | `--ticker TICKER` | (none) | Target a specific Kalshi ticker |
 | `--category CAT` | (none) | Market type: `game`, `spread`, `total`, `player_prop` |
@@ -64,7 +64,7 @@ Parse the user's intent from the arguments. The skill supports natural language 
 
 ```bash
 python scripts/scan.py sports --filter mlb --date today --save
-python scripts/scan.py sports --unit-size .5 --max-bets 5 --budget 10% --date today --exclude-open --execute
+python scripts/scan.py sports --unit-size 1 --max-bets 5 --budget 10% --date today --exclude-open --execute
 python scripts/scan.py futures --filter nba-futures
 python scripts/scan.py prediction --filter crypto
 python scripts/scan.py polymarket --filter all --min-edge 0.01 --top 40 --save
@@ -96,7 +96,7 @@ make reconcile         # Compare local log vs API
 make backtest          # Full backtest analysis
 make backtest-sim      # Strategy-comparison simulation + save
 make doctor            # Environment validator (shows the config actually in force)
-make test              # Run full test suite (651 tests)
+make test              # Run full test suite (667 tests)
 make test-quick        # Quick test run (stop on first failure)
 make lint-config       # Guard: block new os.getenv from bypassing app/config.py
 make install           # Install dependencies
@@ -470,11 +470,11 @@ After execution, summarize:
 | `/edge-radar bet nba --go --unit-size 1 --max-bets 3` | `scan.py sports --filter nba --execute --unit-size 1 --max-bets 3` (no confirmation needed) |
 | `/edge-radar scan all` | `scan.py sports` (no filter = all sports) |
 | `/edge-radar scan all --date today` | `scan.py sports --date today` (all sports, today only) |
-| `/edge-radar bet all --unit-size .5 --max-bets 10` | `scan.py sports --unit-size .5 --max-bets 10` then confirm then `--execute` |
+| `/edge-radar bet all --unit-size 1 --max-bets 10` | `scan.py sports --unit-size 1 --max-bets 10` then confirm then `--execute` |
 | `/edge-radar bet mlb --pick '1,3,5'` | `scan.py sports --filter mlb --execute --pick '1,3,5'` (R26: replays last `--filter mlb` preview from `data/cache/last_scan.json`; mismatched filter args trigger a red banner + rescan) |
 | Two-call pattern (preview, then pick) | `scan.py sports --filter mlb --exclude-open` (preview), then `scan.py sports --filter mlb --exclude-open --pick '1,3' --execute` — keep the same flags so R26 replays cleanly. Add `--rescan` to force a live rescan. |
 | `/edge-radar bet mlb --budget 10% --max-bets 5` | `scan.py sports --filter mlb --budget 10% --max-bets 5` then confirm then `--execute` |
-| `/edge-radar bet all --budget 15 --unit-size .5` | `scan.py sports --budget 15 --unit-size .5` then confirm then `--execute` |
+| `/edge-radar bet all --budget 15 --unit-size 1` | `scan.py sports --budget 15 --unit-size 1` then confirm then `--execute` |
 
 ---
 
@@ -499,12 +499,14 @@ When `--save` is used, the report format depends on whether `--unit-size` was pa
 
 ## Risk Limits (Current)
 
-- **Sizing:** Batch-aware Kelly — `(KELLY_FRACTION / batch_size) * trusted_edge(edge) * bankroll`, with flat unit size as floor. When placing N bets simultaneously, each gets `fraction/N` to prevent over-committing.
+- **Sizing:** Batch-aware Kelly — `(KELLY_FRACTION / batch_size) * trusted_edge(edge) / (1 - price) * bankroll`, with flat unit size as floor. When placing N bets simultaneously, each gets `fraction/N` to prevent over-committing.
+- **Kelly price complement (C11, 2026-07-27):** the `/ (1 - price)` term is the real Kelly for a binary contract (`f* = (q - p) / (1 - p)`). It was missing until 2026-07-27 — the even-money approximation, exact only at 50c — which under-sized favorites by `1/(1-p)` (2.5x at 60c, 5.9x at 83c) and pinned nearly every bet above ~60c to the flat unit floor at 1 contract. The 60c+ band is the best-calibrated in the book (44/52 vs a 73.6% break-even, p=0.044), so this was leaving real money on the table.
+- **Which knob moves what:** below ~30c the flat floor `round(UNIT_SIZE / price)` binds and Kelly never clears it, so **`UNIT_SIZE` is the longshot knob**. Above ~60c Kelly binds and `UNIT_SIZE` is irrelevant, so **`KELLY_FRACTION` is the favorites knob**. They bind at different prices and are tuned independently.
 - **Kelly edge soft-cap (C1, 2026-04-18):** `trusted_edge()` damps the edge used in Kelly sizing above `KELLY_EDGE_CAP=0.15`. Excess is multiplied by `KELLY_EDGE_DECAY=0.5` (e.g., 25% claimed edge sizes like 20%). Raw edge unchanged in gates, reports, and rationale. Calibration showed claimed edges ≥25% realize -35% ROI — this downsizes likely-fake signals.
-- **Budget cap:** `--budget X` caps the total batch cost. Accepts `10%` (of bankroll) or `15` (flat dollars). When the batch exceeds the budget, contracts are proportionally scaled down while preserving Kelly edge-weighting (higher-edge bets keep more size). Each bet keeps at least 1 contract.
-- **Kelly fraction:** `KELLY_FRACTION` in `.env`. Code default 0.25; **live value is 1** (set 2026-07-22 to size longshots up). Note it is *not* full Kelly — it is divided by `batch_size = min(len(opportunities), --max-bets)`, so at the schedulers' `--max-bets 5` the effective multiplier is **0.20 Kelly**.
-- **Unit size:** code default $1.00, **live `.env` is $0.50** (minimum per bet, overridable with `--unit-size`)
-- **Max bet size:** code default $100, **live `.env` is $15** (gate 8 — sizing cap, not reject)
+- **Budget cap (C11b, 2026-07-27):** `--budget X` caps the total batch cost. Accepts `10%` (of bankroll) or `15` (flat dollars). The budget is a **fixed pool**, so sizing one class of bet up necessarily takes capital from the others. When the batch exceeds it, contracts scale down while preserving Kelly edge-weighting — but **never below a bet's flat unit floor** `round(unit_size / price)`. The cap bisects for the largest feasible scale rather than taking one proportional pass, and drops whole orders (lowest composite first) *only* when the floors alone cannot fit. Each surviving bet keeps at least 1 contract.
+- **Kelly fraction:** `KELLY_FRACTION` in `.env`. Code default 0.25; **live value is 0.5**. It is divided by `batch_size = min(len(opportunities), --max-bets)`, and that divisor doubles as a crude correlation guard (a slate sharing an underlying splits *one* Kelly allocation), which makes it effectively a **portfolio** Kelly fraction. At 1.0 a fully correlated slate reaches full Kelly. **Keep it ≤ 0.5.**
+- **Unit size:** code default $1.00, **live `.env` is $1.00** (minimum per bet, overridable with `--unit-size`). The scheduler `.bat` files pass `--unit-size 1` explicitly — CLI flags beat `.env`, so both must move together.
+- **Max bet size:** code default $100, **live `.env` is $8** (gate 8 — sizing cap, not reject). Backstop only; nothing in the recent book reaches it.
 - **Bet ratio cap:** code default 3.0x, **live `.env` is 5x** batch median cost (gate 9 — sizing cap, not reject)
 
 > **Always run `make doctor` (or `python scripts/doctor.py`) before quoting a limit.** The live `.env` overrides many shipped defaults — the account is small (~$89 bankroll), so `MAX_DAILY_LOSS` is $30 not $250, and several floors are tuned down accordingly. Quoting the code default as if it were in force is the most common error in this area.
@@ -570,7 +572,7 @@ python scripts/scan.py prediction --filter crypto
 ### Executing
 ```bash
 python scripts/scan.py sports --filter mlb --execute --unit-size 1 --max-bets 10
-python scripts/scan.py sports --filter mlb --execute --unit-size .5 --max-bets 5 --budget 10%
+python scripts/scan.py sports --filter mlb --execute --unit-size 1 --max-bets 5 --budget 10%
 python scripts/scan.py sports --filter nba --execute --pick '1,3,5'
 ```
 
@@ -653,7 +655,7 @@ scripts\schedulers\same_day_executions\same_day_scan.bat
 scripts\schedulers\same_day_executions\same_day_execute.bat
 ```
 
-Config: `--unit-size .5`, `--max-bets 5`, `--budget 12%`, `--date today`, `--exclude-open`, `--save`.
+Config: `--unit-size 1`, `--max-bets 5`, `--budget 12%`, `--date today`, `--exclude-open`, `--save`.
 
 > `scripts/schedulers/*` is **gitignored** — the `.bat` files are local-only and won't appear in `git status` or diffs. Edits there don't propagate to a fresh clone. Only `scripts/schedulers/automation/*.py` is tracked.
 

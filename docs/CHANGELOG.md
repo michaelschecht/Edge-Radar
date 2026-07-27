@@ -77,6 +77,38 @@ pressure, the pre-C11b behaviour still reproducible via `unit_size=None`, drop-l
 composite when floors do not fit, never-scale-up, single-order honors budget over floor,
 always-within-budget across five budget levels, empty input. Full suite **667 passed**.
 
+### Docs propagated
+
+Swept the repo for both the old and new forms of every touched value/flag, then updated:
+
+- **`.env.example`** -- `KELLY_FRACTION` and `UNIT_SIZE` rationale blocks: which knob moves
+  which lane, the portfolio-fraction caveat, the `f* = edge / (1 - price)` formula, and a
+  warning that scheduler `.bat` files pass `--unit-size` explicitly so CLI beats `.env`.
+- **`CLAUDE.md`** -- C11 + C11b notes, live-`.env` block, `--unit-size` example, test count.
+- **`docs/ROADMAP.md`** -- C11 + C11b as shipped rows in Priority 2, new Completed index
+  entry, `Last updated` bumped to 2026-07-27.
+- **`docs/setup/ARCHITECTURE.md`** -- budget-cap section rewritten for the floor-aware /
+  bisecting / drop-only-when-floors-do-not-fit behaviour.
+- **`docs/scripts/SCRIPTS_REFERENCE.md`** -- registered `backtest/correlation_check.py` with
+  usage, flags, and a callout to read the stratified rho rather than the pooled one.
+- **`docs/scripts/per-script/kalshi_executor.md`** -- sizing formula corrected to include
+  `/ (1 - market_price)`, plus the which-knob-moves-what and portfolio-fraction notes.
+- **`docs/task-schedules/README.md`** -- documented scheduler flags now `--unit-size 1`.
+- **`skills/edge-radar/SKILL.md`** -- sizing formula, budget-cap description (both the flag
+  table and the risk-limits section), live `KELLY_FRACTION`/`UNIT_SIZE`/`MAX_BET_SIZE`
+  values, `--unit-size` examples, test count.
+- **`skills/edge-radar-analysis/SKILL.md`** -- `correlation_check.py` added to Related with
+  the Simpson's-paradox caveat and a re-run trigger.
+- **`webapp/views/scan_page.py`** -- `DEFAULT_UNIT_SIZE` 0.50 -> 1.00 to match live config.
+- **`.claude/html/index.html`** -- "1/4-Kelly" -> "fractional Kelly" (live value is 0.5).
+- **Memory** -- new `project-scheduler-flags-override-env` (CLI flags beat `.env`; simulate
+  the full `size_order` -> ratio cap -> budget cap chain), and
+  `project-longshot-kelly-experiment` rewritten now that `KELLY_FRACTION` is no longer part
+  of that experiment.
+
+Historical references to the old values in `docs/CHANGELOG.md` and the ROADMAP's Findings /
+Completed sections were left intact as record.
+
 ---
 
 ## 2026-07-27 -- C11: Kelly was missing the (1 - price) divisor
