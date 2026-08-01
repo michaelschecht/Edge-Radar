@@ -2,6 +2,64 @@
 
 ---
 
+## 2026-07-31 -- MLB high-strike totals dominate the book (T1/T2 opened)
+
+Operator observation: "under 13.5 or so runs in baseball" bets seemed to be placed far
+more often than anything else. Investigated. Confirmed, and understated.
+
+**Concentration.** Of 115 live trades, **31 are MLB totals (27%)**, **28 NO-side**, and
+**14 sit on strike 13** -- one repeated wager shape is 12% of the whole book, against just
+7 MLB moneylines in the same window. No gate prevents it: each bet is a *different game*,
+so `MAX_PER_EVENT` and series dedup never engage, and `CROSS_CATEGORY_DEDUP` only collapses
+categories within a single game.
+
+**Calibration.** Those 28 settled NO bets went **18W-10L (64.3%)** against an **80.1%**
+market-implied break-even -- **-12.6% ROI (-$6.28)**. Versus the market that is p=0.038
+(marginal at n=28). Versus **the model's own claimed 89.7% fair value it is p=0.0003**.
+Whether the bets are exactly -EV is not settled by 28 samples; that the model is wrong
+about them is.
+
+**Mechanism.** `consensus_total_prob` infers a mean total from the sportsbook line (~8.7
+runs) and extrapolates to the Kalshi strike with a normal CDF at
+`SPORT_TOTAL_STDEV["baseball_mlb"] = 3.45`. Strike 13 is **1.25 sigma** out, where the
+answer comes from the stdev assumption rather than any book quote. There is a
+**disagreement sweet spot**: near the line model and market agree, far out both approach
+100% NO, and around 1.25 sigma the model says 89% NO against the market's 80%. Every MLB
+game lists a strike in that window, so every game emits one near-identical NO bet. **R28's
+global NO floor is 8% while the phantom edge averages 9.6%** -- the gate built to stop bad
+NO bets sits just under the bias.
+
+**Ruled out:** skew. The intuitive story (normal CDF understates a right-skewed tail) is
+wrong here -- a negative binomial with the same mean and variance gives a *lower* P(>13)
+(9.0% vs 10.6%), which would raise the model's NO fair value, not lower it.
+
+**Most likely driver: adverse selection.** The model bets the games where its own noisy
+inferred mean sits lowest relative to the strike, selecting the cases where that estimate
+is most wrong -- the same winner's-curse pattern C4 found for high confidence and C11 found
+for sub-40c prices.
+
+**Relation to C11b.** That investigation measured *correlation* among the "four MLB unders
+on one night" slate and correctly found none (totals rho -0.187, p=0.75). It never asked
+why there were four. This is the answer: not a correlation problem, a generation problem.
+C11b's conclusion stands; its question was the wrong one.
+
+Opened as **T1** (concentration + calibration; candidate fixes: cap extrapolation distance,
+totals-specific NO floor, per-shape batch cap) and **T2** (verify the `>=` vs `>` strike
+convention -- if Kalshi's strike-13 market resolves YES on "13 or more", the model's
+`1 - norm.cdf(13)` understates YES by **3.1 points on every totals bet in every sport**,
+always toward NO). **Do T2 first** -- cheapest, widest reach, and possibly the whole story.
+
+Also documented **PM2e**: the post-C10/C10b risk posture. The bugs themselves cost almost
+nothing (0 Polymarket trades, 0 prediction bets, 0 trades over `MAX_BET_SIZE`, 0 NBA/NCAAB
+bets in the band the stale Cloud config would have admitted), but the *fixes* made Gate 4
+reachable on futures and games for the first time, on surfaces with zero settled trades,
+while the venue is armed and executing unattended. T1 is the cautionary precedent for what
+happens when a composite lets a new bet shape through at scale.
+
+No code changed in this entry -- findings and roadmap only.
+
+---
+
 ## 2026-07-31 -- C10b: the games composite had the same unreachable Gate 4
 
 C10 (2026-07-23) diagnosed the futures composite scaling edge as `min(10, edge * 20)` --
