@@ -81,7 +81,10 @@ QUICK_SCANS = {
     "Sports": "sports",
     "Futures": "futures",
     "Prediction": "prediction",
+    "Polymarket": "polymarket",
 }
+
+PAGES = ["Scan & Execute", "Portfolio", "Settle & Report", "Backtest", "Config"]
 
 
 def main():
@@ -106,7 +109,7 @@ def main():
         # ── Main navigation ─────────────────────────────────────────
         page = st.radio(
             "NAV",
-            ["Scan & Execute", "Portfolio", "Settle & Report", "Backtest"],
+            PAGES,
             index=0,
             label_visibility="collapsed",
         )
@@ -136,7 +139,7 @@ def main():
         st.markdown("""
         <div style="position:fixed; bottom:1rem; font-family:JetBrains Mono,monospace;
                     font-size:0.6rem; color:#334155; letter-spacing:0.05em;">
-            v1.0 &middot; KALSHI
+            v1.1 &middot; KALSHI + POLYMARKET
         </div>
         """, unsafe_allow_html=True)
 
@@ -153,6 +156,9 @@ def main():
     elif page == "Backtest":
         from views import backtest_page
         backtest_page.render()
+    elif page == "Config":
+        from views import config_page
+        config_page.render()
 
 
 if __name__ == "__main__":

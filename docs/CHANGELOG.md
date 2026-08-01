@@ -2,6 +2,122 @@
 
 ---
 
+## 2026-07-31 -- Streamlit dashboard: Polymarket venue, Config page, env-registry fix
+
+The dashboard had drifted well behind the CLI. It exposed three market types while
+`scan.py` had four, its risk-gate help text still described gate values from April, and
+its Streamlit-secrets bootstrap listed ~20 fewer knobs than `app/config.py` reads. This
+brings it level and adds the Polymarket venue.
+
+### The env-var registry was the real bug
+
+`webapp/services.py` carried a hand-maintained `_flat_keys` list naming which flat TOML
+keys to lift from `st.secrets` into `os.environ`. It has to exist -- the lift must happen
+*before* any script import caches config, so it cannot introspect `app.config` -- but it
+was last extended in April. Everything added since was absent: the R28 NO-side globals,
+both L1 live-bet gates, `MIN_CONSENSUS_BOOKS_NBA`, `CALIBRATION_STDEVS_TTL_DAYS`,
+`CROSS_CATEGORY_DEDUP` (global and per-sport), both cache groups (R24b/R26), and every
+Polymarket credential.
+
+The failure mode is silent and specific to Cloud: set one of those in **Settings ->
+Secrets** and nothing reads it, with no error -- the app runs on the code default while
+the secret sits there looking authoritative. Local `.env` deployments were unaffected
+(`python-dotenv` loads the file wholesale), which is why it went unnoticed.
+
+Replaced with `ENV_VAR_SPEC`, one registry serving three consumers: the secrets bootstrap,
+the new Config page, and anyone reading the file. `tests/test_webapp_env_registry.py`
+parses `app/config.py` for every `_bool`/`_float`/`_int`/`_str`/`_list` name plus the
+f-string per-sport expansions and fails if the two diverge in either direction. Writing
+that test immediately surfaced nine more undocumented vars (`KALSHI_PROD_*`, `ALPACA_*`,
+`TELEGRAM_*`, `PROJECT_ROOT`) -- the same gap the 2026-07-14 repo review flagged against
+`.env.example`, which is now closed there too.
+
+### Polymarket as a first-class venue
+
+Market type `polymarket` routes the scan through `_route_filter` -- the CLI's own filter
+router, imported rather than reimplemented, so the dashboard and `scan.py polymarket
+--filter X` cannot disagree about which surfaces a filter covers -- and switches the
+execution client to `PolymarketClient` via the `get_market_client` factory.
+
+Three venue asymmetries needed explicit handling rather than reuse:
+
+- **Two-flag dry run.** Orders require BOTH `DRY_RUN=false` and `POLYMARKET_DRY_RUN=false`.
+  The banner and confirm dialog resolve the live state through the same logic as
+  `polymarket_futures_edge._order_mode` instead of assuming `DRY_RUN` alone, so a
+  Polymarket-armed account cannot show a "DRY RUN" dialog.
+- **Only futures are orderable.** Gamma-sourced game rows carry no US `market_slug`. They
+  now show `Exec = -` in the results table, are excluded before `execute_pipeline`
+  (matching the CLI), and the confirm dialog counts only orderable rows -- selecting five
+  game rows previously would have said "up to 5" and sent zero.
+- **Different position shape.** Polymarket money fields are Amount objects
+  (`{"value": "4.98", "currency": "USD"}`) and `market_exposure_dollars` is cost basis,
+  not market value. Run through the Kalshi formatter this printed `$0.00` unrealized on
+  every row; a separate formatter reads `cashValue` for mark-to-market and reconciles to
+  the Portfolio Value tile. Portfolio is now Kalshi/Polymarket tabs -- but the daily-loss
+  bar is deliberately shared and labelled as such, because Gate 1 reads the common trade
+  log.
+
+### Config page
+
+New read-only page: execution mode per venue, then every variable with its live value,
+its source (`set` / `default` / `unset`), group, and rationale. Credentials render as a
+character count only. Exports a `.env` template with live values and secrets blanked.
+
+This is the direct answer to "is the app actually running my config?" -- previously
+unanswerable from the UI, and genuinely ambiguous because `kalshi_executor` snapshots
+gates at import time.
+
+### Smaller corrections
+
+- **Gate column added** to scan results. The Min Edge help text had promised "Each scan
+  row's Gate column previews which gate will reject it" since April; there was no such
+  column. It now runs the same `preflight_gate_status` the CLI preview uses.
+- **Help text resynced** -- it still cited a `$0.06` price floor (live value `0.10`) and
+  omitted gates 4.6b, 4.8, and the C10/C11b changes.
+- **Budget % is no longer sports-only.** The cap is venue- and type-neutral and the
+  schedulers pass `--budget` on futures and Polymarket runs, so hiding the control made
+  a dashboard futures run the one path with no batch cap at all.
+- Settle page states Kalshi-only scope (PM3 pending) and shows a Venue column.
+- `DEFAULT_UNIT_SIZE`, Max Bets, and Exclude Open defaults matched to the live `.env`.
+
+Docs: `docs/web-app/LOCAL.md` (Polymarket mode, Config page, per-venue Portfolio, new
+columns), `docs/web-app/CLOUD.md` (secrets template rebuilt -- it was missing every knob
+added since April, plus the `[polymarket]` block), `.env.example` (the nine undocumented
+vars). 673 tests pass.
+
+---
+
+## 2026-07-27 -- Working branch moved from `mike_win-desktop` to `mike_desktop`
+
+Every other repo under `Repos/Live_Apps` (Agent-Chat, edge-spectrum, my-prompt-library,
+taskhub) uses `mike_desktop` as the working branch. Edge-Radar was the lone exception on
+`mike_win-desktop`. It is now aligned.
+
+The switch was clean, not a migration: `mike_win-desktop` had **0 commits** not already in
+`origin/master` (PR #243 merged the last of them), and the operator deleted and re-created
+`origin/mike_desktop` from `master`, so `origin/mike_desktop == origin/master == c23b3c7`.
+The only working-tree change -- the weekly account-graph HTML refresh -- was already
+byte-identical to the copy on `master`, so nothing had to be carried across.
+
+Local state after the move: `mike_desktop` checked out and tracking `origin/mike_desktop`;
+local `master` fast-forwarded to `origin/master`. The `git sync-master` alias
+(`git fetch origin && git branch -f master origin/master`) is unaffected -- it only ever
+touched `master`.
+
+Docs updated: the `CLAUDE.md` session-startup checklist (now carries an explicit **working
+branch: `mike_desktop`, deploy branch: `master`** callout, matching the sibling repos),
+`docs/task-schedules/README.md` (account-graph `gh`-push rationale), and
+`docs/my-documents/account-graph/README.md`. Historical references in this changelog, in
+`docs/my-documents/repo-reviews/2026-07-14-repo-review.md`, and in
+`docs/my-documents/temp/archive/streamlit_deployment.md` were **left as-is** -- they record
+what the branch was at the time and rewriting them would falsify the record.
+
+Nothing in code, tests, schedulers, `Makefile`, or `.github/workflows/` referenced the branch
+name (`deploy.yml` watches `master` only), so no automation changed. `origin/mike_win-desktop`
+still exists as a safety net and can be deleted once the new setup has been exercised.
+
+---
+
 ## 2026-07-27 -- C11b: correlation guard measured and dropped; budget cap made floor-aware
 
 ### The correlation guard does not survive measurement

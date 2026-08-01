@@ -42,6 +42,13 @@ def render():
     </p>
     """, unsafe_allow_html=True)
 
+    st.caption(
+        "Kalshi only. Polymarket US settlement and redemption (PM3) is not "
+        "built yet — its client returns an empty settlements list, so "
+        "Polymarket-tagged trades stay open in the log until that lands. "
+        "Settle and the P&L report below cover Kalshi rows."
+    )
+
     if st.button("SETTLE", type="primary"):
         with st.spinner("Settling trades..."):
             try:
@@ -87,6 +94,9 @@ def render():
             net_pnl = s.get("net_pnl", 0)
             rows.append({
                 "Result": "W" if won else "L",
+                # Rows logged before the PM2c venue tag default to Kalshi,
+                # matching log_trade's own fallback.
+                "Venue": s.get("venue") or "kalshi",
                 "Ticker": ticker,
                 "Side": (s.get("side") or "").upper(),
                 "Contracts": s.get("contracts", 0),

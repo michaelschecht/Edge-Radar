@@ -13,7 +13,8 @@ from contextlib import contextmanager
 
 # Ensure script dirs are on sys.path (mirrors what .pth does for the venv).
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-for subdir in ["scripts/kalshi", "scripts/shared", "scripts/prediction"]:
+for subdir in ["scripts/kalshi", "scripts/shared", "scripts/prediction",
+               "scripts/polymarket"]:
     p = str(PROJECT_ROOT / subdir)
     if p not in sys.path:
         sys.path.insert(0, p)
@@ -24,13 +25,201 @@ for subdir in ["scripts/kalshi", "scripts/shared", "scripts/prediction"]:
 # sys.path[0]; we re-insert PROJECT_ROOT here to guarantee it wins.
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# ── Env-var registry ────────────────────────────────────────────────────────
+# One list, three consumers:
+#   1. the Streamlit Cloud secrets bootstrap below (which flat TOML keys to
+#      lift into os.environ),
+#   2. the Config page (`views/config_page.py`), which renders it as the
+#      live "what is actually in force" table,
+#   3. anyone reading this file to find out what the app understands.
+#
+# It previously drifted badly out of sync with `app/config.py` — the Cloud
+# deployment silently ignored ~20 knobs (every NO-side global, the live-bet
+# gates, both cache groups, all Polymarket credentials) because they simply
+# weren't listed here. Keep this in step with `app/config.py`; the test
+# `tests/test_webapp_env_registry.py` fails the build when they diverge.
+#
+# `default` is the code default from `app/config.py` — shown on the Config
+# page when nothing overrides it. `secret` masks the value in the UI.
+
+_SPORTS = ("MLB", "NBA", "NHL", "NFL", "NCAAB", "NCAAF", "MLS", "SOCCER")
+
+
+def _spec(name, group, default, note, secret=False):
+    return {"name": name, "group": group, "default": default,
+            "note": note, "secret": secret}
+
+
+ENV_VAR_SPEC: list[dict] = [
+    # ── Credentials ─────────────────────────────────────────────────────
+    _spec("KALSHI_API_KEY", "Credentials", "", "Kalshi API key ID.", secret=True),
+    _spec("KALSHI_PRIVATE_KEY_PATH", "Credentials", "",
+          "Path to the RSA private key (local runs)."),
+    _spec("KALSHI_PRIVATE_KEY", "Credentials", "",
+          "Inline PEM contents — used instead of the path on Streamlit Cloud.",
+          secret=True),
+    _spec("KALSHI_BASE_URL", "Credentials",
+          "https://api.elections.kalshi.com/trade-api/v2", "Kalshi API host."),
+    _spec("ODDS_API_KEYS", "Credentials", "",
+          "Comma-separated Odds API keys; rotated automatically on quota.",
+          secret=True),
+    _spec("ODDS_API_KEY", "Credentials", "",
+          "Single-key fallback when ODDS_API_KEYS is unset.", secret=True),
+    _spec("POLYMARKET_KEY_ID", "Credentials", "",
+          "Polymarket US retail API key UUID (Ed25519 scheme).", secret=True),
+    _spec("POLYMARKET_SECRET_KEY", "Credentials", "",
+          "Base64 Ed25519 private key from polymarket.us/developer.", secret=True),
+    _spec("POLYMARKET_API_HOST", "Credentials", "https://api.polymarket.us",
+          "Polymarket US retail API host."),
+
+    # Optional split-credential and integration groups. Read by `app/config.py`
+    # but not by any dashboard path — listed so the Config page is a complete
+    # answer to "what does this system read from the environment", which the
+    # 2026-07-14 repo review flagged as a live gap in `.env.example`.
+    _spec("KALSHI_PROD_API_KEY", "Credentials", "",
+          "Optional prod-pointing key used by make_prod_client().", secret=True),
+    _spec("KALSHI_PROD_PRIVATE_KEY_PATH", "Credentials", "",
+          "Private key for the prod-pointing client."),
+    _spec("KALSHI_PROD_BASE_URL", "Credentials",
+          "https://api.elections.kalshi.com/trade-api/v2",
+          "Host for the prod-pointing client."),
+    _spec("ALPACA_API_KEY", "Integrations", "",
+          "scripts fetch_market_data.py only — not used by the dashboard.",
+          secret=True),
+    _spec("ALPACA_SECRET_KEY", "Integrations", "",
+          "Alpaca secret; paper trading by default.", secret=True),
+    _spec("ALPACA_BASE_URL", "Integrations", "https://paper-api.alpaca.markets",
+          "Alpaca host. Paper endpoint by default."),
+    _spec("TELEGRAM_TOKEN", "Integrations", "",
+          "scripts/schedulers/automation/telegram_bot.py alerts.", secret=True),
+    _spec("TELEGRAM_CHAT_ID", "Integrations", "",
+          "Destination chat for Telegram alerts."),
+
+    # ── System ──────────────────────────────────────────────────────────
+    _spec("DRY_RUN", "System", "true",
+          "Global kill switch. false = real orders on every venue."),
+    _spec("POLYMARKET_DRY_RUN", "System", "true",
+          "PM2c venue-scoped switch. Polymarket orders need BOTH this and "
+          "DRY_RUN false. Set true to halt Polymarket without touching Kalshi."),
+    _spec("LOG_LEVEL", "System", "INFO", "DEBUG | INFO | WARNING | ERROR | CRITICAL."),
+    _spec("PROJECT_ROOT", "System", "",
+          "Overrides the inferred repo root (backtester report dir). Leave "
+          "unset unless you know you need it."),
+
+    # ── Risk limits ─────────────────────────────────────────────────────
+    _spec("UNIT_SIZE", "Risk limits", "1.00",
+          "C11: the LONGSHOT knob. Below ~30c the flat floor "
+          "round(UNIT_SIZE/price) binds and Kelly never clears it."),
+    _spec("MAX_BET_SIZE", "Risk limits", "100", "Hard cap per single bet (USD)."),
+    _spec("MAX_DAILY_LOSS", "Risk limits", "250",
+          "Gate 1. Shared across venues — one operator, one daily budget."),
+    _spec("MAX_OPEN_POSITIONS", "Risk limits", "50", "Gate 2."),
+    _spec("MAX_PER_EVENT", "Risk limits", "2", "Gate 6."),
+    _spec("MAX_BET_RATIO", "Risk limits", "3.0",
+          "Gate 9. Max single bet as a multiple of the batch median cost."),
+
+    # ── Sizing (Kelly) ──────────────────────────────────────────────────
+    _spec("KELLY_FRACTION", "Sizing", "0.25",
+          "C11: the FAVORITES knob. Divided by batch size at runtime, so it "
+          "is a PORTFOLIO fraction. Keep <= 0.5."),
+    _spec("KELLY_EDGE_CAP", "Sizing", "0.15", "Soft-cap on edge inside Kelly only."),
+    _spec("KELLY_EDGE_DECAY", "Sizing", "0.5", "Weight on edge above the cap."),
+    _spec("NO_SIDE_KELLY_PRICE_FLOOR", "Sizing", "0.35",
+          "R1: below this NO price, apply the NO-side multiplier."),
+    _spec("NO_SIDE_KELLY_MULTIPLIER", "Sizing", "0.5",
+          "R1: half-Kelly on NO bets under the price floor."),
+    _spec("NO_SIDE_KELLY_MULTIPLIER_GLOBAL", "Sizing", "1.0",
+          "R28: multiplier on EVERY NO bet. 1.0 = off."),
+
+    # ── Reject gates ────────────────────────────────────────────────────
+    _spec("MIN_EDGE_THRESHOLD", "Reject gates", "0.03",
+          "Gate 3, global floor. Per-sport overrides below win when set."),
+    _spec("MIN_MARKET_PRICE", "Reject gates", "0.12",
+          "Gate 3.5 (R7) lottery-ticket floor. Pure reject threshold — "
+          "independent of every sizing knob. 0 disables."),
+    _spec("MIN_COMPOSITE_SCORE", "Reject gates", "6.0",
+          "Gate 4. C10 aligned the futures composite to the sports edge "
+          "scale, so this now binds on futures at all."),
+    _spec("MIN_CONFIDENCE", "Reject gates", "medium", "Gate 4.5. low | medium | high."),
+    _spec("NO_SIDE_FAVORITE_THRESHOLD", "Reject gates", "0.25",
+          "Gate 4.6 trigger price. 0 disables the gate."),
+    _spec("NO_SIDE_MIN_EDGE", "Reject gates", "0.25",
+          "Gate 4.6 required edge (also needs confidence=high)."),
+    _spec("NO_SIDE_MIN_EDGE_GLOBAL", "Reject gates", "0.08",
+          "Gate 4.6b (R28). Effective NO floor = max(per-sport floor, this)."),
+    _spec("ALLOW_PREDICTION_BETS", "Reject gates", "false",
+          "Gate 4.7 (R25). true re-enables crypto/weather/spx/mentions/"
+          "companies/politics."),
+    _spec("ALLOW_LIVE_BETS", "Reject gates", "false",
+          "Gate 4.8 (L1). true allows bets on in-progress games."),
+    _spec("SERIES_DEDUP_HOURS", "Reject gates", "48",
+          "Gate 7. Same-matchup window. 0 disables."),
+    _spec("CROSS_CATEGORY_DEDUP", "Reject gates", "false",
+          "R8. true collapses ML+Total+Spread on one game to the highest "
+          "composite."),
+    _spec("MIN_CONSENSUS_BOOKS_NBA", "Reject gates", "8",
+          "R29. NBA games under this book count drop to `low` confidence, "
+          "which Gate 4.5 then rejects. 0 disables."),
+    _spec("RESTING_ORDER_MAX_HOURS", "Reject gates", "24",
+          "R4 janitor. Kalshi-only; Polymarket ops are PM3. 0 disables."),
+
+    # ── Data quality / freshness ────────────────────────────────────────
+    _spec("MAX_LIVE_BOOK_AGE_SECONDS", "Data quality", "1200",
+          "L1 Phase 2. Drop in-play books staler than this. 0 disables."),
+    _spec("MIN_LIVE_CONSENSUS_BOOKS", "Data quality", "3",
+          "L1 Phase 2. Skip an in-progress game the stale filter thinned "
+          "below this. 0 disables."),
+    _spec("CALIBRATION_STDEVS_TTL_DAYS", "Data quality", "30",
+          "C8. Max age of auto-recalibrated per-sport stdevs before falling "
+          "back to hardcoded defaults."),
+    _spec("TEST_CALIBRATION_STDEVS", "Data quality", "false",
+          "Test-only: read the stdev cache regardless of TTL."),
+
+    # ── Caching ─────────────────────────────────────────────────────────
+    _spec("ODDS_CACHE_TTL_SECONDS", "Caching", "300",
+          "R24b. Pre-game Odds API file cache. 0 disables."),
+    _spec("ODDS_CACHE_ENABLED", "Caching", "true", "R24b. false bypasses the file cache."),
+    _spec("ODDS_LIVE_TTL_SECONDS", "Caching", "45",
+          "L1. Shorter TTL when a sport response has an in-play event."),
+    _spec("SCAN_CACHE_TTL_SECONDS", "Caching", "600",
+          "R26. Row→ticker mapping so --pick replays instead of rescanning."),
+    _spec("SCAN_CACHE_ENABLED", "Caching", "true", "R26. false forces a rescan."),
+
+    # ── Notifications ───────────────────────────────────────────────────
+    _spec("NOTIFY_EMAIL", "Notifications", "", "Inbox scheduled reports are sent TO."),
+    _spec("AGENTMAIL_INBOX", "Notifications", "",
+          "agentmail.to address reports are sent FROM."),
+]
+
+# Per-sport overrides expand mechanically — one row per (prefix, sport).
+ENV_VAR_SPEC += [
+    _spec(f"MIN_EDGE_THRESHOLD_{s}", "Per-sport overrides", "",
+          f"Gate 3 floor for {s}; falls back to MIN_EDGE_THRESHOLD.")
+    for s in _SPORTS
+] + [
+    _spec(f"SERIES_DEDUP_HOURS_{s}", "Per-sport overrides", "",
+          f"R9 dedup window for {s}; falls back to SERIES_DEDUP_HOURS.")
+    for s in _SPORTS
+] + [
+    _spec(f"CROSS_CATEGORY_DEDUP_{s}", "Per-sport overrides", "",
+          f"R8 override for {s}; falls back to CROSS_CATEGORY_DEDUP.")
+    for s in _SPORTS
+]
+
+ENV_VAR_NAMES: tuple[str, ...] = tuple(s["name"] for s in ENV_VAR_SPEC)
+
+# Names never rendered in full on the Config page.
+SECRET_ENV_VARS: frozenset[str] = frozenset(
+    s["name"] for s in ENV_VAR_SPEC if s["secret"]
+)
+
 # On Streamlit Cloud, inject secrets into os.environ so all existing
 # os.getenv() calls in scripts (odds_api, edge_detector, etc.) work
 # without modification. Must run before any script imports.
 #
 # Supports two TOML layouts:
 #   Nested:    [kalshi] / api_key = "..."    → mapped via _secrets_map
-#   Flat:      KALSHI_API_KEY = "..."        → mapped via _flat_keys
+#   Flat:      KALSHI_API_KEY = "..."        → every name in ENV_VAR_NAMES
 try:
     import streamlit as st
     _secrets_map = {
@@ -39,44 +228,20 @@ try:
         "KALSHI_API_KEY": lambda: st.secrets["kalshi"]["api_key"],
         "KALSHI_PRIVATE_KEY": lambda: st.secrets["kalshi"]["private_key"],
         "KALSHI_BASE_URL": lambda: st.secrets["kalshi"]["base_url"],
+        # PM2: nested [polymarket] block, mirroring the [kalshi] layout.
+        "POLYMARKET_KEY_ID": lambda: st.secrets["polymarket"]["key_id"],
+        "POLYMARKET_SECRET_KEY": lambda: st.secrets["polymarket"]["secret_key"],
+        "POLYMARKET_API_HOST": lambda: st.secrets["polymarket"]["host"],
+        "POLYMARKET_DRY_RUN": lambda: st.secrets["polymarket"]["dry_run"],
         "DRY_RUN": lambda: st.secrets["DRY_RUN"],
     }
-    # Also check for flat top-level keys (e.g. ODDS_API_KEY = "...")
-    _flat_keys = [
-        "ODDS_API_KEY", "ODDS_API_KEYS",
-        "KALSHI_API_KEY", "KALSHI_PRIVATE_KEY", "KALSHI_BASE_URL",
-        "DRY_RUN",
-        # Risk parameters
-        "UNIT_SIZE", "KELLY_FRACTION", "MAX_BET_SIZE",
-        "MAX_DAILY_LOSS", "MAX_OPEN_POSITIONS", "MAX_PER_EVENT",
-        "MAX_BET_RATIO", "MIN_EDGE_THRESHOLD", "MIN_COMPOSITE_SCORE",
-        # Calibration-driven tuning (2026-04-18)
-        "KELLY_EDGE_CAP", "KELLY_EDGE_DECAY", "SERIES_DEDUP_HOURS",
-        "MIN_MARKET_PRICE",
-        "MIN_EDGE_THRESHOLD_MLB", "MIN_EDGE_THRESHOLD_NBA",
-        "MIN_EDGE_THRESHOLD_NHL", "MIN_EDGE_THRESHOLD_NFL",
-        "MIN_EDGE_THRESHOLD_NCAAB", "MIN_EDGE_THRESHOLD_NCAAF",
-        "MIN_EDGE_THRESHOLD_MLS", "MIN_EDGE_THRESHOLD_SOCCER",
-        # R9 (2026-04-27): per-sport SERIES_DEDUP_HOURS overrides
-        "SERIES_DEDUP_HOURS_MLB", "SERIES_DEDUP_HOURS_NBA",
-        "SERIES_DEDUP_HOURS_NHL", "SERIES_DEDUP_HOURS_NFL",
-        "SERIES_DEDUP_HOURS_NCAAB", "SERIES_DEDUP_HOURS_NCAAF",
-        "SERIES_DEDUP_HOURS_MLS", "SERIES_DEDUP_HOURS_SOCCER",
-        # 14-day review response (2026-04-21): R1 + R3 + R4
-        "MIN_CONFIDENCE",
-        "NO_SIDE_FAVORITE_THRESHOLD", "NO_SIDE_MIN_EDGE",
-        "NO_SIDE_KELLY_PRICE_FLOOR", "NO_SIDE_KELLY_MULTIPLIER",
-        "RESTING_ORDER_MAX_HOURS",
-        # Prediction-market safety gate (R25, 2026-04-24)
-        "ALLOW_PREDICTION_BETS",
-    ]
     for env_var, getter in _secrets_map.items():
         if env_var not in os.environ:  # config-bootstrap
             try:
                 os.environ[env_var] = str(getter())  # config-bootstrap
             except (KeyError, FileNotFoundError):
                 pass
-    for key in _flat_keys:
+    for key in ENV_VAR_NAMES:
         if key not in os.environ:  # config-bootstrap
             try:
                 os.environ[key] = str(st.secrets[key])  # config-bootstrap
@@ -100,7 +265,9 @@ from kalshi_client import KalshiClient
 from edge_detector import scan_all_markets, FILTER_SHORTCUTS
 from futures_edge import scan_futures_markets
 from prediction_scanner import scan_prediction_markets
-from kalshi_executor import execute_pipeline, reload_risk_config, UNIT_SIZE
+from kalshi_executor import (
+    execute_pipeline, reload_risk_config, preflight_gate_status, UNIT_SIZE,
+)
 from kalshi_settler import settle_trades, generate_report
 from risk_check import (
     fetch_balance, fetch_positions, fetch_resting_orders,
@@ -137,14 +304,27 @@ def capture_console():
         sys.stdout = old_stdout
 
 
-def get_client() -> KalshiClient:
-    """Create an authenticated Kalshi client.
+def get_client(venue: str = "kalshi"):
+    """Create an authenticated execution client for `venue`.
 
-    On Streamlit Cloud, reads credentials from st.secrets["kalshi"].
-    Locally, reads from .env as usual.
+    Kalshi: on Streamlit Cloud, reads credentials from st.secrets["kalshi"];
+    locally, from .env as usual.
+
+    Polymarket: routes through the venue-neutral `get_market_client` factory
+    (PM2 seam) so the webapp builds the same `PolymarketClient` the CLI does —
+    Ed25519 retail API, no separate secrets path needed because the bootstrap
+    above already lifted POLYMARKET_KEY_ID / POLYMARKET_SECRET_KEY into the
+    process environment.
+
     Raises FileNotFoundError with a clear message if credentials are missing.
     """
     import streamlit as st
+
+    v = (venue or "kalshi").strip().lower()
+
+    if v != "kalshi":
+        from market_client import get_market_client
+        return get_market_client(v)
 
     # Try to pull credentials from Streamlit secrets (Cloud deployment)
     try:
@@ -161,6 +341,48 @@ def get_client() -> KalshiClient:
     return KalshiClient()
 
 
+# ── Venue helpers (PM2c) ────────────────────────────────────────────────────
+
+def venue_for_market_type(market_type: str) -> str:
+    """Which execution venue a scan's market type executes on."""
+    return "polymarket" if market_type == "polymarket" else "kalshi"
+
+
+def polymarket_order_mode() -> tuple[bool, str]:
+    """(orders_live, human description) for the Polymarket two-flag state.
+
+    Mirrors `polymarket_futures_edge._order_mode` so the dashboard banner and
+    the CLI preview footer can never disagree about whether real money is on
+    the line. Read live (not snapshotted at import) and fails safe to
+    "blocked" if the config can't be read.
+    """
+    try:
+        cfg = get_config()
+        global_dry = bool(cfg.system.dry_run)
+        venue_dry = bool(getattr(cfg.polymarket, "dry_run", True))
+    except Exception:
+        return False, "order mode unknown — assuming blocked"
+    if not global_dry and not venue_dry:
+        return True, "DRY_RUN=false AND POLYMARKET_DRY_RUN=false"
+    blockers = [n for n, v in (("DRY_RUN", global_dry),
+                               ("POLYMARKET_DRY_RUN", venue_dry)) if v]
+    return False, "blocked by " + " and ".join(f"{b}=true" for b in blockers)
+
+
+def is_executable(opp) -> bool:
+    """Can this opportunity actually reach `create_order`?
+
+    Kalshi rows always can. Polymarket rows need a US `market_slug`: the games
+    scanner reads international Gamma, a different slug namespace that the US
+    retail API cannot address, so those rows are dry-run evidence only. The
+    CLI applies exactly this filter before `execute_pipeline`.
+    """
+    details = getattr(opp, "details", None) or {}
+    if details.get("venue") != "polymarket":
+        return True
+    return bool(details.get("market_slug"))
+
+
 # ── Sport filter options ────────────────────────────────────────────────────
 
 SPORT_FILTERS = sorted([
@@ -172,7 +394,7 @@ CATEGORY_OPTIONS = ["all", "game", "spread", "total", "player_prop", "esports", 
 
 DATE_OPTIONS = ["all dates", "today", "tomorrow"]
 
-SUPPORTED_MARKET_TYPES = ("sports", "futures", "prediction")
+SUPPORTED_MARKET_TYPES = ("sports", "futures", "prediction", "polymarket")
 
 
 # ── Scan ────────────────────────────────────────────────────────────────────
@@ -205,6 +427,12 @@ def run_scan(
       - "sports"     → edge_detector.scan_all_markets (respects date_filter, category_filter)
       - "futures"    → futures_edge.scan_futures_markets (date_filter and category_filter ignored)
       - "prediction" → prediction_scanner.scan_prediction_markets (date_filter ignored)
+      - "polymarket" → polymarket_futures_edge.scan_polymarket_futures and/or
+                       polymarket_games_edge.scan_polymarket_games, routed by
+                       the filter exactly as `scan.py polymarket` does
+                       (date_filter and category_filter ignored). `_client` is
+                       unused on this path — Polymarket market data comes from
+                       its own read clients, not the passed execution client.
 
     Cached for 60 seconds via `st.cache_data` (R24a) so repeat scan clicks
     with identical filters reuse the same Odds API + Kalshi results. Odds
@@ -248,6 +476,13 @@ def run_scan(
                 top_n=top_n,
             )
 
+        elif market_type == "polymarket":
+            opportunities = _scan_polymarket(
+                min_edge=min_edge,
+                ticker_filter=ticker_filter,
+                top_n=top_n,
+            )
+
         else:  # prediction
             opportunities = scan_prediction_markets(
                 _client,
@@ -265,10 +500,40 @@ def run_scan(
     return opportunities, buf.getvalue()
 
 
+def _scan_polymarket(min_edge: float, ticker_filter: str | None,
+                     top_n: int) -> list:
+    """Run the Polymarket scan, routing the filter the same way the CLI does.
+
+    `_route_filter` is the single source of truth for what a Polymarket filter
+    string means (futures vs games vs both), so the dashboard and
+    `scan.py polymarket --filter X` can never disagree about which surfaces a
+    filter covers.
+    """
+    from polymarket_futures_edge import _route_filter, scan_polymarket_futures
+
+    futures_filter, game_sports = _route_filter(ticker_filter)
+    opportunities: list = []
+
+    if futures_filter:
+        opportunities += scan_polymarket_futures(
+            min_edge=min_edge, ticker_filter=futures_filter, top_n=top_n,
+        )
+    if game_sports:
+        # Lazy import: pulls the edge_detector consensus stack, which a
+        # futures-only scan doesn't need.
+        from polymarket_games_edge import scan_polymarket_games
+        opportunities += scan_polymarket_games(
+            min_edge=min_edge, sports=game_sports, top_n=top_n,
+        )
+
+    opportunities.sort(key=lambda o: o.composite_score, reverse=True)
+    return opportunities[:top_n]
+
+
 # ── Execute ─────────────────────────────────────────────────────────────────
 
 def run_execute(
-    client: KalshiClient,
+    client,
     opportunities: list,
     unit_size: float = UNIT_SIZE,
     max_bets: int = 5,
@@ -276,11 +541,15 @@ def run_execute(
     budget: float | None = None,
     pick_indices: list[int] | None = None,
     execute: bool = False,
+    venue: str = "kalshi",
 ) -> tuple[list, str]:
     """
     Run the execution pipeline and return (sized_orders, console_output).
 
     pick_indices: 0-based indices into the opportunities list to execute.
+    venue: "kalshi" or "polymarket" (PM2c). `client` must be the client for
+        that venue. Gates, sizing, and caps are venue-neutral; only the
+        Kalshi-shaped resting-order janitor is skipped off-venue.
     """
     # Re-read risk-gate config before sizing/gating so the long-running webapp
     # honors `.env`/Secrets edits without a restart. Without this, a server
@@ -291,6 +560,13 @@ def run_execute(
 
     if pick_indices is not None:
         opportunities = [opportunities[i] for i in pick_indices if i < len(opportunities)]
+
+    # PM2c: drop rows that can never reach create_order (Gamma-sourced games
+    # carry no US market_slug). Mirrors the CLI, which filters before calling
+    # execute_pipeline — without this the pipeline sizes and gates rows that
+    # would raise at order time.
+    if venue == "polymarket":
+        opportunities = [o for o in opportunities if is_executable(o)]
 
     # Convert budget percentage to fraction
     budget_val = None
@@ -311,6 +587,7 @@ def run_execute(
             unit_size=unit_size,
             budget=budget_val,
             min_bets=min_bets,
+            venue=venue,
         )
 
     return sized_orders or [], buf.getvalue()
@@ -318,14 +595,27 @@ def run_execute(
 
 # ── Portfolio ───────────────────────────────────────────────────────────────
 
-def get_portfolio_data(client: KalshiClient) -> dict:
-    """Fetch all portfolio data in one call."""
+def get_portfolio_data(client, venue: str = "kalshi") -> dict:
+    """Fetch all portfolio data for one venue in a single call.
+
+    `daily_pnl` and `daily_limit` are deliberately NOT split by venue: Gate 1
+    reads the shared trade log, so the daily loss budget spans Kalshi and
+    Polymarket together (one operator, one risk budget). `today_trades` is
+    filtered to the venue so each tab shows its own activity, but the limit
+    bar below it is the shared one.
+    """
     bal = fetch_balance(client)
     positions = fetch_positions(client)
     resting = fetch_resting_orders(client)
-    today_trades, daily_pnl = get_today_trades()
+    all_today_trades, daily_pnl = get_today_trades()
 
-    return {
+    # Rows logged before the PM2c venue tag default to Kalshi, matching
+    # `log_trade`'s own `.get("venue", "kalshi")` fallback.
+    today_trades = [t for t in all_today_trades
+                    if (t.get("venue") or "kalshi") == venue]
+
+    data = {
+        "venue": venue,
         "balance": bal.get("balance", 0),
         "portfolio_value": bal.get("portfolio_value", 0),
         "positions": positions,
@@ -337,6 +627,24 @@ def get_portfolio_data(client: KalshiClient) -> dict:
         "max_positions": MAX_OPEN_POSITIONS,
         "dry_run": DRY_RUN,
     }
+
+    if venue == "polymarket":
+        # The US retail API reports buying power separately from balance, and
+        # reservations that do NOT reduce it — both are absent on Kalshi.
+        data["buying_power"] = bal.get("buying_power", 0)
+        data["reservation"] = bal.get("reservation", 0)
+        live, mode = polymarket_order_mode()
+        data["orders_live"] = live
+        data["order_mode"] = mode
+        # The Kalshi-shaped `market_positions` list the executor's gates read
+        # carries only cost and realized P&L. The venue's own per-position
+        # payload also has `cashValue` (mark-to-market), so keep it around for
+        # a display that can show unrealized P&L rather than a column of zeros.
+        try:
+            data["raw_positions"] = client.get_positions().get("positions") or {}
+        except Exception:
+            data["raw_positions"] = {}
+    return data
 
 
 def format_positions_for_display(positions: list[dict]) -> list[dict]:
@@ -383,6 +691,69 @@ def format_positions_for_display(positions: list[dict]) -> list[dict]:
     return rows
 
 
+def format_polymarket_positions_for_display(
+    market_positions: list[dict], raw_positions=None
+) -> list[dict]:
+    """Convert Polymarket US positions to display rows.
+
+    Deliberately NOT run through `format_positions_for_display`: the two
+    venues agree on `ticker` / `position_fp` and nothing else.
+
+    - Polymarket's `market_exposure_dollars` is the *cost basis*, not market
+      value. Feeding it to the Kalshi formula (`exposure - cost - fees`) would
+      print $0.00 unrealized on every row. Mark-to-market is `cashValue` in
+      the venue's own per-position payload, so unrealized comes from there and
+      is left blank when the raw payload isn't available.
+    - Every money field is an Amount object (`{"value": "4.98", "currency":
+      "USD"}`), not a number — hence `_pm_amount` rather than `float()`.
+    - `marketMetadata.title` is the *event* ("World Series Champion"), shared
+      by every team in the field, so the team name is appended to make rows
+      distinguishable.
+    - Ticker-parsing helpers (`sport_from_ticker`, `format_bet_label`) are
+      skipped — they read Kalshi ticker grammar and return noise for
+      `PM-{slug}`.
+    """
+    from polymarket_exec_client import _amount as _pm_amount
+
+    raw = raw_positions or {}
+    by_slug = raw if isinstance(raw, dict) else {
+        (p.get("marketSlug") or ""): p for p in raw
+    }
+
+    rows = []
+    for p in market_positions:
+        slug = p.get("market_slug", "")
+        net = float(p.get("position_fp", 0) or 0)
+        cost = float(p.get("market_exposure_dollars", 0) or 0)
+        realized = float(p.get("realized_pnl_dollars", 0) or 0)
+
+        detail = by_slug.get(slug) or {}
+        meta = detail.get("marketMetadata") or {}
+        title = meta.get("title") or meta.get("question") or slug
+        team = (meta.get("team") or {}).get("name") or meta.get("outcome")
+        label = f"{title} — {team}" if team else title
+
+        has_value = "cashValue" in detail or "currentValue" in detail
+        cash = _pm_amount(detail.get("cashValue", detail.get("currentValue")))
+        fees = _pm_amount(detail.get("fees"))
+        qty = abs(int(net))
+        avg = cost / qty if qty else 0.0
+
+        rows.append({
+            "Market": label,
+            "Slug": slug,
+            "Side": "YES" if net > 0 else "NO",
+            "Qty": qty,
+            "Avg Price": f"${avg:.2f}",
+            "Cost": f"${cost:.2f}",
+            "Value": f"${cash:.2f}" if has_value else "—",
+            # Matches the Kalshi column's definition: value - cost - fees.
+            "Unrealized": f"${cash - cost - fees:+.2f}" if has_value else "—",
+            "Realized": f"${realized:+.2f}",
+        })
+    return rows
+
+
 # ── Settle ──────────────────────────────────────────────────────────────────
 
 def run_settle(client: KalshiClient) -> tuple[dict, str]:
@@ -412,23 +783,116 @@ def get_settlement_history(limit: int = 50) -> list[dict]:
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
-def opportunities_to_rows(opportunities: list) -> list[dict]:
-    """Convert Opportunity objects to display-friendly dicts."""
+_CATEGORY_LABELS = {
+    "game": "ML", "spread": "Spread", "total": "Total",
+    "player_prop": "Prop", "esports": "Esports", "futures": "Futures",
+}
+
+
+def gate_statuses(opportunities: list) -> list[str]:
+    """Preflight each opportunity against the risk gates (read-only).
+
+    Same call the CLI preview uses. Wrapped so a failure in the preflight can
+    never take down a scan — "-" means the check was unavailable, not that the
+    row passes.
+    """
+    try:
+        return [preflight_gate_status(o) for o in opportunities]
+    except Exception:
+        return ["-"] * len(opportunities)
+
+
+def opportunities_to_rows(opportunities: list, with_gates: bool = True) -> list[dict]:
+    """Convert Opportunity objects to display-friendly dicts.
+
+    Polymarket rows are built from `details` rather than by parsing the
+    ticker: `PM-{slug}` carries no Kalshi ticker grammar, so
+    `sport_from_ticker` / `format_bet_label` / `parse_game_datetime` return
+    noise for it. They also get an `Exec` column — the US retail API can only
+    address markets that carry a `market_slug`, so Gamma-sourced game rows are
+    evidence, not orders.
+    """
+    gates = gate_statuses(opportunities) if with_gates else [""] * len(opportunities)
+    any_polymarket = any(
+        (getattr(o, "details", None) or {}).get("venue") == "polymarket"
+        for o in opportunities
+    )
+
     rows = []
     for i, opp in enumerate(opportunities):
-        rows.append({
-            "#": i + 1,
-            "Sport": sport_from_ticker(opp.ticker),
-            "Bet": format_bet_label(opp.ticker, opp.title),
-            "Type": {"game": "ML", "spread": "Spread", "total": "Total",
-                     "player_prop": "Prop", "esports": "Esports"}.get(opp.category, opp.category.title()),
-            "Pick": format_pick_label(opp.ticker, opp.title, opp.side, opp.category),
-            "When": parse_game_datetime(opp.ticker),
-            "Started": "LIVE" if is_game_started(opp.ticker) else "",  # R27/F44
+        details = getattr(opp, "details", None) or {}
+        is_pm = details.get("venue") == "polymarket"
+
+        if is_pm:
+            row = {
+                "#": i + 1,
+                "Sport": details.get("sport") or details.get("bet_type", "Futures"),
+                "Bet": details.get("bet_type", opp.title),
+                "Type": _CATEGORY_LABELS.get(opp.category, opp.category.title()),
+                "Pick": details.get("candidate", opp.side.upper()),
+                "When": (details.get("game_start") or "")[:16],
+                "Started": "",
+            }
+        else:
+            row = {
+                "#": i + 1,
+                "Sport": sport_from_ticker(opp.ticker),
+                "Bet": format_bet_label(opp.ticker, opp.title),
+                "Type": _CATEGORY_LABELS.get(opp.category, opp.category.title()),
+                "Pick": format_pick_label(opp.ticker, opp.title, opp.side, opp.category),
+                "When": parse_game_datetime(opp.ticker),
+                "Started": "LIVE" if is_game_started(opp.ticker) else "",  # R27/F44
+            }
+
+        row.update({
             "Price": f"${opp.market_price:.2f}",
             "Fair": f"${opp.fair_value:.2f}",
             "Edge": f"+{opp.edge:.1%}",
             "Conf": opp.confidence.title(),
             "Score": f"{opp.composite_score:.1f}",
+        })
+        if with_gates:
+            row["Gate"] = gates[i]
+        if any_polymarket:
+            row["Exec"] = "YES" if is_executable(opp) else "—"
+        rows.append(row)
+    return rows
+
+
+# ── Config introspection (Config page) ──────────────────────────────────────
+
+def env_var_rows() -> list[dict]:
+    """Render `ENV_VAR_SPEC` against the live process env.
+
+    Answers the question the executor's import-time snapshot makes hard to
+    answer from the outside: what is actually in force right now, and did it
+    come from `.env` / Secrets or from the code default?
+
+    Reads the raw environment rather than `get_config()` on purpose — the
+    typed config coerces values and substitutes defaults, which erases exactly
+    the distinction this page exists to show ("set to 0.10" vs "falling back
+    to 0.12"). It is display-only; nothing here feeds a betting decision.
+    """
+    rows = []
+    for spec in ENV_VAR_SPEC:
+        name = spec["name"]
+        raw = os.environ.get(name)  # config-bootstrap: raw read is the point
+        is_set = raw is not None and raw != ""
+
+        if is_set and name in SECRET_ENV_VARS:
+            shown = f"set ({len(raw)} chars)"
+        elif is_set:
+            shown = raw
+        elif spec["default"]:
+            shown = spec["default"]
+        else:
+            shown = "—"
+
+        rows.append({
+            "Variable": name,
+            "Value": shown,
+            "Source": "set" if is_set else ("default" if spec["default"] else "unset"),
+            "Group": spec["group"],
+            "Notes": spec["note"],
         })
     return rows

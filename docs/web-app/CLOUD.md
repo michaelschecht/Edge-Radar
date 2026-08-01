@@ -81,43 +81,92 @@ api_key = "your-primary-odds-api-key"
 # Optional: multiple keys for rotation (comma-separated, no spaces)
 # api_keys = "key1,key2,key3"
 
+# === POLYMARKET US (optional — only if you want the Polymarket venue) ===
+# Ed25519 retail API keys from https://polymarket.us/developer (iOS app + KYC
+# first). NOT the international EIP-712/py-clob-client wallet scheme.
+# [polymarket]
+# key_id = "your-polymarket-key-uuid"
+# secret_key = "base64-ed25519-private-key"
+# host = "https://api.polymarket.us"
+# dry_run = "true"     # PM2c: orders need BOTH DRY_RUN and this false.
+
 # === SYSTEM ===
 DRY_RUN = "true"
 
 # === RISK PARAMETERS ===
 # These mirror the .env settings. Uncomment and adjust as needed.
 # If omitted, defaults shown in parentheses are used.
+#
+# The dashboard's **Config** page renders this whole list against the live
+# environment — variable, current value, and whether it came from Secrets or a
+# code default. Check there rather than guessing whether a secret took effect.
 
-# UNIT_SIZE = "1.00"                  # Dollar amount per bet (1.00)
-# KELLY_FRACTION = "0.25"            # Kelly multiplier (0.25)
-# MAX_BET_SIZE = "100"               # Hard cap per bet in USD (100)
-# MAX_DAILY_LOSS = "250"             # Daily hard stop in USD (250)
-# MAX_OPEN_POSITIONS = "50"          # Concurrent open positions (50)
-# MAX_PER_EVENT = "2"                # Max positions per game/event (2)
+# --- Core limits ---
+# UNIT_SIZE = "1.00"                # Kelly floor per bet. C11: this is the LONGSHOT knob —
+                                    # below ~30c the flat floor round(UNIT_SIZE/price) binds.
+# KELLY_FRACTION = "0.25"           # C11: the FAVORITES knob. Divided by batch size at
+                                    # runtime, so it is a PORTFOLIO fraction. Keep <= 0.5.
+# MAX_BET_SIZE = "100"              # Hard cap per bet in USD (100)
+# MAX_DAILY_LOSS = "250"            # Daily hard stop in USD (250). Shared across venues.
+# MAX_OPEN_POSITIONS = "50"         # Concurrent open positions (50)
+# MAX_PER_EVENT = "2"               # Max positions per game/event (2)
 # MAX_BET_RATIO = "3.0"             # Max bet as multiple of batch median (3.0)
+
+# --- Reject gates ---
 # MIN_EDGE_THRESHOLD = "0.03"       # Global minimum edge (fallback)
 # MIN_EDGE_THRESHOLD_MLB = "0.04"   # Per-sport override (2026-06-14, lowered from 0.06)
 # MIN_EDGE_THRESHOLD_NBA = "0.04"   # Per-sport override (2026-06-14, lowered from 0.06)
 # MIN_EDGE_THRESHOLD_NCAAB = "0.04" # Per-sport override (2026-06-14, lowered from 0.06)
-# MIN_MARKET_PRICE = "0.12"         # Gate 3.5 lottery-ticket floor (2026-07-14, raised 0.06->0.12: sub-15c bets went 0W-21L)
-# MIN_COMPOSITE_SCORE = "6.0"       # Minimum score 0-10 (6.0)
+# MIN_MARKET_PRICE = "0.12"         # Gate 3.5 lottery-ticket floor. Pure reject threshold,
+                                    # independent of sizing. 0 disables.
+# MIN_COMPOSITE_SCORE = "6.0"       # Gate 4. C10 (2026-07-23) aligned the futures composite
+                                    # to the sports edge scale, so this now binds on futures.
+# MIN_CONFIDENCE = "medium"         # Gate 4.5 (R3)
+# SERIES_DEDUP_HOURS = "48"         # Gate 7 global default
+# SERIES_DEDUP_HOURS_MLB = "72"     # R9: MLB series span up to 72h
+# SERIES_DEDUP_HOURS_NHL = "72"     # R9: NHL series same as MLB
+# CROSS_CATEGORY_DEDUP = "false"    # R8: collapse ML+Total+Spread on one game
+# MIN_CONSENSUS_BOOKS_NBA = "8"     # R29: NBA games under this book count drop to `low`
+# RESTING_ORDER_MAX_HOURS = "24"    # R4 janitor. Kalshi-only. 0 disables.
+
+# --- NO-side guards ---
+# NO_SIDE_FAVORITE_THRESHOLD = "0.25"    # Gate 4.6 trigger price (R1)
+# NO_SIDE_MIN_EDGE = "0.25"              # Gate 4.6 required edge (plus confidence=high)
+# NO_SIDE_MIN_EDGE_GLOBAL = "0.08"       # Gate 4.6b (R28): min edge on ANY NO bet
+# NO_SIDE_KELLY_PRICE_FLOOR = "0.35"     # Below this NO price, apply the multiplier
+# NO_SIDE_KELLY_MULTIPLIER = "0.5"       # Half-Kelly on NO bets below the price floor
+# NO_SIDE_KELLY_MULTIPLIER_GLOBAL = "1.0"  # R28: multiplier on ALL NO bets. 1.0 = off.
+
+# --- Sizing dampeners ---
 # KELLY_EDGE_CAP = "0.15"           # Soft-cap edge for Kelly sizing (2026-04-18)
 # KELLY_EDGE_DECAY = "0.5"          # Decay factor above the cap
-# SERIES_DEDUP_HOURS = "48"         # Global default (2026-04-18)
-# SERIES_DEDUP_HOURS_MLB = "72"     # R9 (2026-04-27): MLB series span up to 72h
-# SERIES_DEDUP_HOURS_NHL = "72"     # R9 (2026-04-27): NHL series same as MLB
 
-# 14-day review response (2026-04-21): R1 + R3 + R4
-# MIN_CONFIDENCE = "medium"             # Reject opportunities below this confidence (R3)
-# NO_SIDE_FAVORITE_THRESHOLD = "0.25"   # NO bets below this price face elevated gate (R1)
-# NO_SIDE_MIN_EDGE = "0.25"             # Required edge when NO price < threshold (plus confidence=high)
-# NO_SIDE_KELLY_PRICE_FLOOR = "0.35"    # Below this NO-side price, apply Kelly multiplier
-# NO_SIDE_KELLY_MULTIPLIER = "0.5"      # Half-Kelly on NO bets below the price floor
-# RESTING_ORDER_MAX_HOURS = "24"        # Cancel zero-fill resting orders older than this (R4)
+# --- Category / live-game gates ---
+# ALLOW_PREDICTION_BETS = "false"   # Gate 4.7 (R25): crypto/weather/spx/mentions/
+                                    # companies/politics. "true" to opt back in.
+# ALLOW_LIVE_BETS = "false"         # Gate 4.8 (L1): bets on in-progress games.
 
-# Prediction-market safety gate (R25, 2026-04-24): blocks crypto/weather/spx/mentions/companies/politics
-# ALLOW_PREDICTION_BETS = "false"       # Set to "true" only after prediction models are rebuilt
+# --- Live-odds freshness (L1) ---
+# MAX_LIVE_BOOK_AGE_SECONDS = "1200"  # Drop in-play books staler than this. 0 disables.
+# MIN_LIVE_CONSENSUS_BOOKS = "3"      # Skip a game the stale filter thinned below this.
+# ODDS_LIVE_TTL_SECONDS = "45"        # Shorter cache TTL when a sport has an in-play event.
+
+# --- Caching ---
+# ODDS_CACHE_TTL_SECONDS = "300"    # R24b pre-game Odds API file cache. 0 disables.
+# ODDS_CACHE_ENABLED = "true"
+# SCAN_CACHE_TTL_SECONDS = "600"    # R26 row->ticker mapping for --pick replay
+# SCAN_CACHE_ENABLED = "true"
+
+# --- Calibration ---
+# CALIBRATION_STDEVS_TTL_DAYS = "30"  # C8: max age of auto-recalibrated per-sport stdevs
 ```
+
+> **Flat keys work too.** Every variable above can also be given as a flat
+> top-level key instead of inside a `[section]` — the bootstrap in
+> `webapp/services.py` lifts both layouts into the process environment before
+> any script imports. A variable the app does not know about is silently
+> ignored, which is why the **Config** page exists: it shows exactly which
+> ones took effect.
 
 ### How Secrets Work
 
