@@ -2,6 +2,56 @@
 
 ---
 
+## 2026-07-31 -- scheduler cleanup: dead task removed, installer stopped duplicating live tasks
+
+Two pieces of cruft surfaced while fixing the calibration loop.
+
+### `MonthlyCalibration` removed
+
+Registered as a monthly run of `model_calibration.py --days 30 --save`, it had **never once
+executed** -- `Last Run Time` was still the Task Scheduler sentinel `11/30/1999` with
+`Last Result 267011` ("task has not yet run"). Every calibration this repo has ever done
+came from the weekly `Calibration` task, so once that task's window was widened the monthly
+one was a pure duplicate against a stateless loop. Definition archived before deletion; the
+recreate command lives in `docs/task-schedules/README.md` section 15, now a removal record.
+Surviving weekly task re-verified after: Sun 7 PM, `Last Result 0`, next run 8/2.
+
+### `install_windows_task.py` could silently duplicate or clobber live tasks
+
+Every profile hardcoded an `Edge-Radar` task-folder path while the owner's live tasks sit
+under `Edge-Radar-MikesAILab`. Neither direction of that mismatch was checked:
+
+- pointed at a **different** folder (the status quo), `install` creates a parallel duplicate
+  -- a second settler, or worse a second *execute* task placing real bets alongside the
+  first;
+- pointed at the **same** folder, it silently clobbers a live task, replacing a definition
+  carrying a run-as principal and wake/retry policy with the minimal one `schtasks /Create`
+  writes.
+
+Same class of cruft as the dead task above, except these would actually fire.
+
+Fixed: profiles now carry a `leaf` name with the folder applied centrally from a single
+`TASK_FOLDER`, overridable per-run with `--task-folder`; `install` refuses when the same
+leaf is already registered under any other folder, printing both paths, with `--force` to
+opt in. The calibration leaf is now `Calibration`, matching the live task, so pointing
+`--task-folder` at the real folder updates in place rather than making a twin. `status`
+reports which folder it is inspecting, and the docstring's stale "Monthly 30-day (R16)"
+description was corrected.
+
+`--task-folder` is deliberately a CLI flag and not an env var: an installer-only,
+Windows-only developer setting has no business in `app/config.py`, and
+`check_config_centralization.py` correctly rejected the `os.environ` read first reached for.
+
+`TASK_FOLDER` still defaults to `Edge-Radar` rather than any real folder -- defaulting at a
+live machine's tasks would make clobbering the default behavior. The guard plus the flag
+makes the choice explicit instead.
+
+Verified: `install settle` SKIPs against the existing live `NightlySettle` and creates
+nothing; with `--task-folder Edge-Radar-MikesAILab` all three overlapping profiles report no
+conflict. All 24 live tasks intact afterwards, no strays created.
+
+---
+
 ## 2026-07-31 -- pre-wager calibration preflight (REQUIRE_FRESH_CALIBRATION)
 
 Follow-up to the C8 no-op below: a check that the calibration is actually current
@@ -488,6 +538,10 @@ vars). 673 tests pass.
 ---
 
 ## 2026-07-27 -- Working branch moved from `mike_win-desktop` to `mike_desktop`
+
+> **Completed 2026-07-31:** two stragglers this entry missed -- the `CLAUDE.md`
+> session-startup checklist and the `docs/task-schedules/README.md` account-graph note both
+> still named the retired branch.
 
 Every other repo under `Repos/Live_Apps` (Agent-Chat, edge-spectrum, my-prompt-library,
 taskhub) uses `mike_desktop` as the working branch. Edge-Radar was the lone exception on
