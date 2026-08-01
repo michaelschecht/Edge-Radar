@@ -106,8 +106,45 @@ def _build_opp(slug: str, label: str, bet_type: str, pick: str, side: str,
     edge = fair - price
     if edge <= 0 or price <= 0 or price >= 1.0:
         return None
+    # Liquidity deliberately scales 5x steeper than the Kalshi/futures
+    # `spread * 20`: rows wider than MAX_BOOK_SPREAD (0.10) are already
+    # dropped upstream, so `* 20` would compress every surviving row into
+    # 9.8-10.0 and the term would carry no information. `* 100` spreads the
+    # admissible 0-0.10 band across the full 0-10 range. This is a real
+    # cross-surface inconsistency when games and futures are merged and
+    # ranked together, but it errs strict and is the better-calibrated of
+    # the two — leaving it rather than loosening a second term.
     liquidity = max(0.0, 10 - row["book_spread"] * 100)
-    edge_score = min(10, edge * 20)
+
+    # C10 (2026-07-31, extended from the 07-23 futures fix): edge scales as
+    # `edge / 0.01`, matching the sports composite in `edge_detector.py`.
+    #
+    # This file was written 3 days before C10 and copied `edge * 20` from
+    # `polymarket_futures_edge`, which had itself copied it from the
+    # `liquidity` line above it — the copy-of-a-copy C10 diagnosed. C10 fixed
+    # both futures paths but not this one, so games kept the 5x-stricter
+    # scale (saturating at 50% edge instead of 10%).
+    #
+    # Same consequence, independently confirmed: clearing
+    # MIN_COMPOSITE_SCORE=6.0 needed ~15% edge at high confidence / 26%
+    # medium / 38% low, against game edges that run 1-7% in practice. Across
+    # 362 logged Gamma game rows, **not one** ever reached 6.0 (max 5.30) —
+    # Gate 4 was structurally unreachable here too.
+    #
+    # Not a floodgate: replayed over those same 362 rows, only 5 (1.4%) newly
+    # clear Gate 4, all marginally (6.02-6.26), and each still faces gates
+    # 3.5/4.5/4.6b/5/6/7. The other 330 edge-gated rows never reach Gate 4 at
+    # all. Games are not executable today regardless (Gamma rows carry no US
+    # market_slug); this matters for when the seasonal US repoint lands, so
+    # that surface doesn't inherit the same unreachable gate a third time.
+    edge_score = min(edge / 0.01, 10)
+
+    # `high: 9` left uncapped, following C10's own precedent for futures: C4
+    # capped high->medium for *Kalshi sports* on 306 settled bets (F49) and
+    # scoped everything else out. There is still no settled Polymarket data
+    # to justify either choice. Worth revisiting once PM3 settlement lands —
+    # this path prices off the same Odds API consensus as sports, so C4's
+    # reasoning plausibly transfers even though its evidence doesn't.
     conf_score = {"high": 9, "medium": 6, "low": 3}[confidence]
     composite = 0.4 * edge_score + 0.3 * conf_score + 0.2 * liquidity + 0.1 * 5
     return Opportunity(

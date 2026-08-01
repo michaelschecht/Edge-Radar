@@ -390,8 +390,8 @@ Edge-Radar/
 │   ├── doctor.py                      # Environment & credentials validator
 │   └── bootstrap.py                   # Import-path setup for the venv .pth file
 ├── tests/                             # 150+ pytest tests (domain, edge detection, fills, risk)
-└── webapp/                            # Streamlit dashboard
-    └── views/                         # scan_page, portfolio_page, settle_page, backtest_page
+└── webapp/                            # Streamlit dashboard (Kalshi + Polymarket venues)
+    └── views/                         # scan_page, portfolio_page, settle_page, backtest_page, config_page
 ```
 
 <sub>Gitignored at the root (auto-created where needed): <code>data/</code> (trade history), <code>logs/</code>, <code>reports/</code> (scan + P&L reports), <code>keys/</code> (RSA private keys), <code>.venv/</code>, <code>repos/</code>.</sub>
