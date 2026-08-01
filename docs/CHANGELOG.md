@@ -2,6 +2,81 @@
 
 ---
 
+## 2026-07-31 -- T1 resolved: the distance cap was measured and rejected; stale stdev calibration was the cause
+
+The proposed T1 fix was a **cap on extrapolation distance** -- reject a totals bet whose
+Kalshi strike sits more than ~1 sigma from the model's inferred mean. Backtested before
+building. It does not survive.
+
+### The cap would have made things worse
+
+New tool `scripts/backtest/totals_distance_check.py` (re-runnable, mirrors
+`correlation_check.py`). Extrapolation distance is recovered by inverting the normal CDF
+from the stored `fair_value`, since `z = (strike - inferred_mean) / stdev` is exactly what
+the model applied. Over **136 settled totals bets** -- read from the settlement log, not
+the 41-row trade-log slice the first pass used:
+
+| \|z\| bucket | n | W-L | WR | claimed | ROI |
+|:--|--:|:--|--:|--:|--:|
+| < 0.5 | 67 | 34W-33L | 51% | 60% | -1.1% |
+| 0.5 - 1.0 | 32 | 18W-14L | 56% | 73% | **-29.5%** |
+| **1.0 - 1.5** | **29** | **23W-6L** | **79%** | 89% | **+5.8%** |
+| 1.5 - 2.0 | 5 | 4W-1L | 80% | 95% | -49.1% |
+| > 2.0 | 3 | 2W-1L | 67% | 99% | -3.9% |
+
+The 1.0-1.5 sigma band -- exactly where the MLB strike-12.5 bets sit -- is the **only
+profitable bucket**. A cap at 1 sigma would have deleted the best band and kept the
+-29.5% one. No cap was built.
+
+### What the data actually says
+
+The over-claim is **uniform across every bucket** (+9, +17, +10, +15, +32 points; +12%
+overall, +16% MLB-only). A bias that does not vary with distance is not a distance
+problem -- it is stdev calibration, which is already C8's job.
+
+### Root cause: C8 was correct but stale
+
+Running `model_calibration.py` today prints
+`Calibrate baseball_mlb/total: base=3.45 gap=+16.1% (n=28, se=0.085) -> 4.00 (x1.161)` --
+independently deriving the same +16% the backtest found. But the live cache, written
+2026-07-27, still held **3.45, byte-identical to the hardcoded default**.
+
+The reason is timing. MLB totals coverage landed **2026-07-20**, so at the 07-27 run fewer
+than `_MIN_CALIB_SAMPLES = 20` had settled and the sport was skipped; the next scheduled
+`MonthlyCalibration` was not until 08-01. **The flood ran for the entire blind window.**
+
+### Action taken
+
+Ran the calibration. `total_stdev.baseball_mlb` **3.45 -> 4.005**, verified live through
+`_get_total_stdev()`. Note `data/cache/calibration_stdevs.json` is gitignored, so this
+change appears in no diff.
+
+Replayed over the 25 settled MLB NO-totals:
+
+| | count | actual result |
+|:--|--:|:--|
+| Now blocked at Gate 4.6b (edge drops under the R28 8% NO floor) | **21 of 25** | 15W-6L, -$1.09, -3.1% ROI |
+| Still placed | 4 | 3W-1L, -$5.19, **-63.4% ROI** |
+
+**Honest read: the concentration is fixed, the selection quality is not.** Widening the
+stdev removes 84% of the shape -- the volume problem originally spotted -- but the four
+bets that still clear the floor are the *worst* performers in the group. Same "large
+claimed edge = model error" pattern C4 found for confidence and C11 for sub-40c prices,
+and the reason `KELLY_EDGE_CAP` exists. At n=4 that -63% is noise-level: a signal to
+watch, not a result.
+
+### T3 opened -- the structural lesson
+
+`_MIN_CALIB_SAMPLES = 20` plus a **monthly** cadence means any newly-covered market type
+can bet uncalibrated for up to ~30 days. This will recur on every coverage addition, and
+one is already scheduled (the Polymarket US seasonal games repoint). Options logged, none
+shipped: weekly calibration, event-triggering on first crossing 20 settled bets, or a
+higher edge floor for market types that have never been calibrated.
+
+Code added: `scripts/backtest/totals_distance_check.py`. No gate or model logic changed.
+
+---
+
 ## 2026-07-31 -- MLB high-strike totals dominate the book (T1/T2 opened)
 
 Operator observation: "under 13.5 or so runs in baseball" bets seemed to be placed far
