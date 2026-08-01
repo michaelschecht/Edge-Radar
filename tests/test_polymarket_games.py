@@ -174,3 +174,71 @@ class TestScanOrchestration:
                             lambda ev, team: (0.99, {"n_books": 9, "min_fair": 0.98,
                                                      "max_fair": 0.99}))
         assert pmg.scan_polymarket_games(min_edge=0.01, sports=["mlb"]) == []
+
+
+class TestGamesCompositeCalibration:
+    """C10 extension (2026-07-31): the games composite scales edge as
+    `edge / 0.01`, matching the sports composite in `edge_detector.py`.
+
+    This file was written on 2026-07-20, three days before C10, and copied
+    `edge * 20` from `polymarket_futures_edge` -- which had itself copied it
+    from the `liquidity` line above it. C10 fixed both futures paths and left
+    this one, so games kept the 5x-stricter scale (saturating at 50% edge
+    rather than 10%).
+
+    The consequence was identical and independently confirmed: across 362
+    logged Gamma game rows, not one ever reached MIN_COMPOSITE_SCORE=6.0
+    (max observed 5.30). Gate 4 was structurally unreachable.
+    """
+
+    @staticmethod
+    def _score(edge: float, confidence: str, book_spread: float = 0.02) -> float:
+        opp = pmg._build_opp(
+            slug="mlb-sd-atl", label="MLB", bet_type="ML", pick="San Diego Padres",
+            side="yes", price=0.40, fair=0.40 + edge, confidence=confidence,
+            row={"book_spread": book_spread, "game_start": "2099-07-21 23:15:00+00",
+                 "condition_id": "0x9bb9", "clob_token_ids": ["111", "222"],
+                 "question": "San Diego Padres vs. Atlanta Braves"},
+            meta={"n_books": 9}, token_index=0,
+        )
+        assert opp is not None and abs(opp.edge - edge) < 1e-6
+        return opp.composite_score
+
+    def test_edge_saturates_at_ten_percent_not_fifty(self):
+        # The regression guard. Under `edge * 20` a 10% edge contributed only
+        # 2.0 to the edge term; aligned, it saturates the term at 10.0.
+        # medium conf (6), book_spread 0.02 -> liquidity 10 - 0.02*100 = 8.0.
+        expected = 0.4 * 10 + 0.3 * 6 + 0.2 * 8.0 + 0.5
+        assert self._score(0.10, "medium") == pytest.approx(round(expected, 1), abs=0.05)
+
+    def test_realistic_edge_can_now_clear_gate_four(self):
+        # The shape real game rows produce. Under the old scale this needed
+        # ~26% edge at medium confidence and could never happen.
+        assert self._score(0.06, "medium") >= 6.0
+        assert self._score(0.04, "high") >= 6.0
+
+    def test_not_a_floodgate(self):
+        # The 1-3% edges that dominate the observed board stay below the gate
+        # on their own merits, and low confidence still cannot buy its way in
+        # at a realistic edge.
+        assert self._score(0.01, "medium") < 6.0
+        assert self._score(0.03, "medium") < 6.0
+        assert self._score(0.07, "low") < 6.0
+
+    def test_matches_sports_composite_at_equal_inputs(self):
+        # Cross-surface parity: at the same edge, confidence and liquidity,
+        # the games composite must equal the sports formula in edge_detector.
+        #
+        # Scoped to `medium` deliberately. Parity holds for medium and low but
+        # NOT for high: C4 capped sports high->medium (6) on settled Kalshi
+        # evidence, while this path still weights high at 9 for want of any
+        # settled Polymarket data. Asserting parity at `high` would encode a
+        # decision that has not been made -- see the conf_score note in
+        # _build_opp.
+        # (Liquidity is supplied directly here because the two paths derive it
+        # from differently-scaled spreads by design -- see _build_opp.)
+        edge, liquidity = 0.05, 8.0
+        sports = (min(edge / 0.01, 10) * 0.40
+                  + {"low": 3, "medium": 6, "high": 6}["medium"] * 0.30
+                  + liquidity * 0.20 + 5 * 0.10)
+        assert self._score(edge, "medium") == pytest.approx(round(sports, 1), abs=0.05)

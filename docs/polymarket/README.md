@@ -84,6 +84,7 @@ Each board is identified by the `question` its per-team markets share, then pric
 | **PM2c-0** | Rebuilt on the US retail API; futures repointed to US data | ✅ Done |
 | **PM2c** | Execution pipeline wired end-to-end | ✅ Code-complete |
 | **C10** | Futures composite unblocked — Gate 4 was arithmetically unreachable | ✅ Done |
+| **C10b** | Same fix applied to the games composite, which C10 missed | ✅ Done |
 | **PM2 (live)** | Orders armed 2026-07-23 (`POLYMARKET_DRY_RUN=false`); daily task executes | ⚠️ **Live — awaiting first qualifying edge** |
 | **PM3** | Settlement & ops — settler, venue surfacing, venue-aware dedup | 📋 Planned |
 
@@ -94,6 +95,14 @@ Four days of scheduled dry-run evidence (8 runs, 79 rows) produced **zero** gate
 Clearing `MIN_COMPOSITE_SCORE=6.0` therefore required roughly **11% edge at high confidence / 23% medium / 34% low**, against championship-futures edges that run **1–4%** in practice. Since futures are the *only* executable surface on Polymarket US, **no Polymarket order could ever clear Gate 4** — the "prove edge in dry-run, then flip the flag" plan could not terminate. The same bug explains **0 futures bets across 85 settled Kalshi trades**.
 
 Fixed by aligning both futures paths to the sports scale. It is **not a floodgate**: replayed against the four days of evidence it approves none of the 9 observed US candidates on its own — each stays blocked by Gate 3 (edge), Gate 3.5 (price floor), or Gate 4.5 (confidence). Full rationale in [`CLAUDE.md`](../../CLAUDE.md) (C10) and [ROADMAP](../ROADMAP.md) (C10).
+
+### C10b (2026-07-31) — the games path had the same bug
+
+C10 fixed the two *futures* paths and missed `polymarket_games_edge.py`, which predates it by three days and had copied `edge * 20` from the futures file — which had itself copied it from its own `liquidity` line. Same 5× strictness, same unreachable Gate 4, independently confirmed on this surface: across **362 logged Gamma game rows, none ever reached composite 6.0** (max **5.30**), while clearing the gate needed ~15% / 26% / 38% edge at high / medium / low confidence against game edges that run 1–7%.
+
+Aligned to `min(edge / 0.01, 10)`. Replayed through the shipped code over those same 362 rows, only **5 (1.4%)** newly clear Gate 4, all marginally (6.02–6.26) and each still facing gates 3.5/4.5/4.6b/5/6/7; **330** never reach Gate 4 at all, being stopped at Gate 3. **No live behavior changes** — Gamma game rows carry no US `market_slug` and are auto-excluded from execution. This matters for the seasonal US games repoint, so that surface doesn't inherit an unreachable gate a third time.
+
+Two divergences from the sports composite are kept deliberately: liquidity stays `book_spread * 100` (rows above `MAX_BOOK_SPREAD=0.10` are already dropped, so `* 20` would compress every survivor into 9.8–10.0), and `high: 9` stays uncapped on C10's own precedent — C4's evidence is 306 settled *Kalshi* bets, and there is still no settled Polymarket data. Revisit the confidence weight when PM3 settlement lands.
 
 ---
 

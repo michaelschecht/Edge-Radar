@@ -2,6 +2,60 @@
 
 ---
 
+## 2026-07-31 -- C10b: the games composite had the same unreachable Gate 4
+
+C10 (2026-07-23) diagnosed the futures composite scaling edge as `min(10, edge * 20)` --
+saturating at a 50% edge instead of the sports composite's 10% -- and traced it to a
+copy-paste from the `liquidity` line above it on the launch-day commit. It fixed
+`scripts/kalshi/futures_edge.py` and `scripts/polymarket/polymarket_futures_edge.py`.
+
+It missed `scripts/polymarket/polymarket_games_edge.py`. That file was written on
+2026-07-20, three days before C10, and had copied `edge * 20` from the Polymarket futures
+file -- which had itself copied it from its own `liquidity` line. A copy of a copy of the
+same bug, so it carried no independent rationale either.
+
+### Same disease, independently confirmed on this surface
+
+Clearing `MIN_COMPOSITE_SCORE=6.0` required roughly **15% edge at high confidence, 26% at
+medium, 38% at low**, against Polymarket game edges that run **1-7%** in practice.
+
+The evidence log settles it: across **362 logged Gamma game rows**, not one ever reached
+composite 6.0. The maximum observed was **5.30**. Gate 4 was structurally unreachable
+here exactly as it was for futures -- 330 of those rows were stopped earlier at Gate 3
+(edge) and 32 reached Gate 4 only to die on `score`.
+
+### Not a floodgate
+
+Replayed through the shipped code over those same 362 rows: only **5 (1.4%)** newly clear
+Gate 4, all marginally (composite 6.02-6.26), and each still faces gates 3.5 (price), 4.5
+(confidence), 4.6b (NO floor), 5, 6, and 7. The 330 edge-gated rows are unaffected --
+they never reach Gate 4 at all.
+
+**No live behavior changes.** Gamma-sourced game rows carry no US `market_slug`, so they
+are auto-excluded from execution and remain dry-run evidence only. This matters for the
+seasonal US games repoint on the roadmap: without it, that surface would have inherited
+the same arithmetically-unreachable gate a third time.
+
+### Two divergences kept deliberately
+
+- **Liquidity stays `book_spread * 100`** (vs `spread * 20` on the Kalshi paths). Rows
+  wider than `MAX_BOOK_SPREAD = 0.10` are already dropped upstream, so `* 20` would
+  compress every surviving row into 9.8-10.0 and the term would carry no information.
+  `* 100` spreads the admissible 0-0.10 band across the full 0-10 range. This does make
+  games and futures composites non-comparable when they are merged and ranked together,
+  but it errs strict and is the better-calibrated of the two -- not worth loosening a
+  second term in the same change.
+- **`high: 9` stays uncapped**, on C10's own precedent. C4 capped high->medium for
+  *Kalshi sports* on 306 settled bets (F49) and explicitly scoped everything else out;
+  there is still no settled Polymarket data. Worth revisiting when PM3 settlement lands
+  -- this path prices against the same Odds API consensus as sports, so C4's *reasoning*
+  plausibly transfers even though its evidence does not.
+
++4 tests (677), including a cross-surface parity check against the sports composite,
+scoped to medium confidence so it does not silently encode the `high` decision above.
+
+---
+
 ## 2026-07-31 -- Streamlit dashboard: Polymarket venue, Config page, env-registry fix
 
 The dashboard had drifted well behind the CLI. It exposed three market types while
