@@ -19,6 +19,7 @@
 <details>
 <summary><b>Changelog</b></summary>
 
+- **2026-07-31** — **`Calibration` window widened `--days 7` → `--days 30`; the C8 stdev loop had never actually calibrated anything.** `save_calibration_stdevs()` is handed the **day-filtered** settled list and needs `_MIN_CALIB_SAMPLES=20` rows per (sport, category) before it will move a value. Only ~22 bets settle in any 7-day window across *all* sports and categories, so every pair was skipped every week and the hardcoded defaults were written straight back — `data/cache/calibration_stdevs.json` has been byte-identical to `edge_detector.SPORT_*_STDEV` for as long as it has existed. At `--days 30` MLB totals goes 17 → 28 settled and the loop fires: **`total_stdev.baseball_mlb` 3.45 → 4.005** on the first real run (gap +16.1%, n=28, se=0.085). That drops the phantom edge on MLB high-strike unders below the R28 8% NO floor, blocking 21 of 25 such bets. Full analysis: ROADMAP **T1**. The fix is in the gitignored `scripts/schedulers/maintenance/calibration.bat`, so it appears in no diff; `tests/test_calibration_config.py` now fails if the window is ever narrowed again. Cadence was **not** the problem — this task was already weekly. `MonthlyCalibration` (#15) — a duplicate that had never once run — was removed the same day.
 - **2026-07-25** — **`Email-Polymarket-DryRun` renamed to `Email-Polymarket-Execution`.** The 07-23 entry below deferred this rename as cosmetic; it wasn't. The email announced itself as a "Daily Polymarket Dry-Run Report" while the paired task placed live orders, and its prompt never asked whether an order had been placed — so the one fact that matters most on an execute-enabled venue was the one the email didn't have to report. Re-registered preserving the daily 10:00 AM trigger/principal/settings; old task unregistered and `Polymarket-DryRun-Report.sh` deleted (superseded by `Polymarket-Execution-Report.sh`). Prompt now requires an **Execution Outcome** section led by whether an order filled. Log paths keep their `dryrun` filenames on purpose — append-only history from the dry-run window. `NextRunTime=2026-07-26 10:00 AM`.
 - **2026-07-23** — **`Daily-Polymarket-DryRun` now places real orders.** Added `--execute` plus batch caps (`--max-bets 2 --budget 10%`) after `POLYMARKET_DRY_RUN` was set to `false` in `.env`. The task keeps writing the evidence log either way (`--save` runs outside the execute branch). **Renamed to `Daily-Polymarket-Execution`** the same day (re-registered from exported XML, preserving trigger + principal; old task unregistered; re-validated `LastTaskResult=0`). The paired `Email-Polymarket-DryRun` job keeps its name for now — it only emails the report and is unaffected. Only futures are orderable; Gamma games are auto-excluded. Verified end-to-end same day: 4 opportunities risk-checked, **0 orders placed** (all rejected on `edge_below_threshold`, 1.1–2.6% vs the 3.0% floor), evidence log still written, exit 0.
 - **2026-07-23** — **`Weekly-Futures-Execution` disabled.** C10 (futures composite recalibration) made Kalshi futures clear Gate 4 for the first time — the task had never been capable of placing a bet before, so its next Saturday run would have been the first-ever live futures order through an unexercised path. Disabled pending a manual futures cycle in preview. Re-enable with `Enable-ScheduledTask -TaskPath "\Edge-Radar-MikesAILab\" -TaskName "Weekly-Futures-Execution"`.
@@ -52,11 +53,11 @@
 | 8 | `Email-NextDay` | **Sun-Thu** 8:50 PM | Emails the next-day execution report |
 | 9 | `NightlySettle` | Daily 11:00 PM | Fetches settlement data from Kalshi API, updates trade log, calculates realized P&L |
 | 10 | `Reconcile` | Daily 11:30 PM | Compares local trade log against Kalshi API positions, flags any drift |
-| 11 | `Calibration` | **Sun** 7:00 PM | Weekly Brier-score refresh + calibration-curve report (`model_calibration.py --days 7`) |
+| 11 | `Calibration` | **Sun** 7:00 PM | Weekly Brier-score refresh + calibration-curve report **+ the C8 stdev recalibration** (`model_calibration.py --days 30 --save`). **Window widened 7 → 30 on 2026-07-31** — at `--days 7` the C8 loop was a silent no-op (see the changelog note below). |
 | 12 | `Backtest` | **Sun** 7:30 PM | Weekly equity curve, drawdown, Sharpe, strategy-comparison report |
 | 13 | `Weekly-Analysis` | **Sun** 11:45 PM | End-of-week 7-day `betting_analysis.py` (headline, by sport/category/side/edge/confidence/price, calibration, longshots, streaks, daily P&L, full trade ledger) |
 | 14 | `Email-Weekly-Analysis` | **Sun** 11:55 PM | Emails the weekly performance analysis report |
-| 15 | `MonthlyCalibration` | **1st of each month** 2:00 AM | Monthly 30-day Brier-score refresh + calibration-curve report (`model_calibration.py --days 30 --save`) |
+| ~~15~~ | ~~`MonthlyCalibration`~~ | — | **REMOVED 2026-07-31.** Redundant duplicate of #11 that had **never once run** (Last Run `11/30/1999`). #11 does the same job weekly. Unregistered with `schtasks /Delete`; the recreate command is in [section 15](#15-monthlycalibration--removed-2026-07-31). |
 | 18 | `WeeklyAccountGraph` | **Sun** 9:00 AM | Refreshes the Kalshi account-growth graph (live snapshot → HTML/PNG) and publishes it to the public Pages site via a `gh` single-file push to master (`refresh_account_graph.py`) |
 | 19 | `Weekly-Futures-Execution` ⏸️ **DISABLED 2026-07-23** | **Sat** 9:00 AM | Scans + executes championship/outright **futures** (NFL Super Bowl, NBA/NHL/MLB titles, NCAAB MOP, golf majors) via `scan.py futures --execute` (budget 5%, max 3, unit $1, `--exclude-open`). Offseason series with no Odds API outright data are skipped; golf only prices the 4 majors during their weeks. First futures automation (added 2026-06-20) |
 | 20 | `Email-Weekly-Futures` | **Sat** 9:20 AM | Emails the weekly futures execution report (20-min buffer after task #19). Sends even on 0-order weeks as proof-of-life. Subject `Edge-Radar \| Weekly Futures Execution Report` |
@@ -80,7 +81,6 @@
 ### Daily Fire Sequence
 
 ```
- 2:00 AM  1st      ─ MonthlyCalibration    (30-day calibration refresh, monthly)
  4:50 AM  Daily    ─ Daily-Summary         (yesterday P&L + exposure digest)
  5:00 AM  Daily    ─ Email-Daily-Summary
  5:05 AM  Daily    ─ All-Sports-SameDay-Execution
@@ -115,7 +115,7 @@
 | Sat | 6 (same-day + email + Futures-Execution + email @ 9:00/9:20 + Polymarket-DryRun @ 9:40 + email @ 10:00) | 2 | 2 | 0 | 2 | **12** |
 | Sun | 4 (same-day + email + Polymarket-DryRun + email) + WeeklyAccountGraph @ 9:00 | 2 | 2 | 4 (NextDay + email + Calibration + Backtest) | 4 (Settle + Reconcile + Weekly-Analysis + Email) | **17** |
 
-**Monthly add-on:** on the **1st of each month** an additional `MonthlyCalibration` fire lands at 2:00 AM (adds +1 to that day's total).
+**Monthly add-on:** none. `MonthlyCalibration` was removed 2026-07-31 — the weekly Sunday `Calibration` (#11) covers it.
 
 **Hourly add-on (2026-07-20):** `Hourly-Settle` fires 24×/day at :35 — excluded from the per-day totals above to keep them readable.
 
@@ -193,7 +193,6 @@ Swap the last line for the job you're wrapping:
 | Settle | `… scripts\kalshi\kalshi_settler.py settle` |
 | Reconcile | `… scripts\kalshi\kalshi_settler.py reconcile` |
 | Calibration (weekly) | `… scripts\kalshi\model_calibration.py --days 7 --save` |
-| MonthlyCalibration | `… scripts\kalshi\model_calibration.py --days 30 --save` |
 | Backtest | `… scripts\backtest\backtester.py --simulate --save` |
 | Weekly-Analysis | `… scripts\kalshi\betting_analysis.py --days 7 --save` |
 | Daily-Summary | `… scripts\kalshi\daily_summary.py --save` |
@@ -262,7 +261,7 @@ schtasks /Create /TN "\Edge-Radar\NightlySettle" `
 
 ### Minimal viable automation
 
-The full pipeline is ~20 tasks; you don't need them all. **Minimal core = `All-Sports-SameDay-Execution` + `NightlySettle`** (execute today's games, settle them at night). Add `MonthlyCalibration` for model health, then layer in the emails and the midday/late/next-day runs as you trust the pipeline. Always run the [Dry-Run Testing Workflow](#dry-run-testing-workflow) before any execute task can place real money.
+The full pipeline is ~20 tasks; you don't need them all. **Minimal core = `All-Sports-SameDay-Execution` + `NightlySettle`** (execute today's games, settle them at night). Add the weekly `Calibration` for model health, then layer in the emails and the midday/late/next-day runs as you trust the pipeline. Always run the [Dry-Run Testing Workflow](#dry-run-testing-workflow) before any execute task can place real money.
 
 ---
 
@@ -536,27 +535,24 @@ Sun-Thu only — Fri + Sat still skipped so the Sunday-morning 5:05 AM run handl
 
 ---
 
-### 15. `MonthlyCalibration` — 1st of each month 2:00 AM PST (5:00 AM ET)
+### 15. `MonthlyCalibration` — REMOVED 2026-07-31
 
-| Property | Value |
-|:---------|:------|
-| **Schedule** | Monthly (1st of every month, all 12 months) |
-| **Executable** | `.venv\Scripts\python.exe` (direct invocation — no .bat wrapper) |
-| **Arguments** | `scripts\kalshi\model_calibration.py --days 30 --save` |
-| **Purpose** | Monthly 30-day Brier refresh — longer sample than the weekly 7-day run, catches slow calibration drift |
-| **Output** | `reports/Calibration/YYYY-MM-DD_calibration_report.md` |
+Registered as a monthly (1st, 2:00 AM PST) run of
+`.venv\Scripts\python.exe scripts\kalshi\model_calibration.py --days 30 --save`.
 
-**What it reports:** Same structure as the weekly `Calibration` task (overall Brier, calibration curve, per-sport/per-confidence/per-edge-bucket breakdowns, prioritized recommendations), but over a 30-day window.
+**It never once executed** — `Last Run Time` was still the Task Scheduler sentinel
+`11/30/1999` when it was removed, with `Last Result 267011` ("task has not yet run").
+Every calibration this repo has ever performed came from the weekly `Calibration`
+task (#11) instead.
 
-**Why 1st of the month, 2:00 AM PST:**
-- Runs after month-end settlements have closed on Kalshi (late-night ET games on the 30/31st resolve by 11 PM PT via NightlySettle) — ensures the final day of the prior month is included in the 30-day window
-- 2:00 AM is off-peak — no conflict with daily 11:00 PM settle or 11:30 PM reconcile
-- 30-day window smooths out weekly noise the 7-day `Calibration` can't — catches slow structural drift visible only month-over-month
+Removed as cruft once #11's window was widened to `--days 30`, since the two then did
+exactly the same job and the C8 loop is stateless (a redundant run is a no-op). To
+recreate it if ever wanted:
 
-**Relationship to weekly `Calibration` task (#9):**
-- Weekly (Sun 7 PM) — `--days 7`, short horizon, detects fast-moving issues
-- Monthly (1st 2 AM) — `--days 30`, longer horizon, detects slow drift and structural biases
-- Both write to `reports/Calibration/` with date-prefixed filenames — no collision
+```powershell
+schtasks /Create /TN "\Edge-Radar-MikesAILab\MonthlyCalibration" /SC MONTHLY /D 1 /ST 02:00 ^
+  /TR "'D:\...\Edge-Radar\.venv\Scripts\python.exe' 'D:\...\Edge-Radar\scripts\kalshi\model_calibration.py' --days 30 --save"
+```
 
 ---
 
@@ -907,7 +903,6 @@ MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Hourly-Settle"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\NightlySettle"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Reconcile"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Calibration"
-MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\MonthlyCalibration"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Backtest"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Weekly-Analysis"
 MSYS_NO_PATHCONV=1 schtasks /run /tn "\Edge-Radar\Email-Weekly-Analysis"
@@ -983,7 +978,7 @@ Created 2026-04-22 for maintenance tasks that need consistent CWD + venv python:
 | `r8_review.bat` | Runs `r8_cross_category_review.py` (one-shot, scheduled 2026-05-29) |
 | `u2_2week_review.bat` | Runs `u2_2week_review.py` (one-shot, scheduled 2026-05-14) |
 
-**Note:** `NightlySettle` and `MonthlyCalibration` are set up with direct python invocation (no .bat wrapper). The wrappers exist for manual invocation convenience and to keep CWD + venv python consistent.
+**Note:** `NightlySettle` is set up with direct python invocation (no .bat wrapper). The wrappers exist for manual invocation convenience and to keep CWD + venv python consistent.
 
 ---
 

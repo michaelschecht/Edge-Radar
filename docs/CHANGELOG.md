@@ -2,6 +2,265 @@
 
 ---
 
+## 2026-07-31 -- the C8 stdev loop had never calibrated anything: `--days 7` starved it
+
+Asked to add a weekly calibration cadence. Checked the machine first. **The cadence
+already existed**, and the real defect was elsewhere and worse.
+
+### Cadence was never the problem
+
+Three calibration tasks are registered under `\Edge-Radar-MikesAILab\`:
+
+| Task | Schedule | Last run | Reality |
+|:--|:--|:--|:--|
+| `Calibration` | **Weekly**, Sun 7 PM | 7/26/2026, result 0 | the one actually doing the work |
+| `MonthlyCalibration` | Monthly, day 1 | **11/30/1999 — never run** | dead duplicate the installer described |
+| `Calibration Loader` | — | — | unrelated |
+
+The cache timestamp (`2026-07-27T02:00:01Z` = 7/26 7:00 PM PDT) matches the weekly task's
+last run exactly. So T3's premise -- "monthly cadence means ~30 blind days" -- was wrong,
+and the ROADMAP entry has been corrected rather than quietly dropped.
+
+### The real bug: a 7-day window cannot clear a 20-sample gate
+
+The weekly task ran `model_calibration.py --days 7 --save`.
+
+`save_calibration_stdevs()` is handed the **day-filtered** settled list, and
+`_calibrate_one_stdev()` needs `_MIN_CALIB_SAMPLES = 20` rows **per (sport, category)**
+before it will move a value. Only **~22 bets settle in any 7-day window across all sports
+and categories combined**. No pair could ever reach 20.
+
+So every weekly run skipped every sport and wrote the hardcoded defaults straight back.
+That is why `data/cache/calibration_stdevs.json` was byte-identical to
+`edge_detector.SPORT_*_STDEV`: **the closed calibration loop has been a silent no-op for
+its entire existence.** It never once did the job C8 was built for.
+
+| lookback | settled (all) | MLB totals visible | vs the 20-sample bar |
+|:--|--:|--:|:--|
+| `--days 7` | 22 | **17** | **SKIPS — writes the default back** |
+| `--days 14` | 37 | 28 | calibrates |
+| `--days 30` | 53 | 28 | calibrates |
+
+### Fixes
+
+- `scripts/schedulers/maintenance/calibration.bat`: `--days 7` → `--days 30`. **Gitignored
+  — this, the actual fix, appears in no diff.** First real run moves
+  `total_stdev.baseball_mlb` 3.45 → 4.005 (gap +16.1%, n=28, se=0.085), which drops the
+  phantom edge on MLB high-strike unders below the R28 8% NO floor and blocks 21 of 25
+  such bets (see the T1 entry below).
+- `tests/test_calibration_config.py` (new, 6 tests): fails the build if the `--save`
+  window is ever narrowed below 14 days, if `CURRENT_*_STDEV` drifts from
+  `edge_detector.SPORT_*_STDEV` (a hand-copied duplicate that is the baseline every
+  calibration multiplies against), or if the loop stops being stateless. Verified the
+  window guard actually fires by reverting the `.bat` and watching it fail.
+- `install_windows_task.py`: its `calibration` profile described a MONTHLY task that had
+  never run and did not match the live weekly one. Reconciled to WEEKLY/Sun 19:00 pointing
+  at the `.bat`, so there is one definition of the arguments.
+- `model_calibration.py` docstring: corrected a claim that the loop "relies on the monthly
+  loop compounding small corrections over time" -- wrong twice over. The loop is weekly,
+  and it does **not** compound: `base_stdev` is the hardcoded baseline, never the prior
+  cache value. Documented, because that statelessness is exactly what makes running it
+  more often safe.
+
+### Not fixed -- T4
+
+Even with the window corrected, C8 cannot move a value until 20 of a market type's bets
+have **settled**, which by construction happens after the flood. MLB totals reached 69% of
+the book before any calibration could legitimately have data. No cadence or window change
+addresses that; it needs a rule treating never-calibrated market types as suspect (higher
+edge floor until first calibration, or a per-shape batch cap). Logged as T4, nothing
+shipped. Relevant now: the Polymarket US seasonal games repoint is the next coverage
+addition queued.
+
+### `MonthlyCalibration` removed
+
+The duplicate task was unregistered the same day (`schtasks /Delete`). It had **never once
+executed** in its entire registered life -- `Last Run Time` was still the Task Scheduler
+sentinel `11/30/1999` with `Last Result 267011` ("task has not yet run"). Every calibration
+this repo has ever performed came from the weekly `Calibration` task instead, which makes
+the monthly one pure cruft now that both would run `--days 30` against a stateless loop.
+
+Its definition was archived before deletion and the recreate command is recorded in
+`docs/task-schedules/README.md` section 15, which is now a removal record rather than a
+task description. The surviving weekly task was re-verified afterwards: `Calibration`,
+Sun 7 PM, `Last Result 0`, next run 8/2/2026, pointing at the fixed `.bat`.
+
+`install_windows_task.py` also carries a note that it installs into the `Edge-Radar\` task
+folder while the owner's live tasks live in `Edge-Radar-MikesAILab\` -- intentional, since
+that file is a reference template rather than a turnkey installer for that machine, but it
+means running it creates a parallel task rather than editing the live one.
+
+683 tests.
+
+---
+
+## 2026-07-31 -- T1 resolved: the distance cap was measured and rejected; stale stdev calibration was the cause
+
+The proposed T1 fix was a **cap on extrapolation distance** -- reject a totals bet whose
+Kalshi strike sits more than ~1 sigma from the model's inferred mean. Backtested before
+building. It does not survive.
+
+### The cap would have made things worse
+
+New tool `scripts/backtest/totals_distance_check.py` (re-runnable, mirrors
+`correlation_check.py`). Extrapolation distance is recovered by inverting the normal CDF
+from the stored `fair_value`, since `z = (strike - inferred_mean) / stdev` is exactly what
+the model applied. Over **136 settled totals bets** -- read from the settlement log, not
+the 41-row trade-log slice the first pass used:
+
+| \|z\| bucket | n | W-L | WR | claimed | ROI |
+|:--|--:|:--|--:|--:|--:|
+| < 0.5 | 67 | 34W-33L | 51% | 60% | -1.1% |
+| 0.5 - 1.0 | 32 | 18W-14L | 56% | 73% | **-29.5%** |
+| **1.0 - 1.5** | **29** | **23W-6L** | **79%** | 89% | **+5.8%** |
+| 1.5 - 2.0 | 5 | 4W-1L | 80% | 95% | -49.1% |
+| > 2.0 | 3 | 2W-1L | 67% | 99% | -3.9% |
+
+The 1.0-1.5 sigma band -- exactly where the MLB strike-12.5 bets sit -- is the **only
+profitable bucket**. A cap at 1 sigma would have deleted the best band and kept the
+-29.5% one. No cap was built.
+
+### What the data actually says
+
+The over-claim is **uniform across every bucket** (+9, +17, +10, +15, +32 points; +12%
+overall, +16% MLB-only). A bias that does not vary with distance is not a distance
+problem -- it is stdev calibration, which is already C8's job.
+
+### Root cause: C8 was correct but stale
+
+Running `model_calibration.py` today prints
+`Calibrate baseball_mlb/total: base=3.45 gap=+16.1% (n=28, se=0.085) -> 4.00 (x1.161)` --
+independently deriving the same +16% the backtest found. But the live cache, written
+2026-07-27, still held **3.45, byte-identical to the hardcoded default**.
+
+The reason is timing. MLB totals coverage landed **2026-07-20**, so at the 07-27 run fewer
+than `_MIN_CALIB_SAMPLES = 20` had settled and the sport was skipped; the next scheduled
+`MonthlyCalibration` was not until 08-01. **The flood ran for the entire blind window.**
+
+### Action taken
+
+Ran the calibration. `total_stdev.baseball_mlb` **3.45 -> 4.005**, verified live through
+`_get_total_stdev()`. Note `data/cache/calibration_stdevs.json` is gitignored, so this
+change appears in no diff.
+
+Replayed over the 25 settled MLB NO-totals:
+
+| | count | actual result |
+|:--|--:|:--|
+| Now blocked at Gate 4.6b (edge drops under the R28 8% NO floor) | **21 of 25** | 15W-6L, -$1.09, -3.1% ROI |
+| Still placed | 4 | 3W-1L, -$5.19, **-63.4% ROI** |
+
+**Honest read: the concentration is fixed, the selection quality is not.** Widening the
+stdev removes 84% of the shape -- the volume problem originally spotted -- but the four
+bets that still clear the floor are the *worst* performers in the group. Same "large
+claimed edge = model error" pattern C4 found for confidence and C11 for sub-40c prices,
+and the reason `KELLY_EDGE_CAP` exists. At n=4 that -63% is noise-level: a signal to
+watch, not a result.
+
+### T3 opened -- the structural lesson
+
+`_MIN_CALIB_SAMPLES = 20` plus a **monthly** cadence means any newly-covered market type
+can bet uncalibrated for up to ~30 days. This will recur on every coverage addition, and
+one is already scheduled (the Polymarket US seasonal games repoint). Options logged, none
+shipped: weekly calibration, event-triggering on first crossing 20 settled bets, or a
+higher edge floor for market types that have never been calibrated.
+
+Code added: `scripts/backtest/totals_distance_check.py`. No gate or model logic changed.
+
+---
+
+## 2026-07-31 -- MLB high-strike totals dominate the book (T1/T2 opened)
+
+Operator observation: "under 13.5 or so runs in baseball" bets seemed to be placed far
+more often than anything else. Investigated. Confirmed, and understated.
+
+**Concentration.** Of 115 live trades, **31 are MLB totals (27%)**, **28 NO-side**, and
+**14 sit on strike 13** -- one repeated wager shape is 12% of the whole book, against just
+7 MLB moneylines in the same window. No gate prevents it: each bet is a *different game*,
+so `MAX_PER_EVENT` and series dedup never engage, and `CROSS_CATEGORY_DEDUP` only collapses
+categories within a single game.
+
+**Calibration.** Those 28 settled NO bets went **18W-10L (64.3%)** against an **80.1%**
+market-implied break-even -- **-12.6% ROI (-$6.28)**. Versus the market that is p=0.038
+(marginal at n=28). Versus **the model's own claimed 89.7% fair value it is p=0.0003**.
+Whether the bets are exactly -EV is not settled by 28 samples; that the model is wrong
+about them is.
+
+**Mechanism.** `consensus_total_prob` infers a mean total from the sportsbook line (~8.7
+runs) and extrapolates to the Kalshi strike with a normal CDF at
+`SPORT_TOTAL_STDEV["baseball_mlb"] = 3.45`. Strike 13 is **1.25 sigma** out, where the
+answer comes from the stdev assumption rather than any book quote. There is a
+**disagreement sweet spot**: near the line model and market agree, far out both approach
+100% NO, and around 1.25 sigma the model says 89% NO against the market's 80%. Every MLB
+game lists a strike in that window, so every game emits one near-identical NO bet. **R28's
+global NO floor is 8% while the phantom edge averages 9.6%** -- the gate built to stop bad
+NO bets sits just under the bias.
+
+**Ruled out:** skew. The intuitive story (normal CDF understates a right-skewed tail) is
+wrong here -- a negative binomial with the same mean and variance gives a *lower* P(>13)
+(9.0% vs 10.6%), which would raise the model's NO fair value, not lower it.
+
+**Most likely driver: adverse selection.** The model bets the games where its own noisy
+inferred mean sits lowest relative to the strike, selecting the cases where that estimate
+is most wrong -- the same winner's-curse pattern C4 found for high confidence and C11 found
+for sub-40c prices.
+
+**Relation to C11b.** That investigation measured *correlation* among the "four MLB unders
+on one night" slate and correctly found none (totals rho -0.187, p=0.75). It never asked
+why there were four. This is the answer: not a correlation problem, a generation problem.
+C11b's conclusion stands; its question was the wrong one.
+
+Opened as **T1** (concentration + calibration) and **T2** (the strike-boundary hypothesis).
+
+### T2 verified same day -- no bug, hypothesis was wrong
+
+T2 proposed that Kalshi's strike-13 market resolves YES on "13 or more" while the model
+computes `P(> 13)` -- a 3.1-point systematic error toward NO on every totals bet in every
+sport. Checked against the live Kalshi API for all 28 logged markets. It is wrong on every
+count:
+
+- **The ticker suffix is not the strike.** `KXMLBTOTAL-...MINCLE-13` carries
+  `floor_strike: 12.5`; the suffix is a market index.
+- `extract_strike()` reads **`floor_strike` first** (`edge_detector.py:1214`), so the model
+  uses 12.5, not 13.
+- Kalshi's `rules_primary` ("more than 12.5 runs ... resolves to Yes") and
+  `strike_type: greater` match the model's `1 - norm.cdf(12.5)` exactly.
+- `floor_strike` is a **half-integer on 28/28** markets, so no integer run total can tie the
+  strike and the `>=` vs `>` distinction is mathematically moot regardless.
+
+Recorded because the negative result is load-bearing: the cheap single-line explanation is
+eliminated, so T1's cause lies in the model or in bet generation.
+
+### The concentration is worse than first reported
+
+The "27% of the book" figure understated it. MLB totals did not exist in the book until
+**2026-07-20**, when the MLB spread/total coverage gap was closed. Before that date: 70
+trades, **0** MLB totals. On and after: 45 trades, **31** MLB totals -- **69% of everything
+bet since the coverage landed**. Within 11 days one bet shape took over two-thirds of all
+betting.
+
+### Caveats
+
+All 28 bets sit in a single 11-day window, so this is not a broad sample and late-July
+scoring is a real confound. Two checks against that: losses are not concentrated in one bad
+day (1 of 11 days had zero wins, n=1), and treating each *day* as the unit gives a 66.5%
+mean win rate against the per-bet 64.3% -- so the result is not an artifact of a few
+heavily-bet days. The time trend is the useful cut: **first 5 days 11W-1L (+6.7% ROI),
+after that 7W-9L (-18.3%)**. An early hot streak masked the shape for a week, which is
+itself a caution against reading the opening days of any newly-covered market as
+validation.
+
+Also documented **PM2e**: the post-C10/C10b risk posture. The bugs themselves cost almost
+nothing (0 Polymarket trades, 0 prediction bets, 0 trades over `MAX_BET_SIZE`, 0 NBA/NCAAB
+bets in the band the stale Cloud config would have admitted), but the *fixes* made Gate 4
+reachable on futures and games for the first time, on surfaces with zero settled trades,
+while the venue is armed and executing unattended. T1 is the cautionary precedent for what
+happens when a composite lets a new bet shape through at scale.
+
+No code changed in this entry -- findings and roadmap only.
+
+---
+
 ## 2026-07-31 -- C10b: the games composite had the same unreachable Gate 4
 
 C10 (2026-07-23) diagnosed the futures composite scaling edge as `min(10, edge * 20)` --

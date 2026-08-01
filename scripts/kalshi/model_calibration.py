@@ -110,10 +110,22 @@ def _calibrate_one_stdev(settled: list[dict], sport_key: str, base_stdev: float,
 
     This is a conservative auto-nudge, NOT a maximum-likelihood stdev fit: the gap
     is measured only over gate-selected (placed) bets, so it cannot fully separate
-    stdev miscalibration from bet-selection bias. It relies on the monthly loop
-    compounding small, significant corrections over time. Records without a
-    recorded fair_value are excluded so the 0.5 loader default can't contaminate
-    the average.
+    stdev miscalibration from bet-selection bias. Records without a recorded
+    fair_value are excluded so the 0.5 loader default can't contaminate the average.
+
+    Note the result is **stateless**: `base_stdev` is the hardcoded baseline in
+    `CURRENT_*_STDEV`, never the previously cached value, so each run recomputes
+    from scratch and corrections do not compound across runs. (An earlier version
+    of this docstring claimed it "relies on the monthly loop compounding small
+    corrections over time" — wrong on both counts: the loop is weekly, and it
+    does not compound. Because it is stateless, running it more often is safe:
+    it cannot oscillate or drift, it only lets a correction land sooner.)
+
+    The caller passes a DAY-FILTERED settled list, so the effective sample is
+    bounded by the caller's `--days` window. That window must be wide enough to
+    clear `_MIN_CALIB_SAMPLES` per (sport, category) or this returns the default
+    unchanged for every sport — which is exactly what a `--days 7` window did
+    until 2026-07-31 (see `scripts/schedulers/maintenance/calibration.bat`).
     """
     group = [
         t for t in settled
