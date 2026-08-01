@@ -490,6 +490,20 @@ Re-measure at 4 weeks. If ≥25% bucket is still negative, tighten to a harder c
 
 Index only — detailed notes are in the collapsed section below.
 
+### 2026-07-31 — MLB Totals Investigation + C8 Calibration Loop Repair
+
+Opened by an operator observation ("a ton of under-13.5 baseball runs bets"), which turned out to be the visible symptom of a self-correction loop that had never worked.
+
+| ID | Item |
+|----|------|
+| T1 | **MLB high-strike totals were 69% of the book since coverage landed 07-20**, 18W-10L against an 80% break-even (−12.6% ROI), with the model claiming 89.7% — p=0.0003 against its own claim. Cause was not distance from the consensus line but a stale stdev. Resolved by repairing C8 (below); 21 of 25 such bets now fall under the R28 8% NO floor. |
+| ~~T2~~ | **Strike-boundary hypothesis measured and rejected** — no bug. `floor_strike` is 12.5 (the ticker suffix is a market index, not the strike), `strike_type` is uniformly `greater`, `extract_strike()` reads `floor_strike`, and half-integer strikes make `≥` vs `>` moot. Recorded because the negative result eliminated the cheap explanation. |
+| ~~T3~~ | **The C8 stdev loop had never calibrated anything.** Cadence was already weekly (my original framing was wrong and is corrected in place). The real defect: the weekly task ran `--days 7`, and `save_calibration_stdevs()` needs 20 settled rows *per (sport, category)* from that day-filtered list — only ~22 bets settle in 7 days across **all** sports. Every run skipped every sport and wrote the hardcoded defaults back, which is why the cache was byte-identical to `SPORT_*_STDEV` for its entire life. Widened to `--days 30`: `total_stdev.baseball_mlb` **3.45 → 4.005** on the first real run. |
+| — | **Distance-cap fix measured and rejected.** Over 136 settled totals bets the 1.0–1.5σ band — where the MLB bets sit — was the *only* profitable bucket (+5.8%); a 1σ cap would have deleted it and kept the −29.5% band. New re-runnable tool `scripts/backtest/totals_distance_check.py`. The over-claim is uniform at every distance (+12% overall), which is a calibration signal, not a distance one. |
+| — | **Pre-wager calibration preflight** (`REQUIRE_FRESH_CALIBRATION`, default false = warn). `execute_pipeline` compares the cache against what the calibrator would compute from current settled data. Deliberately **not** an age check — every age-based safeguard reported "fresh" throughout the no-op. A legitimate skip or hold recomputes to the same value and stays silent. Caught a false positive in itself before shipping (auditing all-time while the job runs 30 days flagged out-of-season NCAAB forever). |
+| — | **Scheduler cleanup.** Removed `MonthlyCalibration` — a duplicate that had **never once run** (Last Run `11/30/1999`). Fixed `install_windows_task.py`, which hardcoded an `Edge-Radar\` folder while live tasks sit in `Edge-Radar-MikesAILab\`: it would have silently created parallel duplicates (a second settler, or a second *execute* task placing real bets) or, pointed the other way, clobbered a live task's run-as/wake/retry policy. Now refuses on cross-folder name collision, with `--task-folder` and `--force`. |
+| — | +11 tests (688) across `test_calibration_config.py`: the `--days` window guard, `CURRENT_*_STDEV` drift from `edge_detector`, loop statelessness, and the preflight. Verified the scheduled task end to end — `.bat` from a foreign cwd, `schtasks /Run` → `Last Result 0`, cache rewritten, report produced, live pricing reading 4.005. |
+
 ### 2026-07-31 — Dashboard Venue Support + Config Page + C10b Games Composite
 
 | ID | Item |
