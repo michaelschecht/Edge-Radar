@@ -34,7 +34,15 @@ streamlit run webapp/app.py # restart — re-reads .env on import
 
 Or force-kill and relaunch: `taskkill /F /IM streamlit.exe` then `streamlit run webapp/app.py`.
 
-**Verify:** re-run the same scan/preview — bets that violate the new floor should now drop out, or show the expected reject reason in the scan log (**Show scan log**).
+**Verify:** open the **Config** page — it renders every variable against the
+live process environment, with a `Source` column showing whether each value
+came from `.env`/Secrets or from the code default in `app/config.py`. Then
+re-run the same scan/preview: bets that violate the new floor should drop out,
+or show the expected reject reason in the scan log (**Show scan log**).
+
+> Scan and execute both call `reload_risk_config()` before running, so most
+> **gate** edits do apply without a restart. The restart is still required for
+> anything read at import time and for the Config page's own mode summary.
 
 > Editing `.env` only affects the **local** app. The Streamlit **Cloud** app reads Secrets, not `.env` — see [CLOUD.md](CLOUD.md#changing-risk-parameters-or-secrets-reboot-required).
 
@@ -91,9 +99,10 @@ webapp/
 ├── services.py             # Bridge to core scripts + secrets injection
 └── views/
     ├── scan_page.py        # Scan & Execute — filters, preview, order placement
-    ├── portfolio_page.py   # Balance, positions, P&L, risk status
+    ├── portfolio_page.py   # Balance, positions, P&L, risk status (per venue)
     ├── settle_page.py      # Settlement + P&L reports
-    └── backtest_page.py    # Strategy analysis & equity curves
+    ├── backtest_page.py    # Strategy analysis & equity curves
+    └── config_page.py      # Live env-var table + execution-mode summary
 ```
 
 ---
@@ -108,22 +117,34 @@ The primary workflow page. Configure filters, scan for opportunities, preview si
 
 | Control | CLI Flag | Description |
 |---------|----------|-------------|
-| Market Type | `sports` / `futures` / `prediction` | Which scanner to run |
+| Market Type | `sports` / `futures` / `prediction` / `polymarket` | Which scanner to run. `polymarket` switches the execution venue too |
 | Filter | `--filter` | Sport or asset — options change per market type. Supports comma-separated (e.g., `mlb,nhl`) |
-| Category | `--category` | Market category (game, spread, total, etc.) — disabled for futures |
-| Date | `--date` | today, tomorrow, or all dates — sports only (futures/prediction ignore) |
+| Category | `--category` | Market category (game, spread, total, etc.) — disabled for futures and polymarket |
+| Date | `--date` | today, tomorrow, or all dates — sports only (futures/prediction/polymarket ignore) |
 
 **Execution Parameters** (second row):
 
 | Control | CLI Flag | Default | Notes |
 |---------|----------|---------|-------|
-| Min Edge % | `--min-edge` | 3% | Slider 1-25% |
+| Min Edge % | `--min-edge` | 3% | Slider 1-20% |
 | Top N | `--top` | 20 | Max opportunities to return |
-| Unit Size ($) | `--unit-size` | $0.50 | Dollar amount per bet |
-| Max Bets | `--max-bets` | 5 | Cap on bets placed |
+| Unit Size ($) | `--unit-size` | $1.00 | Dollar amount per bet (C11: the longshot knob) |
+| Max Bets | `--max-bets` | 6 | Cap on bets placed |
 | Min Bets | `--min-bets` | (none) | Abort if fewer pass risk checks |
-| Exclude Open | `--exclude-open` | off | Skip markets with existing positions |
-| Budget % | `--budget` | (none) | Max batch cost as % of bankroll (sports only) |
+| Exclude Open | `--exclude-open` | on | Skip markets with existing positions |
+| Budget % | `--budget` | 10% | Max batch cost as % of bankroll. Available for **every** market type (was sports-only before 2026-07-31) |
+
+**Results table columns:** `#`, Sport, Bet, Type, Pick, When, Started (`LIVE` for
+in-progress games), Price, Fair, Edge, Conf, Score, **Gate**, and **Exec** on
+Polymarket scans.
+
+- **Gate** is the same read-only risk-gate preflight the CLI preview shows —
+  `ok` means the row would pass the per-opportunity gates. Portfolio-state
+  gates (daily loss, open-position count) are only evaluated at execute time,
+  so `ok` is necessary but not sufficient.
+- **Exec** appears only on Polymarket scans: `YES` means the row carries a US
+  `market_slug` and is orderable; `—` means it came from international Gamma
+  and is dry-run evidence only.
 
 **Workflow:**
 
@@ -131,10 +152,23 @@ The primary workflow page. Configure filters, scan for opportunities, preview si
 2. Click **SCAN MARKETS** — fetches markets, calculates edge, displays results table
 3. Optionally select specific rows from the multiselect dropdown
 4. Click **PREVIEW** — runs full pipeline (risk gates, Kelly sizing, budget cap). Shows order table with Ticker, Sport, Bet (matchup), Type (ML/Spread/Total/Prop), Pick, When (game time), Side, Contracts, Price, Cost, Edge, Status. (Matchup/Pick/When columns added 2026-04-29; previously the preview showed only the raw ticker.)
-5. Click **EXECUTE** — opens confirmation dialog showing mode (DRY RUN / LIVE), order summary, and real-money warning if live. Click **Confirm** to place orders
+5. Click **EXECUTE** — opens confirmation dialog showing the venue and its mode (DRY RUN / LIVE), order summary, budget cap, and a real-money warning if live. Click **Confirm** to place orders
 6. Click **CLEAR** to wipe all results and start fresh
 
-**Quick Scan:** Sidebar buttons (Sports, Futures, Prediction) jump to the scan page with that market type pre-selected.
+**Quick Scan:** Sidebar buttons (Sports, Futures, Prediction, Polymarket) jump to the scan page with that market type pre-selected.
+
+**Polymarket mode.** Selecting `polymarket` as the market type switches both
+the scanner and the execution venue. Two things differ from Kalshi:
+
+- **The venue has its own dry-run flag.** Orders are placed only when BOTH
+  `DRY_RUN=false` and `POLYMARKET_DRY_RUN=false`. The page banner states the
+  live two-flag status rather than assuming it, and the confirm dialog labels
+  the mode per venue. Set `POLYMARKET_DRY_RUN=true` to halt Polymarket without
+  touching Kalshi.
+- **Only US futures are orderable.** Game rows come from international Gamma,
+  a separate slug namespace the US retail API cannot address. They are scanned
+  and shown as evidence but dropped before execution automatically — the
+  confirm dialog counts only the orderable rows.
 
 **Favorites:** Toggle **MANAGE FAVORITES** to save the current filter config with a name. Saved favorites appear in the sidebar as clickable buttons. Stored at `data/webapp/favorites.json`.
 
@@ -142,17 +176,24 @@ The primary workflow page. Configure filters, scan for opportunities, preview si
 
 ### Portfolio
 
-Live portfolio dashboard with auto-refresh support.
+Live portfolio dashboard with auto-refresh support, split into **Kalshi** and
+**Polymarket** tabs. Each tab hits its own venue's API.
 
 **Displays:**
-- **Account Summary** — Balance, Portfolio Value, Open Positions (count/limit), Today's P&L
-- **Daily Loss Progress Bar** — Green-to-amber-to-red gradient showing how much of the daily loss limit has been used. Shows **HARD STOP** alert if limit is breached
-- **DRY RUN badge** — if `DRY_RUN=true`
-- **Open Positions Table** — Sport, Bet, Type, Side (YES/NO), Qty, Avg Price, Cost, Value, P&L. Includes W/L/Flat summary and unrealized P&L total. Export CSV button
+- **Account Summary** — Balance, Portfolio Value, Open Positions (count/limit), and Today's P&L (Kalshi) or Buying Power (Polymarket, where the US retail API reports it separately from balance)
+- **Daily Loss Progress Bar** — Green-to-amber-to-red gradient showing how much of the daily loss limit has been used. Shows **HARD STOP** alert if limit is breached. **This bar is shared across venues** — Gate 1 reads the common trade log, so one daily risk budget covers both
+- **Mode badge** — `DRY_RUN=true` on Kalshi; the live two-flag state on Polymarket
+- **Open Positions Table** — Kalshi: Sport, Bet, Type, Side, Qty, Avg Price, Cost, Value, P&L. Polymarket: Market, Slug, Side, Qty, Avg Price, Cost, Value, Unrealized, Realized. Both include a W/L summary and Export CSV
 - **Resting Orders** — Unfilled limit orders (if any)
-- **Today's Trades** — Orders placed today
+- **Today's Trades** — Orders placed today, filtered to that venue
 
 **Auto-refresh:** Toggle on for 30-second automatic refresh via Streamlit's `@st.fragment(run_every=...)` pattern. Toggle off for manual **REFRESH** button only.
+
+> Polymarket's positions payload uses Amount objects (`{"value": "4.98",
+> "currency": "USD"}`) and reports cost basis where Kalshi reports market
+> value, so the two tables are built by separate formatters. Unrealized P&L
+> comes from the venue's `cashValue` (mark-to-market) minus cost and fees, and
+> reconciles to the Portfolio Value tile above it.
 
 ---
 
@@ -160,9 +201,13 @@ Live portfolio dashboard with auto-refresh support.
 
 **Settle:** Polls the Kalshi API for resolved markets and updates the trade log with outcomes.
 
+**Kalshi only.** Polymarket US settlement and redemption (PM3) is not built
+yet — its client returns an empty settlements list, so Polymarket-tagged
+trades stay open in the log until that lands.
+
 - Click **SETTLE** to run
 - Shows count of newly settled positions and optional raw settle log
-- Settlement history table below: Result (W/L), Ticker, Side, Contracts, Cost, Revenue, P&L, ROI, Edge, Date
+- Settlement history table below: Result (W/L), **Venue**, Ticker, Side, Contracts, Cost, Revenue, P&L, ROI, Edge, Date
 - Summary line with total W/L counts and cumulative P&L
 - Export CSV button
 
@@ -194,6 +239,37 @@ Strategy analysis over your settled trade history.
 - **Calibration Curve** — Predicted vs Actual win rate per bucket, with bar chart
 - **Equity Curve** — Line chart of cumulative P&L over time, plus daily P&L table
 - **Strategy Simulation** — Runs all filter combinations against your full trade history and ranks by ROI, Sharpe, P&L. Highlights the best-performing strategy
+
+---
+
+### Config
+
+Read-only view of what the running process is actually configured with.
+
+**Execution Mode** — Kalshi order mode (DRY RUN / LIVE), Polymarket order mode
+(LIVE / BLOCKED, resolved from the two-flag rule), Unit Size, and Kelly
+Fraction. Warns when `KELLY_FRACTION` exceeds the 0.5 ceiling, since it is
+divided by batch size at runtime and is therefore a *portfolio* fraction.
+
+**Environment Variables** — every variable the system reads, with:
+
+| Column | Meaning |
+|--------|---------|
+| Variable | Env var name |
+| Value | Live value. Credentials show only a character count, never the value |
+| Source | `set` (from `.env`/Secrets), `default` (code default in `app/config.py`), or `unset` |
+| Group | Credentials, System, Risk limits, Sizing, Reject gates, Data quality, Caching, Per-sport overrides, Notifications, Integrations |
+| Notes | What the knob does and which review introduced it |
+
+Filter by group, or tick **Show unset** to include optional overrides you
+haven't set. **Export .env template** downloads the whole list with live values
+(secrets blanked) ready to paste into a fresh `.env`.
+
+> The variable list lives in `webapp/services.py` as `ENV_VAR_SPEC` and is
+> locked to `app/config.py` by `tests/test_webapp_env_registry.py` — if a new
+> knob is added to config without being registered here, that test fails. This
+> matters most on Cloud, where an unregistered variable set in Secrets is
+> silently never read.
 
 ---
 

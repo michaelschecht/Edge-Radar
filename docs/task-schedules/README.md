@@ -573,7 +573,7 @@ Sun-Thu only — Fri + Sat still skipped so the Sunday-morning 5:05 AM run handl
 
 **Why Sunday 9:00 AM PST:** Weekend morning, after Saturday's slate has settled (NightlySettle 11 PM Sat) and well clear of the Sun 5:05 AM SameDay execute. Once-a-week is plenty for a balance chart.
 
-**Why a `gh` push instead of a normal commit:** generation must run locally (needs the `.env` Kalshi keys + the gitignored local settlements ledger), but the Pages deploy only watches `master`. Pushing the single file via `gh api PUT .../contents/...` updates `master` directly without touching the `mike_win-desktop` working branch or requiring a PR. `.claude/html/account-*.html` is gitignored so the file is managed solely by this task and never collides with branch PRs. The push is best-effort — if `gh` is unavailable the local graph still regenerates and the failure is logged.
+**Why a `gh` push instead of a normal commit:** generation must run locally (needs the `.env` Kalshi keys + the gitignored local settlements ledger), but the Pages deploy only watches `master`. Pushing the single file via `gh api PUT .../contents/...` updates `master` directly without touching the `mike_desktop` working branch or requiring a PR. `.claude/html/account-*.html` is gitignored so the file is managed solely by this task and never collides with branch PRs. The push is best-effort — if `gh` is unavailable the local graph still regenerates and the failure is logged.
 
 **Privacy note:** the published graph shows **real dollar figures** (balance, deposit, P&L) on a public, unauthenticated site. It's at an unguessable filename with a `noindex, nofollow` meta tag — *lightly hidden, not access-controlled*. Treat the graph as public.
 

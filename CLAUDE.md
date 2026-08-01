@@ -300,7 +300,9 @@ make test        make hooks
 
 ## Session Startup Checklist
 
-1. Run `git sync-master` — sync local master with remote (user works on `mike_win-desktop`, pushes to remote master; local master goes stale without this)
+> **Working branch: `mike_desktop`** (deploy/default branch: `master`). This matches every other repo under `Repos/Live_Apps`. Switched from `mike_win-desktop` on 2026-07-27 — that branch is retired; do not commit to it. Confirm with `git status` before assuming.
+
+1. Run `git sync-master` — sync local master with remote (user works on `mike_desktop`, pushes to remote master; local master goes stale without this)
 2. Read `data/positions/open_positions.json` — current exposure
 3. Read `data/history/today_trades.json` — today's P&L
 4. Check daily loss limit — if breached, **NO** new positions
