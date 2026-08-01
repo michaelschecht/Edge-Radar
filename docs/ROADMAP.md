@@ -72,7 +72,7 @@ These items address the critical P&L drains and calibration overconfidence ident
 | ID | Item | Impact | Effort | Notes |
 |----|------|--------|--------|-------|
 | **T1** | **MLB high-strike totals dominate the book and are badly miscalibrated** | High | Med | **Opened 2026-07-31 from an operator observation** ("a ton of under-13.5 baseball runs bets"). Confirmed and larger than it looked: **31 of 115 live trades (27%) are MLB totals, 28 of them NO-side, and 14 sit on strike 13 alone** — 12% of the entire book is one repeated bet shape. Only 7 MLB moneylines in the same window. **Calibration:** those 28 NO bets went **18W-10L (64.3%)** against an **80.1%** market-implied break-even → **−12.6% ROI**. Versus the market that is p=0.038 (marginal, n=28); versus **the model's own claimed 89.7% fair value it is p=0.0003** — the model is decisively miscalibrated on this shape, which is the solid part of the finding. **Mechanism (three parts):** (1) `consensus_total_prob` extrapolates from the sportsbook line (~8.7 runs) out to the Kalshi strike with a normal CDF and `SPORT_TOTAL_STDEV["baseball_mlb"]=3.45`; strike 13 is **1.25σ** out, where the answer is dominated by the stdev assumption rather than by any market data. (2) There is a **disagreement sweet spot** — near the line model and market agree, far out both approach 100% NO, and around 1.25σ the model says 89% NO while the market says 80%. Every MLB game has a listed strike in that window, so **every game emits one near-identical NO bet**. (3) **R28's global NO floor is 8% and the phantom edge averages 9.6%** — the one gate designed to stop bad NO bets sits just below the bias. **Ruled out:** skew. A negative binomial with the same mean and variance gives a *lower* P(>13) (9.0% vs the normal's 10.6%), so "normal CDF understates a right-skewed tail" is not the driver here. **Most likely real driver: adverse selection** — the model bets the games where its own noisy inferred mean sits lowest relative to the strike, which selects the cases where that estimate is most wrong. Same winner's-curse pattern C4 and C11 each found. **Connects to C11b:** that investigation measured *correlation* among "four MLB unders on one night" and correctly found none (rho −0.187); it never asked **why there were four**. This is the answer — C11b's conclusion was right but aimed at the wrong question. **Candidate fixes, in order of cost/benefit:** (a) verify the **≥ vs >** boundary convention first (see T2 — cheapest, and possibly the whole story); (b) **cap extrapolation distance** — reject totals whose strike is more than ~1σ from the consensus line, since past that the bet is on the stdev, not on the books; (c) raise `NO_SIDE_MIN_EDGE_GLOBAL` above the phantom band or add a totals-specific floor; (d) add a **per-shape batch cap** (same sport + category + side), which `MAX_PER_EVENT` does not cover because each bet is a different game. Do (a) before anything else. |
-| **T2** | **Verify the totals strike boundary convention (`≥` vs `>`)** | High | Small | **Opened 2026-07-31 alongside T1.** `consensus_total_prob` returns `1 - norm.cdf(strike)` = **P(total > strike)**. If Kalshi's "Total Runs?" market at strike 13 resolves YES on **13 or more** (`≥`), the correct figure is P(≥13) = **13.7%**, not 10.6% — a systematic **3.1-point** error, always in the direction of making NO look cheap, on **every totals bet in every sport**, not just MLB. Not asserted as a bug yet: it needs one settled Kalshi totals market checked against its actual resolution to confirm the convention. Cheap to verify and, if real, a single-line fix with much wider reach than T1. |
+| ~~**T2**~~ | ~~Verify the totals strike boundary convention (`≥` vs `>`)~~ | — | Small | **VERIFIED AND CLOSED 2026-07-31 — no bug. The hypothesis was wrong.** Checked against the live Kalshi API for all 28 logged MLB NO-total markets. Three findings, each of which independently closes it: (1) **the ticker suffix is not the strike.** `KXMLBTOTAL-…MINCLE-13` has `floor_strike: 12.5` — the suffix is a market index, not the threshold. (2) `extract_strike()` reads **`floor_strike` first** (`edge_detector.py:1214`) and only falls back to rules-text parsing, so the model uses 12.5, not 13. Kalshi's `rules_primary` says "more than 12.5 runs … resolves to Yes" and `strike_type` is uniformly `greater` — the model's `1 - norm.cdf(12.5)` matches the resolution rule exactly. (3) **`floor_strike` is a half-integer on 28/28 markets**, so no integer run total can ever tie the strike and the `≥` vs `>` distinction is *mathematically moot* regardless. Recorded because the negative result is load-bearing: it eliminates the cheap single-line explanation, so T1's cause lies in the model or in bet generation, not in a boundary convention. |
 
 *Note: R12–R18, R20, R21–R23, R24a, R25 all shipped 2026-04-24. R27 shipped 2026-06-15.*
 
@@ -209,7 +209,14 @@ Multi-quarter track. Build order: A2 → A3 → A4+A5 → A6+A7+A8 → A9. Assum
 
 Operator flagged that "under 13.5 or so runs in baseball" bets seemed to be placed far more often than anything else. Confirmed, and understated.
 
-**Concentration.** Of 115 live trades, **31 are MLB totals (27%)**, **28 of them NO-side**, and **14 sit on strike 13** — a single repeated wager shape is 12% of the entire book. The same window contains only 7 MLB moneylines. Nothing in the gate chain prevents this: each bet is a *different game*, so `MAX_PER_EVENT` and the series dedup never engage, and `CROSS_CATEGORY_DEDUP` only collapses categories within one game.
+**Concentration — and the 27%-of-book figure badly understates it.** MLB totals did not exist in the book until **2026-07-20**, when the MLB spread/total coverage gap was closed (see that entry in Completed). Split on that date:
+
+| Window | Trades | MLB totals | Share |
+|:--|--:|--:|--:|
+| Before 2026-07-20 | 70 | **0** | 0% |
+| On/after 2026-07-20 | 45 | **31** | **69%** |
+
+So the honest headline is not "27% of the book" — it is that **within 11 days of the coverage landing, one bet shape took over more than two-thirds of all betting.** 28 of the 31 are NO-side, and the same window contains only 7 MLB moneylines. Nothing in the gate chain prevents it: each bet is a *different game*, so `MAX_PER_EVENT` and series dedup never engage, and `CROSS_CATEGORY_DEDUP` only collapses categories within a single game.
 
 **Calibration.** The 28 settled NO bets went **18W-10L (64.3%)** against an **80.1%** market-implied break-even → **−12.6% ROI (−$6.28)**.
 
@@ -220,6 +227,15 @@ Operator flagged that "under 13.5 or so runs in baseball" bets seemed to be plac
 
 The second row is the durable finding. Whether these bets are exactly −EV is not settled by 28 samples, but the model being wrong about them is.
 
+**Caveats, stated honestly.** All 28 bets fall in a single **11-day window** (07-21 → 07-31), so this is not a broad sample of the season and late-July scoring conditions are a real confound. Two checks were run against that: losses are **not** concentrated in one bad day (only 1 of 11 days had zero wins, n=1), and treating each *day* as the unit rather than each bet gives a 66.5% mean win rate — close to the per-bet 64.3%, so the result is not an artifact of a few heavily-bet days. The time trend is the more useful cut:
+
+| Window | Record | ROI |
+|:--|:--|--:|
+| First 5 days (07-21 → 25) | 11W-1L | **+6.7%** |
+| After (07-26 → 31) | 7W-9L | **−18.3%** |
+
+An early hot streak masked the shape for a week. That pattern is itself a caution against reading the first days of any newly-opened market as validation.
+
 **Mechanism.** `consensus_total_prob` infers a mean total from the sportsbook line (~8.7 runs) and extrapolates to the Kalshi strike with a **normal CDF** at `SPORT_TOTAL_STDEV["baseball_mlb"] = 3.45`. Strike 13 is **1.25σ** out — far enough that the answer comes from the stdev assumption, not from any book quote. There is a **disagreement sweet spot**: near the line model and market agree; far out both approach 100% NO; around 1.25σ the model says 89% NO against the market's 80%. Every MLB game lists a strike in that window, so every game emits one near-identical NO bet. **R28's global NO floor is 8% and the phantom edge averages 9.6%** — the gate built to stop bad NO bets sits just under the bias.
 
 **Ruled out.** The intuitive explanation — a normal CDF understating the right tail of a skewed run distribution — is wrong here. A negative binomial with the same mean and variance gives a *lower* P(>13) (9.0% vs 10.6%), which would make the model's NO fair value higher still.
@@ -228,7 +244,9 @@ The second row is the durable finding. Whether these bets are exactly −EV is n
 
 **Relation to C11b.** That investigation measured *correlation* among the "four MLB unders on one night" slate and correctly concluded no guard was needed (totals rho −0.187, p=0.75). It never asked **why there were four unders**. This is the answer: not a correlation problem, a generation problem. C11b's conclusion stands; its question was the wrong one.
 
-Actions: **T1** (concentration + calibration) and **T2** (verify the `≥` vs `>` strike convention — cheapest, possibly the whole story) in Priority 1.
+**T2 was verified the same day and is closed — no bug.** The hypothesis was that Kalshi's strike-13 market resolves on "13 or more" while the model computes `P(> 13)`, a 3.1-point systematic error toward NO on every totals bet in every sport. It is wrong on every count: the ticker suffix is not the strike (`floor_strike` is **12.5**), `extract_strike()` reads `floor_strike` and not the suffix, Kalshi's rule text and `strike_type: greater` match the model's `1 - norm.cdf(12.5)` exactly, and `floor_strike` is a half-integer on 28/28 markets so no integer total can tie it. Worth recording because the negative result is load-bearing: the cheap single-line explanation is eliminated, so T1's cause is in the model or in bet generation.
+
+Action: **T1** in Priority 1. Remaining candidate fixes, now that the boundary explanation is dead: cap extrapolation distance from the consensus line, a totals-specific NO floor above the ~9.6% phantom band, and a per-shape batch cap. The first is the most direct — at 1.25σ out, the bet is on `SPORT_TOTAL_STDEV`, not on anything the sportsbooks actually quoted.
 
 
 

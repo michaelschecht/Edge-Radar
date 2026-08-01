@@ -43,11 +43,45 @@ on one night" slate and correctly found none (totals rho -0.187, p=0.75). It nev
 why there were four. This is the answer: not a correlation problem, a generation problem.
 C11b's conclusion stands; its question was the wrong one.
 
-Opened as **T1** (concentration + calibration; candidate fixes: cap extrapolation distance,
-totals-specific NO floor, per-shape batch cap) and **T2** (verify the `>=` vs `>` strike
-convention -- if Kalshi's strike-13 market resolves YES on "13 or more", the model's
-`1 - norm.cdf(13)` understates YES by **3.1 points on every totals bet in every sport**,
-always toward NO). **Do T2 first** -- cheapest, widest reach, and possibly the whole story.
+Opened as **T1** (concentration + calibration) and **T2** (the strike-boundary hypothesis).
+
+### T2 verified same day -- no bug, hypothesis was wrong
+
+T2 proposed that Kalshi's strike-13 market resolves YES on "13 or more" while the model
+computes `P(> 13)` -- a 3.1-point systematic error toward NO on every totals bet in every
+sport. Checked against the live Kalshi API for all 28 logged markets. It is wrong on every
+count:
+
+- **The ticker suffix is not the strike.** `KXMLBTOTAL-...MINCLE-13` carries
+  `floor_strike: 12.5`; the suffix is a market index.
+- `extract_strike()` reads **`floor_strike` first** (`edge_detector.py:1214`), so the model
+  uses 12.5, not 13.
+- Kalshi's `rules_primary` ("more than 12.5 runs ... resolves to Yes") and
+  `strike_type: greater` match the model's `1 - norm.cdf(12.5)` exactly.
+- `floor_strike` is a **half-integer on 28/28** markets, so no integer run total can tie the
+  strike and the `>=` vs `>` distinction is mathematically moot regardless.
+
+Recorded because the negative result is load-bearing: the cheap single-line explanation is
+eliminated, so T1's cause lies in the model or in bet generation.
+
+### The concentration is worse than first reported
+
+The "27% of the book" figure understated it. MLB totals did not exist in the book until
+**2026-07-20**, when the MLB spread/total coverage gap was closed. Before that date: 70
+trades, **0** MLB totals. On and after: 45 trades, **31** MLB totals -- **69% of everything
+bet since the coverage landed**. Within 11 days one bet shape took over two-thirds of all
+betting.
+
+### Caveats
+
+All 28 bets sit in a single 11-day window, so this is not a broad sample and late-July
+scoring is a real confound. Two checks against that: losses are not concentrated in one bad
+day (1 of 11 days had zero wins, n=1), and treating each *day* as the unit gives a 66.5%
+mean win rate against the per-bet 64.3% -- so the result is not an artifact of a few
+heavily-bet days. The time trend is the useful cut: **first 5 days 11W-1L (+6.7% ROI),
+after that 7W-9L (-18.3%)**. An early hot streak masked the shape for a week, which is
+itself a caution against reading the opening days of any newly-covered market as
+validation.
 
 Also documented **PM2e**: the post-C10/C10b risk posture. The bugs themselves cost almost
 nothing (0 Polymarket trades, 0 prediction bets, 0 trades over `MAX_BET_SIZE`, 0 NBA/NCAAB
