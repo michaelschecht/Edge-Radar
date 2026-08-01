@@ -2,6 +2,60 @@
 
 ---
 
+## 2026-07-31 -- pre-wager calibration preflight (REQUIRE_FRESH_CALIBRATION)
+
+Follow-up to the C8 no-op below: a check that the calibration is actually current
+*before* the executor sizes anything.
+
+### Why age is the wrong signal
+
+Every existing safeguard reported healthy throughout the failure. The weekly task ran on
+schedule, exited 0, and rewrote the cache file every week; `CALIBRATION_STDEVS_TTL_DAYS=30`
+saw a 0-5 day old file and was satisfied. The cache was fresh, green, and wrong -- it just
+contained the hardcoded defaults.
+
+So the preflight does not check age. `model_calibration.calibration_drift()` **recomputes**
+what the calibrator would produce from current settled data and compares it to what is
+cached. That distinguishes the two cases age cannot:
+
+- a legitimate skip (too few samples) or hold (gap within noise) returns the baseline, and
+  the cache holds the baseline, so they agree -- silent;
+- a loop that is broken or behind the evidence produces a value the cache disagrees with
+  -- flagged, with the sport, both values, and the sample count.
+
+### Wiring
+
+`execute_pipeline()` calls it before gathering portfolio state. Default posture is **warn**;
+`REQUIRE_FRESH_CALIBRATION=true` makes it a hard stop on `--execute`. Preview runs never
+abort -- you should always be able to look.
+
+Warn-by-default is deliberate. A hard default block is the wrong trade for an unattended
+system: most sports are legitimately out of season with too few settled bets to calibrate,
+and halting all betting on a diagnostic is a worse failure than the miscalibration it
+guards against. The import is local and any exception inside the check is swallowed -- a
+diagnostic must not be able to take down the money path.
+
+### A false positive caught before shipping
+
+The first version audited against all-time settled data while the scheduled job runs
+`--days 30`, and immediately reported `basketball_ncaab/spread` as drifted (cached 12.1 vs
+"expected" 14.742, n=29). That was the check being wrong, not the cache: NCAAB has 29
+settled bets all-time but far fewer inside 30 days, so the job legitimately skips it.
+Out-of-season sports would have drifted forever. Fixed by auditing against
+`SCHEDULED_CALIBRATION_DAYS`, with a test asserting it stays equal to the window in
+`calibration.bat`.
+
+Verified end to end by sabotaging the cache back to 3.45: preview warns and continues,
+execute warns and continues at the default, execute refuses with
+`REQUIRE_FRESH_CALIBRATION=true`. Restored afterwards; the healthy cache produces no output
+at all.
+
+New knob `REQUIRE_FRESH_CALIBRATION` (default false) in `app/config.py`, `.env.example`,
+and the webapp registry -- `tests/test_webapp_env_registry.py` caught the missing webapp
+entry, which is what it was built for. +5 tests (688).
+
+---
+
 ## 2026-07-31 -- the C8 stdev loop had never calibrated anything: `--days 7` starved it
 
 Asked to add a weekly calibration cadence. Checked the machine first. **The cadence

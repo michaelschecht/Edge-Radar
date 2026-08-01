@@ -162,6 +162,11 @@ ENV_VAR_SPEC: list[dict] = [
           "which Gate 4.5 then rejects. 0 disables."),
     _spec("RESTING_ORDER_MAX_HOURS", "Reject gates", "24",
           "R4 janitor. Kalshi-only; Polymarket ops are PM3. 0 disables."),
+    _spec("REQUIRE_FRESH_CALIBRATION", "Reject gates", "false",
+          "true refuses to EXECUTE when the stdev cache disagrees with what "
+          "the calibrator would compute from current settled data. Default "
+          "false = warn only. Checks recomputation, not cache age — age said "
+          "'fresh' throughout the 2026-07-31 no-op."),
 
     # ── Data quality / freshness ────────────────────────────────────────
     _spec("MAX_LIVE_BOOK_AGE_SECONDS", "Data quality", "1200",

@@ -230,6 +230,7 @@ class GateThresholds:
     cross_category_dedup: bool = False
     max_live_book_age_seconds: int = 1200
     min_live_consensus_books: int = 3
+    require_fresh_calibration: bool = False
 
     @classmethod
     def from_env(cls) -> "GateThresholds":
@@ -250,6 +251,7 @@ class GateThresholds:
             cross_category_dedup=_bool("CROSS_CATEGORY_DEDUP", False),
             max_live_book_age_seconds=_int("MAX_LIVE_BOOK_AGE_SECONDS", 1200),
             min_live_consensus_books=_int("MIN_LIVE_CONSENSUS_BOOKS", 3),
+            require_fresh_calibration=_bool("REQUIRE_FRESH_CALIBRATION", False),
         )
 
 
