@@ -752,7 +752,9 @@ Flags: `--sport`, `--category`, `--confidence`, `--min-edge`, `--after`, `--simu
 streamlit run webapp/app.py
 ```
 
-3 pages: Scan & Execute (with confirmation dialog), Portfolio (auto-refresh, P&L color coding), Settle & Report (settlement history, CSV export). Dark terminal theme, favorites, quick-scan sidebar.
+5 pages: **Scan & Execute** (4 market types incl. `polymarket`, Gate + Exec columns, venue-aware confirmation dialog), **Portfolio** (Kalshi / Polymarket tabs, auto-refresh, P&L color coding, shared daily-loss bar), **Settle & Report** (settlement history + Venue column, CSV export; Kalshi-only until PM3), **Backtest**, and **Config** (live env-var table with `set`/`default`/`unset` source, secrets masked, `.env` template export). Dark terminal theme, favorites, quick-scan sidebar.
+
+Selecting the `polymarket` market type switches the execution venue too. Orders there need BOTH `DRY_RUN=false` and `POLYMARKET_DRY_RUN=false`; the banner and confirm dialog state the live two-flag status. Only US futures are orderable — Gamma-sourced game rows show `Exec = —` and are dropped before execution.
 
 ---
 

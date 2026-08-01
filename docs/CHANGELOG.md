@@ -54,6 +54,39 @@ the same arithmetically-unreachable gate a third time.
 +4 tests (677), including a cross-surface parity check against the sports composite,
 scoped to medium confidence so it does not silently encode the `high` decision above.
 
+### C10c -- the same scale survives in all 7 prediction scanners (logged, not fixed)
+
+The propagation sweep for this change grepped the repo for the old form and found
+`edge_score = min(10, edge * 20)` still in `companies_edge.py:167`, `crypto_edge.py:227`,
+`mentions_edge.py:201` and `:269`, `politics_edge.py:140`, `spx_edge.py:200`, and
+`weather_edge.py:255`. Three families of this bug have now been found: futures (C10),
+games (C10b), and prediction (C10c).
+
+**No live impact today** -- Gate 4.7 (`ALLOW_PREDICTION_BETS=false`, R25) rejects every
+prediction category before the composite matters, so it is latent rather than active.
+
+Deliberately **not** fixed here: seven modules, zero settled prediction bets to replay
+against, and the prediction models are already flagged as surfacing garbage fair values
+(R25, F34-F39). Loosening their gate before the model rebuild would be fixing the wrong
+layer first. Logged as **C10c** in ROADMAP Priority 2, to be done as part of the
+prediction rebuild (R25b/R25c) and replayed against evidence the way C10 and C10b each
+were. If `ALLOW_PREDICTION_BETS` is ever flipped before that, this becomes active and
+must be fixed first.
+
+### Propagation
+
+`docs/ROADMAP.md` (C10b in the Priority 0 dry-run blockquote; new **PM2d** dashboard row;
+**A10**/**A11** under Web App Evolution; **C10c** in Priority 2; a 2026-07-31 Completed
+entry), `CLAUDE.md` (C10b note, dashboard row, views list, test count),
+`docs/polymarket/README.md`, `docs/polymarket/polymarket-games-betting/GAMES_GUIDE.md`
+(new "Composite scoring" section with the full formula),
+`docs/setup/polymarket-us-setup.md`, `docs/setup/ARCHITECTURE.md`, `README.md`,
+`skills/edge-radar/SKILL.md` (5 pages, not 3).
+
+One ROADMAP nuance worth recording: **PM2d supersedes Q1** (2026-04-22), which *removed*
+a Polymarket market type from the webapp. That removal was correct at the time -- it was a
+UI-only stub that never reached the service layer. This one does.
+
 ---
 
 ## 2026-07-31 -- Streamlit dashboard: Polymarket venue, Config page, env-registry fix

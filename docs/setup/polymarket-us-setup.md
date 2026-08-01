@@ -184,6 +184,23 @@ the 9 observed US candidates on its own — each remains blocked by Gate 3 (edge
 Gate 3.5 (price floor) or Gate 4.5 (confidence). Full rationale: `CLAUDE.md` C10
 and ROADMAP C10.
 
+**C10b (2026-07-31) — the games path had the same bug.** C10 fixed both *futures*
+paths and missed `polymarket_games_edge.py`, written three days earlier, which had
+copied `edge * 20` from the Polymarket futures file — itself a copy of its own
+`liquidity` line. Independently confirmed on this surface: clearing 6.0 needed
+~15% / 26% / 38% edge at high / medium / low confidence against game edges of
+**1–7%**, and across **362 logged Gamma game rows not one ever reached composite
+6.0** (max **5.30**). Aligned to the same scale. **Not a floodgate** — replayed
+through the shipped code, only **5 of 362 (1.4%)** newly clear Gate 4, all
+marginally (6.02–6.26); **330** are stopped at Gate 3 and never reach it. **No live
+behavior change**, since Gamma game rows carry no US `market_slug` and are
+auto-excluded — this de-risks the seasonal US games repoint. Two divergences kept
+deliberately: liquidity stays `book_spread * 100` (rows above `MAX_BOOK_SPREAD=0.10`
+are already dropped, so `* 20` would compress every survivor into 9.8–10.0) and
+`high: 9` stays uncapped, on C10's own precedent — C4's evidence is 306 settled
+*Kalshi* bets and there is still no settled Polymarket data. Revisit the confidence
+weight when PM3 lands.
+
 **Evidence-log split (same date).** 66 of the 79 logged rows were Gamma-sourced
 *games* with no US `market_slug` — auto-excluded from execution, so the log read
 far busier than the 13-row tradable universe. Runs now record `executable_count`,

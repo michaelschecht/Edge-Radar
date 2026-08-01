@@ -53,6 +53,28 @@ Sport routing passes a synthetic Kalshi-prefixed `stdev_ticker` (e.g. `KXMLB`) p
 | NBA | `nba-games` | `nba` | `basketball_nba` |
 | NHL | `nhl-games` | `nhl` | `icehockey_nhl` |
 
+### Composite scoring (C10b, 2026-07-31)
+
+The composite that feeds Gate 4 is the sports formula, with one deliberate difference:
+
+```
+composite = 0.4 * min(edge / 0.01, 10)          # edge, saturating at 10%
+          + 0.3 * {high: 9, medium: 6, low: 3}  # confidence
+          + 0.2 * max(0, 10 - book_spread*100)  # liquidity — steeper than Kalshi
+          + 0.1 * 5                             # time-sensitivity placeholder
+```
+
+The edge term **was** `min(10, edge * 20)`, saturating at a 50% edge instead of 10%. This file was written three days before C10 and copied that expression from `polymarket_futures_edge.py`, which had itself copied it from its own `liquidity` line — a copy of a copy of the bug C10 diagnosed, so it had no independent rationale either.
+
+The consequence was the same, and the evidence log proves it: clearing `MIN_COMPOSITE_SCORE=6.0` needed roughly **15% edge at high confidence, 26% at medium, 38% at low**, against game edges that run **1–7%** in practice. Across **362 logged Gamma game rows, not one ever reached 6.0** — the maximum observed was **5.30**. Gate 4 was structurally unreachable.
+
+Aligning it is **not a floodgate**: replayed through the shipped code over those same 362 rows, only **5 (1.4%)** newly clear Gate 4, all marginally (6.02–6.26), and each still faces gates 3.5 / 4.5 / 4.6b / 5 / 6 / 7. The other **330** are stopped at Gate 3 (edge) and never reach Gate 4 at all. Nothing here is executable today regardless — the point is that the seasonal US repoint doesn't inherit an unreachable gate.
+
+Two divergences from the sports composite are intentional:
+
+- **Liquidity scales `* 100`, not `* 20`.** Rows wider than `MAX_BOOK_SPREAD` (0.10) are already dropped by the guard rail below, so `* 20` would compress every surviving row into 9.8–10.0 and the term would carry no information. `* 100` spreads the admissible band across the full range. The cost is that games and futures composites are not directly comparable when merged and ranked together.
+- **`high` is weighted 9, not capped to 6.** C4 capped high→medium for *Kalshi sports* on 306 settled bets and scoped everything else out; there is still no settled Polymarket data. Worth revisiting when PM3 settlement lands — this path prices against the same Odds API consensus as sports, so C4's reasoning plausibly transfers even though its evidence doesn't.
+
 ---
 
 ## Guard rails
