@@ -159,6 +159,12 @@ DRY_RUN = "true"
 
 # --- Calibration ---
 # CALIBRATION_STDEVS_TTL_DAYS = "30"  # C8: max age of auto-recalibrated per-sport stdevs
+# REQUIRE_FRESH_CALIBRATION = "false" # true = refuse to execute when calibration is behind
+                                      # current settled data. Checks recomputation, not age.
+                                      # NOTE on Cloud: the filesystem is ephemeral, so
+                                      # data/cache/calibration_stdevs.json does not survive a
+                                      # reboot and pricing falls back to the hardcoded stdevs.
+                                      # Leave this false there or Cloud execution will refuse.
 ```
 
 > **Flat keys work too.** Every variable above can also be given as a flat

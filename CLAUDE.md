@@ -222,6 +222,7 @@ MIN_CONSENSUS_BOOKS_NBA=8       # R29 (2026-06-23): NBA games with <8 agreeing b
 MAX_LIVE_BOOK_AGE_SECONDS=1200  # L1 Phase 2: drop bookmakers whose in-play line is older than this (20m) from live-game consensus; 0 disables
 MIN_LIVE_CONSENSUS_BOOKS=3      # L1 Phase 2: skip an in-progress game whose consensus the stale filter thinned below this many fresh books (fires only when staleness removed books; pre-game unaffected); 0 disables
 CALIBRATION_STDEVS_TTL_DAYS=30  # C8 (2026-06-23): max age of auto-recalibrated per-sport stdevs in data/cache/calibration_stdevs.json before falling back to hardcoded defaults
+REQUIRE_FRESH_CALIBRATION=false # 2026-07-31: true refuses to EXECUTE when the stdev cache disagrees with what the calibrator would compute from current settled data. Default false = warn only. Recomputes rather than checking age — age reported "fresh" for the entire life of the C8 no-op
 KELLY_EDGE_CAP=0.15             # Soft-cap edge for Kelly sizing
 KELLY_EDGE_DECAY=0.5            # Decay factor on edge above the cap
 SERIES_DEDUP_HOURS=48           # Reject same-matchup bets within this window (0 disables)
