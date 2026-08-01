@@ -114,3 +114,98 @@ class TestSchedulerWindowClearsTheSampleGate:
                 "so every sport is skipped and the hardcoded defaults are written "
                 "straight back — the C8 loop becomes a silent no-op."
             )
+
+
+class TestCalibrationDriftPreflight:
+    """The pre-wager check that would have caught the 2026-07-31 no-op.
+
+    Age-based checks all reported healthy while the loop wrote defaults back
+    every week, so this one recomputes and compares instead.
+    """
+
+    @staticmethod
+    def _settled(n: int, fair: float, won_frac: float, category="total") -> list[dict]:
+        return [{
+            "ticker": "KXMLBTOTAL-26JUL211840MINCLE-13",
+            "category": category,
+            "closed_at": "2026-07-30T00:00:00+00:00",
+            "fair_value": fair,
+            "_has_fair_value": True,
+            "settlement_won": i < int(n * won_frac),
+        } for i in range(n)]
+
+    def _cache(self, tmp_path, mlb_total):
+        import json
+        from datetime import datetime, timezone
+        p = tmp_path / "calibration_stdevs.json"
+        p.write_text(json.dumps({
+            "version": 1,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "margin_stdev": dict(mc.CURRENT_MARGIN_STDEV),
+            "total_stdev": {**mc.CURRENT_TOTAL_STDEV, "baseball_mlb": mlb_total},
+        }), encoding="utf-8")
+        return p
+
+    def test_flags_a_cache_that_is_behind_the_evidence(self, tmp_path):
+        # 40 bets claiming 90% that realized 60% -> the calibrator wants a
+        # wider stdev, but the cache still holds the untouched default.
+        settled = self._settled(40, 0.90, 0.60)
+        health = mc.calibration_drift(
+            settled=settled, cache_path=self._cache(tmp_path, mc.CURRENT_TOTAL_STDEV["baseball_mlb"]))
+        assert not health["ok"]
+        drift = [d for d in health["drifted"]
+                 if d["sport"] == "baseball_mlb" and d["category"] == "total"]
+        assert drift, "a stale MLB totals stdev must be reported"
+        assert drift[0]["expected"] > drift[0]["cached"]
+
+        # And the warning must say age is not the signal, since that is the
+        # lesson that made this check necessary.
+        text = " ".join(mc.format_drift_warning(health))
+        assert "age is NOT the issue" in text
+        assert "model_calibration.py" in text
+
+    def test_quiet_when_the_cache_matches_a_recomputation(self, tmp_path):
+        settled = self._settled(40, 0.90, 0.60)
+        expected = mc._calibrate_one_stdev(
+            settled, "baseball_mlb", mc.CURRENT_TOTAL_STDEV["baseball_mlb"], "total")
+        health = mc.calibration_drift(settled=settled,
+                                      cache_path=self._cache(tmp_path, expected))
+        assert health["ok"], health["drifted"]
+        assert mc.format_drift_warning(health) == []
+
+    def test_too_few_samples_is_not_drift(self, tmp_path):
+        """A legitimate skip recomputes to the baseline, so it must stay quiet.
+
+        This is the false-positive that would make the check unusable: most
+        sports are out of season with almost nothing settled.
+        """
+        settled = self._settled(mc._MIN_CALIB_SAMPLES - 1, 0.90, 0.60)
+        health = mc.calibration_drift(
+            settled=settled,
+            cache_path=self._cache(tmp_path, mc.CURRENT_TOTAL_STDEV["baseball_mlb"]))
+        assert health["ok"], health["drifted"]
+
+    def test_missing_cache_is_reported(self, tmp_path):
+        health = mc.calibration_drift(settled=[], cache_path=tmp_path / "nope.json")
+        assert not health["ok"] and health["cache_missing"]
+        assert "never run" in " ".join(mc.format_drift_warning(health))
+
+    def test_audits_against_the_scheduled_window(self):
+        """Must match calibration.bat, or out-of-season sports drift forever.
+
+        Caught during development: auditing all-time while the job runs
+        --days 30 reported basketball_ncaab/spread as permanently drifted,
+        because it has 29 settled bets all-time but far fewer inside 30 days.
+        """
+        bat = TestSchedulerWindowClearsTheSampleGate.BAT
+        if not bat.exists():
+            pytest.skip("scripts/schedulers/ not present (gitignored)")
+        runs = re.findall(r"model_calibration\.py\s+--days\s+(\d+)([^\r\n]*)",
+                          bat.read_text(encoding="utf-8"))
+        saving = [int(d) for d, rest in runs if "--save" in rest]
+        assert saving and all(d == mc.SCHEDULED_CALIBRATION_DAYS for d in saving), (
+            f"calibration.bat saves with --days {saving}, but calibration_drift() "
+            f"audits against SCHEDULED_CALIBRATION_DAYS="
+            f"{mc.SCHEDULED_CALIBRATION_DAYS}. Mismatched windows make the "
+            "preflight report phantom drift for out-of-season sports."
+        )

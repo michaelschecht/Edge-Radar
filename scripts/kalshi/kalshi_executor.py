@@ -127,6 +127,7 @@ ALLOW_PREDICTION_BETS = _cfg.gates.allow_prediction_bets
 # uses is_game_started(), which only fires on tickers that embed a start time
 # (moneyline); date-only tickers (spreads/totals) are not caught here.
 ALLOW_LIVE_BETS = _cfg.gates.allow_live_bets
+REQUIRE_FRESH_CALIBRATION = _cfg.gates.require_fresh_calibration
 
 _CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
 
@@ -201,7 +202,7 @@ def reload_risk_config() -> None:
     global MIN_MARKET_PRICE, RESTING_ORDER_MAX_HOURS, MIN_CONFIDENCE
     global NO_SIDE_FAVORITE_THRESHOLD, NO_SIDE_MIN_EDGE, NO_SIDE_MIN_EDGE_GLOBAL
     global NO_SIDE_KELLY_PRICE_FLOOR, NO_SIDE_KELLY_MULTIPLIER, NO_SIDE_KELLY_MULTIPLIER_GLOBAL
-    global ALLOW_PREDICTION_BETS, ALLOW_LIVE_BETS
+    global ALLOW_PREDICTION_BETS, ALLOW_LIVE_BETS, REQUIRE_FRESH_CALIBRATION
     global CROSS_CATEGORY_DEDUP
     global _PER_SPORT_MIN_EDGE, _PER_SPORT_SERIES_DEDUP, _PER_SPORT_CROSS_CATEGORY_DEDUP
 
@@ -232,6 +233,7 @@ def reload_risk_config() -> None:
     NO_SIDE_KELLY_MULTIPLIER_GLOBAL = cfg.kelly.no_side_kelly_multiplier_global
     ALLOW_PREDICTION_BETS = cfg.gates.allow_prediction_bets
     ALLOW_LIVE_BETS = cfg.gates.allow_live_bets
+    REQUIRE_FRESH_CALIBRATION = cfg.gates.require_fresh_calibration
     CROSS_CATEGORY_DEDUP = cfg.gates.cross_category_dedup
     _PER_SPORT_MIN_EDGE = dict(cfg.per_sport.min_edge)
     _PER_SPORT_SERIES_DEDUP = dict(cfg.per_sport.series_dedup_hours)
@@ -1262,6 +1264,45 @@ def _apply_bet_ratio_cap(orders: list[SizedOrder], ratio: float = MAX_BET_RATIO)
     return capped
 
 
+def _calibration_preflight(execute: bool) -> bool:
+    """Warn (or refuse) when the stdev cache is behind current settled data.
+
+    Returns False only when the run should be aborted. Warning is the default
+    posture and refusal is opt-in via `REQUIRE_FRESH_CALIBRATION=true`, because
+    a hard default block would be the wrong trade for an unattended system:
+    most sports are legitimately out of season with too few settled bets to
+    calibrate, and halting all betting on a diagnostic is a bigger failure than
+    the miscalibration it guards against. Preview runs never abort — you should
+    always be able to look.
+
+    Import is local and failure is non-fatal: a diagnostic must not be able to
+    take down the money path.
+    """
+    try:
+        from model_calibration import calibration_drift, format_drift_warning
+        health = calibration_drift()
+    except Exception as e:  # diagnostics never block on their own bugs
+        log.warning("Calibration preflight unavailable (%s) — continuing.", e)
+        return True
+
+    if health.get("ok"):
+        return True
+
+    lines = format_drift_warning(health)
+    rprint("\n[bold yellow]CALIBRATION WARNING[/bold yellow]")
+    for line in lines:
+        rprint(f"[yellow]  {line}[/yellow]")
+
+    if execute and REQUIRE_FRESH_CALIBRATION:
+        rprint("[bold red]  Refusing to execute: REQUIRE_FRESH_CALIBRATION=true."
+               "[/bold red]")
+        return False
+    if execute:
+        rprint("[dim]  Continuing anyway (set REQUIRE_FRESH_CALIBRATION=true to "
+               "make this a hard stop).[/dim]")
+    return True
+
+
 def execute_pipeline(
     client: KalshiClient,
     opportunities: list[Opportunity],
@@ -1316,6 +1357,20 @@ def execute_pipeline(
             )
             for c in cancelled:
                 rprint(f"  [dim]- {c['ticker']} (age {c['age_hours']}h)[/dim]")
+
+    # ── Calibration preflight (2026-07-31).
+    # The C8 stdev loop silently did nothing for its entire life: the weekly
+    # task ran on schedule, exited 0, and rewrote the cache every week with the
+    # hardcoded defaults, because a --days 7 window could never reach
+    # _MIN_CALIB_SAMPLES. Every age-based check said "fresh"; the model priced
+    # 11 days of MLB totals against a stdev that was 16% too narrow.
+    #
+    # So this checks the one thing age cannot: does the cache still agree with
+    # what the calibrator would compute from current settled data? A legitimate
+    # "not enough samples" or "gap within noise" recomputes to the same value
+    # and stays quiet — only a loop that is broken or behind the evidence trips.
+    if not _calibration_preflight(execute):
+        return []
 
     # ── Gather portfolio state
     bal = client.get_balance_dollars()

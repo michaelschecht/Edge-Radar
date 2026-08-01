@@ -155,6 +155,114 @@ def _calibrate_one_stdev(settled: list[dict], sport_key: str, base_stdev: float,
     return new_stdev
 
 
+#: Lookback the scheduled calibration job uses. `calibration_drift()` MUST audit
+#: against the same window or it reports permanent phantom drift: an
+#: out-of-season sport still has enough all-time settled bets to calibrate, but
+#: the job legitimately skips it for having <_MIN_CALIB_SAMPLES inside 30 days.
+#: Keep in step with scripts/schedulers/maintenance/calibration.bat.
+SCHEDULED_CALIBRATION_DAYS = 30
+
+
+def calibration_drift(settled: list[dict] | None = None,
+                      cache_path: Path | None = None,
+                      days: int | None = SCHEDULED_CALIBRATION_DAYS) -> dict:
+    """Compare the cached stdevs against what the calibrator would produce NOW.
+
+    This is the pre-wager health check, and it deliberately does **not** rely on
+    cache age. The 2026-07-31 failure was invisible to every age-based check:
+    the weekly task ran on schedule, exited 0, and rewrote the cache every week
+    — it just wrote the hardcoded defaults back, because a `--days 7` window
+    could never accumulate `_MIN_CALIB_SAMPLES`. Fresh, green, and wrong.
+
+    Recomputing is the only signal that actually distinguishes "calibration
+    legitimately has nothing to say" from "calibration is not working":
+
+      - a genuine hold (gap within noise) returns the baseline, and the cached
+        value is the baseline, so they agree → no drift reported;
+      - a genuine skip (too few samples) does the same → no drift;
+      - a loop that is broken or has not run against current evidence produces
+        a cached value that disagrees with the recomputation → drift.
+
+    Returns a dict with `ok`, `cache_missing`, `cache_age_days`, and `drifted`
+    (a list of {sport, category, cached, expected, n}). Cheap: pure local JSON
+    plus arithmetic, no network.
+    """
+    path = cache_path or (Path(paths.PROJECT_ROOT) / "data" / "cache"
+                          / "calibration_stdevs.json")
+    out = {"ok": True, "cache_missing": False, "cache_age_days": None,
+           "drifted": [], "error": None}
+
+    if not path.exists():
+        out.update(ok=False, cache_missing=True)
+        return out
+
+    try:
+        cached = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        out.update(ok=False, error=f"cache unreadable: {e}")
+        return out
+
+    updated = _parse_iso(cached.get("updated_at"))
+    if updated:
+        out["cache_age_days"] = round(
+            (datetime.now(timezone.utc) - updated).total_seconds() / 86400, 2)
+
+    if settled is None:
+        settled = [t for t in _load_settled_trades() if t.get("closed_at")]
+        if days is not None:
+            # Same filter generate_calibration_report() applies before handing
+            # the list to save_calibration_stdevs(), so we audit like-for-like.
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+            settled = [
+                t for t in settled
+                if (_parse_iso(t.get("closed_at"))
+                    or datetime.min.replace(tzinfo=timezone.utc)) >= cutoff
+            ]
+
+    for block, baselines, category in (
+        ("margin_stdev", CURRENT_MARGIN_STDEV, "spread"),
+        ("total_stdev", CURRENT_TOTAL_STDEV, "total"),
+    ):
+        for sport, base in baselines.items():
+            expected = _calibrate_one_stdev(settled, sport, base, category)
+            have = (cached.get(block) or {}).get(sport, base)
+            # Tolerance covers the round(_, 3) each value passes through.
+            if abs(float(have) - float(expected)) > 0.002:
+                n = sum(1 for t in settled
+                        if get_sport_key(t.get("ticker", "")) == sport
+                        and t.get("category") == category
+                        and t.get("_has_fair_value"))
+                out["drifted"].append({
+                    "sport": sport, "category": category,
+                    "cached": float(have), "expected": float(expected), "n": n,
+                })
+
+    out["ok"] = not out["drifted"] and not out["cache_missing"]
+    return out
+
+
+def format_drift_warning(health: dict) -> list[str]:
+    """Human-readable lines for a failed `calibration_drift()`, or [] if fine."""
+    if health.get("ok"):
+        return []
+    if health.get("cache_missing"):
+        return ["Calibration has never run: data/cache/calibration_stdevs.json "
+                "is missing. Pricing is on hardcoded defaults."]
+    if health.get("error"):
+        return [f"Calibration cache problem: {health['error']}"]
+    lines = [
+        f"Calibration is behind the evidence "
+        f"({len(health['drifted'])} sport/category pair(s) out of date; cache is "
+        f"{health.get('cache_age_days')}d old — age is NOT the issue):"
+    ]
+    for d in health["drifted"]:
+        lines.append(
+            f"  {d['sport']}/{d['category']}: pricing uses {d['cached']}, "
+            f"current data says {d['expected']} (n={d['n']} settled)")
+    lines.append("Run: python scripts/kalshi/model_calibration.py --days 30 --save")
+    return lines
+
+
 def save_calibration_stdevs(settled: list[dict]):
     """Calculate and write calibrated sport standard deviations to data/cache/calibration_stdevs.json."""
     calibrated_margin = {
