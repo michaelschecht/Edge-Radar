@@ -60,14 +60,20 @@ TASK_PROFILES = {
         "script": SCHEDULERS / "next_day_executions" / "next_day_execute.bat",
         "description": "Evening scan + execute tomorrow's games at 9 PM",
     },
+    # 2026-07-31: was MONTHLY / day 1 / 02:00 under the name MonthlyCalibration.
+    # That task was registered but had NEVER run (Last Run 11/30/1999). The task
+    # actually doing the work is a separate WEEKLY one (Sun 7 PM) driven by
+    # scripts/schedulers/maintenance/calibration.bat, which this installer did
+    # not describe at all. Reconciled to match live reality so the tracked
+    # config stops disagreeing with the machine. Runs the .bat (not python
+    # directly) so there is one definition of the arguments.
     "calibration": {
-        "task_name": "Edge-Radar\\MonthlyCalibration",
-        "time": "02:00",
-        "schedule": "MONTHLY",
-        "day": "1",
-        "script": PROJECT_ROOT / ".venv" / "Scripts" / "python.exe",
-        "args": f'"{PROJECT_ROOT / "scripts" / "kalshi" / "model_calibration.py"}" --days 30 --save',
-        "description": "Monthly 30-day calibration report (R16, day 1 at 2 AM)",
+        "task_name": "Edge-Radar\\WeeklyCalibration",
+        "time": "19:00",
+        "schedule": "WEEKLY",
+        "day": "SUN",
+        "script": SCHEDULERS / "maintenance" / "calibration.bat",
+        "description": "Weekly calibration report + C8 stdev recalibration (Sun 7 PM)",
     },
     "account-graph": {
         "task_name": "Edge-Radar\\WeeklyAccountGraph",

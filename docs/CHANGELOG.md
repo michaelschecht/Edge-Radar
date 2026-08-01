@@ -2,6 +2,87 @@
 
 ---
 
+## 2026-07-31 -- the C8 stdev loop had never calibrated anything: `--days 7` starved it
+
+Asked to add a weekly calibration cadence. Checked the machine first. **The cadence
+already existed**, and the real defect was elsewhere and worse.
+
+### Cadence was never the problem
+
+Three calibration tasks are registered under `\Edge-Radar-MikesAILab\`:
+
+| Task | Schedule | Last run | Reality |
+|:--|:--|:--|:--|
+| `Calibration` | **Weekly**, Sun 7 PM | 7/26/2026, result 0 | the one actually doing the work |
+| `MonthlyCalibration` | Monthly, day 1 | **11/30/1999 — never run** | dead duplicate the installer described |
+| `Calibration Loader` | — | — | unrelated |
+
+The cache timestamp (`2026-07-27T02:00:01Z` = 7/26 7:00 PM PDT) matches the weekly task's
+last run exactly. So T3's premise -- "monthly cadence means ~30 blind days" -- was wrong,
+and the ROADMAP entry has been corrected rather than quietly dropped.
+
+### The real bug: a 7-day window cannot clear a 20-sample gate
+
+The weekly task ran `model_calibration.py --days 7 --save`.
+
+`save_calibration_stdevs()` is handed the **day-filtered** settled list, and
+`_calibrate_one_stdev()` needs `_MIN_CALIB_SAMPLES = 20` rows **per (sport, category)**
+before it will move a value. Only **~22 bets settle in any 7-day window across all sports
+and categories combined**. No pair could ever reach 20.
+
+So every weekly run skipped every sport and wrote the hardcoded defaults straight back.
+That is why `data/cache/calibration_stdevs.json` was byte-identical to
+`edge_detector.SPORT_*_STDEV`: **the closed calibration loop has been a silent no-op for
+its entire existence.** It never once did the job C8 was built for.
+
+| lookback | settled (all) | MLB totals visible | vs the 20-sample bar |
+|:--|--:|--:|:--|
+| `--days 7` | 22 | **17** | **SKIPS — writes the default back** |
+| `--days 14` | 37 | 28 | calibrates |
+| `--days 30` | 53 | 28 | calibrates |
+
+### Fixes
+
+- `scripts/schedulers/maintenance/calibration.bat`: `--days 7` → `--days 30`. **Gitignored
+  — this, the actual fix, appears in no diff.** First real run moves
+  `total_stdev.baseball_mlb` 3.45 → 4.005 (gap +16.1%, n=28, se=0.085), which drops the
+  phantom edge on MLB high-strike unders below the R28 8% NO floor and blocks 21 of 25
+  such bets (see the T1 entry below).
+- `tests/test_calibration_config.py` (new, 6 tests): fails the build if the `--save`
+  window is ever narrowed below 14 days, if `CURRENT_*_STDEV` drifts from
+  `edge_detector.SPORT_*_STDEV` (a hand-copied duplicate that is the baseline every
+  calibration multiplies against), or if the loop stops being stateless. Verified the
+  window guard actually fires by reverting the `.bat` and watching it fail.
+- `install_windows_task.py`: its `calibration` profile described a MONTHLY task that had
+  never run and did not match the live weekly one. Reconciled to WEEKLY/Sun 19:00 pointing
+  at the `.bat`, so there is one definition of the arguments.
+- `model_calibration.py` docstring: corrected a claim that the loop "relies on the monthly
+  loop compounding small corrections over time" -- wrong twice over. The loop is weekly,
+  and it does **not** compound: `base_stdev` is the hardcoded baseline, never the prior
+  cache value. Documented, because that statelessness is exactly what makes running it
+  more often safe.
+
+### Not fixed -- T4
+
+Even with the window corrected, C8 cannot move a value until 20 of a market type's bets
+have **settled**, which by construction happens after the flood. MLB totals reached 69% of
+the book before any calibration could legitimately have data. No cadence or window change
+addresses that; it needs a rule treating never-calibrated market types as suspect (higher
+edge floor until first calibration, or a per-shape batch cap). Logged as T4, nothing
+shipped. Relevant now: the Polymarket US seasonal games repoint is the next coverage
+addition queued.
+
+### Left alone
+
+`MonthlyCalibration` is still registered. It is harmless now that both use `--days 30`
+(the loop is stateless, so a redundant run is a no-op), but it is cruft --
+`schtasks /Delete /TN "\Edge-Radar-MikesAILab\MonthlyCalibration" /F` removes it. Not done
+unprompted: deleting a scheduled task is a system-level change outside the repo.
+
+683 tests.
+
+---
+
 ## 2026-07-31 -- T1 resolved: the distance cap was measured and rejected; stale stdev calibration was the cause
 
 The proposed T1 fix was a **cap on extrapolation distance** -- reject a totals bet whose
