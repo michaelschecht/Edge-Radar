@@ -72,12 +72,23 @@ edge floor until first calibration, or a per-shape batch cap). Logged as T4, not
 shipped. Relevant now: the Polymarket US seasonal games repoint is the next coverage
 addition queued.
 
-### Left alone
+### `MonthlyCalibration` removed
 
-`MonthlyCalibration` is still registered. It is harmless now that both use `--days 30`
-(the loop is stateless, so a redundant run is a no-op), but it is cruft --
-`schtasks /Delete /TN "\Edge-Radar-MikesAILab\MonthlyCalibration" /F` removes it. Not done
-unprompted: deleting a scheduled task is a system-level change outside the repo.
+The duplicate task was unregistered the same day (`schtasks /Delete`). It had **never once
+executed** in its entire registered life -- `Last Run Time` was still the Task Scheduler
+sentinel `11/30/1999` with `Last Result 267011` ("task has not yet run"). Every calibration
+this repo has ever performed came from the weekly `Calibration` task instead, which makes
+the monthly one pure cruft now that both would run `--days 30` against a stateless loop.
+
+Its definition was archived before deletion and the recreate command is recorded in
+`docs/task-schedules/README.md` section 15, which is now a removal record rather than a
+task description. The surviving weekly task was re-verified afterwards: `Calibration`,
+Sun 7 PM, `Last Result 0`, next run 8/2/2026, pointing at the fixed `.bat`.
+
+`install_windows_task.py` also carries a note that it installs into the `Edge-Radar\` task
+folder while the owner's live tasks live in `Edge-Radar-MikesAILab\` -- intentional, since
+that file is a reference template rather than a turnkey installer for that machine, but it
+means running it creates a parallel task rather than editing the live one.
 
 683 tests.
 

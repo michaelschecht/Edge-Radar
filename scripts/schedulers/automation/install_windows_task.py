@@ -61,12 +61,20 @@ TASK_PROFILES = {
         "description": "Evening scan + execute tomorrow's games at 9 PM",
     },
     # 2026-07-31: was MONTHLY / day 1 / 02:00 under the name MonthlyCalibration.
-    # That task was registered but had NEVER run (Last Run 11/30/1999). The task
-    # actually doing the work is a separate WEEKLY one (Sun 7 PM) driven by
+    # That task was registered but had NEVER run (Last Run 11/30/1999) and was
+    # deleted the same day. The task actually doing the work on the owner's
+    # machine is a WEEKLY one (Sun 7 PM) driven by
     # scripts/schedulers/maintenance/calibration.bat, which this installer did
-    # not describe at all. Reconciled to match live reality so the tracked
-    # config stops disagreeing with the machine. Runs the .bat (not python
-    # directly) so there is one definition of the arguments.
+    # not describe at all. Reprofiled to weekly so the template teaches the
+    # cadence that actually works, and pointed at the .bat so the --days
+    # argument has exactly one definition (a --days 7 window silently disables
+    # the C8 stdev loop -- see the .bat header and tests/test_calibration_config).
+    #
+    # NOTE this installs into the "Edge-Radar\" task folder, as every profile
+    # here does; the owner's live tasks live in "Edge-Radar-MikesAILab\". That
+    # is intentional -- per docs/task-schedules/README.md this file is a
+    # reference template, not a turnkey installer for that machine -- so running
+    # it creates a parallel task rather than editing the live one.
     "calibration": {
         "task_name": "Edge-Radar\\WeeklyCalibration",
         "time": "19:00",
