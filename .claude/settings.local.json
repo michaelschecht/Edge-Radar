@@ -14,7 +14,6 @@
     ]
   },
   "disabledMcpjsonServers": [
-    "serper",
     "github",
     "context7",
     "ax-channel",
