@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import os
 import json
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from scipy.stats import norm
@@ -848,14 +848,26 @@ class TestThreeWayDevig:
     opponent-win both belong to the NO side. Previously 3-outcome markets were
     skipped entirely (len != 2), so soccer produced no edges at all."""
 
-    def _soccer_event(self, home, away, home_p, draw_p, away_p,
-                      commence="2026-08-16T14:00:00Z"):
+    def _soccer_event(self, home, away, home_p, draw_p, away_p, commence=None):
+        # commence defaults to a FUTURE time and the book carries last_update,
+        # per the `_fresh_lu` note above. This fixture originally hardcoded
+        # "2026-08-16T14:00:00Z" with no last_update, which made it a time bomb:
+        # it passed until that date, then the Phase-2 live-staleness guard began
+        # treating every event as in-progress, excluded the only bookmaker for
+        # having no datable quote, and left consensus_fair_value with 0 books.
+        # test_three_way_uses_win_share started failing on 2026-08-16, and
+        # test_three_way_draw_not_matched_as_team went *vacuously green* -- it
+        # asserts None, and None is what an all-books-excluded event returns.
+        # These tests are about 3-way de-vig math; keep them off the live path.
+        if commence is None:
+            commence = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat().replace("+00:00", "Z")
         return {
             "home_team": home,
             "away_team": away,
             "commence_time": commence,
             "bookmakers": [{
                 "key": "pinnacle",
+                "last_update": _fresh_lu(),
                 "markets": [{
                     "key": "h2h",
                     "outcomes": [
