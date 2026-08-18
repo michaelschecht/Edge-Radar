@@ -231,6 +231,8 @@ class GateThresholds:
     max_live_book_age_seconds: int = 1200
     min_live_consensus_books: int = 3
     require_fresh_calibration: bool = False
+    max_bid_ask_spread: float = 0.05
+    min_market_volume_24h: int = 0
 
     @classmethod
     def from_env(cls) -> "GateThresholds":
@@ -252,6 +254,8 @@ class GateThresholds:
             max_live_book_age_seconds=_int("MAX_LIVE_BOOK_AGE_SECONDS", 1200),
             min_live_consensus_books=_int("MIN_LIVE_CONSENSUS_BOOKS", 3),
             require_fresh_calibration=_bool("REQUIRE_FRESH_CALIBRATION", False),
+            max_bid_ask_spread=_float("MAX_BID_ASK_SPREAD", 0.05),
+            min_market_volume_24h=_int("MIN_MARKET_VOLUME_24H", 0),
         )
 
 
@@ -499,6 +503,14 @@ class Config:
         if not 0.0 <= self.gates.min_market_price <= 1.0:
             raise ValueError(
                 f"MIN_MARKET_PRICE must be in [0, 1], got {self.gates.min_market_price}"
+            )
+        if not 0.0 <= self.gates.max_bid_ask_spread <= 1.0:
+            raise ValueError(
+                f"MAX_BID_ASK_SPREAD must be in [0, 1], got {self.gates.max_bid_ask_spread}"
+            )
+        if self.gates.min_market_volume_24h < 0:
+            raise ValueError(
+                f"MIN_MARKET_VOLUME_24H must be >= 0, got {self.gates.min_market_volume_24h}"
             )
         if self.system.log_level not in _LOG_LEVELS:
             raise ValueError(

@@ -119,6 +119,7 @@ Every gate runs before any trade executes:
 | 2 | Open position count under max | Reject |
 | 3 | Edge >= minimum threshold (per-sport or global) | Reject |
 | 3.5 | Market price >= `MIN_MARKET_PRICE` (lottery-ticket floor, R7) | Reject |
+| 3.6 | Bid/ask spread <= `MAX_BID_ASK_SPREAD` and 24h volume >= `MIN_MARKET_VOLUME_24H` (L2) | Reject |
 | 4 | Composite score >= `MIN_COMPOSITE_SCORE` | Reject |
 | 4.5 | Confidence >= `MIN_CONFIDENCE` | Reject |
 | 4.6 | NO bets below `NO_SIDE_FAVORITE_THRESHOLD` need edge >= `NO_SIDE_MIN_EDGE` AND confidence=high | Reject |
@@ -174,6 +175,11 @@ MIN_EDGE_THRESHOLD_MLB=0.04     #   model over-claim the higher floor was double
 MIN_MARKET_PRICE=0.12           # R7 lottery-ticket floor; 0 disables. Pure reject threshold,
                                 #   independent of sizing. The live 0.10 is an OPEN EXPERIMENT
                                 #   re-opening the longshot lane — recheck after ~30 more settles.
+MAX_BID_ASK_SPREAD=0.05         # L2: Gate 3.6 hard liquidity floor, dollars on a $0-1 contract.
+                                #   Enforces the "illiquid (spread > 5%)" Hard Stop below, which was
+                                #   documented from launch but never implemented. 0 disables.
+MIN_MARKET_VOLUME_24H=0         # L2: companion floor, contracts traded in trailing 24h. Ships at 0
+                                #   (off) — spread is the documented rule; this catches dead books.
 MIN_COMPOSITE_SCORE=6.0         # Minimum score (0-10)
 MIN_CONFIDENCE=medium           # R3 — low|medium|high
 NO_SIDE_FAVORITE_THRESHOLD=0.25 # R1: NO bets below this price face the elevated bar
@@ -282,7 +288,7 @@ Research output leads with the edge thesis, timestamps its sources, names contra
 - The daily loss limit is exceeded
 - A single position would exceed 10% of bankroll
 - API credentials are not loaded from the environment
-- The market is clearly illiquid (spread > 5%)
+- The market is clearly illiquid (spread > 5%) — enforced in code as Gate 3.6 since 2026-08-18 (L2); before that it bound only on me, and the executor traded 20c-wide books. *CHANGELOG 2026-08-18 (L2).*
 - The action would violate a platform's TOS
 
 ---

@@ -207,6 +207,8 @@ def detect_edge_futures_polymarket(
             "bet_type": label,
             "n_books": n_books,
             "fair_range": f"{matched_fair['min']:.3f} - {matched_fair['max']:.3f}",
+            # Gate 3.6 reads the raw spread; `liquidity` above is lossy.
+            "bid_ask_spread": round(bid_ask_spread, 4),
             "market_slug": cand.get("market_slug", ""),
             "condition_id": cand.get("condition_id", ""),
             "pm_volume": cand.get("volume", 0.0),

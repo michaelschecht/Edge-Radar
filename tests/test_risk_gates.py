@@ -1871,3 +1871,136 @@ class TestVenueMinShares:
                             daily_pnl=0.0, unit_size=1.00)
         assert result.risk_approval == "APPROVED"
         assert result.contracts == 2  # flat $1 unit at $0.50 — no bump
+
+
+class TestLiquidityGate:
+    """Gate 3.6: reject markets whose book is too wide or too dead to trade.
+
+    CLAUDE.md has listed "the market is clearly illiquid (spread > 5%)" as a
+    Hard Stop since launch, and MLB_FILTERING_GUIDE.md repeats it as a
+    graduated rule, but neither was ever enforced -- spread reached scoring
+    only through the soft `liquidity` composite term. The 2026-08-18 NFL
+    Week 1 audit found 13 of 27 open positions past the documented line (up
+    to 20c wide) and 18 of 27 with zero 24h volume.
+    """
+
+    def _opp(self, spread=None, volume=None) -> Opportunity:
+        details = {}
+        if spread is not None:
+            details["bid_ask_spread"] = spread
+        if volume is not None:
+            details["volume_24h"] = volume
+        return Opportunity(
+            ticker="KXNFLTOTAL-26SEP13CLEJAC-20",
+            title="Will there be over 19.5 points scored?",
+            category="total",
+            side="yes",
+            market_price=0.80,
+            fair_value=0.95,
+            edge=0.15,
+            edge_source="test",
+            confidence="high",
+            liquidity_score=6.0,
+            composite_score=8.5,
+            details=details,
+        )
+
+    def _size(self, opp):
+        return size_order(opp, bankroll=500.0, open_positions=0,
+                          daily_pnl=0.0, unit_size=1.00)
+
+    def test_rejects_wide_book(self):
+        # The real CLEJAC-20 book: bid 0.77 / ask 0.97.
+        import kalshi_executor
+        orig = kalshi_executor.MAX_BID_ASK_SPREAD
+        try:
+            kalshi_executor.MAX_BID_ASK_SPREAD = 0.05
+            result = self._size(self._opp(spread=0.20))
+            assert result.risk_approval.startswith("REJECTED")
+            assert "illiquid_spread" in result.risk_approval
+            assert result.contracts == 0
+        finally:
+            kalshi_executor.MAX_BID_ASK_SPREAD = orig
+
+    def test_allows_spread_exactly_at_limit(self):
+        # Documented rule is "spread > 5%", so 5c itself passes.
+        import kalshi_executor
+        orig = kalshi_executor.MAX_BID_ASK_SPREAD
+        try:
+            kalshi_executor.MAX_BID_ASK_SPREAD = 0.05
+            assert "illiquid" not in self._size(self._opp(spread=0.05)).risk_approval
+        finally:
+            kalshi_executor.MAX_BID_ASK_SPREAD = orig
+
+    def test_allows_tight_book(self):
+        import kalshi_executor
+        orig = kalshi_executor.MAX_BID_ASK_SPREAD
+        try:
+            kalshi_executor.MAX_BID_ASK_SPREAD = 0.05
+            assert "illiquid" not in self._size(self._opp(spread=0.02)).risk_approval
+        finally:
+            kalshi_executor.MAX_BID_ASK_SPREAD = orig
+
+    def test_zero_disables_spread_check(self):
+        import kalshi_executor
+        orig = kalshi_executor.MAX_BID_ASK_SPREAD
+        try:
+            kalshi_executor.MAX_BID_ASK_SPREAD = 0.0
+            assert "illiquid" not in self._size(self._opp(spread=0.40)).risk_approval
+        finally:
+            kalshi_executor.MAX_BID_ASK_SPREAD = orig
+
+    def test_rejects_dead_book_when_volume_floor_set(self):
+        # Tolerable 4c spread, but nothing has traded in 24h.
+        import kalshi_executor
+        orig_s = kalshi_executor.MAX_BID_ASK_SPREAD
+        orig_v = kalshi_executor.MIN_MARKET_VOLUME_24H
+        try:
+            kalshi_executor.MAX_BID_ASK_SPREAD = 0.05
+            kalshi_executor.MIN_MARKET_VOLUME_24H = 50
+            result = self._size(self._opp(spread=0.04, volume=0))
+            assert "illiquid_volume" in result.risk_approval
+            assert result.contracts == 0
+        finally:
+            kalshi_executor.MAX_BID_ASK_SPREAD = orig_s
+            kalshi_executor.MIN_MARKET_VOLUME_24H = orig_v
+
+    def test_volume_floor_off_by_default(self):
+        import kalshi_executor
+        orig_v = kalshi_executor.MIN_MARKET_VOLUME_24H
+        try:
+            kalshi_executor.MIN_MARKET_VOLUME_24H = 0
+            assert "illiquid" not in self._size(self._opp(spread=0.02, volume=0)).risk_approval
+        finally:
+            kalshi_executor.MIN_MARKET_VOLUME_24H = orig_v
+
+    def test_fails_open_when_microstructure_missing(self):
+        # A hand-built Opportunity or replayed scan cache carries no spread.
+        # Unknown must not mean rejected, or non-sports paths would be blocked
+        # wholesale.
+        import kalshi_executor
+        orig = kalshi_executor.MAX_BID_ASK_SPREAD
+        try:
+            kalshi_executor.MAX_BID_ASK_SPREAD = 0.05
+            assert "illiquid" not in self._size(self._opp()).risk_approval
+        finally:
+            kalshi_executor.MAX_BID_ASK_SPREAD = orig
+
+    def test_garbage_spread_does_not_crash(self):
+        import kalshi_executor
+        orig = kalshi_executor.MAX_BID_ASK_SPREAD
+        try:
+            kalshi_executor.MAX_BID_ASK_SPREAD = 0.05
+            assert "illiquid" not in self._size(self._opp(spread="n/a")).risk_approval
+        finally:
+            kalshi_executor.MAX_BID_ASK_SPREAD = orig
+
+    def test_preflight_reports_illiq(self):
+        import kalshi_executor
+        orig = kalshi_executor.MAX_BID_ASK_SPREAD
+        try:
+            kalshi_executor.MAX_BID_ASK_SPREAD = 0.05
+            assert kalshi_executor.preflight_gate_status(self._opp(spread=0.20)) == "illiq"
+            assert kalshi_executor.preflight_gate_status(self._opp(spread=0.02)) == "ok"
+        finally:
+            kalshi_executor.MAX_BID_ASK_SPREAD = orig

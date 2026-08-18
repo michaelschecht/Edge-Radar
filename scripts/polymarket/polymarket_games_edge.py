@@ -170,6 +170,8 @@ def _build_opp(slug: str, label: str, bet_type: str, pick: str, side: str,
             "clob_token_ids": row["clob_token_ids"],
             "token_index": token_index,
             "pm_book_spread": row["book_spread"],
+            # Gate 3.6 reads the raw spread; `liquidity` above is lossy.
+            "bid_ask_spread": round(row["book_spread"], 4),
         },
     )
 
