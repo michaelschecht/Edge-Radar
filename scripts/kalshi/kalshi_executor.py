@@ -129,6 +129,27 @@ ALLOW_PREDICTION_BETS = _cfg.gates.allow_prediction_bets
 ALLOW_LIVE_BETS = _cfg.gates.allow_live_bets
 REQUIRE_FRESH_CALIBRATION = _cfg.gates.require_fresh_calibration
 
+# Gate 3.6 (2026-08-18): hard liquidity floor. CLAUDE.md has listed "the market
+# is clearly illiquid (spread > 5%)" as a non-negotiable Hard Stop since launch
+# and MLB_FILTERING_GUIDE.md repeats it as a graduated rule, but neither was
+# ever implemented -- spread entered scoring only as the soft `liquidity` term
+# (`max(0, 10 - spread * 20)`, 20% of the composite), so a 20c-wide book still
+# scored 6.0/10 on liquidity and cleared MIN_COMPOSITE_SCORE on the strength of
+# a large tail edge. The 2026-08-18 audit found 13 of 27 open positions past the
+# documented 5% line, up to 20c wide, and 18 of 27 with zero 24h volume; the
+# claimed edge on those is measured against an ask nobody trades at, and with no
+# bid there is no exit before settlement.
+#
+# Spread is absolute (dollars on a $0-1 contract), matching both the documented
+# "5%" and the existing `liquidity` term's units. 0 disables.
+MAX_BID_ASK_SPREAD = _cfg.gates.max_bid_ask_spread
+
+# Companion volume floor: several rejected markets had a tolerable spread but
+# literally zero trading, which a spread test alone cannot catch. Counted in
+# contracts over the trailing 24h. 0 disables (the default -- spread is the
+# documented rule, this is opt-in).
+MIN_MARKET_VOLUME_24H = _cfg.gates.min_market_volume_24h
+
 _CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
 
 
@@ -137,6 +158,51 @@ def _confidence_rank(level: str | None) -> int:
     if not level:
         return _CONFIDENCE_RANK["medium"]
     return _CONFIDENCE_RANK.get(level.strip().lower(), _CONFIDENCE_RANK["medium"])
+
+
+def _liquidity_rejection(opp: "Opportunity") -> str | None:
+    """Gate 3.6 -- reason string if the book is too illiquid to trade, else None.
+
+    Reads the raw microstructure the scanners stash in `details`
+    (`bid_ask_spread`, `volume_24h`), not `liquidity_score`, which saturates at
+    0 for any spread >= 50c and so cannot distinguish "wide" from "hopeless".
+
+    **Fails open by design.** An opportunity whose `details` carries no
+    `bid_ask_spread` is not rejected: the field is populated by the Kalshi
+    sports/futures and both Polymarket scorers, but a hand-built Opportunity, a
+    replayed scan cache (R26), or a future scorer that forgets it would
+    otherwise be blocked wholesale. A missing spread means "unknown", and this
+    gate only rejects on evidence. `preflight_gate_status` mirrors that.
+    """
+    details = opp.details if isinstance(opp.details, dict) else {}
+
+    if MAX_BID_ASK_SPREAD > 0:
+        raw = details.get("bid_ask_spread")
+        if raw is not None:
+            try:
+                spread = float(raw)
+            except (TypeError, ValueError):
+                spread = None
+            if spread is not None and spread > MAX_BID_ASK_SPREAD:
+                return (
+                    f"illiquid_spread (${spread:.2f} wide > "
+                    f"${MAX_BID_ASK_SPREAD:.2f} max)"
+                )
+
+    if MIN_MARKET_VOLUME_24H > 0:
+        raw = details.get("volume_24h")
+        if raw is not None:
+            try:
+                volume = float(raw)
+            except (TypeError, ValueError):
+                volume = None
+            if volume is not None and volume < MIN_MARKET_VOLUME_24H:
+                return (
+                    f"illiquid_volume ({volume:.0f} contracts/24h < "
+                    f"{MIN_MARKET_VOLUME_24H} min)"
+                )
+
+    return None
 
 # Per-sport edge-threshold overrides. Any sport not listed falls back to
 # MIN_EDGE_THRESHOLD. Read via app.config at import; tests patch
@@ -203,7 +269,7 @@ def reload_risk_config() -> None:
     global NO_SIDE_FAVORITE_THRESHOLD, NO_SIDE_MIN_EDGE, NO_SIDE_MIN_EDGE_GLOBAL
     global NO_SIDE_KELLY_PRICE_FLOOR, NO_SIDE_KELLY_MULTIPLIER, NO_SIDE_KELLY_MULTIPLIER_GLOBAL
     global ALLOW_PREDICTION_BETS, ALLOW_LIVE_BETS, REQUIRE_FRESH_CALIBRATION
-    global CROSS_CATEGORY_DEDUP
+    global CROSS_CATEGORY_DEDUP, MAX_BID_ASK_SPREAD, MIN_MARKET_VOLUME_24H
     global _PER_SPORT_MIN_EDGE, _PER_SPORT_SERIES_DEDUP, _PER_SPORT_CROSS_CATEGORY_DEDUP
 
     load_dotenv(override=True)
@@ -235,6 +301,8 @@ def reload_risk_config() -> None:
     ALLOW_LIVE_BETS = cfg.gates.allow_live_bets
     REQUIRE_FRESH_CALIBRATION = cfg.gates.require_fresh_calibration
     CROSS_CATEGORY_DEDUP = cfg.gates.cross_category_dedup
+    MAX_BID_ASK_SPREAD = cfg.gates.max_bid_ask_spread
+    MIN_MARKET_VOLUME_24H = cfg.gates.min_market_volume_24h
     _PER_SPORT_MIN_EDGE = dict(cfg.per_sport.min_edge)
     _PER_SPORT_SERIES_DEDUP = dict(cfg.per_sport.series_dedup_hours)
     _PER_SPORT_CROSS_CATEGORY_DEDUP = dict(cfg.per_sport.cross_category_dedup)
@@ -296,6 +364,7 @@ def preflight_gate_status(opp: "Opportunity") -> str:
         "ok"       — all statically-checkable gates pass
         "edge"     — Gate 3   (edge below per-sport floor)
         "price"    — Gate 3.5 (market price below R7 floor)
+        "illiq"    — Gate 3.6 (bid/ask spread or 24h volume below floor)
         "score"    — Gate 4   (composite score below minimum)
         "conf"     — Gate 4.5 (confidence below MIN_CONFIDENCE)
         "no-fav"   — Gate 4.6 (R1 NO-side favorite guard)
@@ -319,6 +388,10 @@ def preflight_gate_status(opp: "Opportunity") -> str:
     # Gate 3.5: R7 market-price floor (disabled if MIN_MARKET_PRICE == 0)
     if MIN_MARKET_PRICE > 0 and opp.market_price < MIN_MARKET_PRICE:
         return "price"
+
+    # Gate 3.6: hard liquidity floor
+    if _liquidity_rejection(opp):
+        return "illiq"
 
     # Gate 4: minimum composite score
     if opp.composite_score < MIN_COMPOSITE_SCORE:
@@ -657,6 +730,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         4.7  Prediction-market safety gate (R25)          (reject)
         5.   Duplicate ticker (already holding this market) (reject)
         6.   Per-event cap (max positions on same game)   (reject)
+        3.6  Bid/ask spread + 24h volume floor           (reject)
         7.   Series dedup (same matchup within last Nh)   (reject)
         8.   Max bet size                                 (sizing cap)
         9.   Bet ratio cap                                (sizing cap)
@@ -667,6 +741,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     """
     rejection = None
     edge_floor = min_edge_for(opp)
+    liquidity_reject = _liquidity_rejection(opp)
 
     # ── Risk Gate 1: Daily loss limit
     if daily_pnl <= -MAX_DAILY_LOSS:
@@ -688,6 +763,13 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         rejection = (
             f"price_below_floor (${opp.market_price:.2f} < ${MIN_MARKET_PRICE:.2f})"
         )
+
+    # ── Risk Gate 3.6: Hard liquidity floor
+    #   Implements the CLAUDE.md Hard Stop "the market is clearly illiquid
+    #   (spread > 5%)", which was documented from launch but never enforced.
+    #   Rejects on the raw book, not the soft composite `liquidity` term.
+    elif liquidity_reject:
+        rejection = liquidity_reject
 
     # ── Risk Gate 4: Minimum composite score
     elif opp.composite_score < MIN_COMPOSITE_SCORE:

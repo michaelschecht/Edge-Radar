@@ -137,6 +137,13 @@ ENV_VAR_SPEC: list[dict] = [
     _spec("MIN_MARKET_PRICE", "Reject gates", "0.12",
           "Gate 3.5 (R7) lottery-ticket floor. Pure reject threshold — "
           "independent of every sizing knob. 0 disables."),
+    _spec("MAX_BID_ASK_SPREAD", "Reject gates", "0.05",
+          "Gate 3.6. Max bid/ask spread in dollars on a $0-1 contract — the "
+          "CLAUDE.md 'illiquid (spread > 5%)' Hard Stop, enforced in code as "
+          "of 2026-08-18. 0 disables."),
+    _spec("MIN_MARKET_VOLUME_24H", "Reject gates", "0",
+          "Gate 3.6 companion. Min contracts traded in the trailing 24h; "
+          "catches tolerable-spread books that never trade. 0 disables."),
     _spec("MIN_COMPOSITE_SCORE", "Reject gates", "6.0",
           "Gate 4. C10 aligned the futures composite to the sports edge "
           "scale, so this now binds on futures at all."),

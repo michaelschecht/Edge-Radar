@@ -462,6 +462,8 @@ def detect_edge_futures(market: dict, fair_values: dict[str, dict], label: str =
             "bet_type": label,
             "n_books": n_books,
             "fair_range": f"{matched_fair['min']:.3f} - {matched_fair['max']:.3f}",
+            # Gate 3.6 reads the raw spread; `liquidity` above is lossy.
+            "bid_ask_spread": round(bid_ask_spread, 4),
         },
     )
 

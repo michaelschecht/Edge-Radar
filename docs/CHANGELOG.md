@@ -2,6 +2,120 @@
 
 ---
 
+## 2026-08-18 -- L2: the illiquidity Hard Stop finally exists in code
+
+Triggered by an operator question -- "I'm seeing a ton of American football bets in the
+scheduled runs, is this a bug?" -- after past single-sport clusters turned out to be one.
+
+### What the book actually looked like
+
+24 of 27 open positions (89%), and $29.73 of $34.27 exposure (87%), were **NFL Week 1**
+(Sept 9-14) -- games 22-27 days out, on a ~$92 bankroll. NFL's share of trades by month:
+4% in June, **0% in July, 66% in August**. A real regime change, not variance.
+
+The concentration itself is explainable and not a bug. `no_date_filter_execution*.bat`
+(5:20 AM + 11:00 AM PT) scan every posted date; in mid-August the NFL Week 1 board is up
+while only MLB and MLS are in season, so NFL wins the composite ranking on essentially
+every run, and the *same static 16-game slate* is re-scanned twice daily. `SERIES_DEDUP_HOURS=48`
+never bites because re-bets land 3+ days apart (GB/MIN was bet Aug 4, Aug 8, Aug 13), and
+`CROSS_CATEGORY_DEDUP=false` means SPREAD/TOTAL/GAME on one game are three *different*
+Kalshi events, so `MAX_PER_EVENT=2` never trips -- 10 of 14 games carried 2 correlated
+positions (e.g. TB moneyline *and* TB -11.5).
+
+The edge math checked out. Strike parsing reads Kalshi's authoritative `floor_strike`, not
+the ticker suffix; calibration stdevs were fresh (Aug 17) with NFL at the hardcoded
+defaults; every logged edge reproduces from the normal-CDF model. No over-claim.
+
+### The actual defect
+
+**13 of 27 open positions breached the documented 5% illiquidity Hard Stop, and 18 of 27
+had zero 24h volume.**
+
+`CLAUDE.md` has listed *"the market is clearly illiquid (spread > 5%)"* as a non-negotiable
+Hard Stop since launch, and `docs/kalshi/kalshi-sports-betting/MLB_FILTERING_GUIDE.md`
+repeats it as a graduated rule (>5% skip / 3-5% reduce size / <3% full size). **Neither was
+ever implemented.** The rule bound only on a human or an agent reading the file -- never on
+`kalshi_executor.py`.
+
+Spread reached scoring through exactly one path: the soft composite term
+`liquidity = max(0, 10 - spread * 20)`, weighted 20%. That term saturates at 0 only at a
+**50c** spread, so a 20c-wide book still scored **6.0/10 on liquidity** and cleared
+`MIN_COMPOSITE_SCORE=6.0` on the strength of a big tail edge. Worked examples from the live
+board:
+
+```
+KXNFLTOTAL-26SEP13CLEJAC-20   bid 0.77 / ask 0.97   20c spread   0 vol/24h
+KXNFLTOTAL-26SEP13WASPHI-69   bid 0.07 / ask 0.25   18c spread   0 vol/24h
+KXNFLSPREAD-26SEP13NODET-NO5  bid 0.05 / ask 0.20   15c spread   0 vol/24h
+```
+
+Two things follow, and both matter more than the concentration:
+
+1. **The edge is measured against an ask nobody trades at.** Buying the ask in a 20c-wide
+   book means a large part of the claimed 6-15% edge *is* the spread.
+2. **There is no exit.** With zero volume and a bid 20c below, these positions are held to
+   settlement whether or not the thesis survives.
+
+The largest single position, `KXNFLTOTAL-26SEP13WASPHI-69` (NO, 7 contracts), risks $6.16
+to win $0.84 and would have to be sold at 0.75 against the 0.88 paid.
+
+### The fix
+
+New **Gate 3.6**, between the R7 price floor and the composite gate:
+
+- `MAX_BID_ASK_SPREAD` (default **0.05**) -- absolute dollars on a $0-1 contract, matching
+  both the documented "5%" and the existing `liquidity` term's units. `>` not `>=`, so a 5c
+  spread itself passes, per the documented wording. 0 disables.
+- `MIN_MARKET_VOLUME_24H` (default **0**, off) -- contracts traded in the trailing 24h.
+  Catches books with a tolerable spread that simply never trade, which a spread test alone
+  cannot see. Ships off because spread is the documented rule and this is a policy addition.
+
+Scorers now stash the raw microstructure on every `Opportunity` via
+`edge_detector.liquidity_details()` (`bid_ask_spread`, `volume_24h`, `open_interest`).
+The gate reads *that*, never `liquidity_score` -- the composite term is lossy and cannot
+distinguish "wide" from "hopeless". Wired on all four scoring paths: Kalshi sports
+(game/spread/total), Kalshi futures, Polymarket futures, Polymarket games.
+
+**The gate fails open by design.** An Opportunity carrying no recorded spread is not
+rejected -- a hand-built Opportunity, a replayed R26 scan cache, or a future scorer that
+forgets the field would otherwise be blocked wholesale. Missing means unknown, and this gate
+rejects only on evidence. `preflight_gate_status()` mirrors that and reports `illiq`.
+
+Verified against a live NFL scan: of 32 scored rows, **18 now flag `illiq`**, 7 of which
+previously cleared both the edge floor and the composite gate and would have reached order
+placement.
+
+### Considered and rejected: relative spread
+
+`(ask - bid) / mid > 5%` is the more defensible rule for a board full of 10-20c longshots --
+`KXNFLSPREAD-26SEP13ATLPIT-ATL11` at bid 0.13 / ask 0.15 passes the absolute test at 2c but
+is 14% of its mid. Left absolute anyway: it is what the docs meant, what the existing
+`liquidity` term already assumes, and switching would be a stricter *policy change* rather
+than enforcing what was already written down. Revisit with settled data.
+
+### Not addressed here
+
+Neither is a code defect:
+
+- **No days-out guard on sports -- proposed and declined.** The weather path bails past 7
+  days (`weather_edge.py:190`); sports has nothing, so a no-date-filter run bets games 26
+  days out. Raised as the obvious companion fix and **the operator declined it on
+  2026-08-18** -- do not add a horizon clause without a fresh decision. Betting Week 1 early
+  is intentional: those are the softest lines of the season, and the liquidity gate above
+  already removes the untradeable end of that board, which was the real harm.
+- **`CROSS_CATEGORY_DEDUP=false`** lets one game carry three correlated tickets. Left as-is.
+
+The 24 open NFL positions were left alone -- with books 12-20c wide and no volume, exiting
+costs more than holding to the Sept 9-14 settlements. Nothing has settled yet, so there is
+no P&L evidence on the NFL cluster either way.
+
+### Also noted
+
+`tests/test_edge_detection.py::TestThreeWayDevig::test_three_way_uses_win_share` fails on
+`master` independently of this work (confirmed by stashing these changes). Untouched here.
+
+---
+
 ## 2026-07-31 -- scheduler cleanup: dead task removed, installer stopped duplicating live tasks
 
 Two pieces of cruft surfaced while fixing the calibration loop.

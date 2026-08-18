@@ -212,6 +212,12 @@ These are the highest-value MLB-specific filters to add. MLB is the most pitcher
 - **Spread 3–5%:** Proceed with caution, reduce size
 - **Spread < 3%:** Liquid, full position sizing
 
+> **Enforced in code since 2026-08-18 (L2).** The ">5% skip" line is now Gate 3.6
+> (`MAX_BID_ASK_SPREAD`, default 0.05) rather than guidance — before that it bound only
+> on a human reading this file, and the executor traded 20¢-wide books. The graduated
+> 3–5% "reduce size" tier is **not** implemented; sizing is unaffected, the gate is a
+> pure reject. See *CHANGELOG 2026-08-18 (L2)*.
+
 ### Market Timing
 - **Lines sharpen 2–4 hours before first pitch** — best edge is found early in the day
 - **Avoid last-minute bets** unless a material lineup change (injury, scratch) creates a new edge

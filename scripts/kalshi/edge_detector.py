@@ -1209,6 +1209,32 @@ def get_display_title(market: dict) -> str:
     return title
 
 
+def _fp_float(raw, default: float = 0.0) -> float:
+    """Parse one of Kalshi's fixed-point string fields (``volume_24h_fp``,
+    ``open_interest_fp``) to a float, tolerating None/''/garbage."""
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return default
+    return value if math.isfinite(value) else default
+
+
+def liquidity_details(market: dict, spread: float) -> dict:
+    """Raw book microstructure carried on every Opportunity for Gate 3.6.
+
+    The composite already folds the spread into ``liquidity_score``, but that
+    term is lossy (it clamps to 0 for any spread >= 50c) and says nothing about
+    whether the market actually trades. The executor's liquidity gate needs the
+    untransformed numbers, so stash them in ``details`` at scoring time -- the
+    market dict is not available downstream.
+    """
+    return {
+        "bid_ask_spread": round(spread, 4),
+        "volume_24h": _fp_float(market.get("volume_24h_fp")),
+        "open_interest": _fp_float(market.get("open_interest_fp")),
+    }
+
+
 def extract_strike(market: dict) -> float | None:
     """Extract the strike/threshold from spread or total markets."""
     strike = market.get("floor_strike")
@@ -1426,6 +1452,7 @@ def detect_edge_game(market: dict, odds_events: list,
 
     spread = yes_ask - yes_bid
     liquidity = max(0, 10 - (spread * 20))  # tighter spread = higher score
+    details.update(liquidity_details(market, spread))
 
     confidence = "low"
     if details["n_books"] >= 5:
@@ -1567,6 +1594,7 @@ def detect_edge_spread(market: dict, odds_events: list,
     yes_bid = float(market.get("yes_bid_dollars", "0"))
     spread = yes_ask - yes_bid
     liquidity = max(0, 10 - (spread * 20))
+    details.update(liquidity_details(market, spread))
 
     # Confidence: based on book count AND book agreement
     book_range = details.get("book_spread_range", 0)
@@ -1903,6 +1931,7 @@ def detect_edge_total(market: dict, odds_events: list,
     yes_bid = float(market.get("yes_bid_dollars", "0"))
     spread = yes_ask - yes_bid
     liquidity = max(0, 10 - (spread * 20))
+    details.update(liquidity_details(market, spread))
 
     confidence = "low" if details["n_books"] < 3 else "medium"
 
