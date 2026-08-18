@@ -85,6 +85,36 @@ Verified against a live NFL scan: of 32 scored rows, **18 now flag `illiq`**, 7 
 previously cleared both the edge floor and the composite gate and would have reached order
 placement.
 
+### `doctor.py` now prints the reject gates
+
+CLAUDE.md points at `python scripts/doctor.py` as "the source of truth for what is actually
+running", but its Configuration block only ever printed **sizing** knobs -- DRY_RUN,
+UNIT_SIZE, KELLY_FRACTION, MAX_DAILY_LOSS, MAX_OPEN_POSITIONS, MAX_PER_EVENT. Every reject
+gate was invisible there, including the two that had just been added, and including
+`MIN_MARKET_PRICE`, which the CLAUDE.md Risk Limits block explicitly flags as an open
+experiment. A disabled safety gate looked exactly like an enforced one: nothing at all.
+
+That is the same failure mode as the gate itself -- a rule nobody can see is a rule nobody
+checks -- so the new `Reject Gates` section prints Gates 3 through 9 with the values actually
+resolved, per-sport overrides included. A gate switched **off** reports `WARN` rather than
+`PASS`: 0 or permissive is a legitimate setting, but it should never scroll past looking
+like a healthy default. Verified in both directions, e.g. with everything opened up:
+
+```
+WARN  Gate 3.5 MIN_MARKET_PRICE = 0 -- DISABLED -- no lottery-ticket floor (R7)
+WARN  Gate 3.6 MAX_BID_ASK_SPREAD = 0 -- DISABLED -- illiquid books can execute (L2)
+WARN  Gate 4.8 ALLOW_LIVE_BETS = true -- OPEN -- in-progress games can execute (L1)
+WARN  Gate 7   SERIES_DEDUP_HOURS = 0 -- DISABLED -- same matchup can be re-bet freely
+```
+
+Warnings do not fail the doctor run; they are surfacing, not enforcement.
+
+Both knobs were also written into the live `.env` at their code defaults
+(`MAX_BID_ASK_SPREAD=0.05`, `MIN_MARKET_VOLUME_24H=0`). Functionally a no-op -- an unset var
+already resolves to the same value -- but it keeps them visible alongside the other tuned
+knobs rather than implicit, and the comment block leads with the fact that the gate is on
+whether or not the line exists.
+
 ### Considered and rejected: relative spread
 
 `(ask - bid) / mid > 5%` is the more defensible rule for a board full of 10-20c longshots --
