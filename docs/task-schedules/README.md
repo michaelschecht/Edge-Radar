@@ -12,7 +12,7 @@
 </div>
 
 > [!NOTE]
-> **This is the actual schedule the repo owner runs — published as a reference and recommended starting point, not a turnkey installer.** Build something similar, tuned to your own slate, time zone, and risk appetite. The owner's literal `.bat`/`.sh` files are gitignored (they hardcode a machine path and a private inbox), so this doc carries **sanitized templates** to copy — see [Reproducing this on your own machine](#reproducing-this-on-your-own-machine). Placeholders: `<YOUR_AGENTMAIL_INBOX>` is the agentmail address reports send **from** (`.env` → `AGENTMAIL_INBOX`); swap the destination `mikeschecht@gmail.com` for your own (`.env` → `NOTIFY_EMAIL`). Want just the minimal "execute + settle + calibration" core? Start with [`AUTOMATION_GUIDE.md`](../setup/AUTOMATION_GUIDE.md) and its one-command installer.
+> **This is the actual schedule the repo owner runs — published as a reference and recommended starting point, not a turnkey installer.** Build something similar, tuned to your own slate, time zone, and risk appetite. The owner's literal `.bat`/`.sh` files are gitignored (they hardcode a machine path and a private inbox), so this doc carries **sanitized templates** to copy — see [Reproducing this on your own machine](#reproducing-this-on-your-own-machine). Placeholders: `<YOUR_SENDER>` is the verified-domain address reports send **from** (`.env` → `RESEND_FROM`); swap the destination `mikeschecht@gmail.com` for your own (`.env` → `NOTIFY_EMAIL`). Want just the minimal "execute + settle + calibration" core? Start with [`AUTOMATION_GUIDE.md`](../setup/AUTOMATION_GUIDE.md) and its one-command installer.
 
 **Location:** `\Edge-Radar\` Task Scheduler folder &nbsp;·&nbsp; **Times:** PST (ET in parentheses) &nbsp;·&nbsp; the only active scheduling mechanism — legacy Claude Desktop email routines were consolidated here 2026-04-22, and any `SKILL.md` left under `~/.claude/scheduled-tasks/` is a stale artifact, not a live trigger.
 
@@ -133,10 +133,10 @@ Substitute these everywhere they appear:
 |:--|:--|:--|
 | `<REPO_ROOT>` | Absolute path to your Edge-Radar checkout | `C:\Users\you\Edge-Radar` |
 | `<YOUR_EMAIL>` | Inbox you want reports delivered **to** | `you@example.com` |
-| `<YOUR_AGENTMAIL_INBOX>` | agentmail.to address reports are sent **from** | `yourinbox@agentmail.to` |
+| `<YOUR_SENDER>` | Verified-domain address reports are sent **from** | `Edge-Radar <fleet@send.yourdomain.com>` |
 | `<GIT_BASH>` | Path to `bash.exe` from Git for Windows | `C:\Program Files\Git\bin\bash.exe` |
 
-`<YOUR_EMAIL>` and `<YOUR_AGENTMAIL_INBOX>` have homes in `.env` (`NOTIFY_EMAIL`, `AGENTMAIL_INBOX`) — see [`../../.env.example`](../../.env.example). The email templates read them from there.
+`<YOUR_EMAIL>` and `<YOUR_SENDER>` have homes in `.env` (`NOTIFY_EMAIL`, `RESEND_FROM`) — see [`../../.env.example`](../../.env.example). The email templates read them from there. The **API key does not**: `RESEND_API_KEY` lives in the OS environment (Windows: `setx RESEND_API_KEY "re_..."`), so Task Scheduler — which builds a fresh environment at every launch — picks up a rotated key on the next run with no file edit and no reboot. A User-scoped variable is invisible to `SYSTEM`, which is why these tasks run as your own user, not `SYSTEM`.
 
 > **Time zone:** all schedule times in this doc are the owner's local PST, with ET in parentheses. Task Scheduler fires on **your** machine's local time — pick times that make sense where you are, not these literal values.
 
@@ -203,19 +203,29 @@ The email tasks call a tiny shell script that spawns a headless Claude to read t
 
 ```bash
 #!/bin/bash
-# Edge-Radar | report emailer — reads today's report, emails it via agentmail.
-set -a; source "<REPO_ROOT>/.env"; set +a   # loads NOTIFY_EMAIL / AGENTMAIL_INBOX
+# Edge-Radar | report emailer — reads today's report, emails it through Resend.
+set -a; source "<REPO_ROOT>/.env"; set +a   # loads NOTIFY_EMAIL / RESEND_FROM
 
 TODAY=$(date +"%Y-%m-%d")
+TMP="<REPO_ROOT>/.claude/temp/same-day_${TODAY}"
 
 claude --dangerously-skip-permissions -p "Collect today's execution report from \
 <REPO_ROOT>/reports/Sports/schedulers/same-day-executions. Find the file timestamped \
-today ($TODAY). Email it to ${NOTIFY_EMAIL} from inbox ${AGENTMAIL_INBOX}, including \
-the full report contents in the body, styled as a clean dark-themed HTML email with a \
-gradient header and per-order cards. Use the agentmail skill to send. Subject = \
-'Edge-Radar | Same Day Execution Report'. If no report exists for $TODAY, report the \
-most recent available and do NOT send an email (prevents stale sends)."
+today ($TODAY). Email it to ${NOTIFY_EMAIL}, including the full report contents in the \
+body, styled as a clean dark-themed HTML email with a gradient header and per-order \
+cards. To send: write the HTML body to ${TMP}.html and the plain-text fallback to \
+${TMP}.txt, then run <REPO_ROOT>/.venv/Scripts/python.exe \
+<REPO_ROOT>/scripts/custom/Python/send_report_email.py --subject \
+'Edge-Radar | Same Day Execution Report' --html-file ${TMP}.html --text-file \
+${TMP}.txt --tag same-day. That script is the only sanctioned send path — do NOT write \
+your own email-sending code. It prints the provider message id on success; quote it in \
+your final output. If no report exists for $TODAY, report the most recent available and \
+do NOT send an email (prevents stale sends)."
 ```
+
+`send_report_email.py` is a thin wrapper over the Resend REST API (one `POST`, no SDK). It exists so the provider lives in **one** file rather than in nine prompts, and so every successful send stamps `logs/last_email_sent.json` — a file that goes stale is something you can alert on when the mail itself is what's broken. Probe it without spending quota: `python scripts/custom/Python/send_report_email.py --check`.
+
+> **Why a script and not a skill.** These prompts used to end with *"use the agentmail skill to send"* and let the inner Claude author its own API call each night — which it did, producing 40+ near-duplicate `send_*_email_<date>.py` files and leaving the provider hardcoded in every one. Naming an exact command instead makes the send deterministic and a provider migration a one-line edit.
 
 > Point the report folder + subject line at whichever execute task this emailer pairs with (`no-date-filter-midday-executions`, `same-day-late-executions`, `next-day-executions`, or `reports/Performance` for the digest/weekly jobs). The "don't send if missing" instruction keeps a failed execute from producing a stale email. (The owner's live scripts also tee output to `logs/email_*.log` — see [Troubleshooting → Email task logs](#email-task-logs-added-2026-06-20).)
 
@@ -291,7 +301,7 @@ The full pipeline is ~20 tasks; you don't need them all. **Minimal core = `All-S
 | **Invocation** | `"C:\Program Files\Git\bin\bash.exe" "<script>.sh"` |
 | **Purpose** | Emails the daily-summary report produced 10 min earlier |
 | **Email subject** | `Edge-Radar | Daily Summary` |
-| **From inbox** | `<YOUR_AGENTMAIL_INBOX>` |
+| **Sent from** | `<YOUR_SENDER>` (Resend) |
 
 **10-min buffer from 4:50 generate:** `daily_summary.py` is fast (no API fetches except a single optional balance call) and finishes in <5s; 10 min is generous. Keeps the digest in the inbox before the 5:25 SameDay email so the "what happened yesterday" arrives ahead of "what I bet today".
 
@@ -322,9 +332,9 @@ The full pipeline is ~20 tasks; you don't need them all. **Minimal core = `All-S
 | **Invocation** | `"C:\Program Files\Git\bin\bash.exe" "<script>.sh"` |
 | **Purpose** | Reads today's same-day execution report, emails to `mikeschecht@gmail.com` |
 | **Email subject** | `Edge-Radar | Same Day Execution Report` |
-| **From inbox** | `<YOUR_AGENTMAIL_INBOX>` |
+| **Sent from** | `<YOUR_SENDER>` (Resend) |
 
-**Mechanism:** Shell script spawns `claude --dangerously-skip-permissions -p "..."` subprocess. The inner Claude invocation uses the `agentmail` skill to send a dark-themed HTML email with per-order cards.
+**Mechanism:** Shell script spawns `claude --dangerously-skip-permissions -p "..."` subprocess. The inner Claude invocation builds a dark-themed HTML email with per-order cards and hands it to `scripts/custom/Python/send_report_email.py` (Resend).
 
 **Behavior if no report:** If no report exists for today's date, the subprocess reports the most recent available and does NOT send an email (correct behavior — prevents stale emails).
 
@@ -358,7 +368,7 @@ The full pipeline is ~20 tasks; you don't need them all. **Minimal core = `All-S
 | **Invocation** | `"C:\Program Files\Git\bin\bash.exe" "<script>.sh"` |
 | **Purpose** | Emails the midday wide-net execution report produced 20 min earlier |
 | **Email subject** | `Edge-Radar | NoDateFilter Midday Execution Report` |
-| **From inbox** | `<YOUR_AGENTMAIL_INBOX>` |
+| **Sent from** | `<YOUR_SENDER>` (Resend) |
 
 **20-min buffer from 11:00 execute:** Same pattern as Email-SameDay.
 
@@ -525,9 +535,9 @@ Sun-Thu only — Fri + Sat still skipped so the Sunday-morning 5:05 AM run handl
 | **Invocation** | `"C:\Program Files\Git\bin\bash.exe" "<script>.sh"` |
 | **Purpose** | Emails the weekly performance analysis report produced 10 min earlier |
 | **Email subject** | `Edge-Radar | Weekly Performance Analysis` |
-| **From inbox** | `<YOUR_AGENTMAIL_INBOX>` |
+| **Sent from** | `<YOUR_SENDER>` (Resend) |
 
-**Mechanism:** Same pattern as the other email tasks — shell script spawns `claude --dangerously-skip-permissions -p "..."` which reads `reports\Performance\betting_analysis_<today>_7d.md` and sends a dark-themed HTML email via the `agentmail` skill.
+**Mechanism:** Same pattern as the other email tasks — shell script spawns `claude --dangerously-skip-permissions -p "..."` which reads `reports\Performance\betting_analysis_<today>_7d.md` and sends a dark-themed HTML email via `scripts/custom/Python/send_report_email.py` (Resend).
 
 **Behavior if no report:** If today's 7-day report file is missing, the subprocess reports the most recent available and does NOT send an email (prevents stale sends).
 
@@ -611,10 +621,10 @@ MSYS_NO_PATHCONV=1 schtasks /create /tn "\Edge-Radar\Weekly-Futures-Execution" \
 | **Invocation** | `"C:\Program Files\Git\bin\bash.exe" "<script>.sh"` |
 | **Purpose** | Emails the weekly futures execution report produced 20 min earlier by task #19 |
 | **Email subject** | `Edge-Radar | Weekly Futures Execution Report` |
-| **From inbox** | `<YOUR_AGENTMAIL_INBOX>` |
+| **Sent from** | `<YOUR_SENDER>` (Resend) |
 | **Log** | `logs/email_futures.log` |
 
-**Mechanism:** same pattern as the other email tasks — spawns `claude --dangerously-skip-permissions -p "..."` which uses the `agentmail` skill to send a styled HTML email of today's `reports\Futures\schedulers\YYYY-MM-DD_futures_execution.md`.
+**Mechanism:** same pattern as the other email tasks — spawns `claude --dangerously-skip-permissions -p "..."` which sends a styled HTML email of today's `reports\Futures\schedulers\YYYY-MM-DD_futures_execution.md` through `scripts/custom/Python/send_report_email.py` (Resend).
 
 **Proof-of-life on empty weeks:** futures boards are thin, so most weeks place 0 bets. The futures scanner (`futures_edge.py`) was updated 2026-06-20 to **always** write a report on `--save` — an empty "0 orders" execution report when nothing clears — so this email fires every week regardless (matches the policy behind the same-day email fix 156d5e5). Without that, the email would silently skip nearly every Saturday.
 
@@ -694,7 +704,7 @@ schtasks /Create /TN "\Edge-Radar\Hourly-Settle" `
 |:---------|:------|
 | **Schedule** | Daily |
 | **Script** | `scripts\custom\Shell-Scripts\Run-Reports\Polymarket-Execution-Report.sh` (Git Bash, same pattern as the other email tasks) |
-| **Purpose** | Emails the day's Polymarket scan report from `reports\Polymarket\` to `mikeschecht@gmail.com` via a `claude -p` + agentmail run. The scan only writes a report when rows surface, so on 0-opportunity days the script instead checks the tail of `logs\polymarket_dryrun_scan.log` (did today's scan run, exit code) and sends a short no-opportunities proof-of-life email |
+| **Purpose** | Emails the day's Polymarket scan report from `reports\Polymarket\` to `mikeschecht@gmail.com` via a `claude -p` + Resend run. The scan only writes a report when rows surface, so on 0-opportunity days the script instead checks the tail of `logs\polymarket_dryrun_scan.log` (did today's scan run, exit code) and sends a short no-opportunities proof-of-life email |
 | **Log** | `logs\email_polymarket_dryrun.log` (kept — append-only history from the dry-run window) |
 | **Subject** | `Edge-Radar \| Daily Polymarket Execution Report` |
 
@@ -999,11 +1009,11 @@ Each email shell script now tees its `claude -p` stdout+stderr to a per-task log
 | `Email-Polymarket-Execution` | `logs/email_polymarket_dryrun.log` (name kept — history predates the rename) |
 | `Email-NoDateFilter` (legacy) | `logs/email_nodatefilter.log` |
 
-`logs/` is gitignored. When an email task shows a non-zero `LastTaskResult`, read the tail of its log first — the actual Claude/agentmail error is now captured there instead of being lost.
+`logs/` is gitignored. When an email task shows a non-zero `LastTaskResult`, read the tail of its log first — the actual Claude/Resend error is now captured there instead of being lost.
 
 ### Exit code 1 (0x00000001)
 
-The `claude -p` subprocess ran but failed. Most common cause: **Claude CLI auth lapsed** — the token expired and the headless invocation couldn't authenticate (re-`/login` in an interactive session fixes it). Other causes: agentmail skill/API error, or a malformed prompt. Check the per-task log (table above) for the captured error.
+The `claude -p` subprocess ran but failed. Most common cause: **Claude CLI auth lapsed** — the token expired and the headless invocation couldn't authenticate (re-`/login` in an interactive session fixes it). Other causes: a Resend API error (`send_report_email.py --check` probes the domain without spending quota; an unverified domain or a revoked key fails every send), or a malformed prompt. Check the per-task log (table above) for the captured error.
 
 **Historical note (2026-06-20):** `Email-SameDay` failed with exit 1 at 5:25 AM while the paired execute task succeeded and wrote a valid empty "0 orders" report. Root cause was a lapsed Claude CLI auth token; a manual re-run after re-login succeeded. This failure left no diagnostic trail, which is what prompted adding the per-task logging above.
 
@@ -1034,7 +1044,7 @@ Script found today's date and returned successfully but nothing arrived. Causes 
 
 ### Exit code 267009 (still running)
 
-`0x00041301` means the task hasn't finished yet. Email tasks typically run 30-120 seconds (claude subprocess + agentmail API call).
+`0x00041301` means the task hasn't finished yet. Email tasks typically run 30-120 seconds (claude subprocess + Resend API call).
 
 ### Exit code 267011 (never run)
 
@@ -1166,9 +1176,9 @@ Email task fires (5:25 / 5:40 / 6:20 PM)
          ↓
 Shell script invokes: claude --dangerously-skip-permissions -p "<prompt>"
          ↓
-Inner Claude reads report file, formats HTML, invokes agentmail skill
+Inner Claude reads report file, formats HTML, runs send_report_email.py
          ↓
-Email sent from <YOUR_AGENTMAIL_INBOX> → mikeschecht@gmail.com
+Resend sends from <YOUR_SENDER> → mikeschecht@gmail.com
          ↓
 Subject: "Edge-Radar | <Mode> Execution Report"
 ```
@@ -1254,7 +1264,7 @@ The script spawns a `claude --dangerously-skip-permissions -p` subprocess for th
 - [`../../CLAUDE.md`](../../CLAUDE.md) — Master instructions, risk gates, risk limits
 - [`../../skills/edge-radar/SKILL.md`](../../skills/edge-radar/SKILL.md) — Unified scanner reference (`/edge-radar`)
 - [`../setup/AUTOMATION_GUIDE.md`](../setup/AUTOMATION_GUIDE.md) — One-command installer for the minimal core tasks
-- [`../../.env.example`](../../.env.example) — Every tunable, including `NOTIFY_EMAIL` / `AGENTMAIL_INBOX` for the email scripts
+- [`../../.env.example`](../../.env.example) — Every tunable, including `NOTIFY_EMAIL` / `RESEND_FROM` for the email scripts
 
 ---
 

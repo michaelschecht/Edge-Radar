@@ -65,7 +65,7 @@ def test_spec_has_no_unknown_vars():
     (paths.py and the report-emailer scripts respectively), so they are
     legitimately absent from it.
     """
-    allowed_outside_config = {"NOTIFY_EMAIL", "AGENTMAIL_INBOX"}
+    allowed_outside_config = {"NOTIFY_EMAIL", "RESEND_FROM", "RESEND_REPLY_TO"}
     unknown = (set(services.ENV_VAR_NAMES)
                - _config_env_names()
                - allowed_outside_config)

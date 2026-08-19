@@ -2,6 +2,65 @@
 
 ---
 
+## 2026-08-19 -- Email: AgentMail retired, all eight scheduled email tasks moved to Resend
+
+AgentMail's send path failed for seven hours on 2026-08-19 while its read API kept
+returning `200` -- `inboxes.list()` was healthy the whole time and every
+`messages.send()` came back `403 message_rejected`. From the caller's side that is
+indistinguishable from an outage, and nothing complained, because the only thing that
+would have complained sends by email. Every Edge-Radar `Email-*` task migrated to
+[Resend](https://resend.com) the same day, sending from the verified domain
+`send.mikesailab.com`.
+
+### What changed
+
+**New: `scripts/custom/Python/send_report_email.py`** -- one send path for all eight
+tasks. It imports the canonical sender documented in
+`My-AI-Tools/Resend-API/README.md` rather than reimplementing the `POST`, so a key
+rotation or another provider swap lands in one file. On top of the plain sender it adds
+Edge-Radar defaults (`NOTIFY_EMAIL` / `RESEND_FROM`) and a **delivery stamp**:
+`logs/last_email_sent.json` plus an append-only `logs/email_sends.jsonl`. The stamp is
+the direct lesson of the outage -- a file that goes stale can be alerted on when mail
+itself is what is broken. `--check` probes domain verification without spending quota,
+but note that a verified domain is necessary, not sufficient: a read probe and a send
+fail independently, which is the whole reason this entry exists.
+
+**The nine report-emailer shell scripts** (`scripts/custom/Shell-Scripts/Run-Reports/`,
+gitignored, so this appears in no diff) each ended their `claude -p` prompt with *"Use
+the agentmail skill to send"*, leaving the inner Claude to author its own API call every
+night. It did -- 40+ near-duplicate `send_*_email_<date>.py` files under
+`scripts/custom/Python/`, each with the provider, the API key name, and an inbox id
+hardcoded. That is why a provider migration touched forty files instead of one. The
+prompts now name an exact command (write HTML + text to `.claude/temp/`, run
+`send_report_email.py --subject ... --tag ...`), forbid writing bespoke send code, and
+require the returned message id in the final output as proof of send. Subject lines moved
+into the command, so there is one source for them rather than two that can drift.
+
+**Config knobs.** `AGENTMAIL_INBOX` -> `RESEND_FROM` (+ optional `RESEND_REPLY_TO`) in
+`.env.example`, `webapp/services.py`, `.env_sreamlitio`, and
+`tests/test_webapp_env_registry.py`. `NOTIFY_EMAIL` is unchanged. The `agentmail>=0.4.5`
+pin is gone from `requirements.txt` -- Resend needs no SDK, just the `requests` already
+required for Kalshi.
+
+**The API key deliberately does not live in `.env`.** `RESEND_API_KEY` is a Windows
+**User**-scoped environment variable (`setx RESEND_API_KEY "re_..."`). Task Scheduler
+builds a fresh environment at every launch, so a rotated key is picked up on the next run
+with no file edit, no logoff, no reboot -- while an already-running process (an open
+terminal, the Streamlit app) keeps its stale copy and must be restarted. A User variable
+is also invisible to `SYSTEM`, which is why these tasks run as `mikes`; under `SYSTEM`
+every send would fail into a warning while the run still exited 0.
+
+### Verified
+
+`--check` returns `OK send.mikesailab.com status=verified`; a direct send returned a
+message id; and `Email-Daily-Summary` was run end-to-end through Task Scheduler under its
+real principal. Docs updated: `docs/task-schedules/README.md` (placeholders, Template C,
+per-task tables, troubleshooting, flow diagram).
+
+Provider detail and the full porting table: `My-AI-Tools/Resend-API/README.md`.
+
+---
+
 ## 2026-08-18 -- L2: the illiquidity Hard Stop finally exists in code
 
 Triggered by an operator question -- "I'm seeing a ton of American football bets in the

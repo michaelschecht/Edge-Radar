@@ -199,8 +199,10 @@ ENV_VAR_SPEC: list[dict] = [
 
     # ── Notifications ───────────────────────────────────────────────────
     _spec("NOTIFY_EMAIL", "Notifications", "", "Inbox scheduled reports are sent TO."),
-    _spec("AGENTMAIL_INBOX", "Notifications", "",
-          "agentmail.to address reports are sent FROM."),
+    _spec("RESEND_FROM", "Notifications", "",
+          "Verified-domain address reports are sent FROM (Resend)."),
+    _spec("RESEND_REPLY_TO", "Notifications", "",
+          "Optional Reply-To on report emails; defaults to NOTIFY_EMAIL."),
 ]
 
 # Per-sport overrides expand mechanically — one row per (prefix, sport).

@@ -39,7 +39,9 @@ pandas>=2.1.4                     # Dataframes in webapp/views/*.py (scan, settl
 # apscheduler==3.10.4             # planned — cron-style job scheduler
 
 # === Notifications ===
-agentmail>=0.4.5                  # Daily edge report email delivery
+# Email delivery: Resend, called as a plain REST POST over `requests` (already
+# required above). No SDK, nothing to install. Migrated off the `agentmail`
+# package 2026-08-19 — see scripts/custom/Python/send_report_email.py.
 # slack-sdk==3.26.1               # planned — Slack alerts
 
 # === Web Scraping (for data sources without APIs) ===
