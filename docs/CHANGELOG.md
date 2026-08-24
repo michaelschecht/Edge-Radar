@@ -2,6 +2,102 @@
 
 ---
 
+## 2026-08-24 -- Futures: `Weekly-Futures-Execution` re-enabled; golf weekly tour stops rejected on cost/benefit
+
+### `Weekly-Futures-Execution` is live again
+
+The task had been disabled since 2026-07-23 "pending a manual futures cycle in preview"
+-- C10 had just made futures capable of clearing Gate 4 for the first time, so the next
+Saturday run would have been the first-ever live order through an unexercised path. That
+preview cycle ran today: 154 Kalshi futures markets, outrights fetched for the 4 active
+sports (NFL/NBA/NHL/MLB, 4 Odds API requests), **0 opportunities above the 3% edge
+floor**. The task was then enabled and fired manually via `schtasks /run` ->
+`LastTaskResult=0`, report written to `reports/Futures/schedulers/`, **0 orders placed**.
+The execute path is now exercised end-to-end, which is exactly what the disable was
+waiting on.
+
+It places **real** orders from here (`DRY_RUN=false`). Blast radius per run:
+`--max-bets 3 --min-bets 1 --budget 10% --unit-size 1`, under `MAX_BET_SIZE=8` and the
+full gate chain. Halt with
+`Disable-ScheduledTask -TaskPath "\Edge-Radar-MikesAILab\" -TaskName "Weekly-Futures-Execution"`.
+
+Worth noting: the paired `Email-Weekly-Futures` job (Sat 9:20 AM) was **never disabled**,
+so for five weeks it emailed a report that the execution task was no longer producing.
+Re-enabling closes that gap rather than creating it.
+
+**Doc/code drift corrected.** Every doc said the task runs `--budget 5%`; the `.bat` has
+always passed `--budget 10%%`, and its own header comment said 5% too. The docs and the
+header now match the code. **Sizing behavior is unchanged** -- only the description was
+wrong, and picking which number to keep is a bankroll decision, not a docs fix.
+
+### Golf weekly tour stops: investigated, not viable, not built
+
+Looked at extending `KXPGATOUR` from the 4 majors to the full PGA Tour calendar.
+**Rejected on cost/benefit.** Recording the findings so this does not get
+re-investigated from scratch in six months.
+
+**There is no free consensus feed for non-major golf.** Four sources checked:
+
+| Source | Golf outrights | Verdict |
+|:-------|:---------------|:--------|
+| The Odds API (have it) | 4 majors only | No tour-wide key exists -- confirmed against `/v4/sports?all=true` (176 sports, inactive included) *and* on their published coverage page |
+| ESPN | Calendar + field, `odds count=0` | Schedule data, no prices |
+| SportsGameOdds | Covers `PGA_MEN` / `LIV_TOUR` | Free "Amateur" tier is 8 leagues (NFL/NBA/MLB/NHL/CFB/CBB/UCL/MLS) -- golf excluded. Golf tiers are $99-299/mo |
+| Polymarket (have it) | 2 novelty props only | No winner markets, so no cross-venue anchor either |
+
+The only workable feed is **DataGolf** `betting-tools/outrights` (win odds from
+11 books, every tour event), which needs a **Scratch Plus** membership at
+**$30/month or $270/year** -- API access is Plus-only, the $190/yr Basic tier
+excludes it.
+
+**What killed it was the gate math, not the price.** Measured against the live
+30-player TOUR Championship board:
+
+```
+pass Gate 3.6 (spread) : 30/30   <- liquidity is excellent, 0-1c spreads
+pass Gate 3.5 (price)  :  1/30   <- MIN_MARKET_PRICE = 0.10
+pass BOTH              :  1/30
+```
+
+Only Scheffler at 22c clears; the rest of the field sits at 1-9c. That is
+structural: a 30-player winner market averages 3.3c per player, and a *regular*
+tour stop is 120-156 players, where the favourite prices around 8-12% -- so a
+full-field event would likely clear **zero** markets. The NO side does not
+rescue it either, since a 1c player's NO sits at 99c and Gate 4.6b demands >=8%
+edge on any NO bet, which is arithmetically impossible up there.
+
+So the subscription would buy roughly **one candidate per tournament**, which
+then still has to clear the 3% edge floor and composite >= 6.0 -- and futures
+have produced **0 bets in 166 settled trades**. At a ~$92 bankroll with
+`MAX_BET_SIZE=8`, $270/yr is about 3x the bankroll per year. Not worth it.
+
+Revisit only if the bankroll grows enough that $270/yr is noise, or if
+`MIN_MARKET_PRICE` is ever lowered for golf specifically -- though that floor is
+exactly the lottery-ticket protection, and it is already the subject of an open
+experiment at 0.10.
+
+### The 4 majors are unaffected and verified working
+
+Majors keep pricing off The Odds API for free, and re-enabling
+`Weekly-Futures-Execution` means they now reach execution automatically.
+Verified end-to-end today rather than assumed, since the path had not run since
+July and would not naturally fire again until April 2027:
+
+- All 4 major keys return data **year-round** -- 2027 futures are already priced
+  (83-107 outcomes, 3-7 books each); de-vig gives Scheffler 12.6-13.1% across all four.
+- Title routing correct on all 4, and correctly returns `None` for weekly stops
+  and for qualifiers.
+- Confirmed against 1,588 historical `KXPGATOUR` markets that majors really do
+  arrive under this series: The Open Championship (164 markets) and U.S. Open
+  (156) both routed; "The Open Last-Chance Qualifier" (16) correctly skipped,
+  alongside 15 non-major stops.
+
+Expect ~1-2 candidates per major, 4x/year: a major is a 100-156 player field, so
+by fair value only the favourite clears the `MIN_MARKET_PRICE` floor. Small, but
+it costs nothing.
+
+---
+
 ## 2026-08-19 -- Email: AgentMail retired, all eight scheduled email tasks moved to Resend
 
 AgentMail's send path failed for seven hours on 2026-08-19 while its read API kept
