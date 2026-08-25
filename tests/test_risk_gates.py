@@ -1721,9 +1721,9 @@ class TestPreflightGateStatus:
 
 
 class TestReloadRiskConfig:
-    """Config-reload seam (2026-06-14): a long-running host (the Streamlit
-    webapp) snapshots the risk-gate globals at import and would keep stale
-    gates after a `.env`/Secrets edit until restarted — silently approving
+    """Config-reload seam (2026-06-14): a long-running host snapshots the
+    risk-gate globals at import and would keep stale gates after a `.env`
+    edit until restarted — silently approving
     sub-floor bets. `reload_risk_config()` re-reads config into the module
     globals on demand. The CLI (fresh process per run) and the monkey-patch
     seam used by every other test here are deliberately untouched.

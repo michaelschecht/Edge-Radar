@@ -54,8 +54,8 @@ class KalshiClient:
         self.base_url = (base_url or cfg.kalshi.base_url).rstrip("/")
 
         # Load private key — inline content takes priority over file path.
-        # This allows Streamlit Cloud (st.secrets) or KALSHI_PRIVATE_KEY env
-        # var to provide the PEM content directly without a file on disk.
+        # This allows the KALSHI_PRIVATE_KEY env var to provide the PEM content
+        # directly without a file on disk (e.g. containerised deployments).
         key_content = private_key_content or self._resolve_key_content()
 
         if key_content:
@@ -68,8 +68,7 @@ class KalshiClient:
             if not key_path:
                 raise FileNotFoundError(
                     "Kalshi credentials not configured. Set KALSHI_PRIVATE_KEY "
-                    "(inline PEM) or KALSHI_PRIVATE_KEY_PATH (file) in .env or "
-                    "Streamlit secrets."
+                    "(inline PEM) or KALSHI_PRIVATE_KEY_PATH (file) in .env."
                 )
             # Resolve relative paths from project root
             key_file = Path(key_path)
@@ -94,15 +93,8 @@ class KalshiClient:
 
     @staticmethod
     def _resolve_key_content() -> str:
-        """Check for inline PEM content from env var or Streamlit secrets."""
-        content = get_config().kalshi.private_key_inline
-        if content:
-            return content
-        try:
-            import streamlit as st
-            return st.secrets["kalshi"]["private_key"]
-        except Exception:
-            return ""
+        """Check for inline PEM content from the KALSHI_PRIVATE_KEY env var."""
+        return get_config().kalshi.private_key_inline or ""
 
     # ── Authentication ────────────────────────────────────────────────────────
 

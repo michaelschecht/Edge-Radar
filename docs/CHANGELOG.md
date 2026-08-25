@@ -2,6 +2,55 @@
 
 ---
 
+## 2026-08-25 -- Streamlit dashboard removed
+
+The `webapp/` Streamlit dashboard is deleted from the repo and the hosted
+`edge-radar.streamlit.app` deployment is being taken down. **The CLI plus the scheduled
+email reports are now the entire operating surface.** No scan, gate, sizing, execution,
+or settlement behavior changed -- the dashboard was always a second front end over the
+same `scripts/` code, never a code path of its own.
+
+**Deleted:** `webapp/` (app, services, theme, favorites, 5 view pages, `.streamlit/`
+config), `docs/web-app/` (LOCAL.md, CLOUD.md), `tests/test_webapp_env_registry.py`, and
+the `.claude/skills/developing-with-streamlit/` bundle (89 files -- a generic Streamlit
+authoring skill with nothing left to author).
+
+**Code changes (three real ones, the rest are comments):**
+
+- `scripts/kalshi/kalshi_client.py` -- `_resolve_key_content()` no longer falls back to
+  `st.secrets["kalshi"]["private_key"]`; it reads `KALSHI_PRIVATE_KEY` only. This was the
+  last `import streamlit` in `scripts/`. Local runs were already on
+  `KALSHI_PRIVATE_KEY_PATH`, so nothing in the live pipeline used the removed branch.
+- `scripts/lint/check_config_centralization.py` -- `SEARCH_DIRS` drops `webapp`. The
+  `# config-bootstrap` escape hatch **stays** (it is a host-shaped exception, not a
+  Streamlit one) but no longer has any tagged line in the tree.
+- `pyproject.toml` -- packages `["app*"]`, was `["app*", "webapp*"]`.
+- `requirements.txt` -- `streamlit>=1.33.0` dropped. `pandas` stays: it is a real
+  dependency of backtesting and report generation, not just the dashboard (see Q5,
+  2026-04-22, which promoted it off streamlit's transitive install).
+- `.devcontainer/devcontainer.json` -- no longer pip-installs streamlit, runs
+  `streamlit run` on attach, or forwards port 8501.
+- `.gitignore` -- `.streamlit/secrets.toml` entry removed.
+- `reload_risk_config()` and the import-time gate snapshot are **unchanged** and still
+  correct: the staleness they guard against is a property of any long-running host, not
+  of Streamlit. Their docstrings and the CLAUDE.md callout were reworded accordingly.
+
+**`.claude/html/index.html`** (the published Pages ops page) drops both
+`edge-radar.streamlit.app` links -- the hero CTA and the Quick Links card.
+
+**ROADMAP.** The Tier-5a Dashboard backlog is marked dropped: D3, D6, D10, D12, D13,
+D15, D17, D18, D19 all targeted the Streamlit app. Shipped D-items and the A10/A11 rows
+stay in the Completed index as history, annotated with the removal. **Priority 4 (Web App
+Evolution) is not cancelled** -- it always began at the service layer (A2 -> A3 -> A4),
+and A9 was a React front end, never Streamlit; only its "the dashboard caught up to the
+CLI" framing note was rewritten. Q6 no longer cites `webapp/services.py` as a
+`sys.path` offender.
+
+Prior CHANGELOG entries that describe the dashboard are left intact as historical
+record.
+
+---
+
 ## 2026-08-24 -- Futures: `Weekly-Futures-Execution` re-enabled; golf weekly tour stops rejected on cost/benefit
 
 ### `Weekly-Futures-Execution` is live again

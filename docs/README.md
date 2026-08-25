@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Documentation-Index-0078d4?style=for-the-badge&labelColor=09090b" alt="Documentation Index">
   <img src="https://img.shields.io/badge/Platform-Kalshi%20%7C%20Polymarket-e74c3c?style=for-the-badge&labelColor=09090b" alt="Platform">
-  <img src="https://img.shields.io/badge/Stack-Python%20%7C%20Streamlit-2ea44f?style=for-the-badge&labelColor=09090b" alt="Stack">
+  <img src="https://img.shields.io/badge/Stack-Python-2ea44f?style=for-the-badge&labelColor=09090b" alt="Stack">
   <img src="https://img.shields.io/badge/Status-Active%20Execution-8b5cf6?style=for-the-badge&labelColor=09090b" alt="Status">
 </p>
 
@@ -45,10 +45,6 @@ Only `README.md` and `CHANGELOG.md` live at the root of `docs/`. Everything else
 *   [SCRIPTS_REFERENCE.md](./scripts/SCRIPTS_REFERENCE.md) — Complete CLI reference for every script, flag, and batch command.
 *   [per-script/](./scripts/per-script/) — Deep-dive docs for each script (edge_detector, futures_edge, prediction_scanner, kalshi_executor, kalshi_settler, risk_check, backtester).
 
-### 💻 Web App — [`web-app/`](./web-app/)
-*   [LOCAL.md](./web-app/LOCAL.md) — Running the local Streamlit dashboard.
-*   [CLOUD.md](./web-app/CLOUD.md) — Streamlit Cloud deployment guide.
-
 ### 📈 Roadmap & Changelog
 *   [ROADMAP.md](./ROADMAP.md) — Priorities, consolidated action items, completed milestones, and the findings log (incl. the 90-day review, F45–F49). **Top item: Polymarket integration (Priority 0).**
 *   [CHANGELOG.md](./CHANGELOG.md) — Project commit and feature changelog history.
@@ -61,5 +57,5 @@ Only `README.md` and `CHANGELOG.md` live at the root of `docs/`. Everything else
 > All automated scheduler files and execution paths in this repository are designed for Windows 11 using PowerShell (`pwsh`) and Command Prompt (`cmd`) scripts.
 
 <p align="center">
-  Built with <a href="https://modelcontextprotocol.io">MCP</a> · <a href="https://streamlit.io">Streamlit</a> · <a href="https://kalshi.com">Kalshi API</a>
+  Built with <a href="https://modelcontextprotocol.io">MCP</a> · <a href="https://kalshi.com">Kalshi API</a>
 </p>

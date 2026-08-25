@@ -202,7 +202,7 @@ def categorize_market(ticker: str) -> str:
 # In-process cache: maps "{sport_key}:{markets}" -> (stored_at_monotonic, events).
 # A TTL was added in L1: previously this dict had none and returned the first
 # response for the entire process lifetime, which is the dominant F44 mechanism
-# in the long-running Streamlit app (pre-game odds frozen for hours while a game
+# in a long-running host process (pre-game odds frozen for hours while a game
 # plays out). Entries now expire on the same live-aware rule as the file cache.
 _odds_cache: dict[str, tuple[float, list]] = {}
 

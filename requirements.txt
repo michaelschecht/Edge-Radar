@@ -17,7 +17,7 @@ cryptography>=44.0.0              # RSA-PSS signing for Kalshi API auth
 
 # === Data & Analysis ===
 scipy>=1.11.4                     # Normal CDF for edge probability
-pandas>=2.1.4                     # Dataframes in webapp/views/*.py (scan, settle, portfolio, backtest)
+pandas>=2.1.4                     # Dataframes for backtesting & report generation
 # numpy==1.26.2                   # planned — numerical computing
 # scikit-learn==1.3.2             # planned — ML models
 # statsmodels==0.14.1             # planned — statistical models
@@ -56,8 +56,6 @@ pandas>=2.1.4                     # Dataframes in webapp/views/*.py (scan, settl
 # No SDK — Ed25519-signed requests to api.polymarket.us via `cryptography`
 # (already required above for Kalshi) + `requests`. See polymarket_us_auth.py.
 
-# === Web Dashboard ===
-streamlit>=1.33.0                  # Streamlit web UI (uses @st.dialog, st.fragment)
 
 # === Utilities ===
 rich>=13.7.0                      # Terminal tables & formatted output

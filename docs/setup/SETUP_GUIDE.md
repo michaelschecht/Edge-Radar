@@ -487,8 +487,6 @@ Every configured key is either invalid or has hit its monthly quota (free tier =
 - **[Kalshi Coverage & Guides](../kalshi/README.md)** — Which sports/markets are configured and what bet types
 - **[Sports Guide](../kalshi/kalshi-sports-betting/SPORTS_GUIDE.md)** — Edge detection methodology
 - **[Architecture](./ARCHITECTURE.md)** — How scoring, confidence, and risk gates work together
-- **[Local Dashboard](../web-app/LOCAL.md)** — Run the Streamlit dashboard locally
-- **[Cloud Dashboard](../web-app/CLOUD.md)** — Deploy your own to Streamlit Community Cloud
 - **[Roadmap](../ROADMAP.md)** — What's built and what's planned
 
 ### External docs

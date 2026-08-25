@@ -540,7 +540,7 @@ Gates 1-7 (including 3.5, 4.5, 4.6, 4.6b, 4.7, 4.8) reject orders outright. Gate
 
 Preview rows carry a **Gate** column (R18) naming the first gate that would reject at execute time: `ok` · `edge` (3) · `price` (3.5) · `score` (4) · `conf` (4.5) · `no-fav` (4.6) · `pred-off` (4.7) · `live-off` (4.8).
 
-> **Where these knobs live (post-2026-04-25):** every env var named in this section is typed, defaulted, and validated in `app/config.py` (the single source of truth — see `CONFIG_CENTRALIZATION_SUMMARY.md` and `docs/CHANGELOG.md` 2026-04-25). User-facing surface is unchanged: still set everything in `.env` (or Streamlit secrets on Cloud); same names, same defaults. The lint guard (`make lint-config`) blocks any new `os.getenv` from sneaking back in.
+> **Where these knobs live (post-2026-04-25):** every env var named in this section is typed, defaulted, and validated in `app/config.py` (the single source of truth — see `CONFIG_CENTRALIZATION_SUMMARY.md` and `docs/CHANGELOG.md` 2026-04-25). User-facing surface is unchanged: still set everything in `.env`; same names, same defaults. The lint guard (`make lint-config`) blocks any new `os.getenv` from sneaking back in.
 
 ---
 
@@ -745,18 +745,6 @@ python scripts/backtest/backtester.py --after 2026-04-01      # Recent trades on
 Reports: equity curve, max drawdown, Sharpe ratio, profit factor, win/lose streaks, breakdowns by sport/category/confidence/edge bucket, calibration curve (predicted prob vs actual win rate), strategy simulation comparing filter strategies.
 
 Flags: `--sport`, `--category`, `--confidence`, `--min-edge`, `--after`, `--simulate`, `--save`, `--quiet`.
-
----
-
-## Web Dashboard
-
-```bash
-streamlit run webapp/app.py
-```
-
-5 pages: **Scan & Execute** (4 market types incl. `polymarket`, Gate + Exec columns, venue-aware confirmation dialog), **Portfolio** (Kalshi / Polymarket tabs, auto-refresh, P&L color coding, shared daily-loss bar), **Settle & Report** (settlement history + Venue column, CSV export; Kalshi-only until PM3), **Backtest**, and **Config** (live env-var table with `set`/`default`/`unset` source, secrets masked, `.env` template export). Dark terminal theme, favorites, quick-scan sidebar.
-
-Selecting the `polymarket` market type switches the execution venue too. Orders there need BOTH `DRY_RUN=false` and `POLYMARKET_DRY_RUN=false`; the banner and confirm dialog state the live two-flag status. Only US futures are orderable — Gamma-sourced game rows show `Exec = —` and are dropped before execution.
 
 ---
 

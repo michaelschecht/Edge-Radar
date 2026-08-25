@@ -31,7 +31,7 @@ The default is fail-safe — `getattr(cfg.polymarket, "dry_run", True)` keeps a 
 **Flip it deliberately, never as a side effect**, and only after a qualifying edge actually appears in the evidence log.
 
 > [!WARNING]
-> `kalshi_executor.py` snapshots every gate threshold into module-level globals **at import time**. The CLI re-imports per invocation (always fresh), but a long-running Streamlit app must be **restarted** after editing `.env`.
+> `kalshi_executor.py` snapshots every gate threshold into module-level globals **at import time**. The CLI re-imports per invocation (always fresh), but a long-running host must be **restarted** after editing `.env` (or must call `reload_risk_config()`).
 
 ---
 
