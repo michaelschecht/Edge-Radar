@@ -66,13 +66,16 @@ notebooks/analysis/*.html
 .claude/agents/
 # Personal scratch/working docs — same intent as the "My Scripts" block below.
 .claude/temp/
-# Edge-Radar skills: canonical source lives in /Skills. These two .claude/skills
+# Edge-Radar skills: canonical source lives in /skills. These .claude/skills
 # entries are local Windows junctions pointing there (git core.symlinks=false, so
 # real symlinks can't be tracked). Ignore them so the content is tracked exactly
-# once under /Skills. Recreate the junctions after a fresh clone with:
+# once under /skills. Recreate the junctions after a fresh clone with:
 #   pwsh -File scripts/setup/link_skills.ps1
+# NOTE: add a line here for every new skill, or its junction gets committed as a
+# duplicate copy of the source.
 .claude/skills/edge-radar/
 .claude/skills/edge-radar-analysis/
+.claude/skills/betting-logic-review/
 docs/my-documents/
 # Published account-growth graph: lives on master, refreshed weekly by the gh API
 # push in scripts/schedulers/automation/refresh_account_graph.py. Kept out of branch
