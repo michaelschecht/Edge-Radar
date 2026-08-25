@@ -64,6 +64,8 @@ notebooks/analysis/*.html
 .claude/images/screenshots/
 .claude/memory/
 .claude/agents/
+# Per-machine Claude Code permission settings — local only.
+.claude/settings.local.json
 # Personal scratch/working docs — same intent as the "My Scripts" block below.
 .claude/temp/
 # Edge-Radar skills: canonical source lives in /skills. These .claude/skills
