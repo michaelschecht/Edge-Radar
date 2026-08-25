@@ -265,3 +265,96 @@ class TestBuildReport:
         report = build_report(NOW, hours=24, settlements=[], trades=trades, balance=None)
         assert "**1 positions** scheduled for today" in report
         assert "$3.00" in report
+
+
+# ── Rejected orders (2026-08-25) ─────────────────────────────────────────────
+# Kalshi geo-blocked this account on 2026-08-20. Every consumer of the trade log
+# *filtered* status=="error" rows, so 13 consecutive rejected orders over 5 days
+# produced no signal anywhere and the digest reported five clean days.
+
+NEVADA_ERR = (
+    '{"error":{"code":"Nevada_residents_are_not_currently_allowed_to_open_'
+    'positions_in_Sports,_Elections_and_Entertainment.","message":"..."}}'
+)
+
+
+def _failed(ts: datetime, error: str = NEVADA_ERR, **kw) -> dict:
+    base = {
+        "trade_id": "e1",
+        "ticker": "KXNFLSPREAD-26SEP13BALIND-IND5",
+        "side": "yes",
+        "status": "error",
+        "error": error,
+        "timestamp": ts.isoformat(),
+        "closed_at": None,
+    }
+    base.update(kw)
+    return base
+
+
+class TestLoadFailedOrders:
+    def test_error_in_window_included(self):
+        from daily_summary import load_failed_orders
+        rows = [_failed(NOW - timedelta(hours=3))]
+        assert len(load_failed_orders(rows, 24, NOW)) == 1
+
+    def test_error_outside_window_excluded(self):
+        from daily_summary import load_failed_orders
+        rows = [_failed(NOW - timedelta(hours=30))]
+        assert load_failed_orders(rows, 24, NOW) == []
+
+    def test_non_error_rows_ignored(self):
+        from daily_summary import load_failed_orders
+        rows = [_trade(timestamp=NOW.isoformat())]
+        assert load_failed_orders(rows, 24, NOW) == []
+
+    def test_malformed_timestamp_skipped(self):
+        from daily_summary import load_failed_orders
+        rows = [_failed(NOW), {"status": "error", "timestamp": "not-a-date"}]
+        assert len(load_failed_orders(rows, 24, NOW)) == 1
+
+
+class TestFailedOrdersInReport:
+    def test_rejections_surface_at_the_top(self):
+        out = build_report(
+            NOW, 24, settlements=[],
+            trades=[_failed(NOW - timedelta(hours=k)) for k in (1, 2, 3)],
+            balance=100.0,
+        )
+        assert "3 order(s) REJECTED" in out
+        assert "Nevada residents are not currently allowed" in out
+        # Above the P&L, so it can't be scrolled past.
+        assert out.index("REJECTED") < out.index("## Yesterday")
+
+    def test_reasons_are_grouped_with_counts(self):
+        out = build_report(
+            NOW, 24, settlements=[],
+            trades=[_failed(NOW, error=NEVADA_ERR),
+                    _failed(NOW, error=NEVADA_ERR),
+                    _failed(NOW, error='{"error":{"code":"insufficient_balance"}}')],
+            balance=100.0,
+        )
+        assert "2x — Nevada residents" in out
+        assert "1x — insufficient balance" in out
+
+    def test_clean_day_says_nothing(self):
+        out = build_report(NOW, 24, settlements=[], trades=[_trade()], balance=100.0)
+        assert "REJECTED" not in out
+
+    def test_unparseable_error_blob_still_reports(self):
+        out = build_report(
+            NOW, 24, settlements=[],
+            trades=[_failed(NOW, error="raw non-json text")], balance=100.0,
+        )
+        assert "1 order(s) REJECTED" in out
+
+    def test_truncated_json_blob_still_names_the_reason(self):
+        # `_record_failure` truncates the API body, so the JSON is cut mid-string
+        # and won't parse -- the real log rows all look like this.
+        truncated = ('{"error":{"code":"Nevada_residents_are_not_currently_allowed_to_'
+                     'open_positions_in_Sports,_Elections_and_Entertainment._Check_your'
+                     '_email_for_more_details.","message":"Nevada residents are not currently')
+        out = build_report(NOW, 24, settlements=[],
+                           trades=[_failed(NOW, error=truncated)], balance=100.0)
+        assert "Nevada residents are not currently allowed" in out
+        assert '{"error"' not in out

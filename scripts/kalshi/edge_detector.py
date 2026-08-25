@@ -649,15 +649,29 @@ SPORT_MARGIN_STDEV = {
     "americanfootball_ncaaf": 15.0,
     "baseball_mlb": 4.025,        # R2: 3.5 * 1.15
     "icehockey_nhl": 2.5,
-    # soccer: KEEP ~1.8 — do NOT naively lower it. 2026-06-29 calibration
+    # soccer: 1.8 stands on its PHYSICAL argument only. 2026-06-29 calibration
     # against 74 completed World Cup matches: mean total 2.96 goals, so the
     # Poisson-consistent margin stdev = sqrt(mean_total) = 1.72, 95% CI
     # [1.59, 1.84] — 1.8 sits inside it. A Skellam fit reproduces the realized
     # margin tail (P(|m|>=2)=0.46, P(|m|>=3)=0.24); stdev 1.4 badly UNDER-
-    # predicts it (P(|m|>=3)=0.07). The post-devig "always-YES" lean on soccer
-    # spreads is largely a REAL edge (Kalshi underprices goal margins —
-    # placed spreads hit 31% vs 19% paid), not a stdev bug. Fitting stdev to
-    # Kalshi's board (which suggested ~1.4) would import that underpricing.
+    # predicts it (P(|m|>=3)=0.07). That much still holds — do not fit the stdev
+    # to Kalshi's board (which suggests ~1.4), which would import its pricing.
+    #
+    # RETRACTED 2026-08-25 — the betting-outcome half of this note. It used to
+    # read: "the post-devig 'always-YES' lean on soccer spreads is largely a REAL
+    # edge (Kalshi underprices goal margins — placed spreads hit 31% vs 19%
+    # paid), not a stdev bug." On 53 settled soccer-family spreads (World Cup +
+    # MLS), all YES, the realized hit rate is 15.1% against a 15.5% market price
+    # — the market was near-exact and the model said 21.7%. The 31% figure did
+    # not survive the sample growing. World Cup specifically: 36 bets, model
+    # 22.9% / market 16.3% / reality 13.9%, -43.2% ROI.
+    #
+    # So the always-YES lean is a MODEL error, not a market inefficiency. The
+    # stdev is probably not the culprit (the physical argument above is sound);
+    # the likelier suspects are the mean-margin inference and the normal
+    # approximation to a discrete, skewed goal margin. Untested either way.
+    # World Cup is switched off pending that work (MIN_EDGE_THRESHOLD_WORLDCUP).
+    # Evidence: docs/my-documents/repo-reviews/2026-08-25-calibration-study.md
     "soccer": 1.8,
     "mma": 5.0,
 }

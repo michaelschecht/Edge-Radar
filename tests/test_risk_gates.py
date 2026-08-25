@@ -520,7 +520,7 @@ class TestNoSideKellyMultiplier:
             kalshi_executor.KELLY_FRACTION = orig_kelly
             kalshi_executor.MAX_BET_SIZE = orig_max
 
-    def test_yes_bet_below_floor_not_halved(self):
+    def test_yes_bet_below_floor_not_halved(self, no_fees):
         # YES at 20¢ should use full Kelly — multiplier is NO-only
         import kalshi_executor
         orig_kelly = kalshi_executor.KELLY_FRACTION
@@ -805,7 +805,7 @@ class TestKellyPriceComplement:
         )
 
     @pytest.fixture(autouse=True)
-    def _pin(self, monkeypatch):
+    def _pin(self, monkeypatch, no_fees):
         import kalshi_executor as ke
         monkeypatch.setattr(ke, "KELLY_FRACTION", 0.50)
         monkeypatch.setattr(ke, "MAX_BET_SIZE", 100000.0)
@@ -892,7 +892,7 @@ class TestPerSportMinEdge:
             details={},
         )
 
-    def test_min_edge_for_falls_back_to_global(self):
+    def test_min_edge_for_falls_back_to_global(self, no_fees):
         import kalshi_executor
         orig = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
         try:
@@ -903,7 +903,7 @@ class TestPerSportMinEdge:
             kalshi_executor._PER_SPORT_MIN_EDGE.clear()
             kalshi_executor._PER_SPORT_MIN_EDGE.update(orig)
 
-    def test_min_edge_for_uses_sport_override(self):
+    def test_min_edge_for_uses_sport_override(self, no_fees):
         import kalshi_executor
         orig = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
         try:
@@ -919,7 +919,7 @@ class TestPerSportMinEdge:
             kalshi_executor._PER_SPORT_MIN_EDGE.clear()
             kalshi_executor._PER_SPORT_MIN_EDGE.update(orig)
 
-    def test_gate_rejects_nba_below_sport_floor(self):
+    def test_gate_rejects_nba_below_sport_floor(self, no_fees):
         import kalshi_executor
         orig = dict(kalshi_executor._PER_SPORT_MIN_EDGE)
         try:

@@ -23,7 +23,7 @@ $ErrorActionPreference = 'Stop'
 
 # Repo root = two levels up from this script (scripts/setup/ -> repo).
 $repo   = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$skills = @('edge-radar', 'edge-radar-analysis')
+$skills = @('edge-radar', 'edge-radar-analysis', 'betting-logic-review')
 
 foreach ($name in $skills) {
     $link   = Join-Path $repo ".claude\skills\$name"

@@ -20,6 +20,7 @@ Usage:
 """
 
 import sys
+import math
 import json
 import uuid
 import logging
@@ -43,6 +44,7 @@ from kalshi_client import KalshiClient, KalshiAPIError, KalshiConnectionError, m
 from market_client import get_market_client, VENUES
 from edge_detector import scan_all_markets
 from ticker_display import _detect_sport, is_game_started
+from fees import fee_per_contract
 from app.config import get_config, reset_config
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
@@ -104,6 +106,7 @@ NO_SIDE_FAVORITE_THRESHOLD = _cfg.gates.no_side_favorite_threshold
 NO_SIDE_MIN_EDGE = _cfg.gates.no_side_min_edge
 NO_SIDE_MIN_EDGE_GLOBAL = _cfg.gates.no_side_min_edge_global
 NO_SIDE_KELLY_PRICE_FLOOR = _cfg.kelly.no_side_kelly_price_floor
+NO_SIDE_KELLY_PRICE_CEILING = _cfg.kelly.no_side_kelly_price_ceiling
 NO_SIDE_KELLY_MULTIPLIER = _cfg.kelly.no_side_kelly_multiplier
 NO_SIDE_KELLY_MULTIPLIER_GLOBAL = _cfg.kelly.no_side_kelly_multiplier_global
 
@@ -267,7 +270,8 @@ def reload_risk_config() -> None:
     global MIN_COMPOSITE_SCORE, KELLY_EDGE_CAP, KELLY_EDGE_DECAY, SERIES_DEDUP_HOURS
     global MIN_MARKET_PRICE, RESTING_ORDER_MAX_HOURS, MIN_CONFIDENCE
     global NO_SIDE_FAVORITE_THRESHOLD, NO_SIDE_MIN_EDGE, NO_SIDE_MIN_EDGE_GLOBAL
-    global NO_SIDE_KELLY_PRICE_FLOOR, NO_SIDE_KELLY_MULTIPLIER, NO_SIDE_KELLY_MULTIPLIER_GLOBAL
+    global NO_SIDE_KELLY_PRICE_FLOOR, NO_SIDE_KELLY_PRICE_CEILING
+    global NO_SIDE_KELLY_MULTIPLIER, NO_SIDE_KELLY_MULTIPLIER_GLOBAL
     global ALLOW_PREDICTION_BETS, ALLOW_LIVE_BETS, REQUIRE_FRESH_CALIBRATION
     global CROSS_CATEGORY_DEDUP, MAX_BID_ASK_SPREAD, MIN_MARKET_VOLUME_24H
     global _PER_SPORT_MIN_EDGE, _PER_SPORT_SERIES_DEDUP, _PER_SPORT_CROSS_CATEGORY_DEDUP
@@ -295,6 +299,7 @@ def reload_risk_config() -> None:
     NO_SIDE_MIN_EDGE = cfg.gates.no_side_min_edge
     NO_SIDE_MIN_EDGE_GLOBAL = cfg.gates.no_side_min_edge_global
     NO_SIDE_KELLY_PRICE_FLOOR = cfg.kelly.no_side_kelly_price_floor
+    NO_SIDE_KELLY_PRICE_CEILING = cfg.kelly.no_side_kelly_price_ceiling
     NO_SIDE_KELLY_MULTIPLIER = cfg.kelly.no_side_kelly_multiplier
     NO_SIDE_KELLY_MULTIPLIER_GLOBAL = cfg.kelly.no_side_kelly_multiplier_global
     ALLOW_PREDICTION_BETS = cfg.gates.allow_prediction_bets
@@ -343,6 +348,19 @@ def min_edge_for(opp: "Opportunity") -> float:
     settled on a 0.08 peer floor (treat 0.12 as never-adopted); most of the
     NBA bleed is High-confidence picks, which R13 addresses separately. MLB
     joined the 0.08 peer floor 2026-06-03 (40% WR, -12% ROI, ~15% claimed edge).
+
+    **Fee-aware since 2026-08-25.** The returned floor includes the exchange's
+    per-contract taker fee, so Gate 3 screens *net* edge. Until this change the
+    fee was invisible everywhere -- not modelled here, and not captured on the
+    way out either (the v2 create-order response carries no `taker_fees_dollars`,
+    so every logged trade recorded a fee of 0). Measured over the 119 settled
+    trades: 1.02c/contract of unrecorded fee against a 3.0-4.0c floor, i.e. the
+    gate was passing bets on a quarter to a third less edge than it believed, and
+    up to 58% less at mid-price where the fee peaks. `KALSHI_FEE_RATE=0` restores
+    the old fee-blind behaviour.
+
+    Every caller routes through here -- Gate 3 in `size_order` and the
+    `preflight_gate_status` scan preview -- so both see the same net floor.
     """
     sport = _detect_sport(opp.ticker)
     if sport and sport in _PER_SPORT_MIN_EDGE:
@@ -350,10 +368,19 @@ def min_edge_for(opp: "Opportunity") -> float:
     else:
         base_floor = MIN_EDGE_THRESHOLD
 
+    # A floor at or above 1.0 is the "switch this sport off" idiom (edge is
+    # bounded by 1, so it can never be cleared). Return it untouched -- adding a
+    # fee on top would report a confusing "101%" and means nothing here.
+    if base_floor >= 1.0:
+        return base_floor
+
     is_no_side = bool(opp.side and opp.side.strip().lower() == "no")
     if is_no_side:
-        return max(base_floor, NO_SIDE_MIN_EDGE_GLOBAL)
-    return base_floor
+        base_floor = max(base_floor, NO_SIDE_MIN_EDGE_GLOBAL)
+
+    # The fee is dollars of EV per contract, the same units as `edge`
+    # (fair_value - market_price), so it adds directly to the floor.
+    return base_floor + fee_per_contract(opp.market_price)
 
 
 def preflight_gate_status(opp: "Opportunity") -> str:
@@ -363,6 +390,8 @@ def preflight_gate_status(opp: "Opportunity") -> str:
     Returns a short label suitable for a scan-table column:
         "ok"       — all statically-checkable gates pass
         "edge"     — Gate 3   (edge below per-sport floor)
+        "off"      — Gate 3   (sport switched off: floor set to an
+                     unreachable >= 100%)
         "price"    — Gate 3.5 (market price below R7 floor)
         "illiq"    — Gate 3.6 (bid/ask spread or 24h volume below floor)
         "score"    — Gate 4   (composite score below minimum)
@@ -381,9 +410,10 @@ def preflight_gate_status(opp: "Opportunity") -> str:
     score (F23). Gives the scan table a truthful preview of what will
     actually pass to order placement.
     """
-    # Gate 3: per-sport edge floor
-    if opp.edge < min_edge_for(opp):
-        return "edge"
+    # Gate 3: per-sport edge floor (an unreachable floor means the sport is off)
+    floor = min_edge_for(opp)
+    if opp.edge < floor:
+        return "off" if floor >= 1.0 else "edge"
 
     # Gate 3.5: R7 market-price floor (disabled if MIN_MARKET_PRICE == 0)
     if MIN_MARKET_PRICE > 0 and opp.market_price < MIN_MARKET_PRICE:
@@ -737,7 +767,9 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
 
     NO-side Kelly multiplier (R1): NO bets priced below
     NO_SIDE_KELLY_PRICE_FLOOR are sized at NO_SIDE_KELLY_MULTIPLIER of normal
-    Kelly (half-Kelly by default).
+    Kelly (half-Kelly by default). F4 (2026-08-25): NO bets at or above
+    NO_SIDE_KELLY_PRICE_CEILING get the same multiplier -- the expensive end is
+    where the NO side actually bleeds (-11.3% ROI above 50c).
     """
     rejection = None
     edge_floor = min_edge_for(opp)
@@ -753,7 +785,21 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
 
     # ── Risk Gate 3: Minimum edge (per-sport override, global fallback)
     elif opp.edge < edge_floor:
-        rejection = f"edge_below_threshold ({opp.edge:.1%} < {edge_floor:.1%})"
+        # A floor at or above 1.0 can never be cleared (edge is bounded by 1),
+        # which is the idiom for switching a sport off entirely -- say so plainly
+        # rather than reporting a nonsensical "5% < 100%" edge comparison.
+        if edge_floor >= 1.0:
+            rejection = (
+                f"sport_disabled ({_detect_sport(opp.ticker) or 'unknown'}: "
+                f"MIN_EDGE_THRESHOLD_* set to {edge_floor:.0%})"
+            )
+        else:
+            _fee = fee_per_contract(opp.market_price)
+            rejection = (
+                f"edge_below_threshold ({opp.edge:.1%} < {edge_floor:.1%}"
+                + (f", incl. {_fee:.1%} fee" if _fee > 0 else "")
+                + ")"
+            )
 
     # ── Risk Gate 3.5: Minimum market-price floor (R7)
     #   Lottery-ticket filter. F10 from the 14-day review: sub-10¢ bets went
@@ -854,7 +900,25 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         )
 
     # ── Size: quarter-Kelly with flat unit as floor
-    price_cents = int(opp.market_price * 100)
+    #
+    # F2 (2026-08-25): this was `int(opp.market_price * 100)`, which TRUNCATES.
+    # `0.29 * 100 == 28.999999999999996` in binary floating point, so a 29c ask
+    # posted a 28c limit — one cent below the book, which simply never fills.
+    # Verified against all 99 cent values: 29c, 57c and 58c were affected, and
+    # NO orders inherit it through `100 - no_price_cents` in the v2 order body.
+    # Silent: the order rests instead of erroring, so it shows up only as the
+    # occasional `fill_status: "resting"` row.
+    #
+    # `round(..., 6)` kills the float noise (28.999999999999996 -> 29.0), then
+    # `ceil` handles genuinely sub-cent asks. Polymarket quotes off Gamma's
+    # `bestAsk`, which is NOT cent-aligned (0.235, 0.501, ...), and the venue
+    # takes 2dp — so for a marketable BUY the limit must never round *down*
+    # below the ask. Plain `round()` would under-post a 0.501 ask at 50c.
+    #
+    # The >= 100 clamp below can only trigger on an ask above 99.5c, which the
+    # detectors already reject upstream (`yes_ask >= 1.0`) and which could never
+    # carry a positive edge anyway.
+    price_cents = math.ceil(round(opp.market_price * 100, 6))
     if price_cents <= 0:
         price_cents = 1
     if price_cents >= 100:
@@ -876,10 +940,28 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
 
     # R1 & R28: dampen Kelly on NO bets. Apply global NO-side multiplier first.
     # Price-floor specific multiplier applies additionally to market-priced favorites.
+    #
+    # F4 (2026-08-25): NO_SIDE_KELLY_PRICE_CEILING added as the mirror of the
+    # floor. Over 380 settled bets the NO side runs -7.7% ROI against YES's
+    # +22.4%, and YES beats NO *within every shared price band* -- so it is the
+    # side, not just that NO bets sit at expensive prices. The damage is
+    # concentrated above 50c (n=68, $90 staked, -11.3%), which R1's floor rule
+    # never touched: it damps NO *below* 35c and leaves the expensive end at
+    # full Kelly. Kelly is the binding lane above ~60c (the flat unit floor
+    # binds below ~30c), so damping here actually changes order size.
+    #
+    # Damping rather than rejecting is deliberate: the >=50c NO population is
+    # +4.8% in Mar-May and -16.0% in Jun-Aug, concentrated in MLB/MLS totals.
+    # That is not uniform enough to justify a hard gate, and halving exposure
+    # keeps the population generating data instead of going dark.
+    # Evidence: docs/my-documents/repo-reviews/2026-08-25-calibration-study.md
     is_no_side = bool(opp.side and opp.side.strip().lower() == "no")
     if is_no_side:
         effective_kelly *= NO_SIDE_KELLY_MULTIPLIER_GLOBAL
         if opp.market_price < NO_SIDE_KELLY_PRICE_FLOOR:
+            effective_kelly *= NO_SIDE_KELLY_MULTIPLIER
+        elif (NO_SIDE_KELLY_PRICE_CEILING > 0
+                and opp.market_price >= NO_SIDE_KELLY_PRICE_CEILING):
             effective_kelly *= NO_SIDE_KELLY_MULTIPLIER
 
     # C11 (2026-07-27): divide by (1 - price). Kelly for a binary contract is
@@ -897,7 +979,12 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     # ROI. Longshot sizing is nearly unchanged (1.18x at 15c) — there the flat
     # unit floor binds, not Kelly.
     price_complement = max(0.01, 1.0 - opp.market_price)
-    kelly_bet = effective_kelly * trusted_edge(opp.edge) * bankroll / price_complement
+    # Size off *net* edge for the same reason Gate 3 screens on it: the fee is a
+    # certain cost that comes straight out of the bet's EV, so Kelly sizing on the
+    # gross edge over-bets by fee/edge -- roughly a third at this bankroll's
+    # typical 3c edges. `KALSHI_FEE_RATE=0` makes this a no-op.
+    net_edge = max(0.0, opp.edge - fee_per_contract(opp.market_price))
+    kelly_bet = effective_kelly * trusted_edge(net_edge) * bankroll / price_complement
     kelly_contracts = max(1, int(kelly_bet / opp.market_price)) if kelly_bet > 0 else flat_contracts
 
     # Use the larger of flat and Kelly (Kelly scales up for high-edge bets)
