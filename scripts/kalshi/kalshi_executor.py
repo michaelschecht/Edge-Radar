@@ -59,10 +59,10 @@ TRADE_LOG_PATH = paths.TRADE_LOG_PATH
 # remain plain mutable globals — only the *source* is centralized.
 #
 # These are a snapshot taken once, at import. The CLI re-imports on every run so
-# it always reads current config; a long-running host (the Streamlit webapp)
-# does not, and would keep stale gates after a `.env` edit until restarted. Such
-# hosts should call `reload_risk_config()` (defined below) before a scan/execute
-# to re-read `.env`/Secrets without a restart. **If you add a config-derived
+# it always reads current config; a long-running host does not, and would keep
+# stale gates after a `.env` edit until restarted. Such hosts should call
+# `reload_risk_config()` (defined below) before a scan/execute to re-read `.env`
+# without a restart. **If you add a config-derived
 # global here, add it to `reload_risk_config()` too** — the two must stay in sync.
 
 _cfg = get_config()
@@ -245,17 +245,17 @@ def reload_risk_config() -> None:
 
     The risk constants above are snapshotted from `app.config` at import time.
     That's correct for the CLI (fresh process per run) and the test suite (which
-    monkey-patches the globals directly), but a long-running host — the Streamlit
-    webapp — keeps its *startup* values even after the operator edits `.env`,
-    which silently approved sub-floor bets (a $0.05 wager cleared a since-raised
+    monkey-patches the globals directly), but a long-running host keeps its
+    *startup* values even after the operator edits `.env`, which silently
+    approved sub-floor bets (a $0.05 wager cleared a since-raised
     `MIN_MARKET_PRICE` because the running process never re-read it).
 
     Call this from such a host before a scan/execute to pick up config edits
     without a restart: it re-loads `.env` over the process environment
     (`override=True`), drops the memoized `Config`, and re-assigns every
-    module-level risk global from a fresh `get_config()`. On Streamlit Cloud
-    there is no `.env`, so the `load_dotenv` step is a no-op and the rebuild
-    simply re-reads the injected Secrets already in the environment.
+    module-level risk global from a fresh `get_config()`. Where there is no
+    `.env` on disk, the `load_dotenv` step is a no-op and the rebuild simply
+    re-reads whatever is already in the process environment.
 
     Deliberately NOT called by `size_order` / `execute_pipeline` — those stay
     pure so the test monkey-patch seam (e.g. `kalshi_executor.MIN_MARKET_PRICE

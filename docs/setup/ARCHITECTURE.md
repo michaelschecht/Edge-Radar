@@ -364,7 +364,7 @@ Edge-Radar/
 │   └── skills/                        # /edge-radar, /edge-radar-analysis
 ├── .devcontainer/                     # VS Code dev container spec
 ├── .github/
-│   └── workflows/                     # CI/CD + Streamlit Cloud deploy
+│   └── workflows/                     # CI/CD + GitHub Pages deploy
 ├── app/
 │   └── domain/                        # Typed domain objects (Opportunity, RiskDecision, Execution*)
 ├── docs/                              # All public documentation
@@ -375,7 +375,6 @@ Edge-Radar/
 │   ├── ROADMAP.md                     # Enhancement roadmap (docs root)
 │   ├── scripts/                       # Per-script detailed docs
 │   ├── setup/                         # SETUP_GUIDE.md, AUTOMATION_GUIDE.md, mcp-servers.md
-│   └── web-app/                       # LOCAL.md, CLOUD.md
 ├── prompts/                           # LLM prompts for analysis agents
 │   ├── futures/
 │   ├── portfolio/
@@ -390,7 +389,6 @@ Edge-Radar/
 │   ├── doctor.py                      # Environment & credentials validator
 │   └── bootstrap.py                   # Import-path setup for the venv .pth file
 ├── tests/                             # 150+ pytest tests (domain, edge detection, fills, risk)
-└── webapp/                            # Streamlit dashboard (Kalshi + Polymarket venues)
     └── views/                         # scan_page, portfolio_page, settle_page, backtest_page, config_page
 ```
 

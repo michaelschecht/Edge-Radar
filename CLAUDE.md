@@ -22,7 +22,6 @@
 | **Prediction markets** | Crypto (BTC, ETH, XRP, DOGE, SOL), weather (13 cities), S&P 500 | CoinGecko, Yahoo Finance, NWS |
 | **Championship futures** | NFL, NBA, NHL, MLB, PGA | Sportsbook futures odds |
 | **Execution pipeline** | Unified scan → risk-check → size → execute | Kalshi API (RSA-signed), Polymarket US (Ed25519) |
-| **Web dashboard** | Streamlit — scan, execute, portfolio, settle, backtest, config; both venues | `docs/web-app/LOCAL.md` |
 
 **Planned, not built:** Manifold, Alpaca stocks/options, Coinbase/Binance, DFS + sportsbook APIs, Fed/CPI/GDP markets.
 
@@ -68,7 +67,6 @@ Edge-Radar/
 │   ├── backtest/              # backtester.py, correlation_check.py
 │   ├── schedulers/            # Automation + Windows Task Scheduler installer
 │   └── setup/link_skills.ps1  # Recreate .claude/skills junctions after clone
-├── webapp/                    # Streamlit dashboard (app.py, services.py, views/)
 ├── tests/                     # pytest suite (make test)
 └── docs/                      # Index: docs/README.md
     ├── CHANGELOG.md           # Project history — the "why" behind the rules here
@@ -210,7 +208,7 @@ SCAN_CACHE_TTL_SECONDS=600      # R26: replay the last preview's row→ticker ma
 SCAN_CACHE_ENABLED=true
 ```
 
-> **⚠️ Config changes require restarting any running web app.** `kalshi_executor.py` snapshots every gate threshold into module-level globals **at import time**, so a long-running process never re-reads `.env`. The CLI re-imports per invocation (always fresh), but the local Streamlit app must be restarted, and **Streamlit Cloud reads Secrets, not `.env`** — update *Settings → Secrets* (saving auto-reboots) or hit *Reboot*. See `docs/web-app/LOCAL.md` and `docs/web-app/CLOUD.md`.
+> **⚠️ Config changes require restarting any long-running host process.** `kalshi_executor.py` snapshots every gate threshold into module-level globals **at import time**, so a long-running process never re-reads `.env`. The CLI re-imports per invocation, so it is always fresh; anything else must be restarted or must call `reload_risk_config()`.
 
 > **Scheduler `.bat` files pass `--unit-size` and `--budget` explicitly**, so `.env` changes to those knobs never reach automated runs. Change both.
 
@@ -239,8 +237,7 @@ make settle
 python scripts/backtest/backtester.py --simulate --save
 python scripts/backtest/correlation_check.py
 
-# Dashboard + automation
-streamlit run webapp/app.py
+# Automation
 python scripts/schedulers/automation/install_windows_task.py install
 
 # Makefile: scan-mlb, scan-all, status, settle, report, backtest, test, hooks
@@ -295,7 +292,7 @@ Research output leads with the edge thesis, timestamps its sources, names contra
 
 ## Stack
 
-Python 3.11+ · `pandas` / `numpy` / `scipy` · SQLite · Windows Task Scheduler · Streamlit · pre-commit (detect-secrets, black, flake8). Imports resolve via `.venv/Lib/site-packages/edge_radar.pth`. MCP servers: `docs/setup/mcp-servers.md`.
+Python 3.11+ · `pandas` / `numpy` / `scipy` · SQLite · Windows Task Scheduler · pre-commit (detect-secrets, black, flake8). Imports resolve via `.venv/Lib/site-packages/edge_radar.pth`. MCP servers: `docs/setup/mcp-servers.md`.
 
 ---
 

@@ -9,10 +9,9 @@ Two narrow exceptions:
     1. Comment-only lines (lines whose stripped code is empty or starts with `#`)
        are skipped — they're documentation, not code.
     2. Lines tagged with the inline annotation `# config-bootstrap` are skipped.
-       This is reserved for the Streamlit Cloud secrets bootstrap in
-       `webapp/services.py`, which writes `os.environ` from `st.secrets`
-       *before* downstream imports cache `cfg`. It's the input side of cfg,
-       not config consumption.
+       This is reserved for a host that writes `os.environ` from an external
+       secret store *before* downstream imports cache `cfg`. It's the input
+       side of cfg, not config consumption.
 
 Exit codes:
     0 — clean
@@ -30,7 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 ALLOWED_FILE = (ROOT / "app" / "config.py").resolve()
-SEARCH_DIRS = ("app", "scripts", "webapp")
+SEARCH_DIRS = ("app", "scripts")
 EXCLUDED_SUBDIRS = (
     "scripts/custom",  # user automation, out of refactor scope
     "scripts/lint",    # this directory; the lint script itself names the
@@ -92,7 +91,7 @@ def main() -> int:
     print("Fix:")
     print("  - Reads: replace with `get_config().<group>.<field>` "
           "(import via `from app.config import get_config`).")
-    print("  - Writes (e.g. Streamlit secrets bootstrap): tag the line with")
+    print("  - Writes (e.g. an external secrets bootstrap): tag the line with")
     print("    `# config-bootstrap` so the lint guard skips it.")
     print()
     print(f"See docs/my-documents/enhancements/CONFIG_CENTRALIZATION.md")

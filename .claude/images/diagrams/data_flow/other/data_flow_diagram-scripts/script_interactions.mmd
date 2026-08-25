@@ -26,7 +26,6 @@ flowchart TB
         direction LR
         scan["scan.py<br/>Unified CLI"]
         daily["daily_sports_scan.py<br/>Scheduled run"]
-        webapp["webapp/services.py<br/>Streamlit UI service"]
     end
 
     subgraph SCANNERS["Scanner Layer"]
@@ -60,7 +59,6 @@ flowchart TB
     scan --> sports_scan
     scan --> pred_scan
     daily --> sports_scan
-    webapp --> sports_scan
 
     sports_scan --> sports_mod
     pred_scan --> pred_mod
@@ -69,11 +67,6 @@ flowchart TB
     sports_scan --> kalshi_client
     pred_scan --> kalshi_client
     daily --> kalshi_client
-    webapp --> kalshi_client
-
-    webapp --> executor
-    webapp --> settler
-    webapp --> risk_check
 
     executor --> sports_scan
     executor --> kalshi_client
@@ -95,7 +88,7 @@ flowchart TB
     classDef analysis fill:#3a1627,stroke:#fb7185,stroke-width:1.5px,color:#ffe4e6
     classDef shared fill:#1e293b,stroke:#94a3b8,stroke-width:1.5px,color:#e2e8f0
 
-    class scan,daily,webapp entry
+    class scan,daily entry
     class sports_scan,pred_scan scanner
     class sports_mod,pred_mod,prob support
     class kalshi_client,executor,settler exchange

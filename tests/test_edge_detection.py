@@ -452,7 +452,7 @@ class TestFetchOddsApiKeyRotation:
 class TestInProcessCacheTtl:
     """L1: the in-process `_odds_cache` now expires. Pre-game entries live for
     the full TTL (within-scan dedup preserved); in-play entries expire on the
-    short live TTL so a long-running webapp refetches current odds."""
+    short live TTL so a long-running host refetches current odds."""
 
     def _mock_response(self, events: list) -> MagicMock:
         resp = MagicMock()

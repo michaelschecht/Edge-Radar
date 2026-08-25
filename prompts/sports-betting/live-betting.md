@@ -17,7 +17,7 @@ To **execute** on live games, set `ALLOW_LIVE_BETS=true`. For a one-off CLI run,
 ALLOW_LIVE_BETS=true python scripts/scan.py sports --filter <sport> --min-edge 0.05 --max-bets 3 --unit-size 1 --date today --execute
 ```
 
-If you set `ALLOW_LIVE_BETS=true` in `.env` instead, **restart any running Streamlit app** — gate thresholds snapshot at import time.
+If you set `ALLOW_LIVE_BETS=true` in `.env` instead, **restart any long-running host process** — gate thresholds snapshot at import time.
 
 ## Freshness guards (L1 Phase 2)
 

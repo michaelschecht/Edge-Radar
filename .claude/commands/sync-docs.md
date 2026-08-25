@@ -1,5 +1,5 @@
 ---
-description: Propagate new information across Edge-Radar docs, memory, changelog, skills, web-app, then commit and push
+description: Propagate new information across Edge-Radar docs, memory, changelog, and skills, then commit and push
 argument-hint: <information to propagate>
 ---
 
@@ -9,7 +9,7 @@ Update the following surfaces with the information provided in $ARGUMENTS. Touch
 
 **Surfaces to update (in this order):**
 
-1. **`docs/`** — any topical doc that covers the affected area (e.g., `docs/scripts/SCRIPTS_REFERENCE.md` + `docs/scripts/per-script/`, `docs/setup/ARCHITECTURE.md`, the betting guides + coverage matrix under `docs/kalshi/` (incl. `docs/kalshi/README.md`), `docs/setup/`, `docs/web-app/`). Only `README.md` and `CHANGELOG.md` live at the `docs/` root.
+1. **`docs/`** — any topical doc that covers the affected area (e.g., `docs/scripts/SCRIPTS_REFERENCE.md` + `docs/scripts/per-script/`, `docs/setup/ARCHITECTURE.md`, the betting guides + coverage matrix under `docs/kalshi/` (incl. `docs/kalshi/README.md`), `docs/setup/`). Only `README.md` and `CHANGELOG.md` live at the `docs/` root.
 2. **`.env.example` + `CLAUDE.md`** — for any env-var / risk-gate / config-default change, these are primary surfaces and the most prone to drift. `.env.example` is the tracked config template (values + their inline rationale comments); `CLAUDE.md` covers agent instructions, risk gates, env vars, project structure, and workflow. Update both whenever a knob, default, or gate changes.
 3. **`ROADMAP.md`** — if the information adds, completes, or reprioritizes a roadmap item.
 4. **`README.md`** — only if the change affects user-visible features, commands, or setup.
@@ -17,8 +17,7 @@ Update the following surfaces with the information provided in $ARGUMENTS. Touch
 6. **`docs/CHANGELOG.md`** — add a dated entry summarizing the change. Leave prior dated entries intact as historical record — never rewrite history; add a new entry instead.
 7. **Edge-Radar skill** (`skills/edge-radar/SKILL.md` — canonical source; `.claude/skills/edge-radar/` is a git-ignored junction to it) — update if the change affects the unified `/edge-radar` workflow, scripts, filters, or env vars exposed via the skill.
 8. **Edge-Radar Analysis skill** (`skills/edge-radar-analysis/SKILL.md` — canonical source; edit there, not the `.claude/skills/` junction) — update if the change affects analysis workflows, calibration, snapshot charts, or backtesting.
-9. **Web-app** (`webapp/`) — update if the change affects user-facing dashboard behavior (services, views, theme, or `docs/web-app/LOCAL.md`) **or** any hardcoded help text, tooltips, labels, or captions that quote a config value/default (most webapp threshold logic reads from `.env` via `app.config`, so these strings are usually the only thing that drifts).
-10. **Public site** (`.claude/html/`) — update only if the change is reflected in user-facing copy on the published Pages site. The account-graph data file is generated — never hand-edit it.
+9. **Public site** (`.claude/html/`) — update only if the change is reflected in user-facing copy on the published Pages site. The account-graph data file is generated — never hand-edit it.
 
 **Workflow:**
 

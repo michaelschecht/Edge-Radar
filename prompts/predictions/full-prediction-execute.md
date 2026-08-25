@@ -31,7 +31,7 @@ python scripts/scan.py prediction --filter spx --min-edge 0.03 --top 10 --exclud
 python scripts/scan.py prediction --min-edge 0.05 --max-bets 5 --unit-size 1 --exclude-open --execute
 ```
 
-> **⚠️ Execution requires `ALLOW_PREDICTION_BETS=true` (Gate 4.7 / R25).** Without it, every prediction bet is rejected at the risk gate — scans still preview fine. Set it in `.env` (restart Streamlit) or prepend `ALLOW_PREDICTION_BETS=true ` to the CLI command for a one-off run.
+> **⚠️ Execution requires `ALLOW_PREDICTION_BETS=true` (Gate 4.7 / R25).** Without it, every prediction bet is rejected at the risk gate — scans still preview fine. Set it in `.env` (restart any long-running host) or prepend `ALLOW_PREDICTION_BETS=true ` to the CLI command for a one-off run.
 
 6. Or cherry-pick from preview:
 ```bash

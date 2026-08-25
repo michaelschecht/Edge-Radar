@@ -95,6 +95,6 @@ Outright/futures markets priced via N-way de-vigging. Edges are small (0.5–2% 
 - **`--save`** writes a markdown report under `reports/` (Sports/, Futures/, etc.).
 - **`--date today|tomorrow|YYYY-MM-DD`** scopes sports scans to a slate.
 - **Opt-in gates:** prediction execution needs `ALLOW_PREDICTION_BETS=true`; in-progress games need `ALLOW_LIVE_BETS=true`.
-- **Config changes need a restart** of any running Streamlit app — gate thresholds snapshot at import time. The CLI always re-reads `.env`.
+- **Config changes need a restart** of any long-running host process — gate thresholds snapshot at import time. The CLI always re-reads `.env`.
 
 See `CLAUDE.md` for the full gate list, risk limits, and `.env` reference.

@@ -21,7 +21,7 @@ flowchart TD
     Executor["⚙️ Kalshi Executor\n(kalshi_executor.py)"]
     DB[("💾 Trade & Settlement Logs\n(data/history/)")]
     
-    WebUI["💻 Dashboard (webapp/)"]
+    WebUI["💻 Reports & CLI output"]
     Calib["📊 Calibrator\n(model_calibration.py)"]
 
     %% Connections

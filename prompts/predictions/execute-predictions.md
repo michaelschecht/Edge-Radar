@@ -2,7 +2,7 @@
 
 Scan a prediction category and execute the best picks through the pipeline.
 
-> **⚠️ Prediction execution is gated off by default (Gate 4.7 / R25).** Crypto, weather, SPX, mentions, companies, and politics bets are **rejected at the risk gate** unless `ALLOW_PREDICTION_BETS=true` is set in `.env`. Scans (preview) always work; only `--execute` is blocked. If you set this in `.env`, restart any running Streamlit app (gates snapshot at import). For a one-off CLI run you can prepend it:
+> **⚠️ Prediction execution is gated off by default (Gate 4.7 / R25).** Crypto, weather, SPX, mentions, companies, and politics bets are **rejected at the risk gate** unless `ALLOW_PREDICTION_BETS=true` is set in `.env`. Scans (preview) always work; only `--execute` is blocked. If you set this in `.env`, restart any long-running host process (gates snapshot at import). For a one-off CLI run you can prepend it:
 > ```
 > ALLOW_PREDICTION_BETS=true python scripts/scan.py prediction --filter <category> --min-edge 0.05 --max-bets 5 --unit-size 1 --exclude-open --execute
 > ```

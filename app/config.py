@@ -5,7 +5,7 @@ Per the CONFIG_CENTRALIZATION enhancement plan (Phase 1): typed dataclasses
 group every env-driven setting, each with `from_env()` for one-shot coercion
 and `validate()` for impossible combinations.
 
-Scripts should reach config through `get_config()` (memoized) so Streamlit
+Scripts should reach config through `get_config()` (memoized) so a
 secrets injected after import time can be picked up via `reset_config()`.
 
 This module deliberately does NOT call `load_dotenv()` — current scripts
@@ -565,8 +565,8 @@ def get_config() -> Config:
     """Return the process-wide Config, building it on first call.
 
     Memoized so repeated `from app.config import get_config; cfg = get_config()`
-    is cheap. Use `reset_config()` after mutating `os.environ` (e.g. after
-    `webapp/services.py` injects Streamlit secrets) to force a re-read.
+    is cheap. Use `reset_config()` after mutating `os.environ` to force a
+    re-read.
     """
     global _cached
     if _cached is None:
@@ -577,7 +577,7 @@ def get_config() -> Config:
 def reset_config() -> None:
     """Drop the memoized Config so the next `get_config()` re-reads env.
 
-    Called by tests and by Streamlit Cloud bootstrap after secrets injection.
+    Called by tests and by any host that mutates `os.environ` after import.
     """
     global _cached
     _cached = None

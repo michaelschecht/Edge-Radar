@@ -287,7 +287,7 @@ def save_calibration_stdevs(settled: list[dict]):
 
     # Atomic write: serialize to a temp file in the same directory, then replace.
     # This calibration job runs nightly via the scheduler while live scans and the
-    # Streamlit app may be reading the file; an in-place truncate+stream would let a
+    # A concurrent reader may have the file open; an in-place truncate+stream would let a
     # reader see half-written JSON. Path.replace() is atomic on the same filesystem.
     tmp_file = cache_dir / "calibration_stdevs.json.tmp"
     with open(tmp_file, "w", encoding="utf-8") as f:
