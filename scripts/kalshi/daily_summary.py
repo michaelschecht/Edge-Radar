@@ -21,6 +21,8 @@ Usage:
 
 from __future__ import annotations
 
+import re
+import json
 import argparse
 import statistics
 import sys
@@ -264,6 +266,48 @@ def _format_window_label(now: datetime, hours: int) -> str:
     return f"{start} → {end}"
 
 
+def load_failed_orders(rows: list[dict] | None, hours: int, now: datetime) -> list[dict]:
+    """Orders the venue REJECTED inside the window.
+
+    Every other consumer of the trade log *filters* `status == "error"` rows --
+    correct for exposure, but it meant a venue rejecting every order produced no
+    signal at all. Kalshi geo-blocked this account on 2026-08-20 and the digest
+    reported five clean days while 13 consecutive orders failed. Surfacing the
+    count is the whole point of this function.
+    """
+    if rows is None:
+        rows = load_trade_log()
+    cutoff = now - timedelta(hours=hours)
+    out: list[dict] = []
+    for t in rows:
+        if t.get("status") != "error":
+            continue
+        try:
+            ts = _parse_iso(t.get("timestamp") or "")
+        except ValueError:
+            continue
+        if ts >= cutoff:
+            out.append(t)
+    return out
+
+
+def _error_reason(trade: dict) -> str:
+    """Short human-readable reason from an error trade's raw API error blob."""
+    raw = trade.get("error") or ""
+    code = ""
+    try:
+        parsed = json.loads(raw)
+        err = parsed.get("error", parsed)
+        code = err.get("code") or err.get("message") or ""
+    except (ValueError, AttributeError, TypeError):
+        # `_record_failure` truncates the raw body, so the JSON is usually cut
+        # mid-string and won't parse. Pull the code out textually instead.
+        m = re.search(r'"(?:code|message)"\s*:\s*"([^"]*)', raw)
+        code = m.group(1) if m else raw
+    code = str(code).replace("_", " ").strip()
+    return (code[:110] + "...") if len(code) > 110 else (code or "unknown")
+
+
 def render_report(
     settlements_yesterday: list[dict],
     open_positions: list[dict],
@@ -272,6 +316,7 @@ def render_report(
     balance_dollars: float | None,
     now: datetime,
     hours: int,
+    failed_orders: list[dict] | None = None,
 ) -> str:
     today = _format_today_pst(now)
     overall, by_sport = aggregate_yesterday(settlements_yesterday)
@@ -282,6 +327,21 @@ def render_report(
     lines.append("")
     lines.append(f"**Window:** {_format_window_label(now, hours)} (rolling {hours}h)")
     lines.append("")
+
+    # ── Rejected orders ───────────────────────────────────────────────────────
+    # First, above everything: a venue that won't accept orders makes every
+    # number below it meaningless.
+    if failed_orders:
+        reasons: dict[str, int] = {}
+        for t in failed_orders:
+            r = _error_reason(t)
+            reasons[r] = reasons.get(r, 0) + 1
+        lines.append(
+            f"> ⛔ **{len(failed_orders)} order(s) REJECTED by the venue** in this window."
+        )
+        for reason, count in sorted(reasons.items(), key=lambda kv: -kv[1]):
+            lines.append(f"> - {count}x — {reason}")
+        lines.append("")
 
     # ── Yesterday ─────────────────────────────────────────────────────────────
     lines.append("## Yesterday")
@@ -424,11 +484,14 @@ def build_report(
 ) -> str:
     """Public entry that pure-renders a report.  All I/O is parameterized for tests."""
     all_settlements = settlements if settlements is not None else load_settlement_log()
+    all_trades = trades if trades is not None else load_trade_log()
     yesterday = load_recent_settlements(all_settlements, hours, now)
-    open_positions = load_open_positions(trades)
+    open_positions = load_open_positions(all_trades)
     pending = filter_pending_today(open_positions, now)
     rolling = rolling_7d_context(all_settlements, now)
-    return render_report(yesterday, open_positions, pending, rolling, balance, now, hours)
+    failed = load_failed_orders(all_trades, hours, now)
+    return render_report(yesterday, open_positions, pending, rolling, balance,
+                         now, hours, failed_orders=failed)
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:

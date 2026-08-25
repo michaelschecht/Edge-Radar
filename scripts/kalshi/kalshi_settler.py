@@ -36,11 +36,67 @@ from rich import print as rprint
 
 from kalshi_client import KalshiClient
 from logging_setup import setup_logging
+from fees import taker_fee
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 load_dotenv()
 log = setup_logging("kalshi_settler")
 console = Console()
+
+
+# ── Fees ──────────────────────────────────────────────────────────────────────
+
+def fetch_fill_fees(client: KalshiClient, max_pages: int = 20) -> dict[str, float]:
+    """Map order_id -> total fees actually charged, from `/portfolio/fills`.
+
+    The Kalshi **v2 create-order response carries no fee fields** (and no
+    `status` either -- hence the 129 `"unknown"` rows in the log), so
+    `log_trade` has always recorded `taker_fees: "0"`. Settlement then computed
+    `net_pnl = revenue - cost - 0`, understating the true cost of every trade by
+    ~1c per contract. The fills endpoint is the authoritative record, so read it
+    here at settle time rather than trusting the create response.
+
+    Returns {} on any API failure -- callers fall back to the modelled fee.
+    """
+    fees: dict[str, float] = {}
+    cursor = None
+    try:
+        for _ in range(max_pages):
+            resp = client.get_fills(limit=200, cursor=cursor)
+            for fill in resp.get("fills", []):
+                oid = fill.get("order_id")
+                if not oid:
+                    continue
+                raw = (fill.get("fee_dollars")
+                       or fill.get("taker_fee_dollars")
+                       or fill.get("fee")
+                       or 0)
+                try:
+                    fees[oid] = round(fees.get(oid, 0.0) + float(raw), 4)
+                except (TypeError, ValueError):
+                    continue
+            cursor = resp.get("cursor", "")
+            if not cursor:
+                break
+    except Exception as e:
+        log.warning("Could not fetch fills for fee backfill: %s", e)
+        return {}
+    return fees
+
+
+def trade_fees(trade: dict) -> float:
+    """Fees for a trade: recorded if present, otherwise the modelled taker fee.
+
+    Falling back to the model rather than to zero is the point -- a zero here is
+    what made the whole fee cost invisible. `KALSHI_FEE_RATE=0` disables the
+    model and restores the old behaviour.
+    """
+    recorded = (float(trade.get("taker_fees") or 0)
+                + float(trade.get("maker_fees") or 0))
+    if recorded > 0:
+        return recorded
+    return taker_fee(int(get_filled_contracts(trade) or 0),
+                     float(trade.get("market_price_at_entry") or 0))
 
 
 # ── Settlement Logic ──────────────────────────────────────────────────────────
@@ -59,7 +115,7 @@ def calculate_pnl(trade: dict, settlement: dict) -> dict:
     result = settlement.get("market_result", "")
     contracts = get_filled_contracts(trade)
     cost = get_filled_cost(trade)
-    fees = float(trade.get("taker_fees") or 0) + float(trade.get("maker_fees") or 0)
+    fees = trade_fees(trade)
 
     # Revenue is computed PER-TRADE from this trade's own filled contracts, NOT
     # from the settlement's position-level `revenue` aggregate: a winning binary
@@ -191,6 +247,12 @@ def settle_trades(client: KalshiClient) -> dict:
 
     rprint(f"  Fetched {len(all_settlements)} settlements from Kalshi")
 
+    # Real fees, keyed by order_id. The create-order response never carried them,
+    # so this is the only place the true cost enters the log.
+    fill_fees = fetch_fill_fees(client)
+    if fill_fees:
+        rprint(f"  Fetched fees for {len(fill_fees)} filled orders")
+
     # Index settlements by ticker
     settlement_map: dict[str, dict] = {}
     for s in all_settlements:
@@ -243,6 +305,15 @@ def settle_trades(client: KalshiClient) -> dict:
             if settlement is None:
                 still_open += 1
                 continue
+
+            # Stamp the real fee before P&L so it lands in the trade record too,
+            # not just this settlement's arithmetic.
+            actual_fee = fill_fees.get(trade.get("order_id") or "")
+            if actual_fee is not None:
+                trade["taker_fees"] = actual_fee
+                trade["fee_source"] = "fills_api"
+            elif not float(trade.get("taker_fees") or 0):
+                trade["fee_source"] = "modelled"
 
             # Calculate P&L
             pnl = calculate_pnl(trade, settlement)

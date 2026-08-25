@@ -2,6 +2,288 @@
 
 ---
 
+## 2026-08-25 -- F4: NO-side Kelly damping at the expensive end
+
+The calibration study's clearest actionable split. Over 380 settled bets:
+
+```
+              <30c        30-50c       50-75c       >=75c
+YES      n=107 +31%    n=71 +17%    n=69 +14%     n=2 +32%
+NO         n=8 -72%    n=55  +5%    n=29 -17%    n=39  -9%
+
+YES total  n=249  $224  +22.4%          NO total  n=131  $157  -7.7%
+```
+
+**YES beats NO within every shared price band**, so this is the side, not merely
+that NO bets sit at expensive prices. And the bleed is concentrated at/above 50c:
+n=68, $90 staked, **-11.3% ROI** -- which is exactly the region R1's existing rule
+never touched. `NO_SIDE_KELLY_PRICE_FLOOR` damps NO *below* 35c and leaves the
+expensive end at full Kelly.
+
+- **`NO_SIDE_KELLY_PRICE_CEILING`** (code default `0` = off; live `.env` `0.50`)
+  is the mirror of the floor, reusing the same `NO_SIDE_KELLY_MULTIPLIER`. One
+  new number, no new gate, no new concept.
+- **The 35-50c pocket is deliberately untouched** -- at +5.3% ROI (n=55) it is
+  the one profitable NO band, and it is positive in both eras (+0.8% Mar-May,
+  +37.4% Jun-Aug). A blanket NO dampener would have taxed it for nothing.
+- Kelly is the binding lane above ~60c (the flat unit floor binds below ~30c), so
+  damping there actually changes order size. Verified on the live config at
+  bankroll $92, batch 5, 12% edge:
+
+```
+      price   YES ct   NO ct
+       0.45        3       3     <- pocket, untouched
+       0.50        3       2
+       0.75        5       2
+       0.85        8       4
+```
+
+### Why damped and not gated
+
+A hard reject above 50c would have saved $10.24 of the book's $38.01 P&L, which
+is tempting. But that population is **+4.8% in Mar-May and -16.0% in Jun-Aug**,
+concentrated in MLB totals (n=28, -15.0%) and MLS totals (n=12, -22.5%) -- not
+uniform enough to justify permanently blinding the system to it. Halving exposure
+captures most of the benefit and keeps the population generating settlements to
+re-measure against. Revisit after ~50 more NO settlements.
+
+The threshold is also insensitive: blocking anywhere in 0.45-0.75 saves $6-10, so
+0.50 is not a fitted parameter, it is the round number in a flat region.
+
+### Also
+
+- **+21 tests** (`tests/test_no_side_ceiling.py`) -- damping at/above the ceiling,
+  the pocket left alone, default-off, no double-application with R1's floor, YES
+  never touched, and `reload_risk_config` wiring. 864 pass.
+- The reload test stubs `load_dotenv`: `reload_risk_config` calls it with
+  `override=True` (correct -- it re-reads `.env` from disk), which would otherwise
+  clobber the monkeypatched var back to the developer's own `.env` value. It also
+  restores the module global by hand, since monkeypatch cannot undo an assignment
+  made *inside* the call under test.
+
+---
+
+## 2026-08-25 -- F3: calibration study; World Cup switched off
+
+`scripts/backtest/calibration_study.py` (new) asks the question none of the risk
+knobs ask: **is the claimed edge real?** For each of 390 settled bets it compares
+the model's probability (`fair_value`) and the market's (`market_price_at_entry`)
+against the outcome. Findings:
+`docs/my-documents/repo-reviews/2026-08-25-calibration-study.md`.
+
+### The model is measurably worse than the price it bets against
+
+```
+n=390   model 57.0%   market 42.2%   realised 46.2%
+        Brier(model) 0.2270   Brier(market) 0.2037
+```
+
+Brier(market) - Brier(model), 95% CI **[-0.0405, -0.0068]** -- entirely below
+zero. And it holds in **6 of 6 months**, not as a pooled artefact. The
+Brier-optimal weight on the claimed edge is **lambda = 0.16, CI [-0.04, +0.42]**:
+roughly a sixth of each claimed edge is supported by outcomes.
+
+The one test selection cannot explain -- hold the market price fixed, split by
+claimed edge -- is more interesting than a flat "no signal":
+
+```
+price <=32c   hi-edge half wins +10.8 pts more than lo-edge   (real signal)
+price 32-51c                    +6.2 pts
+price >=51c                    -10.8 pts                       (INVERTS)
+```
+
+Genuine information on longshots; it inverts on favourites. That independently
+reproduces C4 (`high` confidence Brier 0.2514 vs `medium` 0.2153) from a
+different direction.
+
+**Two corrections to the same-day betting-logic review**, which read the *trade*
+log -- clobbered 2026-06-03, retaining only 119 June-onward rows. The settlement
+log kept the full history (380 settled with cost, back to March):
+
+| Review said | Actual |
+|---|---|
+| -20.1% ROI | **+10.0%** ($381.66 staked, +$38.01) |
+| spread -28.2%, total -13.3% | **spread +39.7%**, game +8.4%, total -9.2% |
+| fees 3.6% of stake | **4.3%** ($16.40) |
+
+A sampling error on my part, not a repo defect -- `backtester.py`,
+`model_calibration.py` (C8) and the R8 review all read the settlement log
+correctly. F1 survives and strengthens: **$16.40 of unrecorded fees against
+$38.01 gross -- 43% of the return**, taking +10.0% to +5.7%.
+
+The Mar-May (+28.2%) to Jun-Aug (-17.5%) swing is a **composition change, not
+decay**: NCAAMB (+26.9%, n=56) and MLS (+130.7%, n=35) carried the good months,
+NCAAMB's season ended, and what remains is MLB (negative in both eras, largest
+block at $161 staked) plus World Cup.
+
+### World Cup switched off
+
+43 settled bets, **-43.2% ROI**, all YES. Model 22.9% / market 16.3% / reality
+**13.9%** -- the price was near-exact and the model 9 points high.
+
+- **`MIN_EDGE_THRESHOLD_WORLDCUP=1.0`** in `.env` and `.env.example`. Edge is
+  bounded by 1, so a floor >= 1.0 can never be cleared: that is the idiom for
+  switching a sport off, with no new gate and no new kill switch.
+- **Gate 3 reports `sport_disabled`** (and `preflight_gate_status` returns `off`)
+  when the floor is unreachable, rather than a nonsensical "5% < 100%" edge
+  comparison. `min_edge_for` also short-circuits the fee term there, so the
+  message reads 100% and not 101%.
+
+### The override was a silent no-op for eight sports
+
+Turning World Cup off surfaced a second bug. `_SUPPORTED_SPORTS` in
+`app/config.py` listed only `mlb, nba, nhl, nfl, ncaab, ncaaf, mls, soccer`, but
+`ticker_display._detect_sport()` also returns `worldcup, ufc, boxing, golf,
+nascar, ipl, esports, tennis`. For those eight, `MIN_EDGE_THRESHOLD_<SPORT>`,
+`SERIES_DEDUP_HOURS_<SPORT>` and `CROSS_CATEGORY_DEDUP_<SPORT>` **were read by
+nothing** -- setting them did nothing at all, with no error. All eight added; a
+test now asserts no `_detect_sport` output can be orphaned again.
+
+### The soccer note is half retracted
+
+`SPORT_MARGIN_STDEV` carried: *"the post-devig 'always-YES' lean on soccer
+spreads is largely a REAL edge (Kalshi underprices goal margins -- placed
+spreads hit 31% vs 19% paid), not a stdev bug."*
+
+On 53 settled soccer-family spreads (WC + MLS), all YES: model 21.7%, market
+15.5%, **realised 15.1%**. The market was near-exact; the 31% figure did not
+survive the sample growing. The always-YES lean is a **model error, not a market
+inefficiency**.
+
+The *physical* half of the note stands -- the Poisson/Skellam argument for
+stdev ~1.72-1.8 is unaffected, and fitting the stdev to Kalshi's board would
+still import its pricing. So the stdev is probably not the culprit; the likelier
+suspects are the mean-margin inference and the normal approximation to a
+discrete, skewed goal margin. Untested either way.
+
+### Also
+
+- **+13 tests** (`tests/test_sport_disable.py`). 843 pass.
+- `calibration_study.py` has a `--self-check` that pins a deliberate property:
+  lambda is *weakly identified* when claimed edges are small (its curvature goes
+  as `E[edge^2]`), so the script always bootstraps a CI and never quotes the
+  point estimate alone.
+
+---
+
+## 2026-08-25 -- F1/F2: fees made visible, venue rejections made loud, limit price fixed
+
+The first `/betting-logic-review` pass found 14 issues. The two Critical ones (F1)
+and the cheapest High one (F2) are fixed here. Full report with evidence:
+`docs/my-documents/repo-reviews/2026-08-25-betting-logic-review.md`
+(11 further findings recorded there, unfixed).
+
+### F1a -- trading fees were invisible in both directions
+
+Nothing subtracted a fee before a bet, and nothing captured one after. The post-trade
+half is the subtler bug: `log_trade` reads `order.get("taker_fees_dollars", "0")`, but
+the **Kalshi v2 create-order response carries no fee fields** (nor `status` -- which is
+why 129 of 166 rows in the trade log say `status: "unknown"`). So every trade recorded
+`taker_fees: "0"` and `calculate_pnl` computed `net_pnl = revenue - cost - 0`.
+
+Measured over the 119 settled trades:
+
+```
+stake            $140.97
+reported P&L     $-28.32   (-20.1% ROI)
+est. taker fees  $  5.14   (  3.6% of stake)   <- never recorded
+fee-adjusted     $-33.46   (-23.7% ROI)
+```
+
+In the units Gate 3 works in that is **1.02c per contract against a 3.0-4.0c edge floor**
+-- the gate was passing bets on a quarter to a third less edge than it believed, and up to
+58% less at 50c where the fee peaks. The per-order `ceil()` added ~13% on top of the linear
+term (0.90c -> 1.02c) because this bankroll places 1-7 contract orders.
+
+This matters beyond the P&L line: R7, C11, R28 and every per-sport `MIN_EDGE_THRESHOLD_*`
+were calibrated on fee-free ROI, and the fee is *price-dependent* (maximal at 50c), so it
+does not wash out as a constant -- it penalises exactly the mid-price band those rules
+reason about.
+
+- **New `scripts/shared/fees.py`** -- `taker_fee(contracts, price)` (exact, incl. the
+  per-order roundup) and `fee_per_contract(price)` (the linear term). The fee is dollars of
+  EV per contract, the same units as `edge = fair_value - market_price`, so it composes
+  with the edge directly -- no division by price. Self-check via `python scripts/shared/fees.py`.
+- **`min_edge_for()` returns `base_floor + fee_per_contract(opp.market_price)`.** Both
+  callers -- Gate 3 in `size_order` and the R18 `preflight_gate_status` scan preview -- route
+  through it, so the preview cannot promise "ok" on a row the executor will reject.
+- **Kelly sizes off `max(0, edge - fee_per_contract(price))`.** Sizing on gross edge
+  over-bets by `fee/edge`, roughly a third at this bankroll's typical 3c edges.
+- **Settler backfills real fees.** `fetch_fill_fees()` reads `/portfolio/fills` (keyed by
+  `order_id`, summed across partial fills) and stamps the charge onto the trade before P&L.
+  `trade_fees()` falls back to the *modelled* fee rather than to zero -- falling back to zero
+  is what made the cost invisible in the first place -- and tags `fee_source`.
+- **`KALSHI_FEE_RATE`** (default `0.07`) in `app/config.py` `GateThresholds`. Kalshi has
+  changed this rate before; `0` restores fee-blind behaviour.
+
+**Not done:** historical `net_pnl` on the 119 already-settled rows is not recomputed. The
+backfill only touches trades as they settle, so calibration run against the existing book
+still reads ~3.6% optimistic.
+
+### F1b -- the venue rejected every order for 5 days, silently
+
+Kalshi geo-blocked the account on 2026-08-20 (*"Nevada residents are not currently allowed
+to open positions in Sports, Elections and Entertainment"*). 13 consecutive rejections
+through 2026-08-24. Nothing alerted: every consumer of the trade log **filters**
+`status == "error"` rows -- correct for exposure math, but it meant a dead venue produced no
+signal anywhere, and the 4:50 AM digest reported five clean days.
+
+- **`load_failed_orders()`** in `daily_summary.py` collects error rows inside the window.
+- **`render_report` prints them above the P&L**, grouped by reason with counts, so a dead
+  venue cannot be scrolled past.
+- **`_error_reason()`** extracts the code textually -- `_record_failure` truncates the API
+  body, so the stored JSON is cut mid-string and never parses.
+
+**Still open (not a code question):** whether the Nevada restriction is permanent. If it is,
+Kalshi sports is dead for this account and Polymarket US becomes the only venue -- which
+materially changes ROADMAP Priority 0.
+
+### F2 -- the limit price was posted one cent below the ask
+
+`size_order` computed `price_cents = int(opp.market_price * 100)`. That truncates,
+and `0.29 * 100 == 28.999999999999996` in binary floating point -- so a 29c ask
+posted a **28c limit**, which never fills. Checked against all 99 cent values:
+**29c, 57c and 58c** were affected. Silent by construction -- the order rests
+rather than erroring.
+
+Confirmed in the trade log. Every order whose posted limit differs from its entry
+price is one of those three cents, and all three are `fill_status: "resting"` --
+3 of the 4 resting rows in the entire history:
+
+```
+KXNHLTOTAL-26JUN11VGKCAR-5       ask=0.57  posted=56c  resting
+KXMLSTOTAL-26JUL22LAFCRSL-3      ask=0.57  posted=56c  resting
+KXNFLSPREAD-26SEP13NYJTEN-TEN8   ask=0.29  posted=28c  resting
+```
+
+- **`price_cents = math.ceil(round(opp.market_price * 100, 6))`.** The
+  `round(..., 6)` kills the float noise (`28.999999999999996` -> `29.0`).
+- **The `ceil` is load-bearing, not belt-and-braces.** Polymarket prices off
+  Gamma's `bestAsk`, which is *not* cent-aligned (`0.235`, `0.501`, ...) while the
+  venue takes 2dp -- a plain `round()` would under-post a `0.501` ask at 50c. For a
+  marketable buy the limit must never round *down* below the ask.
+- Both venues share this value: Kalshi via `_build_v2_order_body`
+  (`"price": f"{yes_price_cents_eff / 100:.4f}"`, with NO orders reaching the book
+  as `100 - no_price_cents`), Polymarket via `"price": {"value": ...:.2f}`. One
+  fix, both venues.
+- **+111 tests** (`tests/test_limit_price.py`): all 99 cent values round-trip, the
+  three broken cents pinned as explicit regressions, NO-side coverage, and sub-cent
+  asks never under-posted.
+
+### Also
+
+- **New `/betting-logic-review` skill** (`skills/betting-logic-review/`) -- the audit that
+  produced this entry, made repeatable. Verification-first: it runs a battery of checks
+  against the live trade log and odds cache before reading any code, because that is where
+  both of these findings actually came from. Registered in `scripts/setup/link_skills.ps1`.
+- **+139 tests** (`tests/test_fees.py`, `tests/test_limit_price.py`, plus
+  rejected-order coverage in `tests/test_daily_summary.py`). 830 pass.
+- **`no_fees` fixture** in `tests/conftest.py` -- the C11 price-complement and per-sport-floor
+  tests pin exact pre-fee arithmetic and are testing something orthogonal, so they opt out
+  rather than re-deriving every expected number.
+
+---
+
 ## 2026-08-25 -- Streamlit dashboard removed
 
 The `webapp/` Streamlit dashboard is deleted from the repo and the hosted

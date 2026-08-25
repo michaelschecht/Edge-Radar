@@ -25,8 +25,21 @@ from typing import Iterable
 _TRUTHY = {"true", "1", "yes", "on"}
 _CONFIDENCE_LEVELS = {"low", "medium", "high"}
 _LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+# Sports that can carry a `MIN_EDGE_THRESHOLD_<SPORT>` / `SERIES_DEDUP_HOURS_<SPORT>`
+# / `CROSS_CATEGORY_DEDUP_<SPORT>` override. **The names must match what
+# `ticker_display._detect_sport()` returns**, or the env var is silently never
+# read.
+#
+# 2026-08-25: this list held only the first eight. Everything below the divider
+# is reachable by `_detect_sport` and scanned by the detectors, but had no way to
+# get a per-sport floor — the override simply did nothing. Found when trying to
+# floor World Cup out after the calibration study (43 settled bets, -43.2% ROI):
+# `_detect_sport("KXWCSPREAD-...")` returns "worldcup", which was not here, so
+# `MIN_EDGE_THRESHOLD_WORLDCUP` was ignored.
 _SUPPORTED_SPORTS: tuple[str, ...] = (
     "mlb", "nba", "nhl", "nfl", "ncaab", "ncaaf", "mls", "soccer",
+    # ── previously orphaned ──
+    "worldcup", "ufc", "boxing", "golf", "nascar", "ipl", "esports", "tennis",
 )
 
 
@@ -233,6 +246,12 @@ class GateThresholds:
     require_fresh_calibration: bool = False
     max_bid_ask_spread: float = 0.05
     min_market_volume_24h: int = 0
+    # Exchange taker-fee rate, folded into the Gate 3 edge floor and into Kelly
+    # sizing since 2026-08-25 (fees were previously invisible end to end: not
+    # modelled pre-trade, and the v2 create-order response carries no fee field
+    # so nothing captured them post-trade either). Kalshi's published rate; it
+    # has changed before, hence the knob. 0 disables fee awareness entirely.
+    kalshi_fee_rate: float = 0.07
 
     @classmethod
     def from_env(cls) -> "GateThresholds":
@@ -256,6 +275,7 @@ class GateThresholds:
             require_fresh_calibration=_bool("REQUIRE_FRESH_CALIBRATION", False),
             max_bid_ask_spread=_float("MAX_BID_ASK_SPREAD", 0.05),
             min_market_volume_24h=_int("MIN_MARKET_VOLUME_24H", 0),
+            kalshi_fee_rate=_float("KALSHI_FEE_RATE", 0.07),
         )
 
 
@@ -265,6 +285,10 @@ class KellyConfig:
     kelly_edge_cap: float = 0.15
     kelly_edge_decay: float = 0.5
     no_side_kelly_price_floor: float = 0.35
+    # F4 (2026-08-25): mirror of the floor, on the expensive end. NO bets priced
+    # at or above this get the same `no_side_kelly_multiplier`. 0 disables.
+    # Default 0 keeps shipped behaviour; the live .env sets 0.50.
+    no_side_kelly_price_ceiling: float = 0.0
     no_side_kelly_multiplier: float = 0.5
     no_side_kelly_multiplier_global: float = 1.0
 
@@ -275,6 +299,7 @@ class KellyConfig:
             kelly_edge_cap=_float("KELLY_EDGE_CAP", 0.15),
             kelly_edge_decay=_float("KELLY_EDGE_DECAY", 0.5),
             no_side_kelly_price_floor=_float("NO_SIDE_KELLY_PRICE_FLOOR", 0.35),
+            no_side_kelly_price_ceiling=_float("NO_SIDE_KELLY_PRICE_CEILING", 0.0),
             no_side_kelly_multiplier=_float("NO_SIDE_KELLY_MULTIPLIER", 0.5),
             no_side_kelly_multiplier_global=_float("NO_SIDE_KELLY_MULTIPLIER_GLOBAL", 1.0),
         )

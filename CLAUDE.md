@@ -18,7 +18,7 @@
 
 | Domain | Coverage | Data Sources |
 |:-------|:---------|:-------------|
-| **Sports betting** | NBA, NHL, MLB, NFL, NCAA, MLS, World Cup, soccer, UFC, boxing, F1, NASCAR, PGA, IPL, Wimbledon tennis, esports (30 filters) | The Odds API, ESPN, NHL/MLB Stats, NWS |
+| **Sports betting** | NBA, NHL, MLB, NFL, NCAA, MLS, soccer, UFC, boxing, F1, NASCAR, PGA, IPL, Wimbledon tennis, esports (30 filters). **World Cup is OFF** (F3) | The Odds API, ESPN, NHL/MLB Stats, NWS |
 | **Prediction markets** | Crypto (BTC, ETH, XRP, DOGE, SOL), weather (13 cities), S&P 500 | CoinGecko, Yahoo Finance, NWS |
 | **Championship futures** | NFL, NBA, NHL, MLB, PGA | Sportsbook futures odds |
 | **Execution pipeline** | Unified scan → risk-check → size → execute | Kalshi API (RSA-signed), Polymarket US (Ed25519) |
@@ -115,7 +115,7 @@ Every gate runs before any trade executes:
 |:-:|:-----|:-----|
 | 1 | Daily loss limit not breached | Reject |
 | 2 | Open position count under max | Reject |
-| 3 | Edge >= minimum threshold (per-sport or global) | Reject |
+| 3 | Edge >= minimum threshold (per-sport or global) **+ exchange fee** (F1) | Reject |
 | 3.5 | Market price >= `MIN_MARKET_PRICE` (lottery-ticket floor, R7) | Reject |
 | 3.6 | Bid/ask spread <= `MAX_BID_ASK_SPREAD` and 24h volume >= `MIN_MARKET_VOLUME_24H` (L2) | Reject |
 | 4 | Composite score >= `MIN_COMPOSITE_SCORE` | Reject |
@@ -134,14 +134,39 @@ Every gate runs before any trade executes:
 
 Standing rules — do not reverse them without new settled evidence.
 
+- **Every edge floor is net of fees, and Kelly sizes off net edge.** `min_edge_for()` returns
+  `per-sport floor + fee_per_contract(price)`, and Kelly uses `max(0, edge - fee_per_contract(price))`.
+  Kalshi's taker fee is `ceil(0.07 x C x P x (1-P))` **rounded up per order** — 1.02c/contract across the
+  settled book against a 3-4c floor, so gross-edge screening was passing bets on a quarter to a third less
+  edge than it believed. It was invisible in both directions until 2026-08-25: never modelled pre-trade, and
+  never captured post-trade either (the v2 create-order response carries no `taker_fees_dollars`, so every
+  logged trade recorded a fee of 0 and settlement computed `net_pnl = revenue - cost - 0`). `KALSHI_FEE_RATE=0`
+  restores the old behaviour. *CHANGELOG 2026-08-25 (F1).*
 - **Kelly is `edge / (1 - price)`.** The `(1 - price)` divisor was missing until C11; without it favorites are under-sized 2.5x at 60c and 5x at 80c, and the flat floor collapses nearly every bet above ~60c to 1 contract — the single best-performing price band. *CHANGELOG 2026-07-27 (C11).*
 - **Two independent sizing lanes.** Below ~30c the flat floor `round(UNIT_SIZE / price)` binds and Kelly never clears it, so **`UNIT_SIZE` is the longshot knob**. Above ~60c Kelly binds and `UNIT_SIZE` is irrelevant, so **`KELLY_FRACTION` is the favorites knob**. Reach for the right one.
 - **`KELLY_FRACTION` is a portfolio fraction, not per-bet** — `kalshi_executor.py` divides it by `batch_size = min(len(opportunities), --max-bets)`. That divisor doubles as a crude correlation guard, but at 1.0 a fully correlated slate reaches full portfolio Kelly. **Keep it <= 0.5.**
 - **The budget cap is floor-aware:** it never shaves an order below its flat unit floor, bisects for the largest feasible scale instead of taking one proportional pass, and drops whole orders (lowest composite first) only when the floors alone cannot fit. *CHANGELOG 2026-07-27 (C11b).*
-- **NO bets** below `NO_SIDE_KELLY_PRICE_FLOOR` are sized at `NO_SIDE_KELLY_MULTIPLIER` of normal Kelly.
+- **NO bets are damped at BOTH price ends** — below `NO_SIDE_KELLY_PRICE_FLOOR` (R1) and at/above
+  `NO_SIDE_KELLY_PRICE_CEILING` (F4), each at `NO_SIDE_KELLY_MULTIPLIER` of normal Kelly. Over 380
+  settled bets **NO runs -7.7% ROI against YES's +22.4%**, and YES beats NO *within every shared
+  price band* — it is the side, not merely that NO bets sit at expensive prices. The bleed is
+  concentrated at/above 50c (n=68, $90 staked, -11.3%), exactly where R1's floor rule did nothing.
+  The 35-50c pocket is the one profitable NO band (+5.3%, n=55) and is deliberately left alone.
+  **Damped, not gated** — that population is +4.8% Mar-May vs -16.0% Jun-Aug, too uneven for a hard
+  reject, and halving keeps it generating data. *CHANGELOG 2026-08-25 (F4).*
 - **No correlation guard exists, deliberately.** It was measured and rejected: the naive pooled rho of +0.181 is Simpson's paradox, and judged against per-stratum base rates it is +0.048 overall and −0.187 for totals. Re-run `scripts/backtest/correlation_check.py` as settlements accumulate — this is "no evidence of correlation", not proof of independence. *CHANGELOG 2026-07-27 (C11b).*
 
 ### Scoring & confidence rules
+
+- **The model's probabilities are measurably WORSE than the Kalshi price.** Over 390 settled
+  bets (2026-03 → 2026-08) the market's Brier beat the model's in **6 of 6 months**
+  (0.2037 vs 0.2270; 95% CI on the difference excludes zero), and the Brier-optimal weight on
+  the claimed edge is **λ = 0.16, CI [−0.04, +0.42]** — roughly a sixth of each claimed edge is
+  supported by outcomes. The model does show real signal on cheap contracts (≤32c: high-edge
+  half wins +10.8pts more than low-edge) but **inverts on favourites** (≥51c: −10.8pts), which
+  independently reproduces C4's "high confidence underperforms". Treat any claimed edge as
+  ~5x optimistic until this is re-measured. **Do not add sizing aggression without re-running
+  `scripts/backtest/calibration_study.py` first.** *CHANGELOG 2026-08-25 (F3).*
 
 - **Every composite scales edge as `min(edge / 0.01, 10)`.** The futures and Polymarket-games paths originally used `edge * 20`, saturating at a 50% edge instead of 10%, which made Gate 4 structurally unreachable (0 futures bets in 85 settled trades; 0 of 362 Gamma game rows ever reached 6.0). **Never reintroduce `edge * 20`.** *CHANGELOG 2026-07-23 (C10), 2026-07-31 (C10b).* The Polymarket-games liquidity term intentionally stays `book_spread * 100`.
 - **Confidence bumps are one-way — down only.** `supports` is a no-op; only `contradicts` drops a tier. See `_adjust_confidence_with_stats()` in `scripts/kalshi/edge_detector.py`. *CHANGELOG 2026-04-24 (R13).*
@@ -166,10 +191,16 @@ MAX_DAILY_LOSS=250              # Daily hard stop (USD)
 MAX_OPEN_POSITIONS=50           # Concurrent open positions
 MAX_PER_EVENT=2                 # Max positions per game/event
 MAX_BET_RATIO=3.0               # Max bet as a multiple of the batch median
-MIN_EDGE_THRESHOLD=0.03         # Global minimum edge
+MIN_EDGE_THRESHOLD=0.03         # Global minimum edge (the fee is ADDED to this at gate time)
+KALSHI_FEE_RATE=0.07            # F1: exchange taker fee, folded into the Gate 3 floor and Kelly
+                                #   sizing. ceil(rate*C*P*(1-P)) per order. 0 disables fee awareness.
 MIN_EDGE_THRESHOLD_NBA=0.04     # Per-sport overrides. NBA/NCAAB/MLB lowered 0.06->0.04 on
 MIN_EDGE_THRESHOLD_NCAAB=0.04   #   2026-06-14, once the edge-matching fixes removed the
 MIN_EDGE_THRESHOLD_MLB=0.04     #   model over-claim the higher floor was double-correcting.
+MIN_EDGE_THRESHOLD_WORLDCUP=1.0 # F3: World Cup OFF. A floor >= 1.0 can never be cleared, so
+                                #   it is the idiom for switching a sport off — the executor
+                                #   reports `sport_disabled`, the scan preview shows `off`.
+                                #   Sport names must match ticker_display._detect_sport().
 MIN_MARKET_PRICE=0.12           # R7 lottery-ticket floor; 0 disables. Pure reject threshold,
                                 #   independent of sizing. The live 0.10 is an OPEN EXPERIMENT
                                 #   re-opening the longshot lane — recheck after ~30 more settles.
@@ -184,7 +215,9 @@ NO_SIDE_FAVORITE_THRESHOLD=0.25 # R1: NO bets below this price face the elevated
 NO_SIDE_MIN_EDGE=0.25           # R1: required edge when NO price < threshold (+ confidence=high)
 NO_SIDE_MIN_EDGE_GLOBAL=0.08    # R28: min edge on ANY NO bet (90d: NO -7% vs YES +48% ROI)
 NO_SIDE_KELLY_PRICE_FLOOR=0.35  # R1: below this NO price, apply the Kelly multiplier
-NO_SIDE_KELLY_MULTIPLIER=0.5    # R1: half-Kelly on NO bets below the price floor
+NO_SIDE_KELLY_PRICE_CEILING=0   # F4: at/above this NO price, apply it too. Code default 0
+                                #   (off); the live .env sets 0.50 — where NO actually bleeds.
+NO_SIDE_KELLY_MULTIPLIER=0.5    # R1/F4: half-Kelly on NO bets outside [floor, ceiling)
 NO_SIDE_KELLY_MULTIPLIER_GLOBAL=1.0 # R28: multiplier on ALL NO bets (1.0 = off)
 MIN_CONSENSUS_BOOKS_NBA=8       # R29: NBA games with fewer agreeing books drop to `low`; 0 disables
 MAX_LIVE_BOOK_AGE_SECONDS=1200  # L1: drop in-play lines older than this from consensus; 0 disables

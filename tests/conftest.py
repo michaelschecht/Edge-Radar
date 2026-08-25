@@ -27,6 +27,24 @@ def _isolate_data_logs(tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def no_fees(monkeypatch):
+    """Zero the exchange fee rate for tests that pin exact pre-fee arithmetic.
+
+    Gate 3 and Kelly sizing became fee-aware on 2026-08-25. Tests written to pin
+    the *price-complement* (C11) or *per-sport floor* mechanics are testing
+    something orthogonal to fees, so they opt out here rather than re-deriving
+    every expected number with a fee term folded in. Tests of the fee behaviour
+    itself do not use this fixture.
+    """
+    from app.config import reset_config
+    monkeypatch.setenv("KALSHI_FEE_RATE", "0")
+    reset_config()
+    yield
+    monkeypatch.delenv("KALSHI_FEE_RATE", raising=False)
+    reset_config()
+
+
+@pytest.fixture
 def sample_opportunity():
     """A basic approved-worthy Opportunity."""
     return Opportunity(
