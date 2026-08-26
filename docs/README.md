@@ -45,6 +45,9 @@ Only `README.md` and `CHANGELOG.md` live at the root of `docs/`. Everything else
 *   [SCRIPTS_REFERENCE.md](./scripts/SCRIPTS_REFERENCE.md) — Complete CLI reference for every script, flag, and batch command.
 *   [per-script/](./scripts/per-script/) — Deep-dive docs for each script (edge_detector, futures_edge, prediction_scanner, kalshi_executor, kalshi_settler, risk_check, backtester).
 
+### 🔬 Strategy Reviews — [`enhancements/`](./enhancements/)
+*   [betting-strategy-review-2026-08-26.md](./enhancements/betting-strategy-review-2026-08-26.md) — Full review of the settled record (402 bets), the defects found (CLV never computed, no cumulative-exposure gate, taker-only fee drag), and a four-phase action plan: stop waste → install CLV measurement → remove trading cost → scale only on evidence.
+
 ### 📈 Roadmap & Changelog
 *   [ROADMAP.md](./ROADMAP.md) — Priorities, consolidated action items, completed milestones, and the findings log (incl. the 90-day review, F45–F49). **Top item: Polymarket integration (Priority 0).**
 *   [CHANGELOG.md](./CHANGELOG.md) — Project commit and feature changelog history.
