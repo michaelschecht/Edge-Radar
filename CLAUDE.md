@@ -154,6 +154,18 @@ Standing rules — do not reverse them without new settled evidence.
   The 35-50c pocket is the one profitable NO band (+5.3%, n=55) and is deliberately left alone.
   **Damped, not gated** — that population is +4.8% Mar-May vs -16.0% Jun-Aug, too uneven for a hard
   reject, and halving keeps it generating data. *CHANGELOG 2026-08-25 (F4).*
+- **A sport with no settled history does not get live money.** NFL is frozen in the live `.env`
+  (`MIN_EDGE_THRESHOLD_NFL=1.0`) as of 2026-08-26: 24 open live positions, **$28.50 = 31% of a
+  ~$92 bankroll**, entries back to 2026-05-23, and **zero** NFL rows in the settlement log. Its
+  `margin_stdev: 13.5` is a hardcoded prior, not a fit. No existing gate measures *total capital
+  deployed* — `MAX_OPEN_POSITIONS` and `MAX_PER_EVENT` both passed the whole way, and
+  `MAX_BET_RATIO` / `--budget` each bound only a single batch. **The `.env` key is a tourniquet,
+  not the rule**; the rule is that a cold-start segment runs in dry-run/pilot until it has
+  evidence, and it becomes mechanical when `strategy_state.json` (S10) ships — at which point
+  the key comes out. **The 24 existing positions are held, not flattened** (S2): exiting a
+  5-20c-wide book pays exactly the illiquidity penalty Gate 3.6 exists to avoid. Exit a ticker
+  only if its spread is <= 5c *and* the exit price beats hold-to-settlement EV.
+  *CHANGELOG 2026-08-26 (S1).*
 - **No correlation guard exists, deliberately.** It was measured and rejected: the naive pooled rho of +0.181 is Simpson's paradox, and judged against per-stratum base rates it is +0.048 overall and −0.187 for totals. Re-run `scripts/backtest/correlation_check.py` as settlements accumulate — this is "no evidence of correlation", not proof of independence. *CHANGELOG 2026-07-27 (C11b).*
 
 ### Scoring & confidence rules
@@ -181,7 +193,7 @@ Standing rules — do not reverse them without new settled evidence.
 
 ## Risk Limits
 
-Code defaults below. The live `.env` overrides several (bankroll ≈ $92, so the shipped defaults are sized for a much larger account): `UNIT_SIZE=1.00`, `KELLY_FRACTION=0.5`, `MAX_BET_SIZE=8`, `MAX_DAILY_LOSS=30`, `MAX_BET_RATIO=5`, `MIN_EDGE_THRESHOLD_MLB=0.03`, `MIN_MARKET_PRICE=0.10`.
+Code defaults below. The live `.env` overrides several (bankroll ≈ $92, so the shipped defaults are sized for a much larger account): `UNIT_SIZE=1.00`, `KELLY_FRACTION=0.5`, `MAX_BET_SIZE=8`, `MAX_DAILY_LOSS=30`, `MAX_BET_RATIO=5`, `MIN_EDGE_THRESHOLD_MLB=0.03`, `MIN_MARKET_PRICE=0.10`, and **`MIN_EDGE_THRESHOLD_NFL=1.0` (S1 freeze, not in the code defaults)**.
 
 ```env
 UNIT_SIZE=1.00                  # Kelly floor per bet — the longshot knob (binds below ~30c)
@@ -201,6 +213,11 @@ MIN_EDGE_THRESHOLD_WORLDCUP=1.0 # F3: World Cup OFF. A floor >= 1.0 can never be
                                 #   it is the idiom for switching a sport off — the executor
                                 #   reports `sport_disabled`, the scan preview shows `off`.
                                 #   Sport names must match ticker_display._detect_sport().
+                                #   `doctor.py` prints every such sport on its own WARN line.
+MIN_EDGE_THRESHOLD_NFL=<unset>  # S1: FREEZE, live-only, code default unset. NFL is off in `.env`
+                                #   since 2026-08-26 — 24 open live positions, 31% of bankroll,
+                                #   and ZERO settled history. **Temporary**: remove it when S10
+                                #   (`strategy_state.json`) ships. See Sizing rules below.
 MIN_MARKET_PRICE=0.12           # R7 lottery-ticket floor; 0 disables. Pure reject threshold,
                                 #   independent of sizing. The live 0.10 is an OPEN EXPERIMENT
                                 #   re-opening the longshot lane — recheck after ~30 more settles.

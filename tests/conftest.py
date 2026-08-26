@@ -26,6 +26,28 @@ def _isolate_data_logs(tmp_path, monkeypatch):
                         tmp_path / "kalshi_settlements.json")
 
 
+@pytest.fixture(autouse=True)
+def _ignore_operator_sport_freezes(monkeypatch):
+    """Never let the operator's live `.env` switch a sport off underneath a test.
+
+    `MIN_EDGE_THRESHOLD_<SPORT> >= 1.0` is the "this sport is off" idiom (F3),
+    and `_PER_SPORT_MIN_EDGE` is populated from the environment at import. So
+    freezing a sport in `.env` makes `size_order` reject on `sport_disabled`
+    *before* reaching whatever gate a test is actually exercising -- which broke
+    four tests the day NFL was frozen (S1, 2026-08-26), none of which were about
+    per-sport floors: TestLiquidityGate deliberately uses the real
+    `KXNFLTOTAL-26SEP13CLEJAC-20` book from the L2 audit, and test_sport_disable
+    uses an NFL ticker as its "other sports are untouched" control.
+
+    Dropping disabled sports here makes the suite hermetic against operator
+    config, permanently. A test that *wants* a sport off sets it explicitly
+    (see `wc_off` in test_sport_disable.py).
+    """
+    import kalshi_executor as ke
+    live = {k: v for k, v in ke._PER_SPORT_MIN_EDGE.items() if v < 1.0}
+    monkeypatch.setattr(ke, "_PER_SPORT_MIN_EDGE", live)
+
+
 @pytest.fixture
 def no_fees(monkeypatch):
     """Zero the exchange fee rate for tests that pin exact pre-fee arithmetic.

@@ -2,6 +2,87 @@
 
 ---
 
+## 2026-08-26 -- S1: NFL live entries frozen (strategy review, Priority 0a)
+
+First action item from
+[`docs/enhancements/betting-strategy-review-2026-08-26.md`](enhancements/betting-strategy-review-2026-08-26.md).
+`MIN_EDGE_THRESHOLD_NFL=1.0` in the live `.env` -- the F3 World-Cup idiom: edge is
+bounded by 1, so a floor at or above 1.0 can never be cleared, and the executor
+reports `sport_disabled` rather than a bogus edge comparison.
+
+**Why.** Reconciling `kalshi_trades.json` against `kalshi_settlements.json` by
+`trade_id`:
+
+```
+open NFL positions: 24    at-risk: $28.50    oldest entry: 2026-05-23
+  KXNFLTOTAL   n=11   $14.96
+  KXNFLSPREAD  n=10   $8.68
+  KXNFLGAME    n= 3   $4.86
+NFL rows in settlements: 0
+```
+
+- **$28.50 on a ~$92 bankroll is 31% of the account**, one sport, held up to 95
+  days before kickoff -- and `MAX_OPEN_POSITIONS=50` / `MAX_PER_EVENT=2` both
+  passed the whole way. **No gate measures total capital deployed** (S4 is the
+  durable fix; this is the tourniquet).
+- **Zero settled NFL history.** Its `margin_stdev: 13.5` in
+  `data/cache/calibration_stdevs.json` is a hardcoded prior, not a fit -- contrast
+  `baseball_mlb: 4.025`, `icehockey_nhl: 2.5`, which carry the decimals of
+  something computed.
+- **The open book was admitted by a pre-L2 filter.** The 2026-08-18 NFL Week 1
+  audit found 13 of 27 positions past the 5c spread line (to 20c) and 18 of 27
+  with zero 24h volume. Gate 3.6 stops that class of row now -- **but Gate 3.6
+  only runs at entry; nothing re-checks a position already held.**
+
+**This is a freeze mechanism, not NFL policy**, and the `.env` comment says so.
+It comes out when `strategy_state.json` (S10) ships; the durable rule is
+`evidence_status: cold_start` -> pilot mode, not an impossible threshold left in
+`.env` forever -- which is D4 waiting to happen again.
+
+**The existing 24 positions are held, not flattened** (S2). Market-exiting a
+5-20c-wide book pays exactly the illiquidity penalty Gate 3.6 exists to avoid.
+Exit a ticker only if its spread is 5c or tighter *and* the exit price implies
+less expected loss than holding to settlement.
+
+### Verified
+
+`min_edge_for` / `preflight_gate_status` / `size_order` on all three NFL market
+prefixes, against the live config:
+
+```
+KXNFLGAME-...      floor=1.00  preflight=off  REJECTED: sport_disabled (nfl: ...set to 100%)
+KXNFLSPREAD-...    floor=1.00  preflight=off  REJECTED: sport_disabled
+KXNFLTOTAL-...     floor=1.00  preflight=off  REJECTED: sport_disabled
+KXMLBGAME-...      floor=0.04  preflight=ok   APPROVED_CAPPED_MAX_BET
+```
+
+No `--min-edge` appears in any executing scheduler `.bat` (only `--unit-size` /
+`--budget`), so the `.env` floor does reach the automated runs -- checked, per D4.
+A scan preview showing NFL rows as `off` needs NFL rows with edges; the 08-27
+preseason slate has no Odds API coverage, so that will first be visible on a
+Week 1 scan.
+
+### Also -- two things the freeze exposed
+
+- **`doctor.py` could truncate a switched-off sport off the right edge.** The
+  per-sport line printed `mlb=3.0%  nba=4.0%  ncaab=4.0%  nfl=100.0%
+  worldcup=100.0%` on one row; at an 80-column terminal `worldcup=100.0%` was
+  simply not visible. Disabled sports now print on their own **WARN** line
+  (`sports OFF (floor >= 100%, unreachable): nfl, worldcup`). A rule nobody can
+  see is a rule nobody checks -- the L2 lesson, and the S6 one.
+- **The test suite inherited the operator's `.env` freezes.** Four tests broke on
+  a config change that touched no code: `TestLiquidityGate` deliberately uses the
+  real `KXNFLTOTAL-26SEP13CLEJAC-20` book from the L2 audit, and
+  `test_sport_disable` uses an NFL ticker as its "other sports are untouched"
+  control -- both now rejected at `sport_disabled` before reaching the gate under
+  test. New autouse fixture `_ignore_operator_sport_freezes` in
+  `tests/conftest.py` drops floors >= 1.0 from `_PER_SPORT_MIN_EDGE` for every
+  test; a test that wants a sport off still sets it explicitly (`wc_off`). Fixed
+  once at the seam rather than by editing four tickers, so the next freeze does
+  not break the suite again. 864 pass.
+
+---
+
 ## 2026-08-25 -- F4: NO-side Kelly damping at the expensive end
 
 The calibration study's clearest actionable split. Over 380 settled bets:
