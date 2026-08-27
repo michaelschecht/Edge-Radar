@@ -2,6 +2,52 @@
 
 ---
 
+## 2026-08-27 -- S3a: the test suite was writing the live eligibility cache
+
+**The gate built to stop the Nevada repeat was defeated on its first day, by
+`make test`.** `data/cache/venue_eligibility.json` read:
+
+```json
+{"kalshi:sports": {"status": "ok",
+                   "checked_at": "2026-08-27T01:27:31Z",
+                   "reason": "order accepted (KXNBAGAME-26APR04T3-A)"}}
+```
+
+`KXNBAGAME-26APR04T3-A` is a **pytest fixture** ticker (`test_execute_batch.py`,
+`test_fill_accounting.py`, `test_reconciliation.py`). No real order carried it --
+`kalshi_trades.json` has had no accepted row since 2026-08-25 18:01.
+
+The path: `_place_order_batch` calls `vel.record_success()` on any `create_order`
+response whose status is not `dry_run_blocked`, and a **mocked** client never returns
+`dry_run_blocked`. `ELIGIBILITY_PATH` is a module-level constant, so the write landed
+on the operator's real cache. Yesterday's 18:27 test run stamped the fail-closed
+preflight green on evidence of a fake fill, and `doctor.py` reported
+`kalshi/sports: eligible (verified 0d ago)` from then on.
+
+**Why it mattered.** S3's whole premise is that only a genuine venue acceptance or the
+explicit `--verify-eligibility` probe may clear a block -- "auto-retry is precisely the
+behaviour that produced six days of rejections". A test run is neither, and it cleared
+one. Blast radius was bounded (the 08-26 batch-abort caps a re-discovery at one
+rejected order), but the gate was reporting proof it did not have.
+
+**Fix: one autouse fixture in `tests/conftest.py`**, beside `_isolate_data_logs`, which
+had already learned this exact lesson for the trade log. `test_venue_eligibility.py`
+patched `ELIGIBILITY_PATH` locally; the three executor tests never thought to. Patching
+in conftest covers every caller, including ones not yet written -- the same reason the
+trade-log isolation lives there rather than in the tests that happen to call
+`log_trade()`.
+
+The poisoned entry was reset to `{}`, returning `kalshi:sports` to `unknown`, which
+**blocks live Kalshi orders until a real probe runs** -- the correct state, since
+nothing has actually proven eligibility since the 08-25 rejection. 964 tests pass and
+the cache stays empty across a full run.
+
+**Also:** operator deposited **$25**; equity verified at **$103.09** ($73.36 cash +
+$29.73 in 24 NFL positions, incl. $0.82 fees). `CLAUDE.md`'s Risk Limits header still
+quoted the ~$92 it stood at; `SKILL.md` had already been corrected on 08-26.
+
+---
+
 ## 2026-08-26 -- S3: venue eligibility preflight, fail closed
 
 **A correctness bug, not waste.** Between 2026-08-20 and 2026-08-25 Kalshi rejected
@@ -3166,7 +3212,7 @@ Visual companion to the markdown betting analysis. After each Kalshi balance pul
 python scripts/kalshi/risk_check.py --report positions
 
 # Then build the chart (auto-named M-D-YY folder)
-python docs/my-documents/account-graph/Script/build_account_graph.py \
+python docs/my-documents/account-graph/Script/build_account_graph.py $
   --cash 65.88 --portfolio 27.54 --positions 23
 
 # Or via the skill — natural-language triggers route to snapshot mode
