@@ -26,6 +26,47 @@ def _isolate_data_logs(tmp_path, monkeypatch):
                         tmp_path / "kalshi_settlements.json")
 
 
+@pytest.fixture(autouse=True)
+def _ignore_operator_time_to_event_cap(monkeypatch):
+    """Never let the operator's live `.env` date-cap a test's fixture tickers.
+
+    Gate 3.7 (S5) rejects game markets more than `MAX_DAYS_TO_EVENT` days before
+    their event, and `.env` sets 14. Test tickers are written for readability,
+    not for proximity to today -- `KXNFLSPREAD-26SEP13BALIND-IND5`,
+    `KXMLBGAME-99APR171900NYYKAC-NYY` -- so enabling the cap failed 126 tests
+    that have nothing to do with lead time, purely from a config change.
+
+    Same lesson as `_ignore_operator_sport_freezes` below: a gate whose value
+    comes from the operator's environment must be neutralised here and opted
+    into explicitly by the tests that exercise it (see
+    `tests/test_time_to_event_gate.py`, which sets its own cap).
+    """
+    import kalshi_executor as ke
+    monkeypatch.setattr(ke, "MAX_DAYS_TO_EVENT", 0)
+
+
+@pytest.fixture(autouse=True)
+def _ignore_operator_sport_freezes(monkeypatch):
+    """Never let the operator's live `.env` switch a sport off underneath a test.
+
+    `MIN_EDGE_THRESHOLD_<SPORT> >= 1.0` is the "this sport is off" idiom (F3),
+    and `_PER_SPORT_MIN_EDGE` is populated from the environment at import. So
+    freezing a sport in `.env` makes `size_order` reject on `sport_disabled`
+    *before* reaching whatever gate a test is actually exercising -- which broke
+    four tests the day NFL was frozen (S1, 2026-08-26), none of which were about
+    per-sport floors: TestLiquidityGate deliberately uses the real
+    `KXNFLTOTAL-26SEP13CLEJAC-20` book from the L2 audit, and test_sport_disable
+    uses an NFL ticker as its "other sports are untouched" control.
+
+    Dropping disabled sports here makes the suite hermetic against operator
+    config, permanently. A test that *wants* a sport off sets it explicitly
+    (see `wc_off` in test_sport_disable.py).
+    """
+    import kalshi_executor as ke
+    live = {k: v for k, v in ke._PER_SPORT_MIN_EDGE.items() if v < 1.0}
+    monkeypatch.setattr(ke, "_PER_SPORT_MIN_EDGE", live)
+
+
 @pytest.fixture
 def no_fees(monkeypatch):
     """Zero the exchange fee rate for tests that pin exact pre-fee arithmetic.

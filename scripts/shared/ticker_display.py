@@ -279,6 +279,44 @@ _DATE_RE = re.compile(
 )
 
 
+_MONTH_NUM = {m: i + 1 for i, m in enumerate(
+    ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+     "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"])}
+
+
+def days_to_event(ticker: str, now: datetime | None = None) -> int | None:
+    """Whole days from now until the event date embedded in a Kalshi ticker.
+
+    Returns None when the ticker carries no parseable date -- which is the
+    normal case for championship futures (`KXSB-26-KC`, `KXNBA-26-BOS`), whose
+    "event" is a whole season. Callers must treat None as "not measurable",
+    never as zero.
+
+    Negative values mean the event is in the past. Kalshi ticker dates are
+    Eastern while this compares UTC dates, so the count can be off by one for a
+    few hours around midnight UTC -- immaterial against a 14-day cap, and it can
+    only ever read *lower*, so the fuzz never turns into a false reject.
+
+    Used by Gate 3.7
+    (`MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS`, S5): every one of the 26 NFL
+    positions that reached 31% of bankroll was bought **25+ days** before
+    kickoff, median 35, max 112 -- long enough that nothing settled for months
+    while exposure kept stacking. *CHANGELOG 2026-08-26 (S5).*
+    """
+    m = _DATE_RE.match(ticker or "")
+    if not m:
+        return None
+    month = _MONTH_NUM.get(m.group(2))
+    if not month:
+        return None
+    try:
+        event = datetime(2000 + int(m.group(1)), month, int(m.group(3)),
+                         tzinfo=timezone.utc)
+    except ValueError:            # e.g. FEB 30 in a malformed ticker
+        return None
+    return (event.date() - (now or datetime.now(timezone.utc)).date()).days
+
+
 def parse_game_datetime(ticker: str) -> str:
     """Extract a human-readable date/time string from a Kalshi ticker.
 

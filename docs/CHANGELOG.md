@@ -2,6 +2,148 @@
 
 ---
 
+## 2026-08-26 -- S5: Gate 3.7, a days-to-event cap on game markets
+
+`MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS` (code default `0` = off; live `.env` **14**).
+Second action item from the 2026-08-26 strategy review, and the root-cause fix
+behind the S1 NFL freeze.
+
+**The NFL book was a lead-time failure, not a football failure.** Reconciling the
+26 open positions against their tickers:
+
+```
+days-to-kickoff:  min 25 · median 35 · max 112
+more than 14 days out:  26 of 26
+placed at 18:01 UTC (= 11:01 PT, the no-date-filter task):  20 of 26
+```
+
+Nothing settled for months, so no feedback ever arrived, while `MAX_OPEN_POSITIONS`
+and `MAX_PER_EVENT` passed the whole way -- neither measures a standing total, and
+`MAX_BET_RATIO` / `--budget` each bound only a single batch. Five of the six
+execution tasks pass `--date today|tomorrow` and are structurally incapable of
+this; the sixth runs with no date filter and placed 20 of the 26.
+
+**The cap targets lead time, not sports.** Verified against the real book:
+
+```
+KXNFLSPREAD-26SEP13BALIND-IND5    d=17   reject   (real position; `off` first, sport frozen)
+KXNCAAFBGAME-26AUG29ALAFSU-ALA    d= 2   ok       college football Week 1
+KXMLBGAME-26SEP29LADATL-LAD       d=33   far      far-dated MLB
+KXSB-26-KC                        d=None ok       Super Bowl future -- exempt
+```
+
+- **Futures are exempt by category, not ticker prefix.** `KXMLB-26-LAD` (World
+  Series) and `KXMLBGAME-26AUG26...` share a prefix; only the scanner's own
+  `category` separates them, so the exemption keys on
+  `{futures, outrights, championship}`.
+- **Fails open on an unmeasurable date**, mirroring Gate 3.6: a game ticker with
+  no parseable date is "unknown", not "too far". This gate rejects on evidence.
+- **Ships off (0).** A fresh clone's behaviour is unchanged and the suite's 2099
+  fixture tickers stay valid; the live `.env` turns it on at 14.
+- Ticker dates are Eastern and the comparison is UTC, so the count can be off by
+  one for a few hours around midnight UTC. It can only read *lower*, so the fuzz
+  never produces a false reject.
+
+`days_to_event()` lives in `ticker_display.py` beside the existing `_DATE_RE` and
+month map rather than duplicating `edge_detector._extract_game_date`.
+
+### Also -- the test suite inherited the operator's `.env` again
+
+Enabling the cap failed **126 tests** that have nothing to do with lead time:
+fixture tickers are written for readability (`KXNFLSPREAD-26SEP13BALIND-IND5`,
+`KXMLBGAME-99APR171900NYYKAC-NYY`), not for proximity to today. Same shape as the
+S1 sport-freeze breakage the day before, so it is fixed at the same seam: a second
+autouse fixture, `_ignore_operator_time_to_event_cap`, zeroes the cap for every
+test, and the tests that exercise it set their own. **+24 tests** covering the
+real NFL distances, college Week 1, the futures exemption, both fail-open paths,
+and `reload_risk_config` wiring. 888 pass.
+
+**Still missing:** S4. Gate 3.7 stops a position being opened far out; nothing yet
+caps *total* open exposure, so a concentration can still build inside 14 days.
+
+---
+
+## 2026-08-26 -- S1: NFL live entries frozen (strategy review, Priority 0a)
+
+First action item from
+[`docs/enhancements/betting-strategy-review-2026-08-26.md`](enhancements/betting-strategy-review-2026-08-26.md).
+`MIN_EDGE_THRESHOLD_NFL=1.0` in the live `.env` -- the F3 World-Cup idiom: edge is
+bounded by 1, so a floor at or above 1.0 can never be cleared, and the executor
+reports `sport_disabled` rather than a bogus edge comparison.
+
+**Why.** Reconciling `kalshi_trades.json` against `kalshi_settlements.json` by
+`trade_id`:
+
+```
+open NFL positions: 24    at-risk: $28.50    oldest entry: 2026-05-23
+  KXNFLTOTAL   n=11   $14.96
+  KXNFLSPREAD  n=10   $8.68
+  KXNFLGAME    n= 3   $4.86
+NFL rows in settlements: 0
+```
+
+- **$28.50 on a ~$92 bankroll is 31% of the account**, one sport, held up to 95
+  days before kickoff -- and `MAX_OPEN_POSITIONS=50` / `MAX_PER_EVENT=2` both
+  passed the whole way. **No gate measures total capital deployed** (S4 is the
+  durable fix; this is the tourniquet).
+- **Zero settled NFL history.** Its `margin_stdev: 13.5` in
+  `data/cache/calibration_stdevs.json` is a hardcoded prior, not a fit -- contrast
+  `baseball_mlb: 4.025`, `icehockey_nhl: 2.5`, which carry the decimals of
+  something computed.
+- **The open book was admitted by a pre-L2 filter.** The 2026-08-18 NFL Week 1
+  audit found 13 of 27 positions past the 5c spread line (to 20c) and 18 of 27
+  with zero 24h volume. Gate 3.6 stops that class of row now -- **but Gate 3.6
+  only runs at entry; nothing re-checks a position already held.**
+
+**This is a freeze mechanism, not NFL policy**, and the `.env` comment says so.
+It comes out when `strategy_state.json` (S10) ships; the durable rule is
+`evidence_status: cold_start` -> pilot mode, not an impossible threshold left in
+`.env` forever -- which is D4 waiting to happen again.
+
+**The existing 24 positions are held, not flattened** (S2). Market-exiting a
+5-20c-wide book pays exactly the illiquidity penalty Gate 3.6 exists to avoid.
+Exit a ticker only if its spread is 5c or tighter *and* the exit price implies
+less expected loss than holding to settlement.
+
+### Verified
+
+`min_edge_for` / `preflight_gate_status` / `size_order` on all three NFL market
+prefixes, against the live config:
+
+```
+KXNFLGAME-...      floor=1.00  preflight=off  REJECTED: sport_disabled (nfl: ...set to 100%)
+KXNFLSPREAD-...    floor=1.00  preflight=off  REJECTED: sport_disabled
+KXNFLTOTAL-...     floor=1.00  preflight=off  REJECTED: sport_disabled
+KXMLBGAME-...      floor=0.04  preflight=ok   APPROVED_CAPPED_MAX_BET
+```
+
+No `--min-edge` appears in any executing scheduler `.bat` (only `--unit-size` /
+`--budget`), so the `.env` floor does reach the automated runs -- checked, per D4.
+A scan preview showing NFL rows as `off` needs NFL rows with edges; the 08-27
+preseason slate has no Odds API coverage, so that will first be visible on a
+Week 1 scan.
+
+### Also -- two things the freeze exposed
+
+- **`doctor.py` could truncate a switched-off sport off the right edge.** The
+  per-sport line printed `mlb=3.0%  nba=4.0%  ncaab=4.0%  nfl=100.0%
+  worldcup=100.0%` on one row; at an 80-column terminal `worldcup=100.0%` was
+  simply not visible. Disabled sports now print on their own **WARN** line
+  (`sports OFF (floor >= 100%, unreachable): nfl, worldcup`). A rule nobody can
+  see is a rule nobody checks -- the L2 lesson, and the S6 one.
+- **The test suite inherited the operator's `.env` freezes.** Four tests broke on
+  a config change that touched no code: `TestLiquidityGate` deliberately uses the
+  real `KXNFLTOTAL-26SEP13CLEJAC-20` book from the L2 audit, and
+  `test_sport_disable` uses an NFL ticker as its "other sports are untouched"
+  control -- both now rejected at `sport_disabled` before reaching the gate under
+  test. New autouse fixture `_ignore_operator_sport_freezes` in
+  `tests/conftest.py` drops floors >= 1.0 from `_PER_SPORT_MIN_EDGE` for every
+  test; a test that wants a sport off still sets it explicitly (`wc_off`). Fixed
+  once at the seam rather than by editing four tickers, so the next freeze does
+  not break the suite again. 864 pass.
+
+---
+
 ## 2026-08-25 -- F4: NO-side Kelly damping at the expensive end
 
 The calibration study's clearest actionable split. Over 380 settled bets:

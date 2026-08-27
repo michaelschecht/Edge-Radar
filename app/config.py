@@ -246,6 +246,14 @@ class GateThresholds:
     require_fresh_calibration: bool = False
     max_bid_ask_spread: float = 0.05
     min_market_volume_24h: int = 0
+    # S5 (2026-08-26): Gate 3.7 -- max days between now and a GAME market's
+    # event date. Futures are exempt by category; their "event" is a season.
+    # Ships at 0 (off) so a fresh clone's behaviour is unchanged and the 2099
+    # tickers in the test suite stay valid; the live `.env` sets 14. Every one
+    # of the 26 NFL positions that reached 31% of bankroll was bought 25+ days
+    # out (median 35, max 112) -- far enough that nothing settled for months
+    # while exposure kept stacking, and no other gate measures a standing total.
+    max_days_to_event_for_game_markets: int = 0
     # Exchange taker-fee rate, folded into the Gate 3 edge floor and into Kelly
     # sizing since 2026-08-25 (fees were previously invisible end to end: not
     # modelled pre-trade, and the v2 create-order response carries no fee field
@@ -275,6 +283,7 @@ class GateThresholds:
             require_fresh_calibration=_bool("REQUIRE_FRESH_CALIBRATION", False),
             max_bid_ask_spread=_float("MAX_BID_ASK_SPREAD", 0.05),
             min_market_volume_24h=_int("MIN_MARKET_VOLUME_24H", 0),
+            max_days_to_event_for_game_markets=_int("MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS", 0),
             kalshi_fee_rate=_float("KALSHI_FEE_RATE", 0.07),
         )
 
@@ -536,6 +545,11 @@ class Config:
         if self.gates.min_market_volume_24h < 0:
             raise ValueError(
                 f"MIN_MARKET_VOLUME_24H must be >= 0, got {self.gates.min_market_volume_24h}"
+            )
+        if self.gates.max_days_to_event_for_game_markets < 0:
+            raise ValueError(
+                "MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS must be >= 0, got "
+                f"{self.gates.max_days_to_event_for_game_markets}"
             )
         if self.system.log_level not in _LOG_LEVELS:
             raise ValueError(

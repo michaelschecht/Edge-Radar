@@ -43,7 +43,7 @@ from rich import print as rprint
 from kalshi_client import KalshiClient, KalshiAPIError, KalshiConnectionError, make_prod_client
 from market_client import get_market_client, VENUES
 from edge_detector import scan_all_markets
-from ticker_display import _detect_sport, is_game_started
+from ticker_display import _detect_sport, days_to_event, is_game_started
 from fees import fee_per_contract
 from app.config import get_config, reset_config
 
@@ -152,6 +152,7 @@ MAX_BID_ASK_SPREAD = _cfg.gates.max_bid_ask_spread
 # contracts over the trailing 24h. 0 disables (the default -- spread is the
 # documented rule, this is opt-in).
 MIN_MARKET_VOLUME_24H = _cfg.gates.min_market_volume_24h
+MAX_DAYS_TO_EVENT = _cfg.gates.max_days_to_event_for_game_markets
 
 _CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
 
@@ -206,6 +207,41 @@ def _liquidity_rejection(opp: "Opportunity") -> str | None:
                 )
 
     return None
+
+
+# Categories whose "event" is a whole season, not a scheduled game. Exempt from
+# Gate 3.7 by definition -- a championship future is *supposed* to be months out.
+_LONG_DATED_CATEGORIES = {"futures", "outrights", "championship"}
+
+
+def _time_to_event_rejection(opp: "Opportunity") -> str | None:
+    """Gate 3.7 (S5) -- reason string if a game market is too far out, else None.
+
+    The NFL book that reached 31% of bankroll was not built by one bad bet. It
+    was 26 positions bought **25 to 112 days before kickoff** (median 35), 20 of
+    them by the single scheduled task that runs with no date filter. Nothing
+    settled for months, so no feedback arrived, and no gate measures a standing
+    total -- `MAX_OPEN_POSITIONS` and `MAX_PER_EVENT` passed the whole way while
+    `MAX_BET_RATIO` and `--budget` each bound only a single batch.
+
+    **Futures are exempt by category**, not by ticker shape: `KXMLB-26-LAD`
+    (World Series) and `KXMLBGAME-26AUG26...` share a prefix, so only the
+    scanner's own `category` reliably separates them.
+
+    **Fails open on an unmeasurable date**, mirroring Gate 3.6: a game ticker
+    that carries no parseable date is "unknown", not "too far", and this gate
+    only rejects on evidence. In practice every Kalshi game ticker embeds one.
+    """
+    if MAX_DAYS_TO_EVENT <= 0:
+        return None
+    if (opp.category or "").strip().lower() in _LONG_DATED_CATEGORIES:
+        return None
+
+    days = days_to_event(opp.ticker)
+    if days is None or days <= MAX_DAYS_TO_EVENT:
+        return None
+    return f"event_too_far_out ({days}d > {MAX_DAYS_TO_EVENT}d max)"
+
 
 # Per-sport edge-threshold overrides. Any sport not listed falls back to
 # MIN_EDGE_THRESHOLD. Read via app.config at import; tests patch
@@ -274,6 +310,7 @@ def reload_risk_config() -> None:
     global NO_SIDE_KELLY_MULTIPLIER, NO_SIDE_KELLY_MULTIPLIER_GLOBAL
     global ALLOW_PREDICTION_BETS, ALLOW_LIVE_BETS, REQUIRE_FRESH_CALIBRATION
     global CROSS_CATEGORY_DEDUP, MAX_BID_ASK_SPREAD, MIN_MARKET_VOLUME_24H
+    global MAX_DAYS_TO_EVENT
     global _PER_SPORT_MIN_EDGE, _PER_SPORT_SERIES_DEDUP, _PER_SPORT_CROSS_CATEGORY_DEDUP
 
     load_dotenv(override=True)
@@ -308,6 +345,7 @@ def reload_risk_config() -> None:
     CROSS_CATEGORY_DEDUP = cfg.gates.cross_category_dedup
     MAX_BID_ASK_SPREAD = cfg.gates.max_bid_ask_spread
     MIN_MARKET_VOLUME_24H = cfg.gates.min_market_volume_24h
+    MAX_DAYS_TO_EVENT = cfg.gates.max_days_to_event_for_game_markets
     _PER_SPORT_MIN_EDGE = dict(cfg.per_sport.min_edge)
     _PER_SPORT_SERIES_DEDUP = dict(cfg.per_sport.series_dedup_hours)
     _PER_SPORT_CROSS_CATEGORY_DEDUP = dict(cfg.per_sport.cross_category_dedup)
@@ -394,6 +432,7 @@ def preflight_gate_status(opp: "Opportunity") -> str:
                      unreachable >= 100%)
         "price"    — Gate 3.5 (market price below R7 floor)
         "illiq"    — Gate 3.6 (bid/ask spread or 24h volume below floor)
+        "far"      — Gate 3.7 (game market too many days before the event)
         "score"    — Gate 4   (composite score below minimum)
         "conf"     — Gate 4.5 (confidence below MIN_CONFIDENCE)
         "no-fav"   — Gate 4.6 (R1 NO-side favorite guard)
@@ -422,6 +461,10 @@ def preflight_gate_status(opp: "Opportunity") -> str:
     # Gate 3.6: hard liquidity floor
     if _liquidity_rejection(opp):
         return "illiq"
+
+    # Gate 3.7: time-to-event cap on game markets (S5)
+    if _time_to_event_rejection(opp):
+        return "far"
 
     # Gate 4: minimum composite score
     if opp.composite_score < MIN_COMPOSITE_SCORE:
@@ -761,6 +804,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         5.   Duplicate ticker (already holding this market) (reject)
         6.   Per-event cap (max positions on same game)   (reject)
         3.6  Bid/ask spread + 24h volume floor           (reject)
+        3.7  Days-to-event cap on game markets          (reject)
         7.   Series dedup (same matchup within last Nh)   (reject)
         8.   Max bet size                                 (sizing cap)
         9.   Bet ratio cap                                (sizing cap)
@@ -774,6 +818,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     rejection = None
     edge_floor = min_edge_for(opp)
     liquidity_reject = _liquidity_rejection(opp)
+    time_to_event_reject = _time_to_event_rejection(opp)
 
     # ── Risk Gate 1: Daily loss limit
     if daily_pnl <= -MAX_DAILY_LOSS:
@@ -816,6 +861,12 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     #   Rejects on the raw book, not the soft composite `liquidity` term.
     elif liquidity_reject:
         rejection = liquidity_reject
+
+    # ── Risk Gate 3.7: Days-to-event cap on game markets (S5)
+    #   The NFL book that reached 31% of bankroll was 26 positions bought 25 to
+    #   112 days out. Futures are exempt -- their event is a season.
+    elif time_to_event_reject:
+        rejection = time_to_event_reject
 
     # ── Risk Gate 4: Minimum composite score
     elif opp.composite_score < MIN_COMPOSITE_SCORE:

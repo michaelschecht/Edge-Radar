@@ -119,9 +119,21 @@ def main():
 
     check(f"Gate 3   MIN_EDGE_THRESHOLD = {gates.min_edge_threshold:.1%}", True)
     per_sport_edge = dict(cfg.per_sport.min_edge)
-    if per_sport_edge:
-        overrides = "  ".join(f"{k}={v:.1%}" for k, v in sorted(per_sport_edge.items()))
-        check(f"           per-sport: {overrides}", True)
+    # A floor >= 1.0 means the sport is switched OFF (the F3 idiom). Print those
+    # on their own WARN line rather than mixed into the override list: a narrow
+    # terminal truncates the right-hand end, and a switched-off sport scrolling
+    # off the edge is exactly the "printed != executing" failure doctor exists
+    # to prevent. Also states the sport-name contract, since a name that does
+    # not match `_detect_sport()` is a silent no-op, not an error.
+    disabled = {k: v for k, v in per_sport_edge.items() if v >= 1.0}
+    overrides = {k: v for k, v in per_sport_edge.items() if v < 1.0}
+    if overrides:
+        joined = "  ".join(f"{k}={v:.1%}" for k, v in sorted(overrides.items()))
+        check(f"           per-sport: {joined}", True)
+    if disabled:
+        names = ", ".join(sorted(disabled))
+        check(f"           sports OFF (floor >= 100%, unreachable): {names}", False,
+              "no bet in these sports can clear Gate 3", warn_only=True)
 
     if gates.min_market_price > 0:
         check(f"Gate 3.5 MIN_MARKET_PRICE = ${gates.min_market_price:.2f}", True)
@@ -140,6 +152,13 @@ def main():
     else:
         # Ships at 0; off is the documented default, so this is informational.
         check("Gate 3.6 MIN_MARKET_VOLUME_24H = 0 (off by default)", True)
+
+    if gates.max_days_to_event_for_game_markets > 0:
+        check("Gate 3.7 MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS = "
+              f"{gates.max_days_to_event_for_game_markets} (futures exempt)", True)
+    else:
+        check("Gate 3.7 MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS = 0", False,
+              "DISABLED — game markets can be bought any distance out (S5)", warn_only=True)
 
     check(f"Gate 4   MIN_COMPOSITE_SCORE = {gates.min_composite_score:g}", True)
     check(f"Gate 4.5 MIN_CONFIDENCE = {gates.min_confidence}", True)
