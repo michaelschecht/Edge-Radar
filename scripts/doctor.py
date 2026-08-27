@@ -248,6 +248,30 @@ def main():
             bal = client.get_balance_dollars()
             balance = bal.get("balance", 0)
             check(f"Kalshi API connected (balance: ${balance:,.2f})", True)
+
+            # Sharding (2026-08-24): the balance above is the SUM across shards
+            # and is what sizing uses, but an order can only spend its own
+            # shard's slice. A shard at $0 is why an MLB order 404s
+            # `user_not_found`, so the split has to be visible here.
+            import shard_funding
+            _names = {0: "Default", 1: "Combos", 2: "Crypto",
+                      3: "Tennis & Baseball"}
+            _shards = shard_funding.shard_balances(client)
+            if _shards:
+                _cfg_sys = get_config().system
+                _parts = ", ".join(
+                    f"{i}={_names.get(i, '?')} ${v:,.2f}"
+                    for i, v in sorted(_shards.items()) if v > 0 or i == _cfg_sys.shard_funding_source
+                )
+                check(f"  shards: {_parts}", True)
+                if _cfg_sys.auto_shard_transfer:
+                    check(f"  AUTO_SHARD_TRANSFER on — tops up from shard "
+                          f"{_cfg_sys.shard_funding_source}, max "
+                          f"${_cfg_sys.max_auto_shard_transfer:,.2f}/transfer", True)
+                else:
+                    check("  AUTO_SHARD_TRANSFER off", False,
+                          "an order on an unfunded shard is skipped, "
+                          "not funded", warn_only=True)
         except Exception as e:
             check("Kalshi API connected", False, str(e)[:80])
     else:

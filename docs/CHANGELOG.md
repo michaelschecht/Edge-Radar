@@ -2,6 +2,70 @@
 
 ---
 
+## 2026-08-27 -- X1: just-in-time cash movement between exchange shards
+
+**Sizing stays whole-account; spending becomes shard-aware.** Operator's call, and the
+right one -- the alternative was sizing each order against its own shard's slice, which
+would have made a $15 balance silently cap MLB bets that the bankroll comfortably
+supports.
+
+The mismatch it closes, with the live numbers:
+
+| | |
+|:--|--:|
+| `bankroll` (sum across shards, what sizing uses) | $88.06 |
+| spendable on shard 0 -- NFL, MLS, everything else | $73.07 |
+| spendable on shard 3 -- MLB, tennis | $15.00 |
+| one batch at `--budget 12%` | $10.57 |
+| **all three intraday runs hitting MLB in one day** | **$31.71** |
+
+All seven scheduled sports jobs pass `--budget 12%` and each is a separate batch, so the
+per-batch cap never bounded the day. One MLB batch fits inside $15.00; three do not.
+
+`shard_funding.ensure_shard_funded()` runs immediately before each order:
+
+- **Exactly the shortfall, never a round-up.** Cash parked on the sports shard cannot back
+  an NFL order, so over-moving quietly reallocates the bankroll.
+- **`MAX_AUTO_SHARD_TRANSFER` (live $25) caps a single move.** A shortfall computed wrongly
+  bounces off the cap instead of draining the reserve. This is what makes leaving it on
+  unattended defensible.
+- **Verified, not assumed.** Kalshi's own warning -- "if a later step fails, completed steps
+  are not undone" -- means a 200 is not proof the money arrived, so the destination balance
+  is re-read and the order is skipped if it is still short.
+- **Fails open on an unknown shard** (market lookup down => pre-sharding behaviour, the
+  venue's error is the backstop) and **closed on a transfer that did not settle**.
+- **One attempt per order.** No retry loop around a money movement.
+- **Never in `DRY_RUN`**, checked from `get_config().system.dry_run` like the janitor and
+  the report banner rather than off the client, so a duck-typed client need not carry it.
+
+Turned **off**, an underfunded order is *skipped and logged* `shard_underfunded` rather
+than placed to fail -- the pre-existing behaviour was to place it and collect a
+`404 user_not_found`. A refusal never stops the batch: the next order on a funded shard
+still goes.
+
+`doctor.py` now prints the per-shard split under the balance, because the sum alone is
+exactly what hid this:
+
+```
+PASS  Kalshi API connected (balance: $88.06)
+PASS    shards: 0=Default $73.07, 3=Tennis & Baseball $15.00
+PASS    AUTO_SHARD_TRANSFER on — tops up from shard 0, max $25.00/transfer
+```
+
+Ships `false`; the live `.env` sets `true`. Config validation rejects
+`AUTO_SHARD_TRANSFER=true` with a $0 cap, which could never move anything.
+`scripts/shared/shard_funding.py` carries a `_demo()` self-check for the decision logic;
+`tests/test_shard_funding.py` covers the wiring -- that the batch consults it, skips on
+refusal, caches the shard lookup per ticker, and survives one underfunded order. **987
+tests pass.**
+
+**Still open:** S3's eligibility cache is keyed venue + product, so `kalshi:sports = ok`
+remains simultaneously right for MLS and wrong for an unfunded MLB shard. X1 makes that
+mostly moot -- the order is now skipped before it can 404 -- but the key is still
+imprecise.
+
+---
+
 ## 2026-08-27 -- Funded shard 3; MLB orders work again (+ a shardless cancel bug)
 
 **$15.00 moved from shard 0 to shard 3, transfer `2e67a7ef`, status `complete`.** An MLB
