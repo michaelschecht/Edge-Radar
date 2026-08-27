@@ -367,6 +367,33 @@ Pre-built `.bat` scripts that scan all major sports in a single command and exec
 | `weekly_account_report.bat` | Every Monday 9 AM ET | Settle → 7-day P&L detail → risk snapshot |
 | `monthly_account_report.bat` | 1st of month 9 AM ET | Settle → 30-day P&L detail → risk snapshot |
 
+### Exchange shards (X1, 2026-08-27)
+
+Kalshi sharded the exchange on **2026-08-24** — Crypto to shard 2, **Tennis & Baseball to
+shard 3**, everything else on shard 0 — and **cash does not follow the markets**. An order on
+a shard holding no funds fails `404 user_not_found`.
+
+Sizing is whole-account (`bankroll` is the balance summed across shards), so the executor
+tops up the destination shard just before placing:
+
+```bash
+python scripts/doctor.py          # prints the per-shard split under the balance
+#   PASS  Kalshi API connected (balance: $88.06)
+#   PASS    shards: 0=Default $73.07, 3=Tennis & Baseball $15.00
+#   PASS    AUTO_SHARD_TRANSFER on — tops up from shard 0, max $25.00/transfer
+```
+
+| Env var | Default | Description |
+| :--- | :--- | :--- |
+| `AUTO_SHARD_TRANSFER` | `false` | Move cash across shards on demand. Off ⇒ an underfunded order is **skipped** and logged `shard_underfunded`, never placed to fail |
+| `SHARD_FUNDING_SOURCE` | `0` | Reserve shard the top-ups come from ("Default") |
+| `MAX_AUTO_SHARD_TRANSFER` | `25.00` | Ceiling on **one** automatic move (USD) |
+
+Moves are exactly the shortfall, never rounded up. The transfer is non-atomic, so the
+destination balance is re-read and the order is skipped if the money did not land.
+
+---
+
 ### Shared Configuration
 
 All execution scripts use:

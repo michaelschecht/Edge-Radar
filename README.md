@@ -95,6 +95,8 @@ bet = max(unit, (kelly_frac / batch) * trusted_edge(edge) * bankroll)
 
 Result is capped by max bet ($100), the bet-ratio cap, and available bankroll. <sub>**[Architecture → Position Sizing](docs/setup/ARCHITECTURE.md#-position-sizing)** has the full edge→contracts worked example and every `KELLY_*` knob.</sub>
 
+<sub>`bankroll` is the balance **summed across Kalshi's exchange shards** (sharded 2026-08-24: Crypto → 2, Tennis & Baseball → 3). Cash does not follow the markets, so the executor moves the shortfall to an order's shard before placing it — see **[Architecture → Exchange shards](docs/setup/ARCHITECTURE.md#-position-sizing)**.</sub>
+
 ---
 
 ## ⚡ Quick Start
