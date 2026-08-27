@@ -2,6 +2,53 @@
 
 ---
 
+## 2026-08-27 -- MLB moved to a new exchange the account is not on
+
+**Every MLB order will fail until this is resolved, and it is not a block.** A 1c probe
+on an open MLB market returned:
+
+```
+POST /portfolio/events/orders -> 404 {"code":"user_not_found","message":"user not found"}
+```
+
+Reads are fine -- balance, positions and resting orders all answer normally with the same
+key and the same signing. A **bogus** ticker returns a generic `not_found`, while a **real
+open MLB** ticker returns `user_not_found`: the market resolves first, then the user lookup
+fails. That is per-exchange membership, not authentication and not jurisdiction.
+
+`exchange_index` is the whole story:
+
+```
+balance breakdown   exch 0 -> $73.366    exch 1 -> $0    exch 2 -> $0    exch 3 -> $0
+KXMLBGAME     78 open markets  -> exchange_index 3      <- all of MLB
+KXNFLSPREAD  200 open markets  -> exchange_index 0
+KXNFLGAME     96 open markets  -> exchange_index 0
+KXMLSTOTAL    90 open markets  -> exchange_index 0
+```
+
+MLB has migrated to **exchange 3**, where the account has no balance and no user record.
+NFL and MLS are still on exchange 0, and a probe there is accepted normally -- which is how
+`kalshi:sports` was re-verified the same day. The 08-26 hand probe succeeded because its
+ticker, `KXMLBGAME-26AUG261915LADATL-LAD`, is an **exchange 0** market; the equivalent
+market today is on 3. The migration therefore happened between 08-26 and 08-27.
+
+**This defeats S3's product keying.** Eligibility is stored per venue + product, and
+`sports` is one product spanning both exchanges -- so `kalshi:sports = ok`, earned honestly
+on an MLS market, is simultaneously **wrong for MLB**. The preflight passes and the order
+404s. Worse, `user_not_found` matches neither `_STRUCTURAL_PATTERNS` nor
+`_TRANSIENT_PATTERNS`, so `_handle_structural` does not abort: a batch of N MLB candidates
+would issue N failing orders, exactly the spray S3 was built to stop, reintroduced through
+a dimension the cache does not model.
+
+**Deliberately not "fixed" by widening the structural list.** Matching `user_not_found`
+there would set `kalshi:sports = blocked`, which never decays and would take MLS and NFL
+offline too -- an exchange-scoped problem escalated into a product-wide outage. The cache
+needs the exchange dimension, or the scanner needs to drop markets whose `exchange_index`
+has no balance, before the classifier is touched. Left open pending the operator's call;
+no live exposure while MLB produces no candidates that clear Gate 3.
+
+---
+
 ## 2026-08-27 -- S3a: the test suite was writing the live eligibility cache
 
 **The gate built to stop the Nevada repeat was defeated on its first day, by
@@ -14,8 +61,18 @@
 ```
 
 `KXNBAGAME-26APR04T3-A` is a **pytest fixture** ticker (`test_execute_batch.py`,
-`test_fill_accounting.py`, `test_reconciliation.py`). No real order carried it --
-`kalshi_trades.json` has had no accepted row since 2026-08-25 18:01.
+`test_fill_accounting.py`, `test_reconciliation.py`) -- no real order carried it. What it
+overwrote was **genuine**: the 08-26 entry seeded `ok` from hand probe
+`01a0407d-3ea8-7f90-9c7f-9179cebac8cc`, accepted and cancelled on
+`KXMLBGAME-26AUG261915LADATL-LAD` after the geolocation check was re-verified. So the bug
+is not "the gate went green on nothing" -- it is that a test run **clobbered real evidence
+with fabricated evidence under the same key**, which is worse: the verdict stayed `ok`, so
+nothing looked wrong.
+
+The trade log cannot arbitrate this. The 08-26 entry says so in as many words -- the hand
+probe "was placed by a one-off script that never called `log_trade`" -- and this entry's
+first draft nonetheless cited the log's silence as proof eligibility had never been proven.
+It had been.
 
 The path: `_place_order_batch` calls `vel.record_success()` on any `create_order`
 response whose status is not `dry_run_blocked`, and a **mocked** client never returns
@@ -37,10 +94,13 @@ in conftest covers every caller, including ones not yet written -- the same reas
 trade-log isolation lives there rather than in the tests that happen to call
 `log_trade()`.
 
-The poisoned entry was reset to `{}`, returning `kalshi:sports` to `unknown`, which
-**blocks live Kalshi orders until a real probe runs** -- the correct state, since
-nothing has actually proven eligibility since the 08-25 rejection. 964 tests pass and
-the cache stays empty across a full run.
+The poisoned entry was reset to `{}` and **re-earned, not restored**: a fresh probe on
+2026-08-27 was accepted and cancelled on `KXMLSTOTAL-26AUG29SEACHI-1`
+(`01a043a8-4b90-77ef-9c7c-703573829750`), so `kalshi:sports` is `ok` on evidence from
+`verify_eligibility` itself -- note the reason now reads `probe accepted (...)`, the string
+only the probe writes, where the clobbered one read `order accepted (...)`, the executor's.
+**That wording is the tell**, and is worth checking before trusting any future `ok`.
+964 tests pass and the cache stays empty across a full test run.
 
 **Also:** operator deposited **$25**; equity verified at **$103.09** ($73.36 cash +
 $29.73 in 24 NFL positions, incl. $0.82 fees). `CLAUDE.md`'s Risk Limits header still
