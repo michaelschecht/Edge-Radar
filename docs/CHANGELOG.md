@@ -2,6 +2,66 @@
 
 ---
 
+## 2026-08-27 -- Funded shard 3; MLB orders work again (+ a shardless cancel bug)
+
+**$15.00 moved from shard 0 to shard 3, transfer `2e67a7ef`, status `complete`.** An MLB
+order was accepted immediately afterwards, so the `user_not_found` diagnosis was right:
+the account was never blocked, it was unfunded on the shard MLB had moved to.
+
+```
+before   exch 0: $88.0660   exch 3: $0.0000
+after    exch 0: $73.0660   exch 3: $15.0000
+```
+
+### The wire format took three live 400s
+
+Worth recording, because a mock would have agreed with every wrong version:
+
+| Sent | Kalshi's answer |
+|:--|:--|
+| `amount: "15.0000"` (fixed-point string, as every other v2 money field) | `cannot unmarshal string into Go struct field ...amount of type int64` |
+| `amount: 1500` + `source_exchange_index` | `invalid source: invalid exchange instance: "" (valid values: "event_contract", "margined")` |
+| `amount: 150000` + `source`/`destination` + `source_exchange_shard` | accepted |
+
+Two axes are easy to conflate and the field names do not help: `source`/`destination` name
+the **instance** (`event_contract` | `margined`), while `source_exchange_shard` /
+`destination_exchange_shard` -- **not** `..._exchange_index` -- carry the number that
+`/exchange/status` and every market call `exchange_index`. Both shard fields default to 0,
+so omitting them is a silent no-op transfer rather than an error. And `amount` is int64
+**centicents** (10000 = $1.00), the only v2 money field that is neither a fixed-point
+string nor plain cents.
+
+### `get_balance()['balance']` is the SUM across shards
+
+`8806` before the transfer and `8806` after, while the breakdown moved $15 between shards.
+This was flagged as unknown when the split was proposed; it is now settled, and it is the
+unsafe answer. `get_balance_dollars()` reads that top-level field, so **`--budget 12%` and
+Gate 2b's equity denominator both size against $88.07 while an order can only spend its own
+shard's slice** -- $73.07 for NFL/MLS, $15.00 for MLB. Not yet fixed; no exposure while MLB
+produces nothing clearing Gate 3, and the failure mode is `insufficient_balance`, which is
+correctly classified transient.
+
+### Cancel is shard-scoped too, and fails as a bare 404
+
+The verification order was accepted and then **could not be cancelled**:
+`DELETE /portfolio/events/orders/{id}` returned `404 not_found`, leaving a live 1c resting
+order on `KXMLBGAME-26AUG271910MILNYM-NYM`. It cleared on
+`?exchange_index=3` (`reduced_by: 1.00`), confirmed by `GET /portfolio/orders` reporting
+`exchange_index: 3` on the order.
+
+**This is the dangerous one.** A bare `404 not_found` is indistinguishable from "already
+gone", which is exactly how the R4 janitor treats it -- so
+`cancel_stale_resting_orders()` would have logged a clean sweep while every MLB order kept
+resting indefinitely, and `doctor.py --verify-eligibility` would have left its probe order
+live on the book. `cancel_order()` now takes `exchange_index`, and both callers forward the
+value the order itself reports. Regression test asserts the janitor forwards the shard,
+since nothing else would catch it.
+
+**Not fixed here:** the sum-vs-shard sizing gap above, and S3's per-product eligibility key,
+which still cannot express "ok for MLS, wrong for MLB". 978 tests pass.
+
+---
+
 ## 2026-08-27 -- MLB moved to a new exchange the account is not on
 
 **Every MLB order will fail until this is resolved, and it is not a block.** A 1c probe

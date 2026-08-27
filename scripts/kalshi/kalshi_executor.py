@@ -772,7 +772,11 @@ def cancel_stale_resting_orders(
             continue
         age_hours = (now - placed).total_seconds() / 3600
         try:
-            client.cancel_order(order_id)
+            # Post-sharding (2026-08-24) an off-shard cancel 404s unless the
+            # shard is named, and a bare 404 here is indistinguishable from
+            # "already gone" -- the janitor would log a clean sweep while the
+            # order kept resting. `exchange_index` comes back on every order.
+            client.cancel_order(order_id, exchange_index=o.get("exchange_index"))
             cancelled.append({
                 "order_id": order_id,
                 "ticker": o.get("ticker", "?"),

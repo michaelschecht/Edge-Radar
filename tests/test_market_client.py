@@ -44,7 +44,7 @@ class TestKalshiClientConformance:
             def get_positions(self, **kw): return {}
             def create_order(self, ticker, side, action, **kw): return {}
             def get_orders(self, **kw): return {}
-            def cancel_order(self, order_id): return {}
+            def cancel_order(self, order_id, exchange_index=None): return {}
             def get_fills(self, **kw): return {}
             def get_settlements(self, **kw): return {}
 

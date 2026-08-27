@@ -334,7 +334,10 @@ def verify_eligibility(ticker: str | None = None) -> int:
                       f"kalshi/{product} marked eligible")
         if order_id:
             try:
-                client.cancel_order(order_id)
+                client.cancel_order(
+                    order_id,
+                    exchange_index=order.get("exchange_index"),
+                )
                 console.print("  [green]Cancelled cleanly.[/green]")
             except Exception as e:
                 console.print(f"  [red]COULD NOT CANCEL: {e}[/red]")
