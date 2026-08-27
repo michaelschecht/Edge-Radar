@@ -46,6 +46,8 @@ _cfg = get_config()
 MAX_BET_SIZE        = _cfg.risk.max_bet_size
 MAX_DAILY_LOSS      = _cfg.risk.max_daily_loss
 MAX_OPEN_POSITIONS  = _cfg.risk.max_open_positions
+MAX_OPEN_EXPOSURE_PCT     = _cfg.risk.max_open_exposure_pct
+MAX_SEGMENT_EXPOSURE_PCT  = _cfg.risk.max_segment_exposure_pct
 DRY_RUN             = _cfg.system.dry_run
 
 # ── Watchlist path ────────────────────────────────────────────────────────────
@@ -122,7 +124,20 @@ def print_risk_header(client: KalshiClient):
     ))
 
 
-def print_limits_status(daily_pnl: float, open_count: int):
+def print_limits_status(daily_pnl: float, open_count: int,
+                        positions: list[dict] | None = None,
+                        equity: float = 0.0):
+    """Risk-limit dashboard.
+
+    S4 (2026-08-26): the exposure rows are the only ones that answer "how much
+    money is actually deployed". Everything else here counts rows or bounds a
+    single bet, and this report previously documented a `MAX_PORTFOLIO_RISK_PCT`
+    row that was never implemented and whose env var does not exist anywhere in
+    the codebase -- the same "documented but unenforced" shape as the Gate 3.6
+    spread rule (L2). `positions` / `equity` are optional so the older
+    two-argument call still works; without them the exposure rows are skipped
+    rather than reported as zero.
+    """
     limit_pct = get_daily_limit_pct(daily_pnl)
     breached = is_daily_limit_breached(daily_pnl)
 
@@ -167,6 +182,48 @@ def print_limits_status(daily_pnl: float, open_count: int):
         "—",
         "[green]OK[/green]"
     )
+
+    # ── S4 / Gate 2b: cumulative exposure, denominated in equity.
+    if positions is not None and equity > 0:
+        from kalshi_executor import exposure_from_positions
+        open_exposure, by_segment = exposure_from_positions(positions)
+
+        if MAX_OPEN_EXPOSURE_PCT > 0:
+            pct = open_exposure / equity
+            table.add_row(
+                "Open Exposure (gate 2b)",
+                f"${open_exposure:,.2f}",
+                f"${MAX_OPEN_EXPOSURE_PCT * equity:,.2f}",
+                f"{pct / MAX_OPEN_EXPOSURE_PCT * 100:.0f}%",
+                "[green]OK[/green]" if pct < MAX_OPEN_EXPOSURE_PCT
+                else "[red]AT LIMIT[/red]",
+            )
+        else:
+            table.add_row(
+                "Open Exposure (gate 2b)", f"${open_exposure:,.2f}", "—", "—",
+                "[yellow]NO CAP SET[/yellow]",
+            )
+
+        # Only the largest segment: a per-sport row each would bury the table,
+        # and the binding constraint is always the biggest one.
+        if by_segment:
+            seg, seg_at_risk = max(by_segment.items(), key=lambda kv: kv[1])
+            seg_pct = seg_at_risk / equity
+            if MAX_SEGMENT_EXPOSURE_PCT > 0:
+                table.add_row(
+                    f"Largest Segment ({seg})",
+                    f"${seg_at_risk:,.2f}",
+                    f"${MAX_SEGMENT_EXPOSURE_PCT * equity:,.2f}",
+                    f"{seg_pct / MAX_SEGMENT_EXPOSURE_PCT * 100:.0f}%",
+                    "[green]OK[/green]" if seg_pct < MAX_SEGMENT_EXPOSURE_PCT
+                    else "[red]AT LIMIT[/red]",
+                )
+            else:
+                table.add_row(
+                    f"Largest Segment ({seg})", f"${seg_at_risk:,.2f}", "—",
+                    f"{seg_pct:.0%} of equity", "[yellow]NO CAP SET[/yellow]",
+                )
+
     console.print(table)
 
 
@@ -470,7 +527,10 @@ def main():
 
     if report in ("all", "limits"):
         print_balance(bal)
-        print_limits_status(daily_pnl, len(positions))
+        print_limits_status(
+            daily_pnl, len(positions), positions,
+            equity=bal["balance"] + bal["portfolio_value"],
+        )
 
     if report in ("all", "positions"):
         print_open_positions(positions)

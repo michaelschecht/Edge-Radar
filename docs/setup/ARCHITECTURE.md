@@ -4,7 +4,7 @@
 
 [![Pipeline](https://img.shields.io/badge/Pipeline-7%20Stages-0078D4?style=flat-square)](#-pipeline-overview)
 [![Edge Models](https://img.shields.io/badge/Edge%20Models-5%20Types-8B5CF6?style=flat-square)](#-edge-detection-models)
-[![Risk Gates](https://img.shields.io/badge/Risk-12%20Gates-e74c3c?style=flat-square)](#%EF%B8%8F-risk-management)
+[![Risk Gates](https://img.shields.io/badge/Risk-18%20Gates-e74c3c?style=flat-square)](#%EF%B8%8F-risk-management)
 [![Scoring](https://img.shields.io/badge/Scoring-4%20Dimensions-F97316?style=flat-square)](#-how-scoring-works)
 [![Kelly Sizing](https://img.shields.io/badge/Sizing-Batch%20Kelly-2ea44f?style=flat-square)](#-position-sizing)
 
@@ -26,7 +26,7 @@ The system processes every opportunity through seven sequential stages. Each sta
 | **2. Categorize** | Classify by type | Determines which edge model applies |
 | **3. Compare** | Fair value vs. Kalshi ask price | Score on 4 dimensions: edge, confidence, liquidity, time |
 | **4. Cap** | Limit to top 3 per game/event | Prevents concentration in a single contest |
-| **5. Risk-Check** | 13 risk gates + Kelly sizing | Reject or cap — see [Risk Management](#%EF%B8%8F-risk-management) |
+| **5. Risk-Check** | 18 risk gates + Kelly sizing | Reject or cap — see [Risk Management](#%EF%B8%8F-risk-management) |
 | **6. Execute** | Place limit orders on Kalshi | Full trade journal entry with rationale |
 | **7. Monitor** | Track positions, settle, calibrate | Realized P&L + closing line value tracking |
 
@@ -231,23 +231,33 @@ The minimum score to pass risk checks is **6.0** (configurable via `MIN_COMPOSIT
 
 ### Risk Gate Pipeline
 
-Every order must pass gates 1-7 (including 4.5 and 4.6) before execution. Gates 8-9 are sizing caps that downsize the order rather than rejecting it.
+Every order must pass gates 1-7 (including 2b, 3.5, 3.6, 3.7, 4.5, 4.6, 4.6b, 4.7 and 4.8) before execution. Gates 8-9 are sizing caps that downsize the order rather than rejecting it. **Gate 2b does both** — it rejects when a ceiling is already breached and caps otherwise.
 
 | | Gate | Check | Behavior |
 | :--- | :--- | :--- | :--- |
 | 1 | **Daily loss limit** | Sum of realized losses today | **Reject** if losses ≥ `MAX_DAILY_LOSS` |
 | 2 | **Position count** | Number of open positions | **Reject** if count ≥ `MAX_OPEN_POSITIONS` |
-| 3 | **Edge threshold** | Calculated edge for this opportunity | **Reject** if edge < per-sport floor (or `MIN_EDGE_THRESHOLD` global fallback) |
-| 3.5 | **Market price floor (R7)** | Contract ask price for this opportunity | **Reject** if price < `MIN_MARKET_PRICE` (default $0.06 — lottery-ticket filter, no edge/confidence exception) |
+| 2b | **Cumulative exposure (S4)** | Total open at-risk dollars, and the row's own sport, against **equity** (cash + position value) | **Reject** if already ≥ `MAX_OPEN_EXPOSURE_PCT` or ≥ `MAX_SEGMENT_EXPOSURE_PCT`; otherwise **Cap** to the remaining headroom. The only gate that measures a standing total. |
+| 3 | **Edge threshold** | Calculated edge, **plus the exchange fee** (F1) | **Reject** if edge < per-sport floor (or `MIN_EDGE_THRESHOLD` global fallback). A floor ≥ 1.0 is unreachable and means the sport is **off** — reported as `sport_disabled`. |
+| 3.5 | **Market price floor (R7)** | Contract ask price | **Reject** if price < `MIN_MARKET_PRICE` (lottery-ticket filter, no edge/confidence exception) |
+| 3.6 | **Liquidity floor (L2)** | Bid/ask spread and trailing-24h volume | **Reject** if spread > `MAX_BID_ASK_SPREAD` or volume < `MIN_MARKET_VOLUME_24H`. Fails open on a missing book. |
+| 3.7 | **Time to event (S5)** | Days from now to a **game's** date | **Reject** if > `MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS`. **Futures exempt by category.** Fails open on an unparseable date. |
 | 4 | **Composite score** | Weighted score (edge + confidence + liquidity + time) | **Reject** if score < `MIN_COMPOSITE_SCORE` |
 | 4.5 | **Min confidence (R3)** | Opportunity confidence label (low/medium/high) | **Reject** if confidence below `MIN_CONFIDENCE` |
 | 4.6 | **NO-side favorite guard (R1)** | NO bet on a heavy favorite (price < `NO_SIDE_FAVORITE_THRESHOLD`) | **Reject** unless edge ≥ `NO_SIDE_MIN_EDGE` AND confidence=high |
-| 4.7 | **Prediction-market safety (R25)** | Opportunity category in `{crypto, weather, spx, mentions, companies, politics}` | **Reject** unless `ALLOW_PREDICTION_BETS=true` |
+| 4.6b | **NO-side global floor (R28)** | Any NO bet | **Reject** if edge < max(per-sport floor, `NO_SIDE_MIN_EDGE_GLOBAL`) |
+| 4.7 | **Prediction-market safety (R25)** | Category in `{crypto, weather, spx, mentions, companies, politics}` | **Reject** unless `ALLOW_PREDICTION_BETS=true` |
+| 4.8 | **Live/in-play safety (L1)** | Game already started (`is_game_started`) | **Reject** unless `ALLOW_LIVE_BETS=true` |
 | 5 | **Duplicate ticker** | Already holding this exact market | **Reject** if ticker in open positions |
 | 6 | **Per-event cap** | Too many positions on the same game | **Reject** if event count ≥ `MAX_PER_EVENT` |
 | 7 | **Series dedup** | Same matchup bet on a recent date (sport + team pair) | **Reject** if matchup key appears in trade log within `SERIES_DEDUP_HOURS` (per-sport override via `SERIES_DEDUP_HOURS_<SPORT>` — MLB/NHL default to 72h, others 48h — R9, 2026-04-27) |
 | 8 | **Max bet size** | Bet exceeds max size | **Cap** — downsize to `MAX_BET_SIZE` |
 | 9 | **Bet ratio cap** | Single bet cost vs. median batch cost | **Cap** — downsize so cost ≤ `MAX_BET_RATIO` × median batch cost |
+
+**Scope, in one line each.** Gates 1 and 2b measure the *account*; 2, 5, 6 and 7 measure the
+*book*; 3 through 4.8 measure the *opportunity*; 8, 9 and 2b's cap measure the *order*. Until
+S4 shipped on 2026-08-26 nothing in the chain measured total capital deployed, which is how 26
+NFL positions reached 31% of bankroll with every other gate passing the whole way.
 
 In addition, NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` (default $0.35) are sized at `NO_SIDE_KELLY_MULTIPLIER` of normal Kelly (default half-Kelly). This is a sizing dampener, not a reject gate — it runs inside the Kelly calculation for NO bets that cleared gate 4.6.
 
@@ -256,6 +266,8 @@ In addition, NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` (default $0.35) ar
 > - `APPROVED` — passed all gates, no caps hit
 > - `APPROVED_CAPPED_MAX_BET` — downsized by gate 8
 > - `APPROVED_CAPPED_BET_RATIO` — downsized by gate 9
+> - `APPROVED_CAPPED_EXPOSURE` — downsized by gate 2b's remaining headroom
+> - `APPROVED_BUMPED_MIN_SHARES` — raised to a venue's minimum order size (Polymarket US)
 
 ### Risk Parameters
 
@@ -265,11 +277,14 @@ In addition, NO bets priced below `NO_SIDE_KELLY_PRICE_FLOOR` (default $0.35) ar
 | `KELLY_FRACTION` | 0.25 | Quarter-Kelly sizing multiplier |
 | `MAX_BET_SIZE` | $100 | Maximum USD per bet (sports and prediction) |
 | `MAX_DAILY_LOSS` | $250 | Hard stop — no new positions after this daily loss |
-| `MAX_OPEN_POSITIONS` | 10 | Maximum concurrent open positions |
-| `MAX_PER_EVENT` | 3 | Maximum positions on the same game/event |
+| `MAX_OPEN_POSITIONS` | 50 | Maximum concurrent open positions — counts *rows*, not dollars |
+| `MAX_OPEN_EXPOSURE_PCT` | 0 (off) | Gate 2b: total open at-risk / equity. Live `.env`: 0.50 |
+| `MAX_SEGMENT_EXPOSURE_PCT` | 0 (off) | Gate 2b: same, per sport (falls back to category). Live `.env`: 0.33 |
+| `MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS` | 0 (off) | Gate 3.7: max days from now to a **game's** date; futures exempt. Live `.env`: 14 |
+| `MAX_PER_EVENT` | 2 | Maximum positions on the same game/event |
 | `MIN_EDGE_THRESHOLD` | 3% | Global minimum edge required to consider a bet |
 | `MIN_EDGE_THRESHOLD_<SPORT>` | (optional) | Per-sport override of the global floor (e.g., `MIN_EDGE_THRESHOLD_MLB=0.04`). Live: MLB/NBA/NCAAB=0.04 (2026-06-14). Supported: MLB, NBA, NHL, NFL, NCAAB, NCAAF, MLS, SOCCER |
-| `MIN_MARKET_PRICE` | $0.06 | Gate 3.5 (R7): reject bets priced below this. Hard floor with no edge/confidence exception. Set to 0 to disable and keep all longshots. |
+| `MIN_MARKET_PRICE` | $0.12 | Gate 3.5 (R7): reject bets priced below this. Hard floor with no edge/confidence exception. Set to 0 to disable and keep all longshots. |
 | `MIN_COMPOSITE_SCORE` | 6.0 | Minimum composite opportunity score |
 | `MIN_CONFIDENCE` | medium | Reject below this confidence label (low/medium/high) — Gate 4.5 |
 | `NO_SIDE_FAVORITE_THRESHOLD` | 0.25 | Gate 4.6: NO bets below this price need elevated edge + confidence |

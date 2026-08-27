@@ -111,6 +111,65 @@ scoreboard is where a standing breach becomes visible.
 
 ---
 
+### S4 follow-up (same day): doc sweep, and the `limits` report made true
+
+Propagating S1 / S4 / S5 into the satellite docs surfaced that **none of them had been
+updated for S5 either**, and that several were describing a system that no longer exists:
+
+- **`risk_check.py --report limits` documented a `MAX_PORTFOLIO_RISK_PCT` row that was
+  never implemented** — the env var does not appear anywhere in the codebase. The report
+  showed daily loss, position count and max bet size: two row-counts and a per-order cap,
+  nothing about money deployed. It now prints **Open Exposure** and **Largest Segment**
+  against their gate-2b ceilings, and prints **`NO CAP SET`** (not a comfortable `OK`)
+  when a cap is 0. This is the same "documented but unenforced" shape as the Gate 3.6
+  spread rule, which sat in CLAUDE.md as a Hard Stop for five months with no code (L2),
+  and as B3's 10%-of-bankroll stop, which still has none. On the live book it reads:
+
+  ```
+  Open Exposure (gate 2b)   $29.73   $53.53    56%   OK
+  Largest Segment (nfl)     $29.73   $35.33    84%   OK
+  ```
+
+  NFL at **84% of its segment ceiling** is the number worth having in front of you before
+  the 2026-09-15 unfreeze review; nothing in the old report would have shown it.
+
+- **`docs/setup/ARCHITECTURE.md` listed 12 gates in its badge and 13 in its pipeline
+  table, and documented 9.** Missing: 2b, 3.6, 3.7, 4.6b, 4.8. Its risk-parameter table
+  also still carried pre-2026 defaults (`MAX_OPEN_POSITIONS=10`, `MAX_PER_EVENT=3`,
+  `MIN_MARKET_PRICE=$0.06`). Rewritten to 18, with a one-line scope summary — gates 1/2b
+  measure the account, 2/5/6/7 the book, 3-4.8 the opportunity, 8/9/2b-cap the order.
+
+- **`docs/scripts/per-script/kalshi_executor.md` claimed "11 gates" and listed 11**,
+  missing the same five, and said sizing was "capped by gates 7-8" (it is 8-9).
+
+- **`.claude/agents/KALSHI_BETTOR.md` quoted `UNIT_SIZE $0.50` and `KELLY_FRACTION 0.75`**,
+  neither of which has been the value for months, with no note that the live `.env`
+  overrides the defaults. Rewritten to lead with "run `doctor.py` before quoting a limit",
+  and to state that `MIN_EDGE_THRESHOLD_NFL` is owned by `nfl_week1_review.py` and must
+  not be hand-edited.
+
+- **`.env.example`** gained both S4 knobs (in the safety-rails section, not buried) and
+  Gate 3.7, and its five-item getting-started checklist now names `MAX_OPEN_EXPOSURE_PCT`
+  — with both caps at 0, a fresh clone has *nothing* capping total capital deployed, and
+  that should be visible at setup rather than discovered at 31%.
+
+- **`SKILL.md`** gained S1/S4/S5 entries and a corrected bankroll (**~$107 equity** after a
+  $25 deposit; the reviews quote the ~$92 it stood at). Its preflight-label list was
+  missing `off`, `illiq` and `far`, and both label lists now state that preflight is
+  static-only, so `ok` never means "will execute".
+
+Also updated: `docs/setup/SETUP_GUIDE.md`, `docs/setup/AUTOMATION_GUIDE.md` (exposure caps
+matter most under automation — scheduled runs accumulate across days with no human watching
+a total), `docs/my-documents/guides/Bet-Sizing.md`. 916 tests still pass.
+
+**The recurring pattern worth naming:** every one of these docs was accurate when written
+and silently decayed. `doctor.py` is the only surface that reads the *running* config, which
+is why CLAUDE.md points at it as the source of truth — and why **S6
+(`risk_config_fingerprint()`) is the item that stops this from recurring**, rather than
+another sweep like this one.
+
+---
+
 ## 2026-08-26 -- S5: Gate 3.7, a days-to-event cap on game markets
 
 `MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS` (code default `0` = off; live `.env` **14**).

@@ -167,17 +167,33 @@ Browse-only futures (use raw prefix): `KXNFLMVP`, `KXNBAMVP`, `KXNBAROY`, `KXNBA
 
 ### Risk Awareness
 
-- **MAX_BET_SIZE**: $100 per bet (hard cap in .env)
-- **UNIT_SIZE**: $0.50 default per bet (Kelly floor)
-- **KELLY_FRACTION**: 0.75 (divided by batch size at runtime)
-- **MAX_DAILY_LOSS**: $250 daily stop
-- **MAX_OPEN_POSITIONS**: 50 (configurable in .env)
-- **MAX_PER_EVENT**: 2 positions per game
-- **MAX_BET_RATIO**: 3.0x batch median (prevents one bet dominating)
-- **MIN_EDGE_THRESHOLD**: 3% minimum edge
-- **MIN_COMPOSITE_SCORE**: 6.0 minimum score
+**Code defaults below. The live `.env` overrides several — run `python scripts/doctor.py`
+before quoting any limit; it is the source of truth for what is actually running.**
 
-If the user asks to bet more than the max or override risk limits, **warn them clearly** but follow their instruction if they insist. Log the override.
+- **MAX_BET_SIZE**: $100 per bet (live: $8)
+- **UNIT_SIZE**: $1.00 per bet (Kelly floor — the *longshot* knob; binds below ~30c)
+- **KELLY_FRACTION**: 0.25, divided by batch size at runtime (live: 0.5 — the *favorites* knob; keep <= 0.5)
+- **MAX_DAILY_LOSS**: $250 daily stop (live: $30)
+- **MAX_OPEN_POSITIONS**: 50 — counts *rows*, not dollars
+- **MAX_PER_EVENT**: 2 positions per game
+- **MAX_BET_RATIO**: 3.0x batch median (live: 5x — prevents one bet dominating a batch)
+- **MAX_OPEN_EXPOSURE_PCT / MAX_SEGMENT_EXPOSURE_PCT** (S4, gate 2b): 0/0 = off (live: 0.50 / 0.33).
+  The **only** limits that measure total money deployed, as fractions of equity (cash + positions).
+  Everything above binds one order, one event, or one batch — all of them passed while 26 NFL
+  positions reached 31% of bankroll over three months.
+- **MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS** (S5, gate 3.7): 0 = off (live: 14). Caps how far before
+  kickoff a *game* may be bought. **Futures are exempt** — their event is a whole season.
+- **MIN_EDGE_THRESHOLD**: 3% minimum edge, **plus the exchange fee** (F1). A per-sport floor >= 1.0
+  is unreachable and means that sport is **OFF** — currently **NFL** (S1 freeze, pending the
+  2026-09-15 review) and **World Cup** (F3).
+- **MIN_COMPOSITE_SCORE**: 6.0 minimum score
+- **MIN_MARKET_PRICE / MAX_BID_ASK_SPREAD**: 0.12 / 0.05 (live: 0.10 / 0.05)
+
+If the user asks to bet more than the max or override risk limits, **warn them clearly** but follow
+their instruction if they insist. Log the override.
+
+**Never edit a frozen sport's floor.** `MIN_EDGE_THRESHOLD_NFL` is owned by
+`scripts/backtest/nfl_week1_review.py`, which runs on a scheduled date and decides mechanically.
 
 ### Communication Style
 
