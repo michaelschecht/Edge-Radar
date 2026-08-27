@@ -45,6 +45,7 @@ from market_client import get_market_client, VENUES
 from edge_detector import scan_all_markets
 from ticker_display import _detect_sport, days_to_event, is_game_started
 import venue_eligibility as vel
+import shard_funding
 from fees import fee_per_contract
 from app.config import get_config, reset_config
 
@@ -161,6 +162,9 @@ MAX_BID_ASK_SPREAD = _cfg.gates.max_bid_ask_spread
 # documented rule, this is opt-in).
 MIN_MARKET_VOLUME_24H = _cfg.gates.min_market_volume_24h
 MAX_DAYS_TO_EVENT = _cfg.gates.max_days_to_event_for_game_markets
+AUTO_SHARD_TRANSFER = _cfg.system.auto_shard_transfer
+SHARD_FUNDING_SOURCE = _cfg.system.shard_funding_source
+MAX_AUTO_SHARD_TRANSFER = _cfg.system.max_auto_shard_transfer
 
 _CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
 
@@ -772,7 +776,11 @@ def cancel_stale_resting_orders(
             continue
         age_hours = (now - placed).total_seconds() / 3600
         try:
-            client.cancel_order(order_id)
+            # Post-sharding (2026-08-24) an off-shard cancel 404s unless the
+            # shard is named, and a bare 404 here is indistinguishable from
+            # "already gone" -- the janitor would log a clean sweep while the
+            # order kept resting. `exchange_index` comes back on every order.
+            client.cancel_order(order_id, exchange_index=o.get("exchange_index"))
             cancelled.append({
                 "order_id": order_id,
                 "ticker": o.get("ticker", "?"),
@@ -1401,11 +1409,47 @@ def _place_order_batch(client: KalshiClient, to_execute: list, trade_log: list) 
         append_trades([error_record])
 
     consecutive_conn_errors = 0
+    shard_cache: dict[str, int | None] = {}
+
+    def _shard_for(ticker: str) -> int | None:
+        """Which exchange shard this market trades on, or None if unknowable.
+
+        Post-2026-08-24 the shard decides which pot of cash an order can spend.
+        Cached per batch: one lookup per distinct ticker, and a lookup failure
+        is cached as None so a flaky read cannot re-cost the whole batch.
+        """
+        if ticker not in shard_cache:
+            try:
+                m = client.get_market(ticker)
+                shard_cache[ticker] = (m.get("market", m) or {}).get("exchange_index")
+            except Exception:                               # noqa: BLE001
+                shard_cache[ticker] = None
+        return shard_cache[ticker]
 
     for s in to_execute:
         opp = s.opportunity
         opp_venue = (opp.details or {}).get("venue", "kalshi")
         try:
+            # Sharding (2026-08-24): sizing is whole-account, but an order can
+            # only spend its own shard's cash. Move the shortfall across first,
+            # or skip -- placing anyway just buys a `404 user_not_found`.
+            if opp_venue == "kalshi":
+                funded, note = shard_funding.ensure_shard_funded(
+                    client, _shard_for(opp.ticker), s.cost_dollars,
+                    enabled=AUTO_SHARD_TRANSFER,
+                    source_shard=SHARD_FUNDING_SOURCE,
+                    max_transfer=MAX_AUTO_SHARD_TRANSFER,
+                    # Same source the janitor and the report banner use;
+                    # a duck-typed client need not carry the flag.
+                    dry_run=get_config().system.dry_run,
+                )
+                if note:
+                    rprint(f"  [cyan]shard:[/cyan] {note}")
+                if not funded:
+                    log.warning("Skipping %s — %s", opp.ticker, note)
+                    _record_failure(opp.ticker, opp.side,
+                                    f"shard_underfunded: {note}", opp_venue)
+                    continue
             # Determine price based on side
             kwargs = {
                 "ticker": opp.ticker,

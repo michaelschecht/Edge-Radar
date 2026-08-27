@@ -27,6 +27,23 @@ def _isolate_data_logs(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_venue_eligibility(tmp_path, monkeypatch):
+    """Never let a test write the operator's real S3 eligibility cache.
+
+    `_place_order_batch` calls `record_success()` on any create_order response
+    whose status is not `dry_run_blocked` -- which a mocked client always is.
+    So `make test` (test_execute_batch, test_fill_accounting, test_reconciliation)
+    stamped `kalshi:sports = ok` into the live cache on evidence of a fake fill,
+    turning the fail-closed preflight green with nothing behind it. Same lesson
+    as `_isolate_data_logs`: a module-level path constant must be redirected for
+    every test, not only the ones that think about it.
+    """
+    import venue_eligibility as vel
+    monkeypatch.setattr(vel, "ELIGIBILITY_PATH",
+                        tmp_path / "venue_eligibility.json")
+
+
+@pytest.fixture(autouse=True)
 def _ignore_operator_time_to_event_cap(monkeypatch):
     """Never let the operator's live `.env` date-cap a test's fixture tickers.
 

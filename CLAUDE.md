@@ -191,6 +191,22 @@ Standing rules — do not reverse them without new settled evidence.
   the mechanism: near-dated college football (3-4 days out) is unaffected, and **futures are
   exempt by category**, since `KXMLB-26-LAD` and `KXMLBGAME-26AUG26...` share a ticker prefix and
   only the scanner's `category` separates them. *CHANGELOG 2026-08-26 (S5).*
+- **Sizing is whole-account; spending is per-shard.** `bankroll` is
+  `get_balance()["balance"]`, which is the **sum across every exchange shard**, and
+  `equity = bankroll + portfolio_value` follows it — operator's call 2026-08-27, and
+  verified rather than assumed (`8806` before and after a $15 inter-shard move). But
+  Kalshi sharded the exchange on **2026-08-24** — Crypto to shard 2, **Tennis & Baseball
+  to shard 3** — and **cash does not follow the markets**: an order on a shard holding no
+  funds fails `404 user_not_found`, the market resolving before the per-shard user lookup
+  does not. So an order can be correctly sized against the full balance and still be
+  unspendable where it lands. `shard_funding.ensure_shard_funded()` closes the gap
+  immediately before placing: it moves **exactly the shortfall** (never a round-up — cash
+  parked on a sports shard cannot back an NFL order), refuses above
+  `MAX_AUTO_SHARD_TRANSFER`, and **re-reads the destination balance afterwards** because
+  the transfer is explicitly non-atomic — a 200 is not proof the money arrived. Fails
+  **open** on a shard it cannot identify (pre-sharding behaviour; the venue's own error is
+  the backstop) and **closed** on a transfer that did not settle. *CHANGELOG 2026-08-27 (X1).*
+
 - **No correlation guard exists, deliberately.** It was measured and rejected: the naive pooled rho of +0.181 is Simpson's paradox, and judged against per-stratum base rates it is +0.048 overall and −0.187 for totals. Re-run `scripts/backtest/correlation_check.py` as settlements accumulate — this is "no evidence of correlation", not proof of independence. *CHANGELOG 2026-07-27 (C11b).*
 
 ### Scoring & confidence rules
@@ -248,7 +264,7 @@ Standing rules — do not reverse them without new settled evidence.
 
 ## Risk Limits
 
-Code defaults below. The live `.env` overrides several (bankroll ≈ $92, so the shipped defaults are sized for a much larger account): `UNIT_SIZE=1.00`, `KELLY_FRACTION=0.5`, `MAX_BET_SIZE=8`, `MAX_DAILY_LOSS=30`, `MAX_BET_RATIO=5`, `MIN_EDGE_THRESHOLD_MLB=0.03`, `MIN_MARKET_PRICE=0.10`, and **`MIN_EDGE_THRESHOLD_NFL=1.0` (S1 freeze, not in the code defaults)**.
+Code defaults below. The live `.env` overrides several (equity ≈ **$121.83** — **$88.06 cash + $33.77 in positions**, verified 2026-08-27 after two operator deposits totalling **$40**; historical entries below quote the ~$92 it stood at, so the shipped defaults are sized for a much larger account. **The cash figure is the sum across exchange shards** — $73.07 on shard 0, $15.00 on shard 3; run `doctor.py` for the split): `UNIT_SIZE=1.00`, `KELLY_FRACTION=0.5`, `MAX_BET_SIZE=8`, `MAX_DAILY_LOSS=30`, `MAX_BET_RATIO=5`, `MIN_EDGE_THRESHOLD_MLB=0.03`, `MIN_MARKET_PRICE=0.10`, and **`MIN_EDGE_THRESHOLD_NFL=1.0` (S1 freeze, not in the code defaults)**.
 
 ```env
 UNIT_SIZE=1.00                  # Kelly floor per bet — the longshot knob (binds below ~30c)
@@ -294,6 +310,15 @@ MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS=0  # S5: Gate 3.7, max days from now to a GAM
                                 #   category** — a championship's event is a whole season.
                                 #   Caps LEAD TIME, not sports: near-dated college football is
                                 #   untouched. Fails open on an unparseable date, like Gate 3.6.
+AUTO_SHARD_TRANSFER=false       # X1: move cash between Kalshi exchange shards on demand.
+                                #   Ships false; live `.env` sets true. Kalshi sharded on
+                                #   2026-08-24 (2=Crypto, 3=Tennis & Baseball) and cash does
+                                #   NOT follow the markets, so an order on an unfunded shard
+                                #   fails `404 user_not_found`. Off => order is SKIPPED and
+                                #   logged `shard_underfunded`, never placed to fail.
+SHARD_FUNDING_SOURCE=0          # X1: reserve shard the top-ups come from ("Default")
+MAX_AUTO_SHARD_TRANSFER=25.00   # X1: ceiling on ONE automatic move. A miscomputed shortfall
+                                #   bounces off this instead of draining the reserve.
 MIN_COMPOSITE_SCORE=6.0         # Minimum score (0-10)
 MIN_CONFIDENCE=medium           # R3 — low|medium|high
 NO_SIDE_FAVORITE_THRESHOLD=0.25 # R1: NO bets below this price face the elevated bar

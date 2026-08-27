@@ -2,6 +2,236 @@
 
 ---
 
+## 2026-08-27 -- X1: just-in-time cash movement between exchange shards
+
+**Sizing stays whole-account; spending becomes shard-aware.** Operator's call, and the
+right one -- the alternative was sizing each order against its own shard's slice, which
+would have made a $15 balance silently cap MLB bets that the bankroll comfortably
+supports.
+
+The mismatch it closes, with the live numbers:
+
+| | |
+|:--|--:|
+| `bankroll` (sum across shards, what sizing uses) | $88.06 |
+| spendable on shard 0 -- NFL, MLS, everything else | $73.07 |
+| spendable on shard 3 -- MLB, tennis | $15.00 |
+| one batch at `--budget 12%` | $10.57 |
+| **all three intraday runs hitting MLB in one day** | **$31.71** |
+
+All seven scheduled sports jobs pass `--budget 12%` and each is a separate batch, so the
+per-batch cap never bounded the day. One MLB batch fits inside $15.00; three do not.
+
+`shard_funding.ensure_shard_funded()` runs immediately before each order:
+
+- **Exactly the shortfall, never a round-up.** Cash parked on the sports shard cannot back
+  an NFL order, so over-moving quietly reallocates the bankroll.
+- **`MAX_AUTO_SHARD_TRANSFER` (live $25) caps a single move.** A shortfall computed wrongly
+  bounces off the cap instead of draining the reserve. This is what makes leaving it on
+  unattended defensible.
+- **Verified, not assumed.** Kalshi's own warning -- "if a later step fails, completed steps
+  are not undone" -- means a 200 is not proof the money arrived, so the destination balance
+  is re-read and the order is skipped if it is still short.
+- **Fails open on an unknown shard** (market lookup down => pre-sharding behaviour, the
+  venue's error is the backstop) and **closed on a transfer that did not settle**.
+- **One attempt per order.** No retry loop around a money movement.
+- **Never in `DRY_RUN`**, checked from `get_config().system.dry_run` like the janitor and
+  the report banner rather than off the client, so a duck-typed client need not carry it.
+
+Turned **off**, an underfunded order is *skipped and logged* `shard_underfunded` rather
+than placed to fail -- the pre-existing behaviour was to place it and collect a
+`404 user_not_found`. A refusal never stops the batch: the next order on a funded shard
+still goes.
+
+`doctor.py` now prints the per-shard split under the balance, because the sum alone is
+exactly what hid this:
+
+```
+PASS  Kalshi API connected (balance: $88.06)
+PASS    shards: 0=Default $73.07, 3=Tennis & Baseball $15.00
+PASS    AUTO_SHARD_TRANSFER on — tops up from shard 0, max $25.00/transfer
+```
+
+Ships `false`; the live `.env` sets `true`. Config validation rejects
+`AUTO_SHARD_TRANSFER=true` with a $0 cap, which could never move anything.
+`scripts/shared/shard_funding.py` carries a `_demo()` self-check for the decision logic;
+`tests/test_shard_funding.py` covers the wiring -- that the batch consults it, skips on
+refusal, caches the shard lookup per ticker, and survives one underfunded order. **987
+tests pass.**
+
+**Still open:** S3's eligibility cache is keyed venue + product, so `kalshi:sports = ok`
+remains simultaneously right for MLS and wrong for an unfunded MLB shard. X1 makes that
+mostly moot -- the order is now skipped before it can 404 -- but the key is still
+imprecise.
+
+---
+
+## 2026-08-27 -- Funded shard 3; MLB orders work again (+ a shardless cancel bug)
+
+**$15.00 moved from shard 0 to shard 3, transfer `2e67a7ef`, status `complete`.** An MLB
+order was accepted immediately afterwards, so the `user_not_found` diagnosis was right:
+the account was never blocked, it was unfunded on the shard MLB had moved to.
+
+```
+before   exch 0: $88.0660   exch 3: $0.0000
+after    exch 0: $73.0660   exch 3: $15.0000
+```
+
+### The wire format took three live 400s
+
+Worth recording, because a mock would have agreed with every wrong version:
+
+| Sent | Kalshi's answer |
+|:--|:--|
+| `amount: "15.0000"` (fixed-point string, as every other v2 money field) | `cannot unmarshal string into Go struct field ...amount of type int64` |
+| `amount: 1500` + `source_exchange_index` | `invalid source: invalid exchange instance: "" (valid values: "event_contract", "margined")` |
+| `amount: 150000` + `source`/`destination` + `source_exchange_shard` | accepted |
+
+Two axes are easy to conflate and the field names do not help: `source`/`destination` name
+the **instance** (`event_contract` | `margined`), while `source_exchange_shard` /
+`destination_exchange_shard` -- **not** `..._exchange_index` -- carry the number that
+`/exchange/status` and every market call `exchange_index`. Both shard fields default to 0,
+so omitting them is a silent no-op transfer rather than an error. And `amount` is int64
+**centicents** (10000 = $1.00), the only v2 money field that is neither a fixed-point
+string nor plain cents.
+
+### `get_balance()['balance']` is the SUM across shards
+
+`8806` before the transfer and `8806` after, while the breakdown moved $15 between shards.
+This was flagged as unknown when the split was proposed; it is now settled, and it is the
+unsafe answer. `get_balance_dollars()` reads that top-level field, so **`--budget 12%` and
+Gate 2b's equity denominator both size against $88.07 while an order can only spend its own
+shard's slice** -- $73.07 for NFL/MLS, $15.00 for MLB. Not yet fixed; no exposure while MLB
+produces nothing clearing Gate 3, and the failure mode is `insufficient_balance`, which is
+correctly classified transient.
+
+### Cancel is shard-scoped too, and fails as a bare 404
+
+The verification order was accepted and then **could not be cancelled**:
+`DELETE /portfolio/events/orders/{id}` returned `404 not_found`, leaving a live 1c resting
+order on `KXMLBGAME-26AUG271910MILNYM-NYM`. It cleared on
+`?exchange_index=3` (`reduced_by: 1.00`), confirmed by `GET /portfolio/orders` reporting
+`exchange_index: 3` on the order.
+
+**This is the dangerous one.** A bare `404 not_found` is indistinguishable from "already
+gone", which is exactly how the R4 janitor treats it -- so
+`cancel_stale_resting_orders()` would have logged a clean sweep while every MLB order kept
+resting indefinitely, and `doctor.py --verify-eligibility` would have left its probe order
+live on the book. `cancel_order()` now takes `exchange_index`, and both callers forward the
+value the order itself reports. Regression test asserts the janitor forwards the shard,
+since nothing else would catch it.
+
+**Not fixed here:** the sum-vs-shard sizing gap above, and S3's per-product eligibility key,
+which still cannot express "ok for MLS, wrong for MLB". 978 tests pass.
+
+---
+
+## 2026-08-27 -- MLB moved to a new exchange the account is not on
+
+**Every MLB order will fail until this is resolved, and it is not a block.** A 1c probe
+on an open MLB market returned:
+
+```
+POST /portfolio/events/orders -> 404 {"code":"user_not_found","message":"user not found"}
+```
+
+Reads are fine -- balance, positions and resting orders all answer normally with the same
+key and the same signing. A **bogus** ticker returns a generic `not_found`, while a **real
+open MLB** ticker returns `user_not_found`: the market resolves first, then the user lookup
+fails. That is per-exchange membership, not authentication and not jurisdiction.
+
+`exchange_index` is the whole story:
+
+```
+balance breakdown   exch 0 -> $73.366    exch 1 -> $0    exch 2 -> $0    exch 3 -> $0
+KXMLBGAME     78 open markets  -> exchange_index 3      <- all of MLB
+KXNFLSPREAD  200 open markets  -> exchange_index 0
+KXNFLGAME     96 open markets  -> exchange_index 0
+KXMLSTOTAL    90 open markets  -> exchange_index 0
+```
+
+MLB has migrated to **exchange 3**, where the account has no balance and no user record.
+NFL and MLS are still on exchange 0, and a probe there is accepted normally -- which is how
+`kalshi:sports` was re-verified the same day. The 08-26 hand probe succeeded because its
+ticker, `KXMLBGAME-26AUG261915LADATL-LAD`, is an **exchange 0** market; the equivalent
+market today is on 3. The migration therefore happened between 08-26 and 08-27.
+
+**This defeats S3's product keying.** Eligibility is stored per venue + product, and
+`sports` is one product spanning both exchanges -- so `kalshi:sports = ok`, earned honestly
+on an MLS market, is simultaneously **wrong for MLB**. The preflight passes and the order
+404s. Worse, `user_not_found` matches neither `_STRUCTURAL_PATTERNS` nor
+`_TRANSIENT_PATTERNS`, so `_handle_structural` does not abort: a batch of N MLB candidates
+would issue N failing orders, exactly the spray S3 was built to stop, reintroduced through
+a dimension the cache does not model.
+
+**Deliberately not "fixed" by widening the structural list.** Matching `user_not_found`
+there would set `kalshi:sports = blocked`, which never decays and would take MLS and NFL
+offline too -- an exchange-scoped problem escalated into a product-wide outage. The cache
+needs the exchange dimension, or the scanner needs to drop markets whose `exchange_index`
+has no balance, before the classifier is touched. Left open pending the operator's call;
+no live exposure while MLB produces no candidates that clear Gate 3.
+
+---
+
+## 2026-08-27 -- S3a: the test suite was writing the live eligibility cache
+
+**The gate built to stop the Nevada repeat was defeated on its first day, by
+`make test`.** `data/cache/venue_eligibility.json` read:
+
+```json
+{"kalshi:sports": {"status": "ok",
+                   "checked_at": "2026-08-27T01:27:31Z",
+                   "reason": "order accepted (KXNBAGAME-26APR04T3-A)"}}
+```
+
+`KXNBAGAME-26APR04T3-A` is a **pytest fixture** ticker (`test_execute_batch.py`,
+`test_fill_accounting.py`, `test_reconciliation.py`) -- no real order carried it. What it
+overwrote was **genuine**: the 08-26 entry seeded `ok` from hand probe
+`01a0407d-3ea8-7f90-9c7f-9179cebac8cc`, accepted and cancelled on
+`KXMLBGAME-26AUG261915LADATL-LAD` after the geolocation check was re-verified. So the bug
+is not "the gate went green on nothing" -- it is that a test run **clobbered real evidence
+with fabricated evidence under the same key**, which is worse: the verdict stayed `ok`, so
+nothing looked wrong.
+
+The trade log cannot arbitrate this. The 08-26 entry says so in as many words -- the hand
+probe "was placed by a one-off script that never called `log_trade`" -- and this entry's
+first draft nonetheless cited the log's silence as proof eligibility had never been proven.
+It had been.
+
+The path: `_place_order_batch` calls `vel.record_success()` on any `create_order`
+response whose status is not `dry_run_blocked`, and a **mocked** client never returns
+`dry_run_blocked`. `ELIGIBILITY_PATH` is a module-level constant, so the write landed
+on the operator's real cache. Yesterday's 18:27 test run stamped the fail-closed
+preflight green on evidence of a fake fill, and `doctor.py` reported
+`kalshi/sports: eligible (verified 0d ago)` from then on.
+
+**Why it mattered.** S3's whole premise is that only a genuine venue acceptance or the
+explicit `--verify-eligibility` probe may clear a block -- "auto-retry is precisely the
+behaviour that produced six days of rejections". A test run is neither, and it cleared
+one. Blast radius was bounded (the 08-26 batch-abort caps a re-discovery at one
+rejected order), but the gate was reporting proof it did not have.
+
+**Fix: one autouse fixture in `tests/conftest.py`**, beside `_isolate_data_logs`, which
+had already learned this exact lesson for the trade log. `test_venue_eligibility.py`
+patched `ELIGIBILITY_PATH` locally; the three executor tests never thought to. Patching
+in conftest covers every caller, including ones not yet written -- the same reason the
+trade-log isolation lives there rather than in the tests that happen to call
+`log_trade()`.
+
+The poisoned entry was reset to `{}` and **re-earned, not restored**: a fresh probe on
+2026-08-27 was accepted and cancelled on `KXMLSTOTAL-26AUG29SEACHI-1`
+(`01a043a8-4b90-77ef-9c7c-703573829750`), so `kalshi:sports` is `ok` on evidence from
+`verify_eligibility` itself -- note the reason now reads `probe accepted (...)`, the string
+only the probe writes, where the clobbered one read `order accepted (...)`, the executor's.
+**That wording is the tell**, and is worth checking before trusting any future `ok`.
+964 tests pass and the cache stays empty across a full test run.
+
+**Also:** operator deposited **$25**; equity verified at **$103.09** ($73.36 cash +
+$29.73 in 24 NFL positions, incl. $0.82 fees). `CLAUDE.md`'s Risk Limits header still
+quoted the ~$92 it stood at; `SKILL.md` had already been corrected on 08-26.
+
+---
+
 ## 2026-08-26 -- S3: venue eligibility preflight, fail closed
 
 **A correctness bug, not waste.** Between 2026-08-20 and 2026-08-25 Kalshi rejected
@@ -3166,7 +3396,7 @@ Visual companion to the markdown betting analysis. After each Kalshi balance pul
 python scripts/kalshi/risk_check.py --report positions
 
 # Then build the chart (auto-named M-D-YY folder)
-python docs/my-documents/account-graph/Script/build_account_graph.py \
+python docs/my-documents/account-graph/Script/build_account_graph.py $
   --cash 65.88 --portfolio 27.54 --positions 23
 
 # Or via the skill — natural-language triggers route to snapshot mode

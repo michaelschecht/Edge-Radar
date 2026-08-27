@@ -1252,16 +1252,18 @@ class FakeKalshiClient:
         self._cancel_error_on = cancel_error_on or set()
         self._list_raises = list_raises
         self.cancelled_ids: list[str] = []
+        self.cancelled_shards: list[int | None] = []
 
     def get_orders(self, status=None, limit=100, cursor=None, ticker=None):
         if self._list_raises is not None:
             raise self._list_raises
         return {"orders": self._orders}
 
-    def cancel_order(self, order_id: str):
+    def cancel_order(self, order_id: str, exchange_index: int | None = None):
         if order_id in self._cancel_error_on:
             raise KalshiAPIError(500, "cancel failed")
         self.cancelled_ids.append(order_id)
+        self.cancelled_shards.append(exchange_index)
         return {"order_id": order_id, "status": "canceled"}
 
 
@@ -1293,6 +1295,25 @@ class TestRestingOrderJanitor:
         assert len(result) == 2
         assert set(client.cancelled_ids) == {"old-1", "old-2"}
         assert all(r["age_hours"] >= 24 for r in result)
+
+    def test_forwards_the_orders_shard_to_cancel(self):
+        """Post-sharding (2026-08-24), a cancel without `exchange_index`
+        resolves against shard 0 and returns a bare 404 for an MLB/tennis
+        order -- which reads exactly like "already gone", so the janitor would
+        report a clean sweep while the order kept resting. Proven live on
+        2026-08-27: cancelling order 01a043b2 on KXMLBGAME failed until
+        `?exchange_index=3` was added.
+        """
+        now = datetime.now(timezone.utc)
+        mlb = _order("mlb-1", hours_ago=30, ticker="KXMLBGAME-TEST", now=now)
+        mlb["exchange_index"] = 3
+        client = FakeKalshiClient([mlb, _order("nfl-1", hours_ago=30, now=now)])
+
+        cancel_stale_resting_orders(client, max_hours=24, now=now)
+
+        assert client.cancelled_ids == ["mlb-1", "nfl-1"]
+        # shard 3 forwarded; the shardless order passes None and defaults to 0
+        assert client.cancelled_shards == [3, None]
 
     def test_skips_young_orders(self):
         now = datetime.now(timezone.utc)

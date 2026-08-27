@@ -321,6 +321,23 @@ When placing N bets simultaneously, each bet's Kelly fraction is divided by N. T
 
 The result is capped by (in order): max bet size ($100), bet ratio cap, and available bankroll. `KELLY_FRACTION` is configurable in `.env` (default: 0.25).
 
+#### Exchange shards (X1, 2026-08-27)
+
+Kalshi **sharded the exchange on 2026-08-24**: Crypto moved to shard 2, Tennis & Baseball to
+shard 3, everything else stayed on shard 0. `bankroll` above is
+`get_balance()["balance"]` — the **sum across every shard** — but **cash does not follow the
+markets**, so an order can be correctly sized against the full balance and still be
+unspendable where it lands. The venue's error for that case is `404 user_not_found`: the
+market resolves, then the per-shard user lookup does not.
+
+`shard_funding.ensure_shard_funded()` runs immediately before each order and moves **exactly
+the shortfall** from `SHARD_FUNDING_SOURCE` (never a round-up — cash parked on the sports
+shard cannot back an NFL order), refusing above `MAX_AUTO_SHARD_TRANSFER`. The transfer is
+explicitly non-atomic, so the destination balance is re-read afterwards and the order skipped
+if it is still short. With `AUTO_SHARD_TRANSFER=false` an underfunded order is **skipped and
+logged `shard_underfunded`** rather than placed to fail. `doctor.py` prints the per-shard
+split under the balance — the sum alone is what hid this.
+
 ### Budget Cap (Batch-Level)
 
 An optional `--budget` flag caps the **total cost of all bets in a batch**. When the sum exceeds the budget, bets are scaled down while preserving Kelly's edge-weighting — higher-edge bets retain proportionally more capital. Each bet keeps at least 1 contract.
@@ -399,7 +416,8 @@ Edge-Radar/
 │   ├── backtest/                      # Equity curve, calibration, strategy simulation
 │   ├── kalshi/                        # Scan → Size → Execute → Settle pipeline
 │   ├── prediction/                    # Crypto, weather, S&P 500 scanners
-│   ├── shared/                        # Team stats, weather, tickers, logging, odds API
+│   ├── shared/                        # Team stats, weather, tickers, logging, odds API,
+│   │                                  #   venue_eligibility (S3), shard_funding (X1)
 │   ├── scan.py                        # Unified entry point (routes to each scanner)
 │   ├── doctor.py                      # Environment & credentials validator
 │   └── bootstrap.py                   # Import-path setup for the venv .pth file

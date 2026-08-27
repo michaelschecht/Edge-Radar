@@ -37,6 +37,7 @@ log = logging.getLogger("kalshi_client")
 
 # Kalshi v2 single-book order endpoint (replaces deprecated v1 /portfolio/orders).
 V2_ORDERS_PATH = "/portfolio/events/orders"
+V2_XFER_PATH = "/portfolio/intra_exchange_instance_transfer"
 
 
 class KalshiClient:
@@ -398,7 +399,79 @@ class KalshiClient:
             body["expiration_time"] = expiration_ts
         return body
 
-    def cancel_order(self, order_id: str) -> dict:
+    def intra_exchange_transfer(
+        self,
+        amount_dollars: float,
+        source_shard: int,
+        destination_shard: int,
+        source: str = "event_contract",
+        destination: str = "event_contract",
+    ) -> dict:
+        """Move cash between Kalshi exchange shards.
+
+        Kalshi sharded the exchange on 2026-08-24: Crypto, Tennis and Baseball
+        each moved to a dedicated shard, and **cash does not follow**. An order
+        against a market on a shard where the account holds no funds fails
+        ``404 user_not_found`` -- the market resolves, then the per-shard user
+        lookup does not. Current mapping (``GET /exchange/status``):
+        0 Default, 1 Combos, 2 Crypto, 3 Tennis & Baseball.
+
+        Two independent axes, easy to conflate:
+
+        * ``source``/``destination`` name the **exchange instance**, and accept
+          only ``"event_contract"`` or ``"margined"``. Both default to
+          ``event_contract``; this account has no margined instance.
+        * ``source_shard``/``destination_shard`` are the numeric shard, and are
+          what ``exchange_index`` in ``/exchange/status`` and on every market
+          refers to. Omitting them defaults to shard 0 at BOTH ends, i.e. a
+          no-op transfer.
+
+        ``amount`` goes on the wire in **centicents** (1/100 of a cent, so
+        10000 = $1.00) as an int64. It is the one v2 money field that is neither
+        a fixed-point string nor plain cents.
+
+        **Not atomic.** Kalshi: "Cross-exchange-index subaccount transfers run in
+        up to three non-atomic steps. If a later step fails, completed steps are
+        not undone, so funds may remain in the primary account on the source or
+        destination exchange index." Always re-read
+        ``get_balance()["balance_breakdown"]`` afterwards rather than assuming
+        the requested amount arrived, and check
+        ``get_intra_exchange_transfers()`` -- it is the only record of a
+        half-completed move.
+
+        Honours ``DRY_RUN`` like ``create_order`` -- this moves real money.
+        """
+        valid = {"event_contract", "margined"}
+        for label, val in (("source", source), ("destination", destination)):
+            if val not in valid:
+                raise ValueError(f"{label} must be one of {sorted(valid)}, got {val!r}")
+        if (source, source_shard) == (destination, destination_shard):
+            raise ValueError("source and destination are the same instance and shard")
+        if amount_dollars <= 0:
+            raise ValueError(f"amount must be positive, got {amount_dollars}")
+
+        if self.dry_run and not self.is_demo:
+            log.warning("[DRY RUN] Transfer blocked — DRY_RUN=true on non-demo env")
+            return {"status": "dry_run_blocked", "amount_dollars": amount_dollars,
+                    "source_exchange_shard": source_shard,
+                    "destination_exchange_shard": destination_shard}
+
+        body = {
+            "source": source,
+            "destination": destination,
+            "amount": round(amount_dollars * 10_000),   # dollars -> centicents
+            "source_exchange_shard": source_shard,
+            "destination_exchange_shard": destination_shard,
+        }
+        log.info("Intra-exchange transfer: $%.4f  %s/shard %s -> %s/shard %s",
+                 amount_dollars, source, source_shard, destination, destination_shard)
+        return self._post(V2_XFER_PATH, body=body)
+
+    def get_intra_exchange_transfers(self) -> dict:
+        """Transfer history — the only record that a transfer half-completed."""
+        return self._get(f"{V2_XFER_PATH}s")
+
+    def cancel_order(self, order_id: str, exchange_index: int | None = None) -> dict:
         """Cancel a resting order.
 
         Uses the v2 endpoint (``DELETE /portfolio/events/orders/{order_id}``) —
@@ -406,8 +479,16 @@ class KalshiClient:
         ``deprecated_v1_order_endpoint``. The v2 response is a slim
         ``{order_id, client_order_id, reduced_by, ts_ms}`` object rather than
         the v1 full order object. The v1 GET order endpoints remain current.
+
+        **Off-shard orders need ``exchange_index``.** Since the 2026-08-24
+        sharding, cancel resolves against shard 0 unless told otherwise, so
+        cancelling a live MLB/tennis order without it returns a bare
+        ``404 not_found`` — indistinguishable from "already gone", which is
+        exactly how the R4 janitor would swallow it. Pass the ``exchange_index``
+        that ``GET /portfolio/orders`` reports on the order.
         """
-        return self._delete(f"{V2_ORDERS_PATH}/{order_id}")
+        params = {"exchange_index": exchange_index} if exchange_index is not None else None
+        return self._request("DELETE", f"{V2_ORDERS_PATH}/{order_id}", params=params)
 
     def get_order(self, order_id: str) -> dict:
         """Get details of a specific order."""

@@ -388,6 +388,21 @@ class System:
     log_level: str = "INFO"
     project_root: str = ""  # PROJECT_ROOT override; "" → caller falls back to paths.PROJECT_ROOT
     test_calibration_stdevs: bool = False
+    # Kalshi sharded the exchange on 2026-08-24 (Crypto -> 2, Tennis & Baseball
+    # -> 3) and cash does NOT follow the markets: an order on a shard holding no
+    # funds fails `404 user_not_found`. Sizing is deliberately whole-account
+    # (operator's call 2026-08-27), so an order can be correctly sized and still
+    # unspendable where it lands. When true, the executor moves exactly the
+    # shortfall from the funding shard just before placing.
+    # Ships FALSE: a fresh clone must never move money unattended.
+    auto_shard_transfer: bool = False
+    # Where the cash lives. 0 = "Default"; everything except crypto/tennis/
+    # baseball trades here, so it is the natural reservoir.
+    shard_funding_source: int = 0
+    # Ceiling on a single automatic move, in dollars. A bug that miscomputes a
+    # shortfall should bounce off this rather than drain the account -- the
+    # cap is what makes unattended transfers safe to leave on.
+    max_auto_shard_transfer: float = 25.0
 
     @classmethod
     def from_env(cls) -> "System":
@@ -396,6 +411,9 @@ class System:
             log_level=_str("LOG_LEVEL", "INFO").strip().upper(),
             project_root=_str("PROJECT_ROOT", ""),
             test_calibration_stdevs=_bool("TEST_CALIBRATION_STDEVS", False),
+            auto_shard_transfer=_bool("AUTO_SHARD_TRANSFER", False),
+            shard_funding_source=_int("SHARD_FUNDING_SOURCE", 0),
+            max_auto_shard_transfer=_float("MAX_AUTO_SHARD_TRANSFER", 25.0),
         )
 
 
@@ -576,6 +594,21 @@ class Config:
             raise ValueError(
                 "MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS must be >= 0, got "
                 f"{self.gates.max_days_to_event_for_game_markets}"
+            )
+        if not 0 <= self.system.shard_funding_source <= 100:
+            raise ValueError(
+                "SHARD_FUNDING_SOURCE must be a shard index in [0, 100], got "
+                f"{self.system.shard_funding_source}"
+            )
+        if self.system.max_auto_shard_transfer < 0:
+            raise ValueError(
+                "MAX_AUTO_SHARD_TRANSFER must be >= 0, got "
+                f"{self.system.max_auto_shard_transfer}"
+            )
+        if self.system.auto_shard_transfer and self.system.max_auto_shard_transfer == 0:
+            raise ValueError(
+                "AUTO_SHARD_TRANSFER=true with MAX_AUTO_SHARD_TRANSFER=0 can never "
+                "move anything — set a cap or turn the feature off."
             )
         if self.system.log_level not in _LOG_LEVELS:
             raise ValueError(
