@@ -209,6 +209,36 @@ Standing rules — do not reverse them without new settled evidence.
 - **Confidence bumps are one-way — down only.** `supports` is a no-op; only `contradicts` drops a tier. See `_adjust_confidence_with_stats()` in `scripts/kalshi/edge_detector.py`. *CHANGELOG 2026-04-24 (R13).*
 - **The sports composite caps `high` to the `medium` weight** (`{low:3, medium:6, high:6}`) — at equal claimed edge, High underperformed Medium. The `high` *label* is retained because Gate 4.6 still uses it. **Futures and Polymarket keep `high: 9`** — that evidence is Kalshi sports only, and there is no settled futures or Polymarket data yet. Revisit when PM3 settlement lands. *CHANGELOG 2026-06-24 (C4).*
 
+### Venue eligibility (S3) — fails CLOSED
+
+- **Before any live order, `execute_pipeline` checks `data/cache/venue_eligibility.json`
+  per venue **and product**, and `unknown` blocks exactly like `blocked` does.** This is
+  deliberately the opposite of the risk gates (3.6, 3.7, 2b), which fail *open* on missing
+  data: an unmeasurable spread is a sizing question whose worst case is a bad bet, while an
+  unverified jurisdiction is a legality question whose worst case is an order the venue is
+  barred from filling. Dry runs skip the check entirely — they never reach the venue.
+- **A structural rejection aborts the batch immediately and records the block.** Jurisdiction,
+  permission and KYC errors are *deterministic*: the next order fails identically. Between
+  2026-08-20 and 08-25 Kalshi rejected **16 orders across 6 runs** (3 within one second on
+  08-20, 4 on 08-23) because `KalshiAPIError` was recorded and the loop continued — correct
+  for a 429 or a stale price, wrong for a block. Transient patterns
+  (`insufficient_balance`, rate limits, `deprecated_v1_order_endpoint`, closed market) are
+  checked **first** and never disable a venue.
+- **Nothing clears a block automatically.** Only a real venue acceptance (`record_success`,
+  which a `dry_run_blocked` response never triggers) or the explicit probe
+  `python scripts/doctor.py --verify-eligibility --ticker <open sports ticker>`, which
+  places a **real** 1¢ unfillable order and cancels it. Auto-retry is precisely the behaviour
+  that produced six days of rejections. An `ok` verdict decays to `unknown` after
+  `ELIGIBILITY_TTL_DAYS` (30) — Kalshi says it will send further instructions "as necessary
+  to maintain access", so eligibility is a lease, not a fact. A `blocked` never decays:
+  time passing is not evidence a restriction was lifted.
+- **Never truncate the tail of a venue error.** These messages put the instruction last, and
+  all three surfaces cut it off — the console at 80 chars, the trade log at 200, the daily
+  digest at 110, which landed on *"Check you…"*, 25 characters short of "Check your email for
+  more details". All three now route through `venue_eligibility.actionable_reason()`, which
+  elides the **middle** and keeps both ends; the trade log stores the full body.
+  *CHANGELOG 2026-08-26 (S3).*
+
 ### Dry run
 
 - Default `DRY_RUN=true`; set `false` only for live execution. Polymarket additionally requires `POLYMARKET_DRY_RUN=false`.

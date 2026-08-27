@@ -2,6 +2,142 @@
 
 ---
 
+## 2026-08-26 -- S3: venue eligibility preflight, fail closed
+
+**A correctness bug, not waste.** Between 2026-08-20 and 2026-08-25 Kalshi rejected
+**16 orders across 6 scheduled runs**:
+
+```
+Nevada_residents_are_not_currently_allowed_to_open_positions_in_Sports,
+_Elections_and_Entertainment._Check_your_email_for_more_details.
+```
+
+The account is in California (Rancho Cordova KYC address, Fresno-County Comcast IP).
+That text is what *any* API key receives when it has not completed Kalshi's periodic
+**geolocation check** — the fix was a two-minute click-through at
+`kalshi.com/account/profile`, and it took six days to find. Three independent failures
+had to line up, and this entry fixes all three.
+
+### 1. The batch never stopped
+
+`_place_order_batch` caught `KalshiAPIError`, recorded it, and **kept placing**. Correct
+for a 429 or a stale price; wrong for a jurisdiction block, which is deterministic — the
+next order fails identically. The rejection log shows the batches, not six discoveries:
+
+```
+08-20  n=3   18:01:31, 18:01:31, 18:01:32     <- three inside one second
+08-21  n=3   03:30:49, 18:01:16, 21:01:06
+08-22  n=1   12:05:46
+08-23  n=4   18:01:06, 18:01:07 x3            <- four inside one second
+08-24  n=2   12:05:41, 18:01:10
+08-25  n=3   18:01:15, 18:01:16, 18:01:16
+```
+
+There was already a short-circuit for *transport* failures
+(`MAX_CONSECUTIVE_CONN_ERRORS = 3`) and none for API errors. New `_handle_structural()`
+aborts on the **first** structural rejection — threshold 1, not 3, because this class is
+deterministic rather than noisy. Replaying the real 08-20 batch: **1 order attempted
+instead of 4.**
+
+### 2. Nothing remembered
+
+Every run started clean and rediscovered the block. New
+`scripts/shared/venue_eligibility.py` persists a verdict to
+`data/cache/venue_eligibility.json`, and `execute_pipeline` reads it before any live
+order.
+
+**Keyed on venue + PRODUCT, not venue.** The observed block names Sports, Elections and
+Entertainment specifically — an account barred from sports may still trade weather or
+crypto, so disabling all of Kalshi would be over-broad even though sports is currently
+the entire book.
+
+**Fails closed: `unknown` blocks exactly like `blocked`.** This is deliberately the
+opposite of the risk gates (3.6, 3.7 and the day's own 2b) which fail *open* on missing
+data, and the asymmetry is the point — an unmeasurable spread is a sizing question whose
+worst case is a bad bet, while an unverified jurisdiction is a legality question whose
+worst case is an order the venue is barred from filling. **Dry runs skip the check
+entirely**: they never reach the venue, and blocking them would silence the Polymarket
+dry-run evidence log its phase gate depends on.
+
+**Nothing clears a block automatically** — auto-retry is precisely what produced six
+days of this. Only two paths promote to `ok`: a real venue acceptance (a
+`dry_run_blocked` response deliberately does not count — it proves nothing), or the
+explicit `python scripts/doctor.py --verify-eligibility --ticker <open sports ticker>`,
+which places a **real** 1c unfillable order and cancels it, exactly as was done by hand
+on 08-26. An `ok` decays to `unknown` after `ELIGIBILITY_TTL_DAYS` (30) — Kalshi says it
+"will send further instructions as necessary to maintain access", so eligibility is a
+lease, not a fact, and a verdict that never expired is how this went unnoticed. A
+`blocked` never decays: time passing is not evidence a restriction was lifted.
+
+Classification is narrow, and **transient patterns are checked first and win ties** — a
+false positive takes the account offline, so `insufficient_balance`, rate limits,
+`market_closed`, `invalid_price` and `deprecated_v1_order_endpoint` can never disable a
+venue. That last one matters: the other 6 of the log's 22 error rows are the 2026-06-20
+v1->v2 endpoint change, four of which were successfully re-placed two days later.
+
+### 3. All three surfaces truncated the only actionable words
+
+The message puts the instruction **last**, and every surface cut the end:
+
+| Surface | Cap | What it showed |
+|:--------|:----|:---------------|
+| console `FAIL` line | 80 | `...open positions in Sport` |
+| trade log `_record_failure` | 200 | cut the `message` field mid-sentence |
+| daily digest `_error_reason` | 110 | **`...Check you...`** |
+
+The full text is 135 characters. The digest's cap landed **25 characters short** of
+"Check your email for more details" — the entire fix. All three now route through
+`actionable_reason()`, which elides the **middle** and keeps both ends (the head is
+boilerplate, the tail is the instruction), and the trade log stores the full body. The
+`code` field had in fact survived intact on disk the whole time; only the reporting ate
+it.
+
+### Verification
+
+Simulated against the real 08-20 batch and error body:
+
+```
+STRUCTURAL REJECTION -- kalshi/sports disabled.
+Nevada residents are not currently allowed to open positions in Sports,
+Elections and Entertainment. Check your email for more details.
+Stopping batch: 3 order(s) not attempted -- this error is deterministic, so
+retrying only places identical failures.
+  -> batch ABORTED after order 1 of 4
+
+cache: kalshi/sports = blocked      kalshi/prediction = unknown (untouched)
+next run's preflight: BLOCKED (no live orders)
+```
+
+`doctor.py` gained a **Venue Eligibility** section that reports `unknown` as a FAIL, not
+a warning — an empty cache means live orders are blocked, and that must be loud.
+
+**Seeded from real evidence, not assumed.** The cache was initialised to
+`kalshi/sports = ok` citing probe order `01a0407d-3ea8-7f90-9c7f-9179cebac8cc`, accepted
+and cancelled on `KXMLBGAME-26AUG261915LADATL-LAD` on 2026-08-26 after the geolocation
+check was re-verified. Without that seed the fail-closed rule would have stopped the
+20:30 scheduled run — correct behaviour, but the evidence exists, so recording it is
+honest rather than convenient. The trade log could not supply it: the last accepted
+order there is 2026-08-19, before the block, and the hand probe was placed by a one-off
+script that never called `log_trade`.
+
+Touches: `scripts/shared/venue_eligibility.py` (new, with `_demo()` self-check),
+`scripts/shared/paths.py`, `scripts/kalshi/kalshi_executor.py` (`_handle_structural`,
+preflight, success recording, full-body logging, tail-preserving console line),
+`scripts/kalshi/daily_summary.py`, `scripts/doctor.py` (section +
+`--verify-eligibility`), `tests/test_venue_eligibility.py` (+48). **964 tests pass.**
+
+**Wires straight into S16.** That kill switch specifies the same trigger — "any repeated
+structural rejection -> immediate disable of that venue/product until `doctor.py` reports
+it eligible; no sample threshold, this is deterministic not noisy". S16 now hooks this
+rather than reimplementing it.
+
+**Known limit:** classification is pattern-based, so a venue that invents new wording for
+a restriction falls through to the transient path and keeps placing. That direction is
+the deliberate one — a false positive disables live trading — but it means the pattern
+list needs a look whenever a new structural rejection appears in the log.
+
+---
+
 ## 2026-08-26 -- S4: Gate 2b, cumulative open-exposure ceilings
 
 **The first gate in the chain that measures a standing total.** Every gate before it
