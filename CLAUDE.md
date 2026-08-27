@@ -115,6 +115,7 @@ Every gate runs before any trade executes:
 |:-:|:-----|:-----|
 | 1 | Daily loss limit not breached | Reject |
 | 2 | Open position count under max | Reject |
+| 2b | Total open exposure < `MAX_OPEN_EXPOSURE_PCT` and per-sport < `MAX_SEGMENT_EXPOSURE_PCT`, both as fractions of equity (S4) | Reject **+ Cap** |
 | 3 | Edge >= minimum threshold (per-sport or global) **+ exchange fee** (F1) | Reject |
 | 3.5 | Market price >= `MIN_MARKET_PRICE` (lottery-ticket floor, R7) | Reject |
 | 3.6 | Bid/ask spread <= `MAX_BID_ASK_SPREAD` and 24h volume >= `MIN_MARKET_VOLUME_24H` (L2) | Reject |
@@ -167,6 +168,21 @@ Standing rules — do not reverse them without new settled evidence.
   5-20c-wide book pays exactly the illiquidity penalty Gate 3.6 exists to avoid. Exit a ticker
   only if its spread is <= 5c *and* the exit price beats hold-to-settlement EV.
   *CHANGELOG 2026-08-26 (S1).*
+- **Cumulative exposure is measured in dollars, against equity, at two scopes.** Gate 2b is the
+  first gate in the chain that measures a **standing total** rather than one order, one event, or
+  one batch: `MAX_OPEN_POSITIONS` counts rows, `MAX_PER_EVENT` binds one game, and `MAX_BET_RATIO`
+  / `--budget` each bind a single batch — all of them passed the whole way while 26 NFL positions
+  accumulated to 31% of bankroll. **Both caps are fractions of equity (cash + position value), not
+  of cash**: every dollar bought subtracts from cash *and* adds to exposure, so a cash denominator
+  climbs at twice the rate of the actual risk. It **rejects** when a ceiling is already breached
+  and **trims** an order to the remaining headroom otherwise — reject-only would let a book at
+  49.9% add a full `MAX_BET_SIZE`. Trims use `max(1, …)` like the `MAX_BET_SIZE` cap, so a bounded
+  cent-scale overshoot is possible by design; an unfillable 0-contract order is the worse failure.
+  The batch loop accumulates approved cost into both counters, or N orders each individually under
+  the ceiling walk through it together. **Live values are 0.50 / 0.33** (operator's call
+  2026-08-26; the review proposed 0.20 / 0.10) — at those levels the book that prompted the gate
+  passes, so it binds on the next pileup and does not jam other sports behind the frozen NFL book.
+  *CHANGELOG 2026-08-26 (S4).*
 - **Lead time is the exposure risk, not the sport.** Gate 3.7 caps how far before an event a
   *game* market may be bought (`MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS`, live 14). The NFL book that
   reached 31% of bankroll was 26 positions bought **25-112 days out** (median 35), 20 of them by
@@ -212,6 +228,14 @@ MAX_DAILY_LOSS=250              # Daily hard stop (USD)
 MAX_OPEN_POSITIONS=50           # Concurrent open positions
 MAX_PER_EVENT=2                 # Max positions per game/event
 MAX_BET_RATIO=3.0               # Max bet as a multiple of the batch median
+MAX_OPEN_EXPOSURE_PCT=0         # S4: Gate 2b, total open at-risk / EQUITY (cash + positions).
+                                #   Ships 0 (off); live `.env` sets 0.50. The only gate that
+                                #   measures a STANDING TOTAL. Rejects when already at/over the
+                                #   ceiling, and trims an order to the remaining headroom.
+MAX_SEGMENT_EXPOSURE_PCT=0      # S4: companion per-sport cap (`_detect_sport`, falling back to
+                                #   category). Ships 0 (off); live `.env` sets 0.33. The pair is
+                                #   the point — a portfolio cap alone lets one sport hold all of
+                                #   it; a segment cap alone lets N sports each hold their share.
 MIN_EDGE_THRESHOLD=0.03         # Global minimum edge (the fee is ADDED to this at gate time)
 KALSHI_FEE_RATE=0.07            # F1: exchange taker fee, folded into the Gate 3 floor and Kelly
                                 #   sizing. ceil(rate*C*P*(1-P)) per order. 0 disables fee awareness.

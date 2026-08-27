@@ -117,6 +117,23 @@ def main():
 
     gates, kelly = cfg.gates, cfg.kelly
 
+    # Gate 2b (S4): the only gates that measure a standing total. Printed first
+    # because they are the ones with no per-order equivalent to fall back on --
+    # with both at 0, nothing anywhere caps total capital deployed.
+    if cfg.risk.max_open_exposure_pct > 0:
+        check("Gate 2b  MAX_OPEN_EXPOSURE_PCT = "
+              f"{cfg.risk.max_open_exposure_pct:.0%} of equity", True)
+    else:
+        check("Gate 2b  MAX_OPEN_EXPOSURE_PCT = 0", False,
+              "DISABLED — nothing caps TOTAL capital deployed (S4)", warn_only=True)
+
+    if cfg.risk.max_segment_exposure_pct > 0:
+        check("Gate 2b  MAX_SEGMENT_EXPOSURE_PCT = "
+              f"{cfg.risk.max_segment_exposure_pct:.0%} of equity per sport", True)
+    else:
+        check("Gate 2b  MAX_SEGMENT_EXPOSURE_PCT = 0", False,
+              "DISABLED — one sport may hold the whole book (S4)", warn_only=True)
+
     check(f"Gate 3   MIN_EDGE_THRESHOLD = {gates.min_edge_threshold:.1%}", True)
     per_sport_edge = dict(cfg.per_sport.min_edge)
     # A floor >= 1.0 means the sport is switched OFF (the F3 idiom). Print those

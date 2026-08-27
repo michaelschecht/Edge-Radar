@@ -209,6 +209,8 @@ KELLY_FRACTION=0.25
 MAX_DAILY_LOSS=250
 MAX_OPEN_POSITIONS=10
 MAX_PER_EVENT=2
+MAX_OPEN_EXPOSURE_PCT=0.20      # cap on TOTAL money deployed (gate 2b)
+MAX_SEGMENT_EXPOSURE_PCT=0.10   # ...and on any one sport
 ```
 
 ### Recommended live configuration (after validation)
@@ -245,9 +247,17 @@ UNIT_SIZE=1.00                  # Minimum bet size ($1)
 KELLY_FRACTION=0.25             # Quarter-Kelly (conservative)
 MAX_BET_SIZE=100                # Hard cap per single bet
 MAX_DAILY_LOSS=250              # Stop all betting at -$250/day
-MAX_OPEN_POSITIONS=10           # Max 10 concurrent positions
+MAX_OPEN_POSITIONS=10           # Max 10 concurrent positions -- counts ROWS, not dollars
 MAX_PER_EVENT=2                 # Max 2 positions per game
 MAX_BET_RATIO=3.0               # Max single bet as multiple of batch median
+MAX_OPEN_EXPOSURE_PCT=0.20      # Gate 2b (S4): total open at-risk / EQUITY (cash + positions).
+                                #   The ONLY limit on total money deployed -- everything above
+                                #   bounds one order, one event, or one batch. Set this.
+MAX_SEGMENT_EXPOSURE_PCT=0.10   # Gate 2b: same cap per sport. Without it one sport can hold
+                                #   the entire portfolio allowance, which is exactly what
+                                #   happened (26 NFL positions = 31% of bankroll).
+MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS=14  # Gate 3.7 (S5): don't buy a GAME more than 14 days out.
+                                #   Futures exempt -- their event is a whole season.
 MIN_EDGE_THRESHOLD=0.03         # Global minimum edge (fallback)
 MIN_EDGE_THRESHOLD_MLB=0.04     # Per-sport override (2026-06-14, lowered from 0.06)
 MIN_EDGE_THRESHOLD_NBA=0.04     # Per-sport override (2026-06-14, lowered from 0.06)
@@ -360,6 +370,7 @@ python scripts/scan.py sports --filter mlb --date today --unit-size 0.50 --max-b
 
 - Increase sizing only after stable behavior across a full week
 - Keep `MAX_DAILY_LOSS` and `MAX_OPEN_POSITIONS` conservative relative to bankroll
+- **Set `MAX_OPEN_EXPOSURE_PCT` and `MAX_SEGMENT_EXPOSURE_PCT`.** They ship at 0 (off), and with both off *nothing anywhere* caps total capital deployed — position count is not exposure, and a per-batch budget resets every run
 - Continue daily monitoring (see [Section 11](#11-monitoring--operational-checks))
 
 > **Tip:** Even with `--execute`, the system shows a preview table first and logs every decision to `data/history/`. Check status any time with `python scripts/kalshi/kalshi_executor.py status`.

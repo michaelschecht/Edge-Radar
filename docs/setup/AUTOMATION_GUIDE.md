@@ -177,6 +177,9 @@ Edit `same_day_execute.bat` and change the scan line:
 | `MAX_OPEN_POSITIONS` | `10` - `50` | Maximum concurrent positions |
 | `MAX_PER_EVENT` | `2` | Max positions on the same game |
 | `MAX_BET_RATIO` | `3.0` | Max single bet as multiple of batch median cost |
+| `MAX_OPEN_EXPOSURE_PCT` | `0.20` - `0.50` | **Gate 2b (S4)** — total open at-risk / equity. Ships at 0 (off). Matters most under automation: scheduled runs accumulate positions across days with no human watching a total, which is how 26 NFL bets reached 31% of bankroll. |
+| `MAX_SEGMENT_EXPOSURE_PCT` | `0.10` - `0.33` | **Gate 2b (S4)** — same, per sport. |
+| `MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS` | `14` | **Gate 3.7 (S5)** — max days from now to a *game's* date; futures exempt. A scheduled task with no `--date` filter will otherwise buy games months out, and nothing settles for months, so no feedback arrives while exposure stacks. |
 
 ---
 
