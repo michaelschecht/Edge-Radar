@@ -44,6 +44,7 @@ from kalshi_client import KalshiClient, KalshiAPIError, KalshiConnectionError, m
 from market_client import get_market_client, VENUES
 from edge_detector import scan_all_markets
 from ticker_display import _detect_sport, days_to_event, is_game_started
+import venue_eligibility as vel
 from fees import fee_per_contract
 from app.config import get_config, reset_config
 
@@ -1333,6 +1334,38 @@ def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
 MAX_CONSECUTIVE_CONN_ERRORS = 3
 
 
+def _handle_structural(opp, raw_error: str, venue: str, remaining: int) -> bool:
+    """S3: if this rejection is structural, disable the venue+product and stop.
+
+    Returns True when the batch should abort. A jurisdiction or permission block
+    is **deterministic** -- the next order fails identically -- so unlike a 429
+    or a stale price there is nothing to gain by continuing. On 2026-08-20 the
+    batch fired three orders inside one second after the first such rejection,
+    and 08-23 fired four; across six days that was 16 orders, every one of them
+    knowably doomed after the first.
+
+    Also *records* the block, so the next scheduled run refuses to go live at
+    all rather than rediscovering it. Note the venue is disabled per PRODUCT:
+    an account barred from Sports may still be eligible for weather markets.
+    """
+    product = vel.product_for(opp.category)
+    if not vel.record_rejection(venue, product, raw_error):
+        return False
+
+    reason = vel.actionable_reason(raw_error)
+    rprint("")
+    rprint(f"[red bold]STRUCTURAL REJECTION -- {venue}/{product} disabled.[/red bold]")
+    rprint(f"[red]{reason}[/red]")
+    rprint(f"[yellow]Stopping batch: {max(remaining - 1, 0)} order(s) not "
+           f"attempted -- this error is deterministic, so retrying only "
+           f"places identical failures.[/yellow]")
+    rprint(f"[dim]Future runs stay in dry-run for {venue}/{product} until "
+           f"eligibility is re-verified: "
+           f"python scripts/doctor.py --verify-eligibility[/dim]")
+    log.error("Structural venue rejection (%s/%s): %s", venue, product, raw_error)
+    return True
+
+
 def _place_order_batch(client: KalshiClient, to_execute: list, trade_log: list) -> list:
     """Place each sized order, recording a trade or a failure record per order.
 
@@ -1356,7 +1389,11 @@ def _place_order_batch(client: KalshiClient, to_execute: list, trade_log: list) 
             "ticker": ticker,
             "side": side,
             "status": "error",
-            "error": str(message)[:200],
+            # S3: store the WHOLE body. The old [:200] cut the `message`
+            # field mid-sentence and, with it, the only instruction the
+            # venue gave ("Check your email for more details"). These
+            # bodies are a few hundred bytes; the cap bought nothing.
+            "error": str(message),
             "net_pnl": 0,
             "closed_at": None,
         }
@@ -1385,6 +1422,14 @@ def _place_order_batch(client: KalshiClient, to_execute: list, trade_log: list) 
             order_resp = client.create_order(**kwargs)
             order = order_resp.get("order", order_resp)
             status = order.get("status", "unknown")
+
+            # S3: the venue accepted an order for this product, which is the
+            # only self-clearing proof of eligibility -- it just did the thing
+            # it was refusing to do. A dry run returns `dry_run_blocked` and
+            # deliberately does NOT count: it never reached the venue.
+            if status != "dry_run_blocked":
+                vel.record_success(opp_venue, vel.product_for(opp.category),
+                                   evidence=f"order accepted ({opp.ticker})")
 
             record = log_trade(order_resp, s, trade_log)
             results.append(record)
@@ -1431,8 +1476,12 @@ def _place_order_batch(client: KalshiClient, to_execute: list, trade_log: list) 
             # A real HTTP status (4xx/5xx/429) — transport is fine, so reset the
             # network-failure counter and keep placing the rest of the batch.
             consecutive_conn_errors = 0
-            rprint(f"  [red]FAIL[/red] {opp.ticker}: {e.message[:80]}")
+            rprint(f"  [red]FAIL[/red] {opp.ticker}: "
+                   f"{vel.actionable_reason(e.message, limit=100)}")
             _record_failure(opp.ticker, opp.side, e.message, venue=opp_venue)
+            if _handle_structural(opp, e.message, opp_venue,
+                                  len(to_execute) - len(results)):
+                break
 
         except Exception as e:
             # Non-Kalshi venue errors (e.g. PolymarketAPIError, which wraps
@@ -1441,8 +1490,12 @@ def _place_order_batch(client: KalshiClient, to_execute: list, trade_log: list) 
             # here to keep the executor free of per-venue dependencies. The
             # conn-error counter is left untouched: we can't tell transport
             # from API, so neither reset nor short-circuit on it.
-            rprint(f"  [red]FAIL[/red] {opp.ticker}: {str(e)[:80]}")
+            rprint(f"  [red]FAIL[/red] {opp.ticker}: "
+                   f"{vel.actionable_reason(str(e), limit=100)}")
             _record_failure(opp.ticker, opp.side, str(e), venue=opp_venue)
+            if _handle_structural(opp, str(e), opp_venue,
+                                  len(to_execute) - len(results)):
+                break
 
     return results
 
@@ -2056,6 +2109,41 @@ def execute_pipeline(
     if not to_execute:
         rprint("[yellow]No orders matched your --pick or --ticker selection.[/yellow]")
         return []
+
+    # ── S3: eligibility preflight -- FAIL CLOSED.
+    #   Deliberately the opposite of the risk gates (3.6, 3.7, 2b), which fail
+    #   *open* on missing data: an unmeasurable spread is a sizing question
+    #   whose worst case is a bad bet, whereas an unverified jurisdiction is a
+    #   legality question whose worst case is an order the venue is barred from
+    #   filling. So `unknown` blocks, exactly like `blocked` does.
+    #
+    #   Runs after --pick/--ticker so the message names the orders actually
+    #   about to be placed, and before any of them reaches the venue.
+    #   Skipped entirely under DRY_RUN: a dry run never reaches the venue, so
+    #   eligibility is irrelevant to it, and blocking it would stop the
+    #   dry-run evidence log that Polymarket's phase gate depends on.
+    blocked_products: dict[tuple[str, str], tuple[str, str]] = {}
+    for s in ([] if dry_run else to_execute):
+        v = (s.opportunity.details or {}).get("venue", "kalshi")
+        prod = vel.product_for(s.opportunity.category)
+        if (v, prod) in blocked_products:
+            continue
+        st, why = vel.status(v, prod)
+        if st != "ok":
+            blocked_products[(v, prod)] = (st, why)
+
+    if blocked_products:
+        rprint("")
+        rprint("[red bold]ELIGIBILITY PREFLIGHT FAILED -- no live orders "
+               "will be placed.[/red bold]")
+        for (v, prod), (st, why) in sorted(blocked_products.items()):
+            colour = "red" if st == "blocked" else "yellow"
+            rprint(f"  [{colour}]{v}/{prod}: {st}[/{colour}] -- {why}")
+        rprint("[dim]`unknown` fails closed on purpose: a transient API or "
+               "config failure must never fall back to attempting real "
+               "orders in a barred product.[/dim]")
+        rprint("[dim]Verify with: python scripts/doctor.py --verify-eligibility[/dim]")
+        return to_execute
 
     # ── Execute
     placing_cost = sum(s.cost_dollars for s in to_execute)

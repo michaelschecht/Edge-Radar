@@ -6,6 +6,7 @@ time debugging cryptic errors mid-scan.
 
 Usage:
     python scripts/doctor.py
+    python scripts/doctor.py --verify-eligibility   # S3: probe venue eligibility
 """
 
 import sys
@@ -213,6 +214,32 @@ def main():
           f"(decay {kelly.kelly_edge_decay:g})", True)
 
     # ── Kalshi API connectivity
+    # ── S3: venue/product eligibility. Fails CLOSED -- `unknown` blocks live
+    #   orders exactly like `blocked` does, so it is reported as an issue, not a
+    #   warning. The 2026-08-20 geolocation block produced 16 rejected orders
+    #   over six days precisely because nothing surfaced this state.
+    console.print("\n[bold]Venue Eligibility (S3)[/bold]")
+    try:
+        import venue_eligibility as vel
+        cache = vel.load()
+        if not cache:
+            check("Venue eligibility recorded", False,
+                  "nothing verified yet -- live orders will be BLOCKED "
+                  "(fails closed). Run: python scripts/doctor.py "
+                  "--verify-eligibility")
+        for key in sorted(cache):
+            venue, _, product = key.partition(":")
+            st, why = vel.status(venue, product)
+            if st == "ok":
+                check(f"{venue}/{product}: eligible ({why})", True)
+            elif st == "blocked":
+                check(f"{venue}/{product}: BLOCKED", False, why)
+            else:
+                check(f"{venue}/{product}: unknown", False,
+                      f"{why} -- live orders blocked (fails closed)")
+    except Exception as e:
+        check("Venue eligibility check", False, str(e)[:120])
+
     console.print("\n[bold]API Connectivity[/bold]")
     if kalshi_key and key_path:
         try:
@@ -256,5 +283,87 @@ def main():
         return 1
 
 
+PROBE_TICKER_HINT = (
+    "Pass a sports ticker that is currently open, e.g. "
+    "KXMLBGAME-26AUG271900NYYBOS-NYY"
+)
+
+
+def verify_eligibility(ticker: str | None = None) -> int:
+    """S3: prove eligibility by placing a 1c unfillable order, then cancelling.
+
+    **This places a REAL order.** One contract at 1 cent -- far enough below any
+    live book that it cannot fill -- and it is cancelled immediately. That is
+    the only way to learn whether the venue will accept an order for a product
+    without waiting for a genuine bet to be rejected, which is how the
+    2026-08-20 block was found six days and 16 orders late.
+
+    Deliberately NOT automatic and NOT scheduled: auto-retry against a venue
+    that is refusing orders is exactly the behaviour this whole item exists to
+    stop. An operator runs it after re-verifying on the venue's website.
+    """
+    import venue_eligibility as vel
+    from app.config import get_config as _get_config
+
+    if _get_config().system.dry_run:
+        console.print("[yellow]DRY_RUN=true -- the probe cannot reach the "
+                      "venue, so it would prove nothing. Set DRY_RUN=false to "
+                      "verify eligibility.[/yellow]")
+        return 1
+
+    if not ticker:
+        console.print(f"[red]--verify-eligibility needs --ticker.[/red] "
+                      f"{PROBE_TICKER_HINT}")
+        return 1
+
+    from kalshi_client import KalshiClient
+    client = KalshiClient()
+    product = "sports"
+    console.print(f"[bold]Probing {ticker} (1 contract @ $0.01, will not "
+                  f"fill)...[/bold]")
+    try:
+        resp = client.create_order(
+            ticker=ticker, side="yes", action="buy", count=1,
+            yes_price_cents=1, time_in_force="good_till_canceled",
+        )
+        order = resp.get("order", resp)
+        order_id = order.get("order_id") or order.get("id")
+        vel.record_success("kalshi", product,
+                           evidence=f"probe accepted ({ticker})")
+        console.print(f"  [green]ACCEPTED[/green] order_id={order_id} -- "
+                      f"kalshi/{product} marked eligible")
+        if order_id:
+            try:
+                client.cancel_order(order_id)
+                console.print("  [green]Cancelled cleanly.[/green]")
+            except Exception as e:
+                console.print(f"  [red]COULD NOT CANCEL: {e}[/red]")
+                console.print("  [red bold]Cancel this order manually.[/red bold]")
+                return 1
+        return 0
+    except Exception as e:
+        raw = getattr(e, "message", None) or str(e)
+        if vel.record_rejection("kalshi", product, raw):
+            console.print(f"  [red]BLOCKED[/red] {vel.actionable_reason(raw)}")
+            console.print(f"  [dim]kalshi/{product} recorded as blocked; live "
+                          f"orders will refuse until this is re-run and "
+                          f"accepted.[/dim]")
+        else:
+            console.print(f"  [yellow]Probe failed, but the error is not "
+                          f"structural -- eligibility unchanged.[/yellow]")
+            console.print(f"  [dim]{vel.actionable_reason(raw)}[/dim]")
+        return 1
+
+
 if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="Edge-Radar environment validator")
+    ap.add_argument("--verify-eligibility", action="store_true",
+                    help="S3: place a 1c unfillable probe order to verify the "
+                         "venue will accept orders, then cancel it. Places a "
+                         "REAL order; requires DRY_RUN=false.")
+    ap.add_argument("--ticker", help=PROBE_TICKER_HINT)
+    args = ap.parse_args()
+    if args.verify_eligibility:
+        sys.exit(verify_eligibility(args.ticker))
     sys.exit(main())

@@ -32,9 +32,11 @@ TRADE_LOG_PATH = DATA_DIR / "history" / "kalshi_trades.json"
 SETTLEMENT_LOG_PATH = DATA_DIR / "history" / "kalshi_settlements.json"
 SPORTS_OPPORTUNITIES_PATH = DATA_DIR / "watchlists" / "kalshi_opportunities.json"
 PREDICTION_OPPORTUNITIES_PATH = DATA_DIR / "watchlists" / "prediction_opportunities.json"
+VENUE_ELIGIBILITY_PATH = DATA_DIR / "cache" / "venue_eligibility.json"
 
 # Ensure data directories exist
-for d in [DATA_DIR / "history", DATA_DIR / "watchlists", DATA_DIR / "positions"]:
+for d in [DATA_DIR / "history", DATA_DIR / "watchlists", DATA_DIR / "positions",
+          DATA_DIR / "cache"]:
     d.mkdir(parents=True, exist_ok=True)
 
 # Add script directories to sys.path (idempotent)

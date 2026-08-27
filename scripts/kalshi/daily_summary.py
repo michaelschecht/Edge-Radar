@@ -292,20 +292,16 @@ def load_failed_orders(rows: list[dict] | None, hours: int, now: datetime) -> li
 
 
 def _error_reason(trade: dict) -> str:
-    """Short human-readable reason from an error trade's raw API error blob."""
-    raw = trade.get("error") or ""
-    code = ""
-    try:
-        parsed = json.loads(raw)
-        err = parsed.get("error", parsed)
-        code = err.get("code") or err.get("message") or ""
-    except (ValueError, AttributeError, TypeError):
-        # `_record_failure` truncates the raw body, so the JSON is usually cut
-        # mid-string and won't parse. Pull the code out textually instead.
-        m = re.search(r'"(?:code|message)"\s*:\s*"([^"]*)', raw)
-        code = m.group(1) if m else raw
-    code = str(code).replace("_", " ").strip()
-    return (code[:110] + "...") if len(code) > 110 else (code or "unknown")
+    """Short human-readable reason from an error trade's raw API error blob.
+
+    S3 (2026-08-26): delegates to `venue_eligibility.actionable_reason`, which
+    keeps the END of the message. The old 110-char tail-truncation cut the
+    2026-08-20 geo-block at **"Check you..."** -- 25 characters short of "Check
+    your email for more details", the only actionable words in it, and the
+    reason a two-minute fix took six days to find.
+    """
+    from venue_eligibility import actionable_reason
+    return actionable_reason(trade.get("error") or "")
 
 
 def render_report(
