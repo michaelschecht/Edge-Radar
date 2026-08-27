@@ -46,6 +46,25 @@ def _ignore_operator_time_to_event_cap(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _ignore_operator_exposure_caps(monkeypatch):
+    """Never let the operator's live `.env` exposure ceilings resize a test order.
+
+    Gate 2b (S4) trims an order to the remaining exposure headroom, and `.env`
+    sets 0.50 / 0.33. Tests that pin exact contract counts often use a small
+    `bankroll` (which doubles as the equity fallback), so a live 33% segment cap
+    would silently cap sizing in tests about Kelly, fees, or the flat floor.
+
+    Third instance of the same lesson (see the two fixtures around this one): a
+    gate whose value comes from the operator's environment is neutralised here
+    and opted into explicitly by the tests that exercise it -- see
+    `tests/test_exposure_gate.py`, which sets its own caps.
+    """
+    import kalshi_executor as ke
+    monkeypatch.setattr(ke, "MAX_OPEN_EXPOSURE_PCT", 0.0)
+    monkeypatch.setattr(ke, "MAX_SEGMENT_EXPOSURE_PCT", 0.0)
+
+
+@pytest.fixture(autouse=True)
 def _ignore_operator_sport_freezes(monkeypatch):
     """Never let the operator's live `.env` switch a sport off underneath a test.
 

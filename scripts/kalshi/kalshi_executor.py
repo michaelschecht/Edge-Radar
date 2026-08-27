@@ -76,6 +76,13 @@ MIN_EDGE_THRESHOLD = _cfg.gates.min_edge_threshold
 KELLY_FRACTION = _cfg.kelly.kelly_fraction
 MAX_PER_EVENT = _cfg.risk.max_per_event
 MAX_BET_RATIO = _cfg.risk.max_bet_ratio
+
+# S4 (2026-08-26): Gate 2b -- cumulative open exposure ceilings, as a fraction
+# of total equity. The first gates in the chain that measure a STANDING TOTAL
+# rather than one order or one batch. Both 0 = off. See RiskLimits in
+# app/config.py for why the gap existed.
+MAX_OPEN_EXPOSURE_PCT = _cfg.risk.max_open_exposure_pct
+MAX_SEGMENT_EXPOSURE_PCT = _cfg.risk.max_segment_exposure_pct
 MIN_COMPOSITE_SCORE = _cfg.gates.min_composite_score
 KELLY_EDGE_CAP = _cfg.kelly.kelly_edge_cap
 KELLY_EDGE_DECAY = _cfg.kelly.kelly_edge_decay
@@ -243,6 +250,97 @@ def _time_to_event_rejection(opp: "Opportunity") -> str | None:
     return f"event_too_far_out ({days}d > {MAX_DAYS_TO_EVENT}d max)"
 
 
+def exposure_segment(opp: "Opportunity") -> str:
+    """The bucket `MAX_SEGMENT_EXPOSURE_PCT` is measured over (S4).
+
+    Sport first (`nfl`, `mlb`, ...), because a sport is the unit that actually
+    goes cold together -- one league's whole slate settles on the same weekend,
+    off the same model, against the same calibration prior. Falls back to the
+    scanner's `category` for rows with no detectable sport (futures on a
+    league-less ticker, prediction markets), and finally to `"unknown"`.
+
+    Deliberately NOT the event key: Gate 6 (`MAX_PER_EVENT`) already binds a
+    single game, and it was one of the gates that passed the whole way while
+    26 NFL positions accumulated across 26 different events.
+    """
+    return (_detect_sport(opp.ticker)
+            or (opp.category or "").strip().lower()
+            or "unknown")
+
+
+def exposure_from_positions(market_positions: list[dict]) -> tuple[float, dict[str, float]]:
+    """Total and per-segment open at-risk dollars from a Kalshi positions list.
+
+    Reads `market_exposure_dollars` -- the capital that is actually at risk on
+    an open position, which is what a cumulative exposure cap is about. Note it
+    arrives as a *string* from the v2 API ("0.960000"), so it must be coerced;
+    a silent `float("")` would zero the whole book and open every gate.
+
+    Segments are keyed off the ticker alone, since a positions row carries no
+    category. That makes a league-less futures ticker land in "unknown"
+    together -- acceptable, because the cap is per-segment and "unknown"
+    getting its own shared ceiling is the conservative direction.
+    """
+    total = 0.0
+    by_segment: dict[str, float] = {}
+    for p in market_positions or []:
+        try:
+            at_risk = float(p.get("market_exposure_dollars") or 0)
+        except (TypeError, ValueError):
+            continue
+        if at_risk <= 0:
+            continue
+        seg = _detect_sport(p.get("ticker", "")) or "unknown"
+        total += at_risk
+        by_segment[seg] = by_segment.get(seg, 0.0) + at_risk
+    return total, by_segment
+
+
+def _exposure_rejection(opp: "Opportunity", open_exposure: float,
+                        segment_exposure: float, equity: float) -> str | None:
+    """Gate 2b (S4) -- reason string if the book is already at a ceiling.
+
+    Checked BEFORE sizing, against exposure already standing, so this answers
+    "may I open anything at all right now" rather than "does this specific
+    order fit". The order is then trimmed to the remaining headroom further
+    down (beside the `MAX_BET_SIZE` cap), which is what stops a single bet
+    stepping over a ceiling it was just under.
+
+    **Denominated in total equity (cash + position value), not cash.** Cash
+    alone is a moving denominator that accelerates against itself: every dollar
+    bought subtracts from cash *and* adds to exposure, so the ratio climbs twice
+    as fast as the risk does, and a nearly fully-deployed book would read as
+    far over a ceiling it had not crossed.
+
+    **Fails open on unknown equity**, mirroring Gates 3.6 and 3.7 -- a balance
+    call that returned nothing is "unknown", not "over the limit". Note this
+    is the opposite of S3's fail-*closed* rule for venue eligibility, and
+    deliberately: an unknown ceiling is a sizing question, an unknown
+    jurisdiction is a legality question.
+    """
+    if equity <= 0:
+        return None
+
+    if MAX_OPEN_EXPOSURE_PCT > 0:
+        pct = open_exposure / equity
+        if pct >= MAX_OPEN_EXPOSURE_PCT:
+            return (
+                f"max_open_exposure (${open_exposure:,.2f} = {pct:.1%} of "
+                f"${equity:,.2f} >= {MAX_OPEN_EXPOSURE_PCT:.0%})"
+            )
+
+    if MAX_SEGMENT_EXPOSURE_PCT > 0:
+        pct = segment_exposure / equity
+        if pct >= MAX_SEGMENT_EXPOSURE_PCT:
+            return (
+                f"max_segment_exposure ({exposure_segment(opp)}: "
+                f"${segment_exposure:,.2f} = {pct:.1%} of ${equity:,.2f} "
+                f">= {MAX_SEGMENT_EXPOSURE_PCT:.0%})"
+            )
+
+    return None
+
+
 # Per-sport edge-threshold overrides. Any sport not listed falls back to
 # MIN_EDGE_THRESHOLD. Read via app.config at import; tests patch
 # _PER_SPORT_MIN_EDGE directly.
@@ -303,6 +401,7 @@ def reload_risk_config() -> None:
     """
     global MAX_BET_SIZE, UNIT_SIZE, MAX_DAILY_LOSS, MAX_OPEN_POSITIONS
     global MIN_EDGE_THRESHOLD, KELLY_FRACTION, MAX_PER_EVENT, MAX_BET_RATIO
+    global MAX_OPEN_EXPOSURE_PCT, MAX_SEGMENT_EXPOSURE_PCT
     global MIN_COMPOSITE_SCORE, KELLY_EDGE_CAP, KELLY_EDGE_DECAY, SERIES_DEDUP_HOURS
     global MIN_MARKET_PRICE, RESTING_ORDER_MAX_HOURS, MIN_CONFIDENCE
     global NO_SIDE_FAVORITE_THRESHOLD, NO_SIDE_MIN_EDGE, NO_SIDE_MIN_EDGE_GLOBAL
@@ -325,6 +424,8 @@ def reload_risk_config() -> None:
     KELLY_FRACTION = cfg.kelly.kelly_fraction
     MAX_PER_EVENT = cfg.risk.max_per_event
     MAX_BET_RATIO = cfg.risk.max_bet_ratio
+    MAX_OPEN_EXPOSURE_PCT = cfg.risk.max_open_exposure_pct
+    MAX_SEGMENT_EXPOSURE_PCT = cfg.risk.max_segment_exposure_pct
     MIN_COMPOSITE_SCORE = cfg.gates.min_composite_score
     KELLY_EDGE_CAP = cfg.kelly.kelly_edge_cap
     KELLY_EDGE_DECAY = cfg.kelly.kelly_edge_decay
@@ -782,7 +883,10 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
                event_counts: dict[str, int] | None = None,
                max_per_event: int = MAX_PER_EVENT,
                batch_size: int = 1,
-               recent_matchups: set[tuple[str, str]] | None = None) -> SizedOrder:
+               recent_matchups: set[tuple[str, str]] | None = None,
+               open_exposure: float = 0.0,
+               segment_exposure: float = 0.0,
+               equity: float | None = None) -> SizedOrder:
     """
     Apply all risk checks and size the order.
 
@@ -795,6 +899,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     Risk gates enforced:
         1.   Daily loss limit                             (reject)
         2.   Max open positions                           (reject)
+        2b.  Cumulative open / per-segment exposure (S4)  (reject + sizing cap)
         3.   Minimum edge threshold (global + per-sport)  (reject)
         3.5  Minimum market-price floor (R7)              (reject)
         4.   Minimum composite score                      (reject)
@@ -819,6 +924,10 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     edge_floor = min_edge_for(opp)
     liquidity_reject = _liquidity_rejection(opp)
     time_to_event_reject = _time_to_event_rejection(opp)
+    # S4: equity (cash + positions) is the exposure denominator; callers that
+    # don't track it fall back to `bankroll`, which with both caps at 0 is moot.
+    equity = bankroll if equity is None else equity
+    exposure_reject = _exposure_rejection(opp, open_exposure, segment_exposure, equity)
 
     # ── Risk Gate 1: Daily loss limit
     if daily_pnl <= -MAX_DAILY_LOSS:
@@ -827,6 +936,12 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     # ── Risk Gate 2: Max open positions
     elif open_positions >= MAX_OPEN_POSITIONS:
         rejection = f"max_positions_reached ({open_positions}/{MAX_OPEN_POSITIONS})"
+
+    # ── Risk Gate 2b: Cumulative exposure ceilings (S4)
+    #   Gate 2 counts rows; this counts dollars. Directly above it in the chain
+    #   because it is the same question asked in the unit that matters.
+    elif exposure_reject:
+        rejection = exposure_reject
 
     # ── Risk Gate 3: Minimum edge (per-sport override, global fallback)
     elif opp.edge < edge_floor:
@@ -1051,6 +1166,28 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
         actual_cost = contracts * opp.market_price
         bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
         approval = "APPROVED_CAPPED_MAX_BET"
+
+    # ── Risk Gate 2b, sizing half (S4): trim to the remaining exposure headroom.
+    #   The reject above only fires when a ceiling is ALREADY breached, so
+    #   without this a book sitting at 49.9% could add a full MAX_BET_SIZE order
+    #   and land well past 50%. Takes the tighter of the two headrooms.
+    #
+    #   Uses `max(1, ...)` like the MAX_BET_SIZE cap above rather than dropping
+    #   to zero: a single contract is a rounding error against any real ceiling,
+    #   and a cap that can silently produce an unfillable 0-contract order is a
+    #   worse failure than a cent of overshoot.
+    if equity > 0 and (MAX_OPEN_EXPOSURE_PCT > 0 or MAX_SEGMENT_EXPOSURE_PCT > 0):
+        headrooms = []
+        if MAX_OPEN_EXPOSURE_PCT > 0:
+            headrooms.append(MAX_OPEN_EXPOSURE_PCT * equity - open_exposure)
+        if MAX_SEGMENT_EXPOSURE_PCT > 0:
+            headrooms.append(MAX_SEGMENT_EXPOSURE_PCT * equity - segment_exposure)
+        headroom = min(headrooms)
+        if actual_cost > headroom:
+            contracts = max(1, int(headroom / opp.market_price))
+            actual_cost = contracts * opp.market_price
+            bankroll_pct = actual_cost / bankroll if bankroll > 0 else 0
+            approval = "APPROVED_CAPPED_EXPOSURE"
 
     # Final check: don't exceed bankroll
     if actual_cost > bankroll:
@@ -1604,6 +1741,24 @@ def execute_pipeline(
     open_count = len(market_positions)
     rprint(f"  Positions:  {open_count}/{MAX_OPEN_POSITIONS}")
 
+    # ── S4: standing exposure for Gate 2b. Equity, not cash, is the
+    #   denominator — see `_exposure_rejection`.
+    equity = bankroll + bal["portfolio_value"]
+    open_exposure, segment_exposure = exposure_from_positions(market_positions)
+    if MAX_OPEN_EXPOSURE_PCT > 0 or MAX_SEGMENT_EXPOSURE_PCT > 0:
+        _pct = open_exposure / equity if equity > 0 else 0
+        _cap = f"{MAX_OPEN_EXPOSURE_PCT:.0%}" if MAX_OPEN_EXPOSURE_PCT > 0 else "off"
+        rprint(
+            f"  Exposure:   ${open_exposure:,.2f} = {_pct:.1%} of "
+            f"${equity:,.2f} equity (cap {_cap})"
+        )
+        if segment_exposure and MAX_SEGMENT_EXPOSURE_PCT > 0:
+            _worst = max(segment_exposure.items(), key=lambda kv: kv[1])
+            rprint(
+                f"    largest segment: {_worst[0]} ${_worst[1]:,.2f} = "
+                f"{_worst[1] / equity:.1%} (cap {MAX_SEGMENT_EXPOSURE_PCT:.0%})"
+            )
+
     # Build open ticker set and per-event counts for risk gates
     open_tickers = {p.get("ticker", "") for p in market_positions}
     event_counts: dict[str, int] = {}
@@ -1662,11 +1817,24 @@ def execute_pipeline(
                     (tkr, "matchup bet within series-dedup window (gate 7)")
                 )
                 continue
+            # S4: exposure is portfolio state too, so it re-checks here for the
+            # same reason gates 5/6/7 do -- the cache TTL is long enough to have
+            # filled a ceiling since the preview. Sizing stays locked (that is
+            # what makes --pick row indices stable), so this only drops rows.
+            seg = exposure_segment(s.opportunity)
+            exp_reject = _exposure_rejection(
+                s.opportunity, open_exposure, segment_exposure.get(seg, 0.0), equity
+            )
+            if exp_reject:
+                replay_dropped.append((tkr, f"{exp_reject} (gate 2b)"))
+                continue
             to_execute.append(s)
             # Track within this batch so two cached rows on the same event/matchup
             # don't both slip through.
             open_tickers.add(tkr)
             event_counts[evt] = event_counts.get(evt, 0) + 1
+            open_exposure += s.cost_dollars
+            segment_exposure[seg] = segment_exposure.get(seg, 0.0) + s.cost_dollars
             if mkey:
                 recent_matchups.add(mkey)
 
@@ -1704,11 +1872,15 @@ def execute_pipeline(
         rprint(f"\n[bold]Risk-checking {len(opportunities)} opportunities (batch={batch_sz})...[/bold]")
         sized_orders: list[SizedOrder] = []
         for opp in opportunities:
+            seg = exposure_segment(opp)
             sized = size_order(
                 opp, bankroll, open_count + len([s for s in sized_orders if s.risk_approval.startswith("APPROVED")]),
                 daily_pnl, unit_size, open_tickers, event_counts, MAX_PER_EVENT,
                 batch_size=batch_sz,
                 recent_matchups=recent_matchups,
+                open_exposure=open_exposure,
+                segment_exposure=segment_exposure.get(seg, 0.0),
+                equity=equity,
             )
             sized_orders.append(sized)
             # Track newly approved positions for subsequent gate checks
@@ -1716,6 +1888,13 @@ def execute_pipeline(
                 open_tickers.add(opp.ticker)
                 evt = _event_key(opp.ticker)
                 event_counts[evt] = event_counts.get(evt, 0) + 1
+                # S4: accumulate within the batch. Without this the whole slate
+                # is gated against the exposure standing *before* the batch, and
+                # N orders each individually under the ceiling walk straight
+                # through it together -- which is exactly how the NFL book grew,
+                # only compressed into one run instead of three months.
+                open_exposure += sized.cost_dollars
+                segment_exposure[seg] = segment_exposure.get(seg, 0.0) + sized.cost_dollars
                 mkey = matchup_key(opp.ticker)
                 if mkey:
                     recent_matchups.add(mkey)

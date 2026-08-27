@@ -212,6 +212,20 @@ class RiskLimits:
     max_open_positions: int = 50
     max_per_event: int = 2
     max_bet_ratio: float = 3.0
+    # S4 (2026-08-26): Gate 2b -- cumulative open exposure, as a fraction of
+    # total equity (cash + position value). The first gates that measure a
+    # *standing total* rather than a single order or a single batch.
+    #
+    # Nothing measured this until now, which is how one sport reached 31% of
+    # bankroll: `max_open_positions` counts rows not dollars, `max_per_event`
+    # binds one game, and `max_bet_ratio` / `--budget` each bind a single batch.
+    # Twenty-six NFL positions accumulated across ~a dozen scans over three
+    # months with every one of those gates passing the whole way.
+    #
+    # Both ship at 0 (off) so a fresh clone is unchanged; the live `.env` sets
+    # 0.50 / 0.33. Segment = sport (`_detect_sport`), falling back to category.
+    max_open_exposure_pct: float = 0.0
+    max_segment_exposure_pct: float = 0.0
 
     @classmethod
     def from_env(cls) -> "RiskLimits":
@@ -222,6 +236,8 @@ class RiskLimits:
             max_open_positions=_int("MAX_OPEN_POSITIONS", 50),
             max_per_event=_int("MAX_PER_EVENT", 2),
             max_bet_ratio=_float("MAX_BET_RATIO", 3.0),
+            max_open_exposure_pct=_float("MAX_OPEN_EXPOSURE_PCT", 0.0),
+            max_segment_exposure_pct=_float("MAX_SEGMENT_EXPOSURE_PCT", 0.0),
         )
 
 
@@ -496,6 +512,16 @@ class Config:
         if self.risk.max_per_event < 0:
             raise ValueError(
                 f"MAX_PER_EVENT must be >= 0, got {self.risk.max_per_event}"
+            )
+        if not 0.0 <= self.risk.max_open_exposure_pct <= 1.0:
+            raise ValueError(
+                "MAX_OPEN_EXPOSURE_PCT must be in [0, 1] (a fraction, not a "
+                f"percentage), got {self.risk.max_open_exposure_pct}"
+            )
+        if not 0.0 <= self.risk.max_segment_exposure_pct <= 1.0:
+            raise ValueError(
+                "MAX_SEGMENT_EXPOSURE_PCT must be in [0, 1] (a fraction, not a "
+                f"percentage), got {self.risk.max_segment_exposure_pct}"
             )
         if self.gates.min_confidence not in _CONFIDENCE_LEVELS:
             raise ValueError(

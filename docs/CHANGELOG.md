@@ -2,6 +2,115 @@
 
 ---
 
+## 2026-08-26 -- S4: Gate 2b, cumulative open-exposure ceilings
+
+**The first gate in the chain that measures a standing total.** Every gate before it
+measures a single order (`MAX_BET_SIZE`, `MAX_BET_RATIO`), a single event
+(`MAX_PER_EVENT`), a single batch (`--budget`, the Kelly `/batch_size` divisor), or a
+row count (`MAX_OPEN_POSITIONS = 50`). None of them counts dollars standing across the
+book -- which is how 26 NFL positions reached 31% of a ~$92 bankroll across roughly a
+dozen scans over three months **with every one of those gates passing the whole way**.
+S5 stopped the *lead time* that let it accumulate unnoticed; this stops the *total*.
+
+**Two ceilings, and the pair is the point.** `MAX_OPEN_EXPOSURE_PCT` across everything,
+`MAX_SEGMENT_EXPOSURE_PCT` per sport. A portfolio cap alone permits one sport to hold
+all of it -- exactly the NFL shape. A segment cap alone permits N sports x the segment
+cap. Segment = `_detect_sport(ticker)`, falling back to the scanner's `category`, then
+`"unknown"`; deliberately *not* the event key, since Gate 6 already binds one event and
+passed 26 times across 26 different events.
+
+**Denominated in equity (cash + position value), not cash.** Cash alone is a moving
+denominator that accelerates against itself: every dollar bought subtracts from cash
+*and* adds to exposure, so the ratio climbs at twice the rate of the risk, and a nearly
+fully-deployed book reads as far over a ceiling it has not crossed. Positions are read
+from `market_exposure_dollars`, which arrives from the v2 API as a **string**
+(`"0.960000"`) -- coerced per row, and an unparseable row is skipped rather than
+counted as 0, since one silent zero for the whole book would open every ceiling.
+
+**Reject *and* trim.** The gate rejects when a ceiling is already breached, and the
+sizing half trims an order to the smaller of the two remaining headrooms. Reject-only
+would let a book sitting at 49.9% add a full `MAX_BET_SIZE` and land well past 50%.
+Trims use `max(1, ...)` like the `MAX_BET_SIZE` cap above them, so a bounded cent-scale
+overshoot is possible by design -- a cap that can silently emit an unfillable
+0-contract order is the worse failure. Measured on the synthetic slate below: $0.21.
+
+**The batch loop accumulates.** Approved cost is added to both counters as the slate is
+sized, or N orders each individually under the ceiling walk straight through it
+together -- the same failure as the NFL book, compressed into one run instead of three
+months. The R26 cached-replay path re-checks Gate 2b against current state for the same
+reason it re-checks gates 5/6/7: exposure is portfolio state and the cache TTL is long
+enough to have filled a ceiling since the preview. Sizing stays locked there, so replay
+only drops rows.
+
+**Fails open on unknown equity**, mirroring gates 3.6 and 3.7 -- a balance call that
+returned nothing is "unknown", not "over the limit". Note this is the opposite of S3's
+fail-*closed* rule for venue eligibility, and deliberately so: an unknown ceiling is a
+sizing question, an unknown jurisdiction is a legality question.
+
+**Live values are 0.50 / 0.33, not the review's 0.20 / 0.10** -- the operator's call,
+made with the consequence stated: at 50/33 the book that prompted the gate **passes**
+(27.8% total, 27.8% NFL), so the ceiling binds on the next pileup rather than this one.
+That also dissolves the legacy-quarantine question S4 would otherwise have forced: NFL
+fits under 33% either way, nothing is jammed shut, and betting in other sports keeps its
+full headroom while the frozen book runs off to settlement. At 0.20 / 0.10 the same book
+rejects on both counts -- covered by a test, so the choice stays visible.
+
+Config validation rejects a value outside [0, 1]: `MAX_OPEN_EXPOSURE_PCT=50` would
+otherwise read as 5000% and silently switch the cap off, which is the same class of bug
+as D1's falsy `0.0`.
+
+**Verified against the live book** (equity $107.04 = $73.36 cash + $33.68 positions):
+
+```
+exposure $29.73 = 27.8%   (all 24 open positions are NFL; nothing else is open)
+  nfl  $29.73 = 27.8%   headroom $5.59 to the 33% segment cap
+
+Gate 2b verdicts:
+  KXNFLGAME-26SEP13MIALV-MIA        seg=nfl       pass
+  KXMLBGAME-26AUG271900NYYBOS-NYY   seg=mlb       pass
+  KXNCAAFBGAME-26AUG29ALAFSU-ALA    seg=ncaaf     pass
+  KXSB-26-KC                        seg=futures   pass
+```
+
+Synthetic over-limit slate (nine MLB rows against the live book), the roadmap's stated
+verification step -- note orders 4 and 5 trimmed rather than rejected, and 6-9 rejected:
+
+```
+#1  tot $29.73 (27.8%) -> APPROVED                    $7.50
+#2  tot $37.23 (34.8%) -> APPROVED                    $7.50
+#3  tot $44.73 (41.8%) -> APPROVED                    $7.50
+#4  tot $52.23 (48.8%) -> APPROVED_CAPPED_EXPOSURE    $1.00
+#5  tot $53.23 (49.7%) -> APPROVED_CAPPED_EXPOSURE    $0.50
+#6  tot $53.73 (50.2%) -> REJECTED: max_open_exposure
+...                                    final: 50.2% (overshoot $0.21)
+```
+
+**Not in preflight.** `preflight_gate_status()` is static per-opportunity only; exposure
+is portfolio state, like gates 1/2/5/6/7, so a scan preview cannot show it. The scan
+banner prints standing exposure and the largest segment instead.
+
+`doctor.py` prints both caps and **WARNs when either is 0** -- "nothing caps TOTAL
+capital deployed" is precisely the state that produced the NFL book, and it should never
+scroll past looking like a healthy default.
+
+Third config-driven test breakage prevented at the conftest seam
+(`_ignore_operator_exposure_caps`, joining the S1 and S5 fixtures): tests that pin exact
+contract counts pass a small `bankroll`, which doubles as the equity fallback, so a live
+33% cap would silently resize orders in tests about Kelly, fees, or the flat floor.
+
+Touches: `app/config.py` (two `RiskLimits` fields + range validation),
+`scripts/kalshi/kalshi_executor.py` (`exposure_segment`, `exposure_from_positions`,
+`_exposure_rejection`, Gate 2b branch, headroom trim, batch + replay accumulation, scan
+banner, reload wiring), `.env`, `scripts/doctor.py`, `tests/test_exposure_gate.py` (+28),
+`tests/conftest.py`. **916 tests pass.**
+
+**Still missing after S4:** nothing re-checks a position already held -- Gate 2b, like
+Gate 3.6, only runs at entry. A book that drifts over a ceiling through mark-to-market
+alone is not caught, and would not have been the NFL failure mode anyway. S12's daily
+scoreboard is where a standing breach becomes visible.
+
+---
+
 ## 2026-08-26 -- S5: Gate 3.7, a days-to-event cap on game markets
 
 `MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS` (code default `0` = off; live `.env` **14**).
