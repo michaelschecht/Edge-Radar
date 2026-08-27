@@ -27,6 +27,25 @@ def _isolate_data_logs(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _ignore_operator_time_to_event_cap(monkeypatch):
+    """Never let the operator's live `.env` date-cap a test's fixture tickers.
+
+    Gate 3.7 (S5) rejects game markets more than `MAX_DAYS_TO_EVENT` days before
+    their event, and `.env` sets 14. Test tickers are written for readability,
+    not for proximity to today -- `KXNFLSPREAD-26SEP13BALIND-IND5`,
+    `KXMLBGAME-99APR171900NYYKAC-NYY` -- so enabling the cap failed 126 tests
+    that have nothing to do with lead time, purely from a config change.
+
+    Same lesson as `_ignore_operator_sport_freezes` below: a gate whose value
+    comes from the operator's environment must be neutralised here and opted
+    into explicitly by the tests that exercise it (see
+    `tests/test_time_to_event_gate.py`, which sets its own cap).
+    """
+    import kalshi_executor as ke
+    monkeypatch.setattr(ke, "MAX_DAYS_TO_EVENT", 0)
+
+
+@pytest.fixture(autouse=True)
 def _ignore_operator_sport_freezes(monkeypatch):
     """Never let the operator's live `.env` switch a sport off underneath a test.
 

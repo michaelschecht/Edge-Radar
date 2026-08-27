@@ -118,6 +118,7 @@ Every gate runs before any trade executes:
 | 3 | Edge >= minimum threshold (per-sport or global) **+ exchange fee** (F1) | Reject |
 | 3.5 | Market price >= `MIN_MARKET_PRICE` (lottery-ticket floor, R7) | Reject |
 | 3.6 | Bid/ask spread <= `MAX_BID_ASK_SPREAD` and 24h volume >= `MIN_MARKET_VOLUME_24H` (L2) | Reject |
+| 3.7 | Game markets only: days to event <= `MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS` (S5). **Futures exempt** | Reject |
 | 4 | Composite score >= `MIN_COMPOSITE_SCORE` | Reject |
 | 4.5 | Confidence >= `MIN_CONFIDENCE` | Reject |
 | 4.6 | NO bets below `NO_SIDE_FAVORITE_THRESHOLD` need edge >= `NO_SIDE_MIN_EDGE` AND confidence=high | Reject |
@@ -166,6 +167,14 @@ Standing rules — do not reverse them without new settled evidence.
   5-20c-wide book pays exactly the illiquidity penalty Gate 3.6 exists to avoid. Exit a ticker
   only if its spread is <= 5c *and* the exit price beats hold-to-settlement EV.
   *CHANGELOG 2026-08-26 (S1).*
+- **Lead time is the exposure risk, not the sport.** Gate 3.7 caps how far before an event a
+  *game* market may be bought (`MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS`, live 14). The NFL book that
+  reached 31% of bankroll was 26 positions bought **25-112 days out** (median 35), 20 of them by
+  the one scheduled task that runs with no date filter — nothing settled for months, so no
+  feedback arrived while exposure stacked, and no gate measures a standing total. The cap targets
+  the mechanism: near-dated college football (3-4 days out) is unaffected, and **futures are
+  exempt by category**, since `KXMLB-26-LAD` and `KXMLBGAME-26AUG26...` share a ticker prefix and
+  only the scanner's `category` separates them. *CHANGELOG 2026-08-26 (S5).*
 - **No correlation guard exists, deliberately.** It was measured and rejected: the naive pooled rho of +0.181 is Simpson's paradox, and judged against per-stratum base rates it is +0.048 overall and −0.187 for totals. Re-run `scripts/backtest/correlation_check.py` as settlements accumulate — this is "no evidence of correlation", not proof of independence. *CHANGELOG 2026-07-27 (C11b).*
 
 ### Scoring & confidence rules
@@ -226,6 +235,11 @@ MAX_BID_ASK_SPREAD=0.05         # L2: Gate 3.6 hard liquidity floor, dollars on 
                                 #   documented from launch but never implemented. 0 disables.
 MIN_MARKET_VOLUME_24H=0         # L2: companion floor, contracts traded in trailing 24h. Ships at 0
                                 #   (off) — spread is the documented rule; this catches dead books.
+MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS=0  # S5: Gate 3.7, max days from now to a GAME's date.
+                                #   Ships 0 (off); live `.env` sets 14. **Futures are exempt by
+                                #   category** — a championship's event is a whole season.
+                                #   Caps LEAD TIME, not sports: near-dated college football is
+                                #   untouched. Fails open on an unparseable date, like Gate 3.6.
 MIN_COMPOSITE_SCORE=6.0         # Minimum score (0-10)
 MIN_CONFIDENCE=medium           # R3 — low|medium|high
 NO_SIDE_FAVORITE_THRESHOLD=0.25 # R1: NO bets below this price face the elevated bar

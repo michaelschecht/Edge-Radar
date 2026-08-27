@@ -153,6 +153,13 @@ def main():
         # Ships at 0; off is the documented default, so this is informational.
         check("Gate 3.6 MIN_MARKET_VOLUME_24H = 0 (off by default)", True)
 
+    if gates.max_days_to_event_for_game_markets > 0:
+        check("Gate 3.7 MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS = "
+              f"{gates.max_days_to_event_for_game_markets} (futures exempt)", True)
+    else:
+        check("Gate 3.7 MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS = 0", False,
+              "DISABLED — game markets can be bought any distance out (S5)", warn_only=True)
+
     check(f"Gate 4   MIN_COMPOSITE_SCORE = {gates.min_composite_score:g}", True)
     check(f"Gate 4.5 MIN_CONFIDENCE = {gates.min_confidence}", True)
     check(f"Gate 4.6 NO_SIDE_FAVORITE_THRESHOLD = ${gates.no_side_favorite_threshold:.2f} "
