@@ -513,9 +513,14 @@ class TestInProcessCacheTtl:
 
 # ── Opponent-validated event matching (fix A + B) ─────────────────────────────
 
-# Real Odds API responses always carry a per-bookmaker last_update; fixtures must
-# too, or the Phase-2 live-staleness guard excludes them whenever a fixture's
-# commence_time happens to be in the past. Stamp "now" so books read as fresh.
+# SPORT-LEVEL Odds API responses carry a per-bookmaker last_update; these fixtures
+# model that shape, and must stamp it or the Phase-2 live-staleness guard excludes
+# them whenever a fixture's commence_time happens to be in the past.
+#
+# S19 caveat: the PER-EVENT endpoint (`/events/{id}/odds`) does NOT — it puts
+# last_update on markets only. Every fixture in this file modelling the sport-level
+# shape meant the per-event shape was never exercised, which is how the filter came
+# to reject 100% of live books unnoticed. See TestPerEventBookmakerShape below.
 def _fresh_lu():
     return datetime.now(timezone.utc).isoformat()
 
@@ -1554,3 +1559,173 @@ class TestFuturesCompositeCalibration:
         # stay below the gate on their own merits.
         assert self._score(0.02, n_books=4, spread=0.20) < 6.0
         assert self._score(0.04, n_books=1, spread=0.20) < 6.0
+
+
+class TestPerEventBookmakerShape:
+    """S19: the per-event Odds API endpoint omits bookmaker-level last_update.
+
+    `/sports/{sport}/odds`             -> last_update on the bookmaker AND each market
+    `/sports/{sport}/events/{id}/odds` -> last_update on each market ONLY
+
+    `_refresh_event_if_live()` is the only caller of the per-event endpoint, so
+    every in-play refresh produced bookmakers shaped {key, title, markets}. The
+    filter read only the bookmaker field, found None, and failed closed on all
+    1920 bookmakers across the cached per-event payloads -- while catching zero
+    genuinely stale quotes (median market age 34s against a 1200s limit).
+    """
+
+    @staticmethod
+    def _ago(minutes):
+        return (datetime.now(timezone.utc) - timedelta(minutes=minutes)) \
+            .isoformat().replace("+00:00", "Z")
+
+    def _live_event(self, bookmakers):
+        return {"commence_time": self._ago(10), "bookmakers": bookmakers}
+
+    def _per_event_book(self, key="fanduel", market_ages=(2,)):
+        """A bookmaker exactly as the per-event endpoint returns it: no top-level
+        last_update, timestamps on the markets."""
+        return {
+            "key": key,
+            "title": key.title(),
+            "markets": [
+                {"key": k, "last_update": self._ago(age), "outcomes": []}
+                for k, age in zip(("h2h", "spreads", "totals"), market_ages)
+            ],
+        }
+
+    def test_fresh_per_event_book_is_not_excluded(self):
+        """The regression: a book with no top-level timestamp but fresh markets
+        must survive. Before the fix this returned True for every live book."""
+        from edge_detector import _is_bookmaker_stale
+        book = self._per_event_book(market_ages=(2,))
+        assert book.get("last_update") is None      # per-event shape, as served
+        event = self._live_event([book])
+        assert _is_bookmaker_stale(book, event, 1200) is False
+
+    def test_stale_per_event_book_is_still_excluded(self):
+        """The fallback must not become a way to smuggle stale quotes through."""
+        from edge_detector import _is_bookmaker_stale
+        book = self._per_event_book(market_ages=(40,))   # 2400s > 1200s
+        event = self._live_event([book])
+        assert _is_bookmaker_stale(book, event, 1200) is True
+
+    def test_oldest_market_wins(self):
+        """A bookmaker is only as fresh as its stalest market (operator's call)."""
+        from edge_detector import _bookmaker_last_update, _is_bookmaker_stale
+        book = self._per_event_book(market_ages=(1, 40, 2))   # one stale market
+        event = self._live_event([book])
+        picked = _bookmaker_last_update(book)
+        oldest = min(m["last_update"] for m in book["markets"])
+        assert picked.isoformat().replace("+00:00", "Z") == oldest
+        assert _is_bookmaker_stale(book, event, 1200) is True
+
+    def test_bookmaker_level_timestamp_still_preferred(self):
+        """Sport-level payloads keep working: the bookmaker field wins outright."""
+        from edge_detector import _is_bookmaker_stale
+        book = self._per_event_book(market_ages=(40,))
+        book["last_update"] = self._ago(1)      # fresh at the bookmaker level
+        event = self._live_event([book])
+        assert _is_bookmaker_stale(book, event, 1200) is False
+
+    def test_no_timestamp_anywhere_still_fails_closed(self):
+        """The original intent survives: undateable quote -> exclude."""
+        from edge_detector import _is_bookmaker_stale
+        book = {"key": "ghost", "title": "Ghost",
+                "markets": [{"key": "h2h", "outcomes": []}]}
+        event = self._live_event([book])
+        assert _is_bookmaker_stale(book, event, 1200) is True
+
+    def test_pregame_is_untouched(self):
+        """Freshness is only required once a game is in progress."""
+        from edge_detector import _is_bookmaker_stale
+        future = (datetime.now(timezone.utc) + timedelta(hours=3)) \
+            .isoformat().replace("+00:00", "Z")
+        book = {"key": "ghost", "markets": [{"key": "h2h", "outcomes": []}]}
+        event = {"commence_time": future, "bookmakers": [book]}
+        assert _is_bookmaker_stale(book, event, 1200) is False
+
+    def test_real_cached_per_event_payloads_survive(self):
+        """Replay the actual on-disk per-event cache, if present.
+
+        These are real API responses, not fixtures -- the evidence that produced
+        this fix. Every bookmaker in them lacks a top-level last_update.
+        """
+        import glob
+        from edge_detector import _bookmaker_last_update
+        files = glob.glob("data/cache/odds/events/*.json")
+        if not files:
+            pytest.skip("no cached per-event payloads on this machine")
+        n_books = n_dated = 0
+        for path in files:
+            with open(path, encoding="utf-8") as fh:
+                event = json.load(fh)["event"]
+            for book in event.get("bookmakers", []):
+                n_books += 1
+                if _bookmaker_last_update(book) is not None:
+                    n_dated += 1
+        assert n_books > 0
+        assert n_dated == n_books, (
+            f"{n_books - n_dated} of {n_books} real per-event bookmakers still "
+            f"undateable -- the market-level fallback is not covering them"
+        )
+
+
+class TestLiveConsensusThinGuardReachability:
+    """S19b: the thin-consensus guard could never see a total wipeout.
+
+    All three consensus functions ran `if not <data>: return None` BEFORE calling
+    `_live_consensus_too_thin`, so when the staleness filter stripped every book
+    the empty list short-circuited first and the wipeout was swallowed silently.
+    `_live_consensus_too_thin` had never logged once in a month of 2888 exclusions.
+    """
+
+    @staticmethod
+    def _ago(minutes):
+        return (datetime.now(timezone.utc) - timedelta(minutes=minutes)) \
+            .isoformat().replace("+00:00", "Z")
+
+    def test_guard_fires_on_total_wipeout(self, caplog):
+        from edge_detector import _live_consensus_too_thin
+        events = [{"commence_time": self._ago(10)}]
+        with caplog.at_level("WARNING"):
+            assert _live_consensus_too_thin(events, n_fresh_books=0, n_excluded=6) is True
+        assert "thinned" in caplog.text.lower()
+
+    def test_guard_still_noops_when_nothing_was_excluded(self):
+        """A genuine 'no books matched this team' is a different condition and
+        must keep falling through to the empty check untouched."""
+        from edge_detector import _live_consensus_too_thin
+        events = [{"commence_time": self._ago(10)}]
+        assert _live_consensus_too_thin(events, n_fresh_books=0, n_excluded=0) is False
+
+    def test_guard_noops_on_pregame(self):
+        from edge_detector import _live_consensus_too_thin
+        future = (datetime.now(timezone.utc) + timedelta(hours=3)) \
+            .isoformat().replace("+00:00", "Z")
+        assert _live_consensus_too_thin([{"commence_time": future}], 0, 6) is False
+
+    def test_wipeout_reaches_the_guard_through_consensus_fair_value(self, caplog):
+        """End-to-end: a live event whose books are all undateable must log the
+        thin-consensus warning, not return None in silence."""
+        from edge_detector import consensus_fair_value
+        event = {
+            "id": "e1",
+            "commence_time": self._ago(10),
+            "home_team": "Celtics",
+            "away_team": "Lakers",
+            "bookmakers": [
+                {   # per-event shape with NO timestamps anywhere -> excluded
+                    "key": key,
+                    "markets": [{"key": "h2h", "outcomes": [
+                        {"name": "Lakers", "price": 1.9},
+                        {"name": "Celtics", "price": 2.1},
+                    ]}],
+                }
+                for key in ("fanduel", "draftkings", "betmgm", "bovada")
+            ],
+        }
+        with caplog.at_level("WARNING"):
+            result = consensus_fair_value([event], "Lakers")
+        assert result is None
+        assert "thinned" in caplog.text.lower()

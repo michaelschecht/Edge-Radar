@@ -219,11 +219,56 @@ class TestRolling7d:
         assert out["wins"] == 3
         assert out["pnl"] == pytest.approx(1.0)
         # Brier with predicted=0.50 and 3W/2L → mean (0.5)^2 = 0.25
-        assert out["brier"] == pytest.approx(0.25)
+        assert out["brier_market"] == pytest.approx(0.25)
 
     def test_excludes_outside_7d(self):
         rows = [_settled(NOW - timedelta(days=8)) for _ in range(10)]
         assert rolling_7d_context(rows, NOW) is None
+
+    def test_no_side_price_is_not_flipped(self):
+        """S18: `market_price_at_entry` is already side-relative.
+
+        A NO bought at 73c stores 0.73 — the price PAID for the NO. Flipping it
+        to 0.27 and scoring that against a win inflated the reported Brier on
+        every window containing a NO settlement (33% of the book). The old test
+        priced everything at 0.50, where the flip is invisible; 0.80 is not.
+        """
+        rows = [
+            _settled(NOW - timedelta(hours=h), side="no",
+                     market_price_at_entry=0.80, won=True, cost=0.8, net_pnl=0.2)
+            for h in (24, 48, 72, 96, 120)
+        ]
+        out = rolling_7d_context(rows, NOW)
+        # Correct: (0.80 - 1)^2 = 0.04.  Flipped would give (0.20 - 1)^2 = 0.64.
+        assert out["brier_market"] == pytest.approx(0.04)
+
+    def test_model_and_market_brier_are_separate(self):
+        """The digest reports both; they must not collapse into one number."""
+        rows = [
+            _settled(NOW - timedelta(hours=h), side="no",
+                     market_price_at_entry=0.80, fair_value=0.90,
+                     won=True, cost=0.8, net_pnl=0.2)
+            for h in (24, 48, 72, 96, 120)
+        ]
+        out = rolling_7d_context(rows, NOW)
+        assert out["brier_market"] == pytest.approx(0.04)   # (0.80 - 1)^2
+        assert out["brier_model"] == pytest.approx(0.01)    # (0.90 - 1)^2
+        assert out["brier_n_market"] == 5
+        assert out["brier_n_model"] == 5
+
+    def test_missing_fair_value_does_not_sink_model_brier(self):
+        """A row with no fair_value is skipped, not scored as 0.0 (the D1 trap)."""
+        rows = [
+            _settled(NOW - timedelta(hours=24), market_price_at_entry=0.50, fair_value=0.50, won=True),
+            _settled(NOW - timedelta(hours=48), market_price_at_entry=0.50, fair_value=None, won=True),
+            _settled(NOW - timedelta(hours=72), market_price_at_entry=0.50, fair_value=0.50, won=True),
+            _settled(NOW - timedelta(hours=96), market_price_at_entry=0.50, fair_value=0.50, won=True),
+            _settled(NOW - timedelta(hours=120), market_price_at_entry=0.50, fair_value=0.50, won=True),
+        ]
+        out = rolling_7d_context(rows, NOW)
+        assert out["brier_n_market"] == 5
+        assert out["brier_n_model"] == 4
+        assert out["brier_model"] == pytest.approx(0.25)
 
 
 # ── End-to-end render ────────────────────────────────────────────────────────

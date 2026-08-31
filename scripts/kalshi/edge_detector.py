@@ -431,6 +431,37 @@ def _live_consensus_too_thin(events: list, n_fresh_books: int, n_excluded: int) 
     return False
 
 
+def _bookmaker_last_update(bookmaker: dict) -> datetime | None:
+    """Freshness timestamp for a bookmaker, or None if it carries none at all.
+
+    S19: The Odds API puts `last_update` in two different places depending on
+    which endpoint served the payload.
+
+      * sport-level  `/sports/{sport}/odds`            -> on the bookmaker AND each market
+      * per-event    `/sports/{sport}/events/{id}/odds` -> on each market ONLY
+
+    `_refresh_event_if_live()` is the sole caller of the per-event endpoint, so
+    every in-play refresh returned bookmakers shaped `{key, title, markets}` with
+    no top-level timestamp. Reading only the bookmaker field made the staleness
+    filter reject 100% of books on every live event (1920/1920 across the cached
+    per-event payloads) while catching zero genuinely stale quotes — those same
+    markets carried timestamps with a median age of 34s against a 1200s limit.
+
+    Falls back to the OLDEST market timestamp: a bookmaker is only as fresh as
+    its stalest market, which keeps the conservative intent of the fail-closed
+    branch below.
+    """
+    lu = _parse_iso_utc(bookmaker.get("last_update") or "")
+    if lu is not None:
+        return lu
+    market_times = [
+        parsed
+        for m in bookmaker.get("markets", [])
+        if (parsed := _parse_iso_utc(m.get("last_update") or "")) is not None
+    ]
+    return min(market_times) if market_times else None
+
+
 def _is_bookmaker_stale(bookmaker: dict, event: dict, max_age: int) -> bool:
     """True if the bookmaker's last_update is too old for an in-progress game (Phase 2)."""
     commence_str = event.get("commence_time")
@@ -442,17 +473,16 @@ def _is_bookmaker_stale(bookmaker: dict, event: dict, max_age: int) -> bool:
         return False
 
     # Event is live/in-progress
-    lu_str = bookmaker.get("last_update")
-    lu_dt = _parse_iso_utc(lu_str) if lu_str else None
+    lu_dt = _bookmaker_last_update(bookmaker)
     if lu_dt is None:
-        # Live game but no usable last_update — fail CLOSED: exclude this book
-        # rather than trust a quote we can't date. A suspended/stale feed can drop
-        # or mangle the field, and on a live game that stale line would poison the
-        # consensus. The Odds API event endpoint returns last_update on every real
-        # response, so this only fires on malformed/mocked data.
+        # Live game and NEITHER the bookmaker nor any of its markets carries a
+        # usable timestamp — fail CLOSED: exclude rather than trust a quote we
+        # cannot date. A suspended feed can drop or mangle the field, and on a
+        # live game that stale line would poison the consensus.
         log.warning(
-            "Excluding bookmaker %s on live event: missing/unparseable last_update (%r)",
-            bookmaker.get("key"), lu_str,
+            "Excluding bookmaker %s on live event: no usable last_update on the "
+            "bookmaker or any of its %d market(s)",
+            bookmaker.get("key"), len(bookmaker.get("markets", [])),
         )
         return True
 
@@ -605,10 +635,17 @@ def consensus_fair_value(events: list, team_name: str) -> tuple[float, dict] | N
                     "devigged": round(fair_team, 4),
                 }
 
-    if not fair_probs:
+    # S19: the thin-consensus guard runs BEFORE the empty check. When the
+    # staleness filter strips every book, this list is empty and the bare
+    # `return None` below swallowed the wipeout silently — which is why
+    # `_live_consensus_too_thin` had never once logged despite 2888
+    # exclusions. The worst case was the one case the guard could not see.
+    # It no-ops when nothing was excluded, so a genuine "no books matched"
+    # still falls through to the empty check unchanged.
+    if _live_consensus_too_thin(events, len(fair_probs), n_stale_excluded):
         return None
 
-    if _live_consensus_too_thin(events, len(fair_probs), n_stale_excluded):
+    if not fair_probs:
         return None
 
     # Fix B (belt-and-suspenders): never pool a team across multiple games.
@@ -856,10 +893,17 @@ def consensus_spread_prob(events: list, team_name: str, strike: float,
                     "raw_implied": round(raw_implied, 4),
                 })
 
-    if not spread_data:
+    # S19: the thin-consensus guard runs BEFORE the empty check. When the
+    # staleness filter strips every book, this list is empty and the bare
+    # `return None` below swallowed the wipeout silently — which is why
+    # `_live_consensus_too_thin` had never once logged despite 2888
+    # exclusions. The worst case was the one case the guard could not see.
+    # It no-ops when nothing was excluded, so a genuine "no books matched"
+    # still falls through to the empty check unchanged.
+    if _live_consensus_too_thin(events, len(spread_data), n_stale_excluded):
         return None
 
-    if _live_consensus_too_thin(events, len(spread_data), n_stale_excluded):
+    if not spread_data:
         return None
 
     # Fix B: refuse to pool one team's spread across multiple games.
@@ -992,10 +1036,17 @@ def consensus_total_prob(events: list, strike: float,
                     "raw_implied": round(raw_implied, 4),
                 })
 
-    if not total_data:
+    # S19: the thin-consensus guard runs BEFORE the empty check. When the
+    # staleness filter strips every book, this list is empty and the bare
+    # `return None` below swallowed the wipeout silently — which is why
+    # `_live_consensus_too_thin` had never once logged despite 2888
+    # exclusions. The worst case was the one case the guard could not see.
+    # It no-ops when nothing was excluded, so a genuine "no books matched"
+    # still falls through to the empty check unchanged.
+    if _live_consensus_too_thin(events, len(total_data), n_stale_excluded):
         return None
 
-    if _live_consensus_too_thin(events, len(total_data), n_stale_excluded):
+    if not total_data:
         return None
 
     # Fix B: this function keys only on "Over" (no team match), so an unscoped

@@ -227,20 +227,28 @@ def rolling_7d_context(rows: list[dict], now: datetime) -> dict | None:
     wins = sum(1 for r in in_window if r.get("won"))
     pnl = sum(float(r.get("net_pnl") or 0.0) for r in in_window)
     cost = sum(float(r.get("cost") or 0.0) for r in in_window)
-    # Brier: predicted prob = market price (cost basis); outcome = 1 if won else 0
-    brier_terms = []
+    # Two Brier scores, both in BET-SIDE space: outcome is "did this bet win".
+    #
+    # `market_price_at_entry` and `fair_value` are ALREADY side-relative — a NO
+    # bought at 73c stores 0.73, not 0.27 (the settlement log satisfies
+    # `fair_value - market_price_at_entry == edge_estimated` on every NO row).
+    # An earlier version flipped the price for NO bets, which scored a 73c NO as
+    # a 0.27 prediction against a win and inflated the reported Brier whenever a
+    # NO settled (S18). Do not reintroduce the flip.
+    #
+    # They answer different questions and F3/S1b turn on the comparison, so
+    # report them as a pair rather than one unlabelled "Brier":
+    #   market — the venue's ask, the benchmark to beat
+    #   model  — our fair value, the thing under test
+    market_terms, model_terms = [], []
     for r in in_window:
-        price = r.get("market_price_at_entry")
-        if price is None:
-            continue
         outcome = 1.0 if r.get("won") else 0.0
-        # NO-side bets pay if outcome == 0; flip the predicted prob
-        side = (r.get("side") or "").lower()
-        predicted = float(price) if side != "no" else 1.0 - float(price)
-        # outcome from the bet's perspective: did the bet win?
-        outcome_from_bet = 1.0 if r.get("won") else 0.0
-        brier_terms.append((predicted - outcome_from_bet) ** 2)
-    brier = statistics.mean(brier_terms) if brier_terms else None
+        price = r.get("market_price_at_entry")
+        if price is not None:
+            market_terms.append((float(price) - outcome) ** 2)
+        fv = r.get("fair_value")
+        if fv is not None:
+            model_terms.append((float(fv) - outcome) ** 2)
     return {
         "n": n,
         "wins": wins,
@@ -248,7 +256,10 @@ def rolling_7d_context(rows: list[dict], now: datetime) -> dict | None:
         "pnl": pnl,
         "cost": cost,
         "roi": (pnl / cost * 100.0) if cost else 0.0,
-        "brier": brier,
+        "brier_market": statistics.mean(market_terms) if market_terms else None,
+        "brier_model": statistics.mean(model_terms) if model_terms else None,
+        "brier_n_market": len(market_terms),
+        "brier_n_model": len(model_terms),
     }
 
 
@@ -434,7 +445,12 @@ def render_report(
     else:
         lines.append(f"- Yesterday Δ: {_fmt_signed(overall.pnl)} _(balance unavailable)_")
     if rolling_7d:
-        brier_str = f"Brier {rolling_7d['brier']:.3f}" if rolling_7d.get("brier") is not None else "Brier —"
+        bm, bd = rolling_7d.get("brier_market"), rolling_7d.get("brier_model")
+        # Model vs market on the same bets — the F3 comparison, not one bare number.
+        brier_str = "Brier model {} vs market {}".format(
+            f"{bd:.3f}" if bd is not None else "—",
+            f"{bm:.3f}" if bm is not None else "—",
+        )
         lines.append(
             f"- **7-day rolling:** {rolling_7d['n']} bets &nbsp;·&nbsp; "
             f"{rolling_7d['wins']}-{rolling_7d['n'] - rolling_7d['wins']} "
