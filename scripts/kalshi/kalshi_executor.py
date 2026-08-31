@@ -301,6 +301,81 @@ def exposure_from_positions(market_positions: list[dict]) -> tuple[float, dict[s
     return total, by_segment
 
 
+def resting_exposure(client, trade_rows: list[dict] | None = None
+                     ) -> tuple[float, dict[str, float]]:
+    """Cash committed to open resting orders (S21). Same shape as
+    `exposure_from_positions`, and added to it before Gate 2b runs.
+
+    A resting order is invisible to every input Gate 2b had: it is not a
+    position, so `exposure_from_positions` returns 0 for it, and its cash has
+    **already left** `balance` while not yet appearing in `portfolio_value`.
+    So it shrinks equity and adds nothing to exposure -- understating the ratio
+    in both terms at once. Observed 2026-08-31:
+    `KXMLBTOTAL-26AUG311940MILCHC-14` requested 3 contracts for $2.43 and logged
+    `contracts: 0, cost_dollars: 0.00`, while shard 3 dropped from $15.00 to
+    $12.57 -- exactly the $2.43.
+
+    **Price comes from our own trade log, not the venue.** v2 expresses every
+    order from the YES perspective (`kalshi_client.create_order`): a NO buy is an
+    `ask` at `(100 - no_price)`, so pricing a resting order off the venue payload
+    needs a side inversion. Reading that backwards on an 81c NO yields $0.19 a
+    contract instead of $0.81 -- a 4x under-count, in the one gate this exists to
+    tighten. The trade log already stores `price_cents` in **bet-side** terms, so
+    joining on `order_id` needs no inversion at all. The venue stays authoritative
+    for *which* orders are still resting; the log is authoritative for what they
+    cost.
+
+    An order the log cannot price (hand-placed on iOS, or a log gap) is **counted
+    at the venue's own remaining count times a 1.00 worst case** and logged at
+    WARNING. Skipping it would reproduce the exact under-count this function
+    exists to remove, and over-stating exposure only ever tightens the gate.
+    """
+    try:
+        resp = client.get_orders(status="resting", limit=100)
+    except Exception as e:                      # noqa: BLE001 - never block a batch
+        log.warning("Resting-order exposure unavailable (%s); Gate 2b will "
+                    "under-count by any open resting order", e)
+        return 0.0, {}
+
+    orders = resp.get("orders", []) if isinstance(resp, dict) else []
+    if not orders:
+        return 0.0, {}
+
+    by_order = {}
+    for row in trade_rows or []:
+        oid = row.get("order_id")
+        if oid:
+            by_order[oid] = row
+
+    total = 0.0
+    by_segment: dict[str, float] = {}
+    for o in orders:
+        remaining = int(float(_order_field(o, "remaining_count",
+                                           "remaining_count_fp") or "0"))
+        if remaining <= 0:
+            continue
+        ticker = o.get("ticker", "")
+        logged = by_order.get(o.get("order_id"))
+        price = None
+        if logged is not None:
+            try:
+                price = float(logged.get("price_cents")) / 100.0
+            except (TypeError, ValueError):
+                price = None
+        if price is None or not (0.0 < price <= 1.0):
+            price = 1.00
+            log.warning(
+                "Resting order %s (%s) is not priceable from the trade log; "
+                "counting %d contract(s) at $1.00 worst case so Gate 2b errs "
+                "tight rather than blind", o.get("order_id"), ticker, remaining,
+            )
+        committed = round(remaining * price, 4)
+        seg = _detect_sport(ticker) or "unknown"
+        total += committed
+        by_segment[seg] = by_segment.get(seg, 0.0) + committed
+    return total, by_segment
+
+
 def _exposure_rejection(opp: "Opportunity", open_exposure: float,
                         segment_exposure: float, equity: float) -> str | None:
     """Gate 2b (S4) -- reason string if the book is already at a ceiling.
@@ -1842,6 +1917,23 @@ def execute_pipeline(
     #   denominator — see `_exposure_rejection`.
     equity = bankroll + bal["portfolio_value"]
     open_exposure, segment_exposure = exposure_from_positions(market_positions)
+
+    # ── S21: fold in open resting orders. Their cash has already left `balance`
+    #   but has not reached `portfolio_value` or the positions list, so without
+    #   this both terms of the ratio are short and Gate 2b reads looser than it
+    #   was configured to be. Runs AFTER the janitor above, so orders it just
+    #   cancelled are already gone from the venue's list.
+    _resting_total, _resting_by_seg = resting_exposure(client, load_trade_log())
+    if _resting_total > 0:
+        equity += _resting_total
+        open_exposure += _resting_total
+        for _seg, _amt in _resting_by_seg.items():
+            segment_exposure[_seg] = segment_exposure.get(_seg, 0.0) + _amt
+        rprint(
+            f"  Resting:    ${_resting_total:,.2f} committed to open orders "
+            f"(counted toward exposure)"
+        )
+
     if MAX_OPEN_EXPOSURE_PCT > 0 or MAX_SEGMENT_EXPOSURE_PCT > 0:
         _pct = open_exposure / equity if equity > 0 else 0
         _cap = f"{MAX_OPEN_EXPOSURE_PCT:.0%}" if MAX_OPEN_EXPOSURE_PCT > 0 else "off"
