@@ -2,6 +2,119 @@
 
 ---
 
+## 2026-08-31 -- S18/S19: two instruments that were reporting confidently and wrongly
+
+Found by reviewing the trailing week's trades, settlements, logs and reports rather than
+the code. Neither defect ever raised an error; both produced plausible numbers.
+
+### S18 -- the daily digest's Brier double-flipped every NO bet
+
+`market_price_at_entry` is **already side-relative**: a NO bought at 73c stores `0.73`,
+the price paid for the NO. `daily_summary.py` flipped it anyway --
+
+```python
+predicted = float(price) if side != "no" else 1.0 - float(price)
+```
+
+-- turning that 73c NO into a `0.27` prediction and scoring it against a win. The
+settlement log settles the question in one line: **0 of 133 NO-side rows** violate
+`fair_value - market_price_at_entry == edge_estimated`, so the stored price is the bet's
+own price on every one of them.
+
+**33% of all 407 settled bets are NO-side**, so any window containing one was overstated.
+The 2026-08-31 email reported **Brier 0.169** where the truth is **0.077**.
+
+The second half is worse and outlives the arithmetic. This function computes the
+**market's** Brier (predicted = the ask) while `betting_analysis.py` computes the
+**model's** (predicted = `fair_value`). On 08-31 the two reports printed **0.169 and
+0.0501 under the same label "Brier", for the same five bets, on the same day**. F3's whole
+finding is *model Brier vs market Brier*, and S1b branch A is decided on exactly that
+comparison -- one label covering two quantities is how that call gets made on the wrong
+number. The digest now reports them as a pair:
+
+```
+- 7-day rolling: 5 bets · 4-1 (80.0% WR) · P&L +$1.20 · ROI +18.2% · Brier model 0.050 vs market 0.077
+```
+
+The model figure now agrees with `betting_analysis.py` to four decimals, which is the
+cross-check that the two reports finally describe the same world.
+
+**Why it survived:** the existing test priced every bet at 50c, where a flip is invisible.
+Four new tests; the NO-side one uses 80c.
+
+### S19 -- the live-freshness filter rejected 100% of books, and never once caught a stale one
+
+The Odds API puts `last_update` in two different places:
+
+| endpoint | bookmaker | market |
+|:--|:--|:--|
+| `/sports/{sport}/odds` | yes | yes |
+| `/sports/{sport}/events/{id}/odds` | **no** | yes |
+
+`_refresh_event_if_live()` is the only caller of the per-event endpoint -- the in-play
+refresh that exists to make data *fresher*. Every response it returns has bookmakers
+shaped `{key, title, markets}`. `_is_bookmaker_stale()` read only the bookmaker field,
+found `None`, and took its fail-closed branch.
+
+Measured on the 327 real per-event payloads in `data/cache/odds/events/`:
+
+| | |
+|:--|--:|
+| bookmakers missing a top-level `last_update` | **1920 / 1920 (100%)** |
+| markets carrying one | **5252 / 5252 (100%)** |
+| median market quote age at fetch | **34s** |
+| quotes actually stale against the 1200s limit | **0** |
+
+August's logs: **2888 exclusions, every one "missing last_update", zero from the age
+check.** The filter has never done the job it was written for, and the code comment
+asserting *"The Odds API event endpoint returns last_update on every real response, so
+this only fires on malformed/mocked data"* had it exactly backwards.
+
+`_bookmaker_last_update()` falls back to the **oldest** market timestamp -- a bookmaker is
+only as fresh as its stalest market, which keeps the conservative intent. Replaying the
+same 1920 bookmakers: **100% dropped -> 0% dropped**, with fail-closed intact for a book
+carrying no timestamp anywhere.
+
+No P&L damage, because `ALLOW_LIVE_BETS=false` (S7). But it sits directly under the L1
+in-play work, and it was spending Odds API quota on responses discarded wholesale -- which
+fed S20, where 10 of 12 keys are exhausted and all 166 August key failures are `baseball_mlb`.
+
+### S19b -- and the guard built to catch exactly this could not see it
+
+All three consensus functions ordered their exits so the empty case returned first:
+
+```python
+if not fair_probs:                              # total wipeout returns HERE
+    return None
+if _live_consensus_too_thin(...):               # unreachable when every book is stripped
+```
+
+`_live_consensus_too_thin` only ever fired when 1-2 books survived. **The worst case --
+all of them stripped -- was the one case it was blind to**, which is why it never logged
+once in a month of 2888 exclusions. Reordered at all three sites. It still no-ops when
+`n_excluded == 0`, so a genuine "no books matched this team" falls through unchanged; only
+a wipeout *caused by the filter* now warns.
+
+### Verification
+
+11 new tests, of which **4 fail without the fix**. The other 7 guard against
+over-correction -- stale still excluded, no-timestamp-anywhere still fails closed, pregame
+untouched, bookmaker-level field still preferred -- and pass either way by design. One
+replays every real cached per-event payload on disk and asserts each bookmaker is dateable,
+so the fixtures cannot drift away from what the API actually sends.
+
+The wrong belief was in the fixtures too (`tests/test_edge_detection.py:516`, *"Real Odds
+API responses always carry a per-bookmaker last_update"*): every fixture modelled the
+sport-level shape, so the per-event shape was never exercised. Comment corrected in both
+places.
+
+**996 pass.** Five pre-existing failures in `tests/test_exposure_gate.py` are unrelated and
+predate this work -- fixture ticker `KXMLBGAME-26AUG271900NYYBOS-NYY` went into the past on
+08-27, so Gate 4.8 now rejects it as in-progress. Same rotting-fixture class S1 and S5 both
+hit at the conftest seam; logged, not fixed here.
+
+---
+
 ## 2026-08-27 -- X1: just-in-time cash movement between exchange shards
 
 **Sizing stays whole-account; spending becomes shard-aware.** Operator's call, and the

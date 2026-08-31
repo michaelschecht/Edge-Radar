@@ -223,6 +223,30 @@ Standing rules — do not reverse them without new settled evidence.
 
 - **Every composite scales edge as `min(edge / 0.01, 10)`.** The futures and Polymarket-games paths originally used `edge * 20`, saturating at a 50% edge instead of 10%, which made Gate 4 structurally unreachable (0 futures bets in 85 settled trades; 0 of 362 Gamma game rows ever reached 6.0). **Never reintroduce `edge * 20`.** *CHANGELOG 2026-07-23 (C10), 2026-07-31 (C10b).* The Polymarket-games liquidity term intentionally stays `book_spread * 100`.
 - **Confidence bumps are one-way — down only.** `supports` is a no-op; only `contradicts` drops a tier. See `_adjust_confidence_with_stats()` in `scripts/kalshi/edge_detector.py`. *CHANGELOG 2026-04-24 (R13).*
+
+- **`market_price_at_entry` and `fair_value` are already SIDE-RELATIVE — never flip them for
+  NO bets.** A NO bought at 73c stores `0.73`, the price paid for the NO; the settlement log
+  satisfies `fair_value - market_price_at_entry == edge_estimated` on all 133 NO rows. The
+  daily digest flipped the price anyway, scoring a 73c NO as a `0.27` prediction against a
+  win, and reported **Brier 0.169 where the truth is 0.077** — wrong on every window
+  containing a NO settlement, which is 33% of the book. **And "Brier" alone is not a
+  quantity:** predicted = market price is the *market's* Brier (the benchmark), predicted =
+  `fair_value` is the *model's* (the thing under test). The two were printed under one label
+  on the same five bets on the same day (0.169 vs 0.0501). F3's finding and S1b's unfreeze
+  branch both turn on model-vs-market, so **always report the pair, labelled.**
+  *CHANGELOG 2026-08-31 (S18).*
+
+- **The Odds API puts `last_update` in two places, and the per-event endpoint uses only one
+  of them.** `/sports/{sport}/odds` carries it on the bookmaker *and* each market;
+  `/sports/{sport}/events/{id}/odds` carries it on **markets only** — 1920/1920 cached
+  per-event bookmakers have no top-level field. `_refresh_event_if_live()` is the sole caller
+  of that endpoint, so reading only `bookmaker["last_update"]` made the L1 staleness filter
+  reject **100% of books on every live event** (2888 exclusions in August, **zero** from the
+  age check) while those same quotes ran a median 34s old against a 1200s limit. Use
+  `_bookmaker_last_update()`, which falls back to the **oldest** market timestamp — a
+  bookmaker is only as fresh as its stalest market. Still fails closed when nothing is
+  dateable. **Fixtures must model the per-event shape too**; every one modelling only the
+  sport-level shape is why this went unseen. *CHANGELOG 2026-08-31 (S19).*
 - **The sports composite caps `high` to the `medium` weight** (`{low:3, medium:6, high:6}`) — at equal claimed edge, High underperformed Medium. The `high` *label* is retained because Gate 4.6 still uses it. **Futures and Polymarket keep `high: 9`** — that evidence is Kalshi sports only, and there is no settled futures or Polymarket data yet. Revisit when PM3 settlement lands. *CHANGELOG 2026-06-24 (C4).*
 
 ### Venue eligibility (S3) — fails CLOSED
