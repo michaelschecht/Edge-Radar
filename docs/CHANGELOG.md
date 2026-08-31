@@ -2,6 +2,95 @@
 
 ---
 
+## 2026-08-31 (later) -- S25: the suite goes green, and S21: resting orders reach Gate 2b
+
+### S25 -- five failing tests that everyone had learned to read as "known failures"
+
+`make test` had been red since **2026-08-27**, discovered four days later during
+an unrelated review. Cause: `KXMLBGAME-26AUG271900NYYBOS-NYY`, a fixture ticker
+in `test_exposure_gate.py`, embeds a **start time**. At 7pm on the 27th it
+drifted into the past, `is_game_started()` began returning True, and Gate 4.8
+rejected the order five tests were making assertions about. Nothing changed in
+the code. The clock moved.
+
+That is the **third** time wall-clock coupling has broken this suite -- S1 broke
+four tests by freezing NFL, S5 broke 126 by enabling the time-to-event cap -- and
+the first time it went unnoticed, because a suite with standing failures stops
+being read.
+
+The repo already had both correct idioms, in `test_risk_gates.py`:
+
+```python
+STARTED_TICKER  = "KXMLBGAME-20JUN011840CWSMIA-MIA"   # year 20 -- always past
+UPCOMING_TICKER = "KXMLBGAME-99JUN011840CWSMIA-MIA"   # year 99 -- never arrives
+```
+
+The fixture is now year 99, and `tests/test_fixture_hygiene.py` makes the
+convention enforceable: no fixture ticker carrying a **start time** may sit
+within 90 days of today, so a bomb is flagged a quarter before it detonates
+rather than on the morning it does. Verified by planting one and watching it
+fail.
+
+**Scoped deliberately.** An earlier draft flagged every dated ticker and lit up
+~50 fixtures that cannot affect a verdict -- `test_ticker_display` in particular
+passes explicit `now=` values and *needs* real dates. It is also forward-looking
+only: an already-past ticker has either broken the suite and been fixed, or
+provably cannot reach a gate. A check that cries wolf gets deleted.
+
+**A correction worth recording.** The review that opened this work claimed nine
+fixtures would detonate on 2026-09-13, the day NFL Week 1 settles and two days
+before the S1b unfreeze review. That was wrong: the Sept-13 tickers are
+`KXNFLGAME-26SEP13MIALV-MIA` -- **date only, no HHMM** -- and `is_game_started`
+deliberately returns False rather than guess an unknown kickoff. They were never
+Gate 4.8 bombs. The urgency was right, the mechanism was not. A probe that ran
+the suite against a shifted clock is what settled it; `test_fixture_hygiene`
+now pins the distinction so nobody has to re-derive it.
+
+**1020 tests pass, zero failures** -- green for the first time since 08-27.
+
+### S21 -- a resting order commits real cash and reports $0
+
+Gate 2b measures a standing total, and a resting order was invisible to every
+input it had:
+
+| | |
+|:--|--:|
+| not a position, so `exposure_from_positions` returns | **$0.00** |
+| its cash has already left `balance` | **-$2.43** |
+| ...but has not arrived in `portfolio_value` | **$0.00** |
+
+So it shrinks equity *and* leaves exposure unchanged -- understating the ratio in
+**both terms at once**, which makes the gate read looser than it was configured
+to be. `KXMLBTOTAL-26AUG311940MILCHC-14` requested 3 contracts for $2.43 and
+logged `contracts: 0, cost_dollars: 0.00`, while shard 3 fell from $15.00 to
+$12.57. Exactly the $2.43.
+
+`resting_exposure()` returns the same `(total, by_segment)` shape as
+`exposure_from_positions`, and both are folded into equity and exposure before
+Gate 2b runs. It fails **open** with a warning if the venue listing is
+unavailable -- exposure is a sizing input, not a legality check (contrast S3).
+
+**Price comes from our own trade log, not the venue, and that is the whole
+design.** v2 expresses every order from the YES perspective: a NO buy rests as an
+`ask` at `(100 - no_price)`. Pricing the 81c NO off the venue payload without
+inverting yields **$0.19 a contract instead of $0.81** -- a 4x under-count, in the
+one gate this exists to tighten. The inversion could not be verified against a
+live resting order (there were none at the time), so it is not in the code at
+all: the trade log already stores `price_cents` **bet-side**, so joining on
+`order_id` needs no inversion. The venue stays authoritative for *which* orders
+rest; the log for what they cost. A test pins the trap explicitly.
+
+An order the log cannot price -- hand-placed on iOS, or a log gap -- is counted at
+**$1.00/contract worst case** and logged at WARNING. Skipping it would reproduce
+the exact under-count being removed, and over-stating exposure only ever tightens
+the gate.
+
+Verified live against the funded account: 28 positions, $36.30 exposure, $122.62
+equity, **0 resting orders -> ratio unchanged at 29.6%**, no false positives.
++14 tests.
+
+---
+
 ## 2026-08-31 -- S18/S19: two instruments that were reporting confidently and wrongly
 
 Found by reviewing the trailing week's trades, settlements, logs and reports rather than

@@ -25,7 +25,7 @@ from kalshi_executor import (
 )
 
 
-def _opp(ticker="KXMLBGAME-26AUG271900NYYBOS-NYY", category="game", price=0.50):
+def _opp(ticker="KXMLBGAME-99AUG271900NYYBOS-NYY", category="game", price=0.50):
     return Opportunity(
         ticker=ticker, title="", category=category, side="yes",
         market_price=price, fair_value=price + 0.12, edge=0.12, edge_source="test",
@@ -55,7 +55,7 @@ class TestReadingPositions:
     def test_splits_by_sport(self):
         total, by_seg = exposure_from_positions([
             {"ticker": "KXNFLSPREAD-26SEP13MIALV-MIA7", "market_exposure_dollars": "10.00"},
-            {"ticker": "KXMLBGAME-26AUG271900NYYBOS-NYY", "market_exposure_dollars": "4.00"},
+            {"ticker": "KXMLBGAME-99AUG271900NYYBOS-NYY", "market_exposure_dollars": "4.00"},
         ])
         assert total == pytest.approx(14.0)
         assert by_seg["nfl"] == pytest.approx(10.0)
@@ -67,7 +67,7 @@ class TestReadingPositions:
         open every ceiling. Skip the row, keep the rest."""
         total, _ = exposure_from_positions([
             {"ticker": "KXNFLGAME-26SEP13MIALV-MIA", "market_exposure_dollars": bad},
-            {"ticker": "KXMLBGAME-26AUG271900NYYBOS-NYY", "market_exposure_dollars": "4.00"},
+            {"ticker": "KXMLBGAME-99AUG271900NYYBOS-NYY", "market_exposure_dollars": "4.00"},
         ])
         assert total == pytest.approx(4.0)
 
@@ -148,7 +148,7 @@ class TestTheRealBook:
         """MLB carries $5.21 of the book, so a frozen NFL pile must not stop
         new betting elsewhere -- the reason the segment cap exists at all."""
         assert _exposure_rejection(
-            _opp("KXMLBGAME-26AUG271900NYYBOS-NYY"),
+            _opp("KXMLBGAME-99AUG271900NYYBOS-NYY"),
             self.TOTAL_AT_RISK, 5.21, self.LIVE_EQUITY,
         ) is None
 
