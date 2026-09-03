@@ -2,6 +2,25 @@
 
 ---
 
+## 2026-09-03 -- S20 closed: the Odds API quota problem was the monthly reset
+
+S20 (2026-08-31) found 10 of 12 keys exhausted and 166 August `All N Odds API
+keys returned 401/429` errors, all `baseball_mlb`. As of 09-03: **14 keys**
+(operator added 2), and **zero** exhaustion errors in `logs/edge_detector_*`
+for 09-01 through 09-03, against 4-48/day through August. The Odds API quota
+resets on the 1st of the month -- the 10 exhausted keys came back full on
+09-01, and the 2 added keys widen the margin going forward. No code change;
+confirmed by log inspection, not by a `--live` probe.
+
+**Still open, separately:** whether MLB's -6.4% ROI / 0.2917 Brier (flagged
+worse than a coin flip in the 30d calibration report) was actually caused by
+quota-thinned consensus, or is a real model problem now unmasked. S20 could
+not distinguish the two and neither does this closure -- it only rules out
+*ongoing* quota starvation as of this month. Revisit if MLB's numbers don't
+improve now that its books aren't getting starved.
+
+---
+
 ## 2026-08-31 (later) -- S25: the suite goes green, and S21: resting orders reach Gate 2b
 
 ### S25 -- five failing tests that everyone had learned to read as "known failures"
