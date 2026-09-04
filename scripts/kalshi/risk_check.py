@@ -28,6 +28,7 @@ from rich.panel import Panel
 from rich import print as rprint
 
 from kalshi_client import KalshiClient
+from kalshi_executor import daily_loss_breached, positions_at_cap
 from trade_log import (
     load_trade_log, load_settlement_log, get_today_pnl, get_filled_cost,
     settlement_revenue_dollars,
@@ -109,7 +110,10 @@ def get_daily_limit_pct(daily_pnl: float) -> float:
 
 
 def is_daily_limit_breached(daily_pnl: float) -> bool:
-    return daily_pnl <= -MAX_DAILY_LOSS
+    # Delegates to kalshi_executor's Gate 1 predicate so this dashboard's
+    # "breached" verdict can't drift from the actual reject logic in
+    # size_order (2026-09-04 gate-consolidation review, finding #2).
+    return daily_loss_breached(daily_pnl, MAX_DAILY_LOSS)
 
 
 # ── Display Functions ─────────────────────────────────────────────────────────
@@ -477,7 +481,7 @@ def run_gate_check(client: KalshiClient) -> int:
     if is_daily_limit_breached(daily_pnl):
         failures.append(f"Daily loss limit breached: ${abs(daily_pnl):.2f} / ${MAX_DAILY_LOSS:.2f}")
 
-    if len(positions) >= MAX_OPEN_POSITIONS:
+    if positions_at_cap(len(positions), MAX_OPEN_POSITIONS):
         failures.append(f"Max open positions reached: {len(positions)} / {MAX_OPEN_POSITIONS}")
 
     if failures:
