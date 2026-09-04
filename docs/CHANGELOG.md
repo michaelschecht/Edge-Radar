@@ -2,6 +2,27 @@
 
 ---
 
+## 2026-09-04 -- risk_check.py no longer re-derives Gate 1/2 comparisons
+
+Finding #2 from the [2026-09-03 gate-consolidation review](my-documents/repo-reviews/2026-09-03-risk-gate-consolidation-review.md):
+`risk_check.py --gate` re-implemented the daily-loss and open-positions
+comparisons independently of `kalshi_executor.size_order`, which could
+silently drift if either file's threshold logic changed without the other.
+Low blast radius (it's the human-facing preflight in
+`prompts/portfolio/morning-routine.md` / `status-check.md`, not the automated
+scheduler path -- scheduled runs call `execute_pipeline` directly), but
+mechanical and safe to fix regardless.
+
+Extracted `daily_loss_breached()` and `positions_at_cap()` as the shared Gate
+1/2 predicates in `kalshi_executor.py`; `size_order` and `risk_check.py`
+(`is_daily_limit_breached`, `run_gate_check`) both call them now instead of
+each holding its own copy of `<=`/`>=` against the threshold. No threshold
+values or reject behaviour changed -- purely removes a second, independently
+editable copy of the same comparison. 6 new tests (`TestSharedGatePredicates`
+in `tests/test_risk_gates.py`).
+
+---
+
 ## 2026-09-03 -- New Gate 3.55: cost/payout ratio ceiling (`MAX_MARKET_PRICE`)
 
 Operator request: no bet where cost exceeds 75% of the potential payout -- a

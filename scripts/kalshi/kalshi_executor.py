@@ -182,6 +182,25 @@ def _confidence_rank(level: str | None) -> int:
     return _CONFIDENCE_RANK.get(level.strip().lower(), _CONFIDENCE_RANK["medium"])
 
 
+def daily_loss_breached(daily_pnl: float, max_daily_loss: float | None = None) -> bool:
+    """Gate 1 predicate: has the daily loss limit been breached?
+
+    Shared with `risk_check.py`'s `--gate` preflight so the two call sites
+    can't drift onto different comparisons of the same threshold (2026-09-04
+    gate-consolidation review, finding #2).
+    """
+    limit = MAX_DAILY_LOSS if max_daily_loss is None else max_daily_loss
+    return daily_pnl <= -limit
+
+
+def positions_at_cap(open_positions: int, max_open_positions: int | None = None) -> bool:
+    """Gate 2 predicate: are open positions at or over the cap? Same sharing
+    rationale as `daily_loss_breached` above.
+    """
+    cap = MAX_OPEN_POSITIONS if max_open_positions is None else max_open_positions
+    return open_positions >= cap
+
+
 def _liquidity_rejection(opp: "Opportunity") -> str | None:
     """Gate 3.6 -- reason string if the book is too illiquid to trade, else None.
 
@@ -1026,11 +1045,11 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     exposure_reject = _exposure_rejection(opp, open_exposure, segment_exposure, equity)
 
     # ── Risk Gate 1: Daily loss limit
-    if daily_pnl <= -MAX_DAILY_LOSS:
+    if daily_loss_breached(daily_pnl):
         rejection = f"daily_loss_limit_breached (P&L: ${daily_pnl:.2f})"
 
     # ── Risk Gate 2: Max open positions
-    elif open_positions >= MAX_OPEN_POSITIONS:
+    elif positions_at_cap(open_positions):
         rejection = f"max_positions_reached ({open_positions}/{MAX_OPEN_POSITIONS})"
 
     # ── Risk Gate 2b: Cumulative exposure ceilings (S4)

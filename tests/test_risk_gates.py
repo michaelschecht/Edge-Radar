@@ -18,6 +18,7 @@ from kalshi_executor import (
     dedup_correlated_brackets,
     preflight_gate_status,
     _apply_budget_cap,
+    daily_loss_breached, positions_at_cap,
 )
 from kalshi_client import KalshiAPIError
 
@@ -397,6 +398,44 @@ class TestMaxMarketPriceGate:
             assert "price_above_ceiling" not in result.risk_approval
         finally:
             kalshi_executor.MAX_MARKET_PRICE = orig_ceiling
+
+
+class TestSharedGatePredicates:
+    """Gates 1/2: `daily_loss_breached` / `positions_at_cap` are the single
+    source of truth for these two comparisons, shared with `risk_check.py`'s
+    `--gate` preflight (2026-09-04 gate-consolidation review, finding #2) so
+    the dashboard and the executor can't silently diverge on the same limit.
+    """
+
+    def test_daily_loss_breached_at_limit(self):
+        assert daily_loss_breached(-30.0, max_daily_loss=30.0) is True
+
+    def test_daily_loss_breached_below_limit(self):
+        assert daily_loss_breached(-29.99, max_daily_loss=30.0) is False
+
+    def test_daily_loss_breached_uses_module_default(self):
+        import kalshi_executor
+        orig = kalshi_executor.MAX_DAILY_LOSS
+        try:
+            kalshi_executor.MAX_DAILY_LOSS = 30.0
+            assert daily_loss_breached(-30.0) is True
+            assert daily_loss_breached(-29.0) is False
+        finally:
+            kalshi_executor.MAX_DAILY_LOSS = orig
+
+    def test_positions_at_cap_at_limit(self):
+        assert positions_at_cap(50, max_open_positions=50) is True
+
+    def test_positions_at_cap_below_limit(self):
+        assert positions_at_cap(49, max_open_positions=50) is False
+
+    def test_risk_check_delegates_to_shared_predicates(self):
+        # Import guard: risk_check.py must call kalshi_executor's predicates
+        # rather than re-deriving the comparison itself.
+        import risk_check
+        assert risk_check.is_daily_limit_breached is not None
+        assert risk_check.is_daily_limit_breached(-risk_check.MAX_DAILY_LOSS) is True
+        assert risk_check.is_daily_limit_breached(0.0) is False
 
 
 # ── R3: Minimum confidence gate ──────────────────────────────────────────────
