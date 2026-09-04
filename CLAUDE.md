@@ -118,6 +118,7 @@ Every gate runs before any trade executes:
 | 2b | Total open exposure < `MAX_OPEN_EXPOSURE_PCT` and per-sport < `MAX_SEGMENT_EXPOSURE_PCT`, both as fractions of equity (S4) | Reject **+ Cap** |
 | 3 | Edge >= minimum threshold (per-sport or global) **+ exchange fee** (F1) | Reject |
 | 3.5 | Market price >= `MIN_MARKET_PRICE` (lottery-ticket floor, R7) | Reject |
+| 3.55 | Market price <= `MAX_MARKET_PRICE` (cost/payout ratio ceiling) | Reject |
 | 3.6 | Bid/ask spread <= `MAX_BID_ASK_SPREAD` and 24h volume >= `MIN_MARKET_VOLUME_24H` (L2) | Reject |
 | 3.7 | Game markets only: days to event <= `MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS` (S5). **Futures exempt** | Reject |
 | 4 | Composite score >= `MIN_COMPOSITE_SCORE` | Reject |
@@ -324,6 +325,10 @@ MIN_EDGE_THRESHOLD_NFL=<unset>  # S1: FREEZE, live-only, code default unset. NFL
 MIN_MARKET_PRICE=0.12           # R7 lottery-ticket floor; 0 disables. Pure reject threshold,
                                 #   independent of sizing. The live 0.10 is an OPEN EXPERIMENT
                                 #   re-opening the longshot lane — recheck after ~30 more settles.
+MAX_MARKET_PRICE=1.0            # Gate 3.55: cost/payout ratio ceiling; 1.0 disables (price
+                                #   can't exceed $1 anyway). A 76c bet to win $1 (76%) is
+                                #   rejected; 75c (75%) passes. Live `.env` sets 0.75 — operator
+                                #   preference, no settled evidence yet.
 MAX_BID_ASK_SPREAD=0.05         # L2: Gate 3.6 hard liquidity floor, dollars on a $0-1 contract.
                                 #   Enforces the "illiquid (spread > 5%)" Hard Stop below, which was
                                 #   documented from launch but never implemented. 0 disables.

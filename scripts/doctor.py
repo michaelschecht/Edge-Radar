@@ -159,6 +159,12 @@ def main():
         check("Gate 3.5 MIN_MARKET_PRICE = 0", False,
               "DISABLED — no lottery-ticket floor (R7)", warn_only=True)
 
+    if gates.max_market_price < 1.0:
+        check(f"Gate 3.55 MAX_MARKET_PRICE = ${gates.max_market_price:.2f}", True)
+    else:
+        check("Gate 3.55 MAX_MARKET_PRICE = 1.0", False,
+              "DISABLED — no cost/payout ceiling", warn_only=True)
+
     if gates.max_bid_ask_spread > 0:
         check(f"Gate 3.6 MAX_BID_ASK_SPREAD = ${gates.max_bid_ask_spread:.2f}", True)
     else:

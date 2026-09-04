@@ -2,6 +2,23 @@
 
 ---
 
+## 2026-09-03 -- New Gate 3.55: cost/payout ratio ceiling (`MAX_MARKET_PRICE`)
+
+Operator request: no bet where cost exceeds 75% of the potential payout -- a
+76c bet to win $1 (76% ratio) should not go through; 75c (75%) should. A
+Kalshi/Polymarket contract pays exactly $1 if it wins, so market price *is*
+the cost/payout ratio (already side-relative per S18 -- a NO bought at 73c
+stores `0.73`, so no side-flipping is needed here either). Added as Gate 3.55,
+directly below the existing R7 floor (`MIN_MARKET_PRICE`) it mirrors: same
+config dataclass, same module-level-global/reload_risk_config wiring, same
+`preflight_gate_status` label pattern (`"price-hi"` next to `"price"`). Code
+default `MAX_MARKET_PRICE=1.0` (off -- a contract's price can't exceed $1
+anyway, so a 1.0 ceiling never rejects); live `.env` sets `0.75`. No settled
+evidence behind the 75% number -- pure operator preference, unlike R7's
+14-day-review-backed floor.
+
+---
+
 ## 2026-09-03 -- S20 closed: the Odds API quota problem was the monthly reset
 
 S20 (2026-08-31) found 10 of 12 keys exhausted and 166 August `All N Odds API
