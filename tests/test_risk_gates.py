@@ -316,6 +316,89 @@ class TestMinMarketPriceGate:
             kalshi_executor.MIN_MARKET_PRICE = orig_floor
 
 
+class TestMaxMarketPriceGate:
+    """Gate 3.55: reject opportunities whose cost/payout ratio exceeds
+    MAX_MARKET_PRICE. A contract pays $1 if it wins, so market price IS the
+    ratio: a 76c bet to win $1 is rejected, a 75c bet is not.
+    """
+
+    def _opp(self, price: float) -> Opportunity:
+        return Opportunity(
+            ticker="KXMLBGAME-99MAR301840CWSMIA-MIA",
+            title="Test Game",
+            category="game",
+            side="yes",
+            market_price=price,
+            fair_value=min(price + 0.15, 0.99),  # healthy edge so edge gate passes
+            edge=0.15,
+            edge_source="test",
+            confidence="high",
+            liquidity_score=8.0,
+            composite_score=8.5,
+            details={},
+        )
+
+    def test_rejected_above_ceiling(self):
+        import kalshi_executor
+        orig_ceiling = kalshi_executor.MAX_MARKET_PRICE
+        try:
+            kalshi_executor.MAX_MARKET_PRICE = 0.75
+            result = size_order(self._opp(price=0.76), bankroll=500.0,
+                                open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            assert result.risk_approval.startswith("REJECTED")
+            assert "price_above_ceiling" in result.risk_approval
+            assert result.contracts == 0
+        finally:
+            kalshi_executor.MAX_MARKET_PRICE = orig_ceiling
+
+    def test_approved_at_ceiling(self):
+        # Exactly at the ceiling should pass (75c bet on a $1 payout = 75%).
+        import kalshi_executor
+        orig_ceiling = kalshi_executor.MAX_MARKET_PRICE
+        orig_max = kalshi_executor.MAX_BET_SIZE
+        orig_kelly = kalshi_executor.KELLY_FRACTION
+        try:
+            kalshi_executor.MAX_MARKET_PRICE = 0.75
+            kalshi_executor.MAX_BET_SIZE = 100.0
+            kalshi_executor.KELLY_FRACTION = 0.25
+            result = size_order(self._opp(price=0.75), bankroll=500.0,
+                                open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            assert "price_above_ceiling" not in result.risk_approval
+        finally:
+            kalshi_executor.MAX_MARKET_PRICE = orig_ceiling
+            kalshi_executor.MAX_BET_SIZE = orig_max
+            kalshi_executor.KELLY_FRACTION = orig_kelly
+
+    def test_approved_below_ceiling(self):
+        import kalshi_executor
+        orig_ceiling = kalshi_executor.MAX_MARKET_PRICE
+        orig_max = kalshi_executor.MAX_BET_SIZE
+        orig_kelly = kalshi_executor.KELLY_FRACTION
+        try:
+            kalshi_executor.MAX_MARKET_PRICE = 0.75
+            kalshi_executor.MAX_BET_SIZE = 100.0
+            kalshi_executor.KELLY_FRACTION = 0.25
+            result = size_order(self._opp(price=0.50), bankroll=500.0,
+                                open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            assert result.risk_approval == "APPROVED"
+        finally:
+            kalshi_executor.MAX_MARKET_PRICE = orig_ceiling
+            kalshi_executor.MAX_BET_SIZE = orig_max
+            kalshi_executor.KELLY_FRACTION = orig_kelly
+
+    def test_disabled_at_one(self):
+        # MAX_MARKET_PRICE=1.0 disables the gate (no ceiling).
+        import kalshi_executor
+        orig_ceiling = kalshi_executor.MAX_MARKET_PRICE
+        try:
+            kalshi_executor.MAX_MARKET_PRICE = 1.0
+            result = size_order(self._opp(price=0.95), bankroll=500.0,
+                                open_positions=0, daily_pnl=0.0, unit_size=1.00)
+            assert "price_above_ceiling" not in result.risk_approval
+        finally:
+            kalshi_executor.MAX_MARKET_PRICE = orig_ceiling
+
+
 # ── R3: Minimum confidence gate ──────────────────────────────────────────────
 
 class TestMinConfidenceGate:
@@ -1755,7 +1838,7 @@ class TestReloadRiskConfig:
         "MAX_BET_SIZE", "UNIT_SIZE", "MAX_DAILY_LOSS", "MAX_OPEN_POSITIONS",
         "MIN_EDGE_THRESHOLD", "KELLY_FRACTION", "MAX_PER_EVENT", "MAX_BET_RATIO",
         "MIN_COMPOSITE_SCORE", "KELLY_EDGE_CAP", "KELLY_EDGE_DECAY",
-        "SERIES_DEDUP_HOURS", "MIN_MARKET_PRICE", "RESTING_ORDER_MAX_HOURS",
+        "SERIES_DEDUP_HOURS", "MIN_MARKET_PRICE", "MAX_MARKET_PRICE", "RESTING_ORDER_MAX_HOURS",
         "MIN_CONFIDENCE", "NO_SIDE_FAVORITE_THRESHOLD", "NO_SIDE_MIN_EDGE",
         "NO_SIDE_KELLY_PRICE_FLOOR", "NO_SIDE_KELLY_MULTIPLIER",
         "ALLOW_PREDICTION_BETS", "CROSS_CATEGORY_DEDUP",

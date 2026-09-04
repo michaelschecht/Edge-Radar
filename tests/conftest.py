@@ -103,6 +103,21 @@ def _ignore_operator_sport_freezes(monkeypatch):
     monkeypatch.setattr(ke, "_PER_SPORT_MIN_EDGE", live)
 
 
+@pytest.fixture(autouse=True)
+def _ignore_operator_max_market_price(monkeypatch):
+    """Never let the operator's live `.env` cost/payout ceiling reject a test bet.
+
+    Gate 3.55 (2026-09-03) rejects any bet priced above `MAX_MARKET_PRICE`, and
+    `.env` sets 0.75. Plenty of tests price opportunities at 0.85/0.99 to
+    exercise Kelly sizing, the no-side ceiling, or limit-price rounding at the
+    top of the range -- none of them about this gate. Same lesson as the other
+    fixtures around this one: neutralise here, opt in explicitly (see
+    `TestMaxMarketPriceGate` in test_risk_gates.py, which sets its own ceiling).
+    """
+    import kalshi_executor as ke
+    monkeypatch.setattr(ke, "MAX_MARKET_PRICE", 1.0)
+
+
 @pytest.fixture
 def no_fees(monkeypatch):
     """Zero the exchange fee rate for tests that pin exact pre-fee arithmetic.

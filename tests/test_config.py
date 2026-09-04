@@ -124,6 +124,7 @@ class TestDocumentedDefaults:
         g = GateThresholds.from_env()
         assert g.min_edge_threshold == 0.03
         assert g.min_market_price == 0.12
+        assert g.max_market_price == 1.0
         assert g.min_composite_score == 6.0
         assert g.min_confidence == "medium"
         assert g.series_dedup_hours == 48
@@ -311,6 +312,16 @@ class TestValidate:
     @patch.dict(os.environ, {"MIN_MARKET_PRICE": "0"}, clear=True)
     def test_zero_min_market_price_allowed(self):
         # 0 disables the gate per .env.example — must not raise.
+        Config.from_env()
+
+    @patch.dict(os.environ, {"MAX_MARKET_PRICE": "1.5"}, clear=True)
+    def test_max_market_price_above_one_raises(self):
+        with pytest.raises(ValueError, match="MAX_MARKET_PRICE"):
+            Config.from_env()
+
+    @patch.dict(os.environ, {"MAX_MARKET_PRICE": "1.0"}, clear=True)
+    def test_one_max_market_price_allowed(self):
+        # 1.0 disables the gate (a contract's price can't exceed $1 anyway).
         Config.from_env()
 
     @patch.dict(os.environ, {"MAX_LIVE_BOOK_AGE_SECONDS": "-1"}, clear=True)

@@ -245,6 +245,10 @@ class RiskLimits:
 class GateThresholds:
     min_edge_threshold: float = 0.03
     min_market_price: float = 0.12
+    # Gate 3.55: reject bets whose cost/payout ratio exceeds this fraction (a
+    # 76c bet to win $1 is a 76% ratio). 1.0 disables (any price up to $1 is
+    # already the natural ceiling). Companion to min_market_price's R7 floor.
+    max_market_price: float = 1.0
     min_composite_score: float = 6.0
     min_confidence: str = "medium"
     series_dedup_hours: int = 48
@@ -282,6 +286,7 @@ class GateThresholds:
         return cls(
             min_edge_threshold=_float("MIN_EDGE_THRESHOLD", 0.03),
             min_market_price=_float("MIN_MARKET_PRICE", 0.12),
+            max_market_price=_float("MAX_MARKET_PRICE", 1.0),
             min_composite_score=_float("MIN_COMPOSITE_SCORE", 6.0),
             min_confidence=_str("MIN_CONFIDENCE", "medium").strip().lower(),
             series_dedup_hours=_int("SERIES_DEDUP_HOURS", 48),
@@ -581,6 +586,10 @@ class Config:
         if not 0.0 <= self.gates.min_market_price <= 1.0:
             raise ValueError(
                 f"MIN_MARKET_PRICE must be in [0, 1], got {self.gates.min_market_price}"
+            )
+        if not 0.0 <= self.gates.max_market_price <= 1.0:
+            raise ValueError(
+                f"MAX_MARKET_PRICE must be in [0, 1], got {self.gates.max_market_price}"
             )
         if not 0.0 <= self.gates.max_bid_ask_spread <= 1.0:
             raise ValueError(

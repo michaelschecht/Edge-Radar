@@ -95,6 +95,12 @@ SERIES_DEDUP_HOURS = _cfg.gates.series_dedup_hours
 # "+50% edge" on 8-10¢ longshots. 0 disables the gate (keep longshots).
 MIN_MARKET_PRICE = _cfg.gates.min_market_price
 
+# Gate 3.55: reject bets whose cost/payout ratio exceeds this fraction -- a
+# 76c bet to win $1 is a 76% ratio and is rejected; 75c (75%) passes. Mirrors
+# MIN_MARKET_PRICE's floor on the expensive end. 1.0 disables (a contract's
+# price can't exceed $1 anyway, so a 1.0 ceiling never rejects).
+MAX_MARKET_PRICE = _cfg.gates.max_market_price
+
 # R4 (2026-04-21): auto-cancel resting orders older than this with zero fills.
 # 14-day review showed 16% of new-log orders (4/25) resting 25-66h with zero
 # fills. 0 disables. Triggered at the top of execute_pipeline() when
@@ -483,7 +489,7 @@ def reload_risk_config() -> None:
     global MIN_EDGE_THRESHOLD, KELLY_FRACTION, MAX_PER_EVENT, MAX_BET_RATIO
     global MAX_OPEN_EXPOSURE_PCT, MAX_SEGMENT_EXPOSURE_PCT
     global MIN_COMPOSITE_SCORE, KELLY_EDGE_CAP, KELLY_EDGE_DECAY, SERIES_DEDUP_HOURS
-    global MIN_MARKET_PRICE, RESTING_ORDER_MAX_HOURS, MIN_CONFIDENCE
+    global MIN_MARKET_PRICE, MAX_MARKET_PRICE, RESTING_ORDER_MAX_HOURS, MIN_CONFIDENCE
     global NO_SIDE_FAVORITE_THRESHOLD, NO_SIDE_MIN_EDGE, NO_SIDE_MIN_EDGE_GLOBAL
     global NO_SIDE_KELLY_PRICE_FLOOR, NO_SIDE_KELLY_PRICE_CEILING
     global NO_SIDE_KELLY_MULTIPLIER, NO_SIDE_KELLY_MULTIPLIER_GLOBAL
@@ -511,6 +517,7 @@ def reload_risk_config() -> None:
     KELLY_EDGE_DECAY = cfg.kelly.kelly_edge_decay
     SERIES_DEDUP_HOURS = cfg.gates.series_dedup_hours
     MIN_MARKET_PRICE = cfg.gates.min_market_price
+    MAX_MARKET_PRICE = cfg.gates.max_market_price
     RESTING_ORDER_MAX_HOURS = cfg.gates.resting_order_max_hours
     MIN_CONFIDENCE = cfg.gates.min_confidence
     NO_SIDE_FAVORITE_THRESHOLD = cfg.gates.no_side_favorite_threshold
@@ -611,7 +618,8 @@ def preflight_gate_status(opp: "Opportunity") -> str:
         "edge"     — Gate 3   (edge below per-sport floor)
         "off"      — Gate 3   (sport switched off: floor set to an
                      unreachable >= 100%)
-        "price"    — Gate 3.5 (market price below R7 floor)
+        "price"    — Gate 3.5  (market price below R7 floor)
+        "price-hi" — Gate 3.55 (cost/payout ratio above MAX_MARKET_PRICE)
         "illiq"    — Gate 3.6 (bid/ask spread or 24h volume below floor)
         "far"      — Gate 3.7 (game market too many days before the event)
         "score"    — Gate 4   (composite score below minimum)
@@ -638,6 +646,10 @@ def preflight_gate_status(opp: "Opportunity") -> str:
     # Gate 3.5: R7 market-price floor (disabled if MIN_MARKET_PRICE == 0)
     if MIN_MARKET_PRICE > 0 and opp.market_price < MIN_MARKET_PRICE:
         return "price"
+
+    # Gate 3.55: cost/payout ratio ceiling (disabled if MAX_MARKET_PRICE >= 1.0)
+    if MAX_MARKET_PRICE < 1.0 and opp.market_price > MAX_MARKET_PRICE:
+        return "price-hi"
 
     # Gate 3.6: hard liquidity floor
     if _liquidity_rejection(opp):
@@ -1052,6 +1064,15 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     elif MIN_MARKET_PRICE > 0 and opp.market_price < MIN_MARKET_PRICE:
         rejection = (
             f"price_below_floor (${opp.market_price:.2f} < ${MIN_MARKET_PRICE:.2f})"
+        )
+
+    # ── Risk Gate 3.55: Maximum cost/payout ratio (MAX_MARKET_PRICE=0 disables)
+    #   A contract pays $1 if it wins, so the market price IS the cost/payout
+    #   ratio. Reject bets priced above this ceiling, e.g. a 76c bet to win $1
+    #   is a 76% ratio; 75c (75%) still passes. 1.0 disables the gate.
+    elif MAX_MARKET_PRICE < 1.0 and opp.market_price > MAX_MARKET_PRICE:
+        rejection = (
+            f"price_above_ceiling (${opp.market_price:.2f} > ${MAX_MARKET_PRICE:.2f})"
         )
 
     # ── Risk Gate 3.6: Hard liquidity floor
