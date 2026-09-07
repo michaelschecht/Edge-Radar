@@ -60,7 +60,7 @@
 | 13 | `Weekly-Analysis` | **Sun** 11:45 PM | End-of-week 7-day `betting_analysis.py` (headline, by sport/category/side/edge/confidence/price, calibration, longshots, streaks, daily P&L, full trade ledger) |
 | 14 | `Email-Weekly-Analysis` | **Sun** 11:55 PM | Emails the weekly performance analysis report |
 | ~~15~~ | ~~`MonthlyCalibration`~~ | — | **REMOVED 2026-07-31.** Redundant duplicate of #11 that had **never once run** (Last Run `11/30/1999`). #11 does the same job weekly. Unregistered with `schtasks /Delete`; the recreate command is in [section 15](#15-monthlycalibration--removed-2026-07-31). |
-| 18 | `WeeklyAccountGraph` | **Sun** 9:00 AM | Refreshes the Kalshi account-growth graph (live snapshot → HTML/PNG) and publishes it to the public Pages site via a `gh` single-file push to master (`refresh_account_graph.py`) |
+| 18 | `WeeklyAccountGraph` | **Sun** 9:00 AM | Refreshes the private Kalshi account-growth graph (live snapshot → HTML/PNG), written to a gitignored local folder only (`refresh_account_graph.py`) |
 | 19 | `Weekly-Futures-Execution` ⚠️ **RE-ENABLED 2026-08-24** | **Sat** 9:00 AM | ⚠️ **PLACES REAL ORDERS.** Scans + executes championship/outright **futures** (NFL Super Bowl, NBA/NHL/MLB titles, NCAAB MOP, golf majors) via `scan.py futures --execute` (budget 10%, max 3, unit $1, `--exclude-open`). Offseason series with no Odds API outright data are skipped; golf only prices the 4 majors during their weeks. First futures automation (added 2026-06-20) |
 | 20 | `Email-Weekly-Futures` | **Sat** 9:20 AM | Emails the weekly futures execution report (20-min buffer after task #19). Sends even on 0-order weeks as proof-of-life. Subject `Edge-Radar \| Weekly Futures Execution Report` |
 | 21 | `Daily-Polymarket-Execution` | Daily 9:40 AM | ⚠️ **PLACES REAL ORDERS since 2026-07-23** (renamed from `Daily-Polymarket-DryRun` same day). Polymarket scan — championship futures **+ per-game ML/spread/total (PM1d)** — `scan.py polymarket --filter all --min-edge 0.01 --top 40 --max-bets 2 --budget 10% --save --execute`. Still appends the full funnel to `data/polymarket/dryrun_log.jsonl` + markdown to `reports/Polymarket/`. **Only futures are orderable** — Gamma-sourced games carry no US `market_slug` and are auto-excluded from execution. Full risk-gate chain applies; batch capped at 2 bets / 10% of bankroll. Halt this venue with `POLYMARKET_DRY_RUN=true` |
@@ -576,8 +576,8 @@ schtasks /Create /TN "\Edge-Radar-MikesAILab\MonthlyCalibration" /SC MONTHLY /D 
 | **Schedule** | Weekly Sun |
 | **Executable** | `.venv\Scripts\python.exe` (direct invocation — no .bat wrapper) |
 | **Arguments** | `scripts\schedulers\automation\refresh_account_graph.py` |
-| **Purpose** | Keeps the public account-growth graph current. Pulls the live Kalshi snapshot, regenerates the interactive HTML + static PNG, copies the HTML into `.claude/html/account-40c3eb1d3d3cb9c4e07fee61.html`, then pushes **only that one file** to `master` via the `gh` contents API — which fires the GitHub Pages deploy |
-| **Output** | `docs/my-documents/account-graph/latest/` (local) + the published file on `master`; log at `logs/account_graph_refresh.log` |
+| **Purpose** | Keeps the private account-growth graph current. Pulls the live Kalshi snapshot and regenerates the interactive HTML + static PNG. Never published — the graph carries real balance figures and the repo is public (see CHANGELOG 2026-09-07) |
+| **Output** | `docs/my-documents/account-graph/latest/` (local, gitignored); log at `logs/account_graph_refresh.log` |
 | **Install** | `python scripts/schedulers/automation/install_windows_task.py install account-graph` |
 
 **Why Sunday 9:00 AM PST:** Weekend morning, after Saturday's slate has settled (NightlySettle 11 PM Sat) and well clear of the Sun 5:05 AM SameDay execute. Once-a-week is plenty for a balance chart.

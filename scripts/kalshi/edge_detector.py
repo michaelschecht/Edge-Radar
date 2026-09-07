@@ -73,7 +73,7 @@ CATEGORY_MAP = {
     "KXNBAGAME":     "game",
     "KXNCAABBGAME":  "game",
     "KXNCAAMBGAME":  "game",
-    "KXNCAAFBGAME":  "game",
+    "KXNCAAFGAME":   "game",
     "KXNCAAWBGAME":  "game",
     "KXNFLGAME":     "game",
     "KXMLSGAME":     "game",
@@ -96,6 +96,7 @@ CATEGORY_MAP = {
     "KXNHLSPREAD":   "spread",
     "KXNCAAMBSPREAD":"spread",
     "KXNFLSPREAD":   "spread",
+    "KXNCAAFSPREAD": "spread",
     "KXMLSSPREAD":   "spread",
     "KXWCSPREAD":    "spread",
     # --- Total ---
@@ -104,6 +105,7 @@ CATEGORY_MAP = {
     "KXNBATOTAL":    "total",
     "KXNCAAMBTOTAL": "total",
     "KXNFLTOTAL":    "total",
+    "KXNCAAFTOTAL":  "total",
     "KXMLSTOTAL":    "total",
     "KXWCTOTAL":     "total",
     # --- Player props ---
@@ -153,7 +155,9 @@ KALSHI_TO_ODDS_SPORT = {
     "KXNCAAMBSPREAD":  "basketball_ncaab",
     "KXNCAAMBTOTAL":   "basketball_ncaab",
     # --- College Football ---
-    "KXNCAAFBGAME":    "americanfootball_ncaaf",
+    "KXNCAAFGAME":     "americanfootball_ncaaf",
+    "KXNCAAFSPREAD":   "americanfootball_ncaaf",
+    "KXNCAAFTOTAL":    "americanfootball_ncaaf",
     # --- College Women's Basketball ---
     "KXNCAAWBGAME":    "basketball_wncaab",
     # --- Soccer ---
@@ -2140,7 +2144,7 @@ FILTER_SHORTCUTS = {
     "ncaamb":  ["KXNCAAMBGAME", "KXNCAAMBSPREAD", "KXNCAAMBTOTAL", "KXNCAAMBMOP"],
     "ncaabb":  ["KXNCAABBGAME"],
     "ncaawb":  ["KXNCAAWBGAME"],
-    "ncaafb":  ["KXNCAAFBGAME"],
+    "ncaafb":  ["KXNCAAFGAME", "KXNCAAFSPREAD", "KXNCAAFTOTAL"],
     # --- Soccer / Football ---
     "mls":     ["KXMLSGAME", "KXMLSSPREAD", "KXMLSTOTAL"],
     "ucl":     ["KXUCL"],

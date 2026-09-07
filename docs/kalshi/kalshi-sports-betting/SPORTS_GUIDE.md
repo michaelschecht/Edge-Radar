@@ -83,7 +83,7 @@ Use `--filter` to target a specific sport. Supports comma-separated values for m
 | `ncaamb` | NCAA Men's Basketball | Games, spreads, totals, MOP | Yes -- game, spread, total |
 | `ncaabb` | NCAA Basketball (additional) | Games | Yes -- game |
 | `ncaawb` | NCAA Women's Basketball | Games | Yes -- game |
-| `ncaafb` | NCAA Football | Games | Yes -- game |
+| `ncaafb` | NCAA Football | Games, spreads, totals | Yes -- game, spread, total |
 
 ### Soccer / Football
 
@@ -206,7 +206,7 @@ The system cross-references Kalshi prices against these Odds API sport keys:
 | KXNFLGAME/SPREAD/TOTAL | `americanfootball_nfl` | Moneyline, spreads, totals |
 | KXNCAAMBGAME/SPREAD/TOTAL | `basketball_ncaab` | Moneyline, spreads, totals |
 | KXNCAABBGAME | `basketball_ncaab` | Moneyline (h2h) |
-| KXNCAAFBGAME | `americanfootball_ncaaf` | Moneyline (h2h) |
+| KXNCAAFGAME/SPREAD/TOTAL | `americanfootball_ncaaf` | Moneyline, spreads, totals |
 | KXNCAAWBGAME | `basketball_wncaab` | Moneyline (h2h) |
 | KXMLSGAME/SPREAD/TOTAL | `soccer_usa_mls` | Moneyline, spreads, totals |
 | KXWCGAME/SPREAD/TOTAL | `soccer_fifa_world_cup` | Moneyline (3-way), spreads, totals |
