@@ -33,7 +33,7 @@ These sports have a matching key in The Odds API, so Edge-Radar prices them agai
 | NHL | `nhl` | ✅ | ✅ | ✅ | `icehockey_nhl` |
 | NFL | `nfl` | ✅ | ✅ | ✅ | `americanfootball_nfl` |
 | NCAA Men's Basketball | `ncaamb` | ✅ | ✅ | ✅ | `basketball_ncaab` |
-| NCAA Football | `ncaafb` | ✅ | — | — | `americanfootball_ncaaf` |
+| NCAA Football | `ncaafb` | ✅ | ✅ | ✅ | `americanfootball_ncaaf` |
 | NCAA Women's Basketball | `ncaawb` | ✅ | — | — | `basketball_wncaab` |
 | MLS | `mls` | ✅ | ✅ | ✅ | `soccer_usa_mls` |
 | World Cup | `worldcup` / `wc` | ✅ | ✅ | ✅ | `soccer_fifa_world_cup` |

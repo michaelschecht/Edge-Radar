@@ -2,6 +2,71 @@
 
 ---
 
+## 2026-09-07 -- College football never scanned: wrong Kalshi series ticker
+
+The operator noticed zero college-football bets in the trade log and asked why.
+Every scan for NCAAF returned 0 markets, silently, since launch — not a risk-gate
+rejection, not an edge/threshold issue, just fetching a ticker prefix that doesn't
+exist. `FILTER_SHORTCUTS["ncaafb"]` and `KALSHI_TO_ODDS_SPORT` both used
+`KXNCAAFBGAME`; Kalshi's real series is `KXNCAAFGAME` (no second `B` — football,
+unlike basketball, has no gender split requiring one). `KXNCAAF` (no `GAME` suffix)
+does exist but is the CFP championship futures market, unrelated to weekly games —
+querying it returned real markets, which made the bug easy to mistake for "working."
+The no-filter scheduled scans (which walk `KALSHI_TO_ODDS_SPORT`) never fetched a
+single college-football market either, for the same reason.
+
+Also added spread and total wiring, which never existed for this sport (only
+moneyline was ever mapped) — Kalshi lists `KXNCAAFSPREAD`/`KXNCAAFTOTAL` now,
+confirmed live with real Sept 2026 game markets.
+
+- **`scripts/kalshi/edge_detector.py`** — `CATEGORY_MAP`: `KXNCAAFBGAME`→`KXNCAAFGAME`
+  (game), added `KXNCAAFSPREAD`/`KXNCAAFTOTAL`. `KALSHI_TO_ODDS_SPORT`: same fix,
+  same additions, all → `americanfootball_ncaaf`. `FILTER_SHORTCUTS["ncaafb"]` now
+  lists all three tickers instead of the one broken one. The stdev lookup
+  (`_PREFIX_TO_SPORT["KXNCAAF"]`) and sport-name detection
+  (`ticker_display._detect_sport`, keyed off `KXNCAAF`) were already correct —
+  they matched on the right prefix even though nothing ever fetched a market that
+  had it.
+- **Verified live, preview-only (no `--execute`):** `KXNCAAFGAME` + `SPREAD` +
+  `TOTAL` return 3,999 open markets today (was 0); a `--filter ncaafb` scan finds
+  15 opportunities above the 3% floor (11 spread, 4 total; several score >= 6.0
+  and would clear Gate 4). No moneyline candidates cleared edge this scan.
+- **Not touched:** no `.env` override exists for NCAAF (`MIN_EDGE_THRESHOLD_NCAAF`
+  etc. are all commented out in `.env.example`), so it runs on global defaults
+  like NHL/soccer — same as intended once the tickers actually resolve.
+
+Docs: `docs/kalshi/README.md`, `docs/kalshi/kalshi-sports-betting/SPORTS_GUIDE.md`
+(spread/total columns), `tests/test_time_to_event_gate.py` (fixture ticker).
+
+## 2026-09-07 -- Account-growth graph made private, reversing 2026-05-31
+
+The Kalshi account-growth graph (real balance, deposits, settled P&L, open-position
+value in dollars) was being published to the public `Edge-Radar` repo and served on
+GitHub Pages at `edge-radar.mikesailab.com` — a deliberate choice from *2026-05-31
+"Account-Growth Graph on the Pages Site"*. The operator reconsidered: the repo is
+public and the graph exposes real personal financial figures, obscurity via an
+unguessable filename (`account-40c3eb1d3d3cb9c4e07fee61.html`) plus `noindex` is not
+the same as access control.
+
+- **`scripts/schedulers/automation/refresh_account_graph.py`** — dropped `publish_local()`
+  (copy into `.claude/html/`) and `push_to_master()` (the `gh` contents-API push that
+  triggered the Pages deploy). The script now only pulls the live snapshot and
+  regenerates HTML/PNG into `docs/my-documents/account-graph/latest/`, which was
+  always gitignored. No scheduled-task change needed — `WeeklyAccountGraph` invokes
+  the script by path; the publish behavior lived entirely inside the script.
+- **`.claude/html/account-40c3eb1d3d3cb9c4e07fee61.html`** — `git rm`'d. It had been
+  tracked despite a `.claude/html/account-*.html` gitignore rule already existing
+  (added after the file was first committed, so it never actually took effect).
+- **`.claude/html/index.html`** — removed the "Live P&L / Account growth chart" button
+  from the hero; the target no longer exists.
+- **Known gap, not yet resolved:** the file's git history on `master` still contains
+  every past weekly snapshot with real dollar figures — removing it from `HEAD` does
+  not scrub prior commits from a public repo. Rewriting history (`git filter-repo` +
+  force-push) was deliberately not done in this pass; needs an explicit decision since
+  it invalidates any existing clones/forks.
+
+Docs: `docs/task-schedules/README.md` (task #18 purpose/output updated).
+
 ## 2026-09-04 -- risk_check.py no longer re-derives Gate 1/2 comparisons
 
 Finding #2 from the [2026-09-03 gate-consolidation review](my-documents/repo-reviews/2026-09-03-risk-gate-consolidation-review.md):

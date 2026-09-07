@@ -1,6 +1,8 @@
 # Edge-Radar Enhancement Roadmap
 
-*Last updated: 2026-09-03 — **🔴 NEXT UP: nothing from the 2026-08-31 review is open** — S20 closed 2026-09-03 (the quota exhaustion was the monthly reset, not a defect; watch MLB's ROI/Brier separately). Remaining open items are the low-value S22-S24 watch list and Phase 2 (S8 CLV capture, blocked on nothing, next in priority order). Prior header follows.*
+*Last updated: 2026-09-07 — **🔴 NEXT UP: nothing new is open.** Shipped 2026-09-07: **college football was never scanned** — `KXNCAAFBGAME` doesn't exist on Kalshi (real series is `KXNCAAFGAME`, plus newly-added `KXNCAAFSPREAD`/`KXNCAAFTOTAL`), so every NCAAF scan silently returned 0 markets since launch; fixed and verified live (3,999 markets found, was 0; 15 opportunities clear the 3% floor in a dry preview). Also made the **account-growth graph private**, reversing 2026-05-31 — it carried real dollar balance/P&L figures and was publishing to the public repo + GitHub Pages; now local-only under the existing gitignored `docs/my-documents/`. Prior git history on `master` still has the old dollar figures — a `git filter-repo` history rewrite was deliberately not done and needs a separate decision. Remaining open items are the low-value S22-S24 watch list and Phase 2 (S8 CLV capture). Prior header follows.*
+
+<sub>Previous header - Last updated: 2026-09-03 — **🔴 NEXT UP: nothing from the 2026-08-31 review is open** — S20 closed 2026-09-03 (the quota exhaustion was the monthly reset, not a defect; watch MLB's ROI/Brier separately). Remaining open items are the low-value S22-S24 watch list and Phase 2 (S8 CLV capture, blocked on nothing, next in priority order). Prior header follows.*</sub>
 
 <sub>Previous header - Last updated: 2026-08-31 — **🔴 NEXT UP: S20 (Odds API quota / MLB starvation) — the last open defect from the 2026-08-31 review, and it needs a `check_odds_keys.py --live` probe before it can be scoped.** Shipped 2026-08-31: **S18** (the digest’s Brier double-flipped every NO bet — 0.169 reported against a true 0.077 — and printed the market’s Brier under the same label as `betting_analysis.py`’s model Brier; now an explicit pair), **S19 + S19b** (the live-freshness filter excluded **1920/1920 bookmakers on every live event** because the per-event Odds API endpoint puts `last_update` on markets, not bookmakers, while those quotes ran a **median 34s old against a 1200s limit** — and `_live_consensus_too_thin`, the guard built to catch exactly that, sat *after* the empty-list return so the total-wipeout case was the one case it could never see), **S21** (resting orders commit real cash and log `$0`, understating Gate 2b’s ratio in *both* terms; priced from the trade log because v2’s YES-side inversion would have counted an 81c NO at $0.19), and **S25** (the suite had been **red since 08-27** from a fixture ticker whose embedded start time drifted into the past — third instance of wall-clock coupling, first to go unnoticed; now guarded by `test_fixture_hygiene.py`). **1020 tests pass, zero failures.** Watch items S22-S24 remain. Prior header follows.*</sub>
 
@@ -682,6 +684,15 @@ Re-measure at 4 weeks. If ≥25% bucket is still negative, tighten to a harder c
 ## Completed
 
 Index only — detailed notes are in the collapsed section below.
+
+### 2026-09-07 — College football never scanned (wrong ticker) + account graph made private
+
+Opened by the operator noticing zero college-football bets in the trade log and asking why.
+
+| ID | Item |
+|----|------|
+| — | **College football has been unscannable since launch.** `FILTER_SHORTCUTS["ncaafb"]` and `KALSHI_TO_ODDS_SPORT` both pointed at `KXNCAAFBGAME`, which doesn't exist — Kalshi's real series is `KXNCAAFGAME` (no gender-split `B` the way basketball needs one). `KXNCAAF` (no `GAME` suffix) *does* exist but is the CFP championship futures market, which made the bug look superficially fine on a casual check. The no-filter scheduled scans walk the same broken dict, so this silently starved every automated run too — not a gate rejection, a fee, or an edge-threshold issue. Fixed both maps, and added `KXNCAAFSPREAD`/`KXNCAAFTOTAL`, which had never been wired at all (moneyline-only). Verified live (dry preview, no orders placed): 3,999 open markets found (was 0), 15 opportunities clear the 3% edge floor. 1032 tests pass. |
+| — | **Account-growth graph made private**, reversing 2026-05-31. It carries real dollar figures (balance, deposits, settled P&L, open-position value) and was being copied into `.claude/html/` and pushed to `master` to serve on the public GitHub Pages site — flagged by the operator after noticing the file modified in `git status`. `refresh_account_graph.py` no longer publishes anywhere; output stays under the already-gitignored `docs/my-documents/account-graph/latest/`. **Not yet resolved:** the file's git history on the public repo still contains every past weekly snapshot with real dollar figures; scrubbing it needs an explicit `git filter-repo` + force-push decision, deliberately not done in this pass. |
 
 ### 2026-08-27 — Exchange sharding fallout (X1) + a test suite writing live state (S3a)
 

@@ -67,7 +67,7 @@ class TestTheCapItself:
 
     def test_college_football_week_one_is_unaffected(self, cap_14):
         """The point of the cap: it limits lead time, not sports."""
-        opp = _opp(_ticker(3, prefix="KXNCAAFBGAME", suffix="ALAUGA-ALA"))
+        opp = _opp(_ticker(3, prefix="KXNCAAFGAME", suffix="ALAUGA-ALA"))
         assert _time_to_event_rejection(opp) is None
         assert preflight_gate_status(opp) == "ok"
 
