@@ -2,6 +2,54 @@
 
 ---
 
+## 2026-09-09 -- A cached Odds API zero was believed forever, hoarding one key
+
+The operator questioned a report that 12 of 14 Odds API keys were exhausted. They
+were right to: a live probe found **5154 requests actually available**, with nine
+keys sitting at a full 500. The cache was wrong, and had been for weeks.
+
+`data/cache/odds_api_quota.json` stored a bare `{key: remaining}` map with **no
+timestamps and no expiry**, while `get_current_key()` returns the first key not
+cached at zero. So as long as *one* key had quota left, the walk stopped there and
+every drained key was never contacted again -- their monthly resets came and went
+unobserved, and the zero persisted indefinitely. The
+`if every key is exhausted, return the current slot anyway` fallback exists for
+exactly this, but only fires when **all** keys read zero, which never happened.
+The pool silently collapsed from 14 usable keys to one: key `...deb642` was
+carrying the entire workload at 416 remaining while `futures_edge` logged
+`1 requests remaining` on the morning of 09-09. Quota resets land on each key's
+own signup anniversary, not the 1st of the month, so a zero is only ever a fact
+about the past -- it can never be safely cached without a date.
+
+- **`scripts/shared/odds_api.py`** — cache entries are now
+  `{key: {"remaining": N, "checked_at": <iso>}}`. `_load_quota_cache()` drops a
+  zero older than `_ZERO_TTL_HOURS` (24) so it reads as *unknown* and the key is
+  probed again; `report_remaining()` and `mark_exhausted()` stamp every write.
+  Non-zero readings do not expire — they are refreshed on every use anyway. The
+  loader still accepts the legacy bare-int shape; a legacy zero carries no date,
+  so it expires by definition, which is what migrates the live cache on first read.
+  Worst case is one wasted request per drained key per day.
+- **`scripts/schedulers/maintenance/odds_keys.bat`** (gitignored) + **`odds-keys`
+  profile** in `install_windows_task.py` — new `WeeklyOddsKeyProbe` task, Sun 6 PM,
+  runs `check_odds_keys.py --live`. 14 requests/week against a 500/key/month
+  allowance. The TTL re-probes stale zeros on its own; this task is what catches a
+  key going bad **before** a scan needs it, and keeps the whole pool's numbers
+  honest rather than only the keys in active use. Installed and triggered live.
+- **Rejected: selecting the key with the most remaining.** Proposed first, then
+  dropped — it does not fix this bug (a key cached at 0 still ranks last and is
+  still never picked while any non-zero key exists) and it fights the `tried:` set
+  in `edge_detector.py`'s retry loop, where snapping back to the best key after a
+  429 rotation would end the loop early.
+- **Also found:** key `...44681c` returns **401**. It is the only key in the set
+  with an uppercase character in an otherwise all-lowercase-hex list — likely a
+  transcription error in `ODDS_API_KEYS` rather than a revocation. Not fixed here;
+  needs checking against the source. Keys `...a630b6` / `...8e4b0a` are genuinely
+  drained (500/499 used).
+
+Tests: `tests/test_odds_quota_ttl.py` (new, 6 cases incl. the end-to-end
+"a drained key comes back into rotation"); `tests/test_odds_api.py` updated —
+three cases asserted the old bare-int format directly.
+
 ## 2026-09-07 -- College football never scanned: wrong Kalshi series ticker
 
 The operator noticed zero college-football bets in the trade log and asked why.
