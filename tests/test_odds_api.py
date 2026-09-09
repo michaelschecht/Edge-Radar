@@ -6,6 +6,7 @@ exhausted keys every time.
 """
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -73,23 +74,40 @@ class TestQuotaCachePersistence:
     """`report_remaining` and `mark_exhausted` must survive across processes."""
 
     def test_report_remaining_writes_cache(self, clean_module):
+        # 2026-09-09: entries carry a `checked_at` so a zero can expire. See
+        # _ZERO_TTL_HOURS and tests/test_odds_quota_ttl.py.
         odds_api._keys[:] = ["keyA"]
         odds_api.report_remaining("keyA", 250)
         assert clean_module.exists()
         saved = json.loads(clean_module.read_text())
-        assert saved == {"keyA": 250}
+        assert saved["keyA"]["remaining"] == 250
+        assert saved["keyA"]["checked_at"]
 
     def test_mark_exhausted_writes_cache(self, clean_module):
         odds_api._keys[:] = ["keyA"]
         odds_api.mark_exhausted("keyA")
         saved = json.loads(clean_module.read_text())
-        assert saved == {"keyA": 0}
+        assert saved["keyA"]["remaining"] == 0
+        assert saved["keyA"]["checked_at"], "an unstamped zero would never expire"
 
     def test_cache_load_populates_remaining(self, clean_module):
         clean_module.parent.mkdir(parents=True, exist_ok=True)
-        clean_module.write_text(json.dumps({"keyA": 0, "keyB": 174}))
+        stamp = datetime.now(timezone.utc).isoformat()
+        clean_module.write_text(json.dumps({
+            "keyA": {"remaining": 0, "checked_at": stamp},
+            "keyB": {"remaining": 174, "checked_at": stamp},
+        }))
         odds_api._load_quota_cache()
         assert odds_api._remaining["keyA"] == 0
+        assert odds_api._remaining["keyB"] == 174
+
+    def test_cache_load_reads_legacy_bare_ints(self, clean_module):
+        """Pre-2026-09-09 caches held bare ints. A legacy non-zero still
+        loads; a legacy zero is undateable, so it expires by definition."""
+        clean_module.parent.mkdir(parents=True, exist_ok=True)
+        clean_module.write_text(json.dumps({"keyA": 0, "keyB": 174}))
+        odds_api._load_quota_cache()
+        assert "keyA" not in odds_api._remaining
         assert odds_api._remaining["keyB"] == 174
 
     def test_cache_load_tolerates_missing_file(self, clean_module):

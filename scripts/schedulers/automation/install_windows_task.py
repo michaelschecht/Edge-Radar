@@ -8,6 +8,7 @@ Supports multiple task profiles for different automation scenarios:
   - settle:       Nightly settlement + P&L report
   - next-day:     Evening scan + execute for tomorrow's games
   - calibration:  Weekly calibration report + C8 stdev recalibration
+  - odds-keys:    Weekly Odds API key quota probe
   - account-graph: Weekly account-growth graph refresh + publish
 
 TASK FOLDER — read this before running `install`.
@@ -114,6 +115,21 @@ TASK_PROFILES = {
         "day": "SUN",
         "script": SCHEDULERS / "maintenance" / "calibration.bat",
         "description": "Weekly calibration report + C8 stdev recalibration (Sun 7 PM)",
+    },
+    # 2026-09-09: safety net for the Odds API quota cache. A cached zero used
+    # to be believed forever, so once a key drained it was never contacted
+    # again and its monthly reset (which lands on each key's own signup
+    # anniversary, not the 1st) went unobserved -- 12 of 14 keys read 0 while
+    # 5154 requests were actually available. The root-cause fix is
+    # _ZERO_TTL_HOURS in scripts/shared/odds_api.py; this task additionally
+    # catches a key going bad before a scan needs it. 14 requests/week.
+    "odds-keys": {
+        "leaf": "WeeklyOddsKeyProbe",
+        "time": "18:00",
+        "schedule": "WEEKLY",
+        "day": "SUN",
+        "script": SCHEDULERS / "maintenance" / "odds_keys.bat",
+        "description": "Weekly Odds API key quota probe (Sun 6 PM)",
     },
     "account-graph": {
         "leaf": "WeeklyAccountGraph",

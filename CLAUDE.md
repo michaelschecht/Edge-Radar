@@ -426,6 +426,10 @@ Full CLI reference: `docs/scripts/SCRIPTS_REFERENCE.md`. Scheduled tasks: `docs/
 3. If the daily loss limit is breached, **no new positions**.
 4. Confirm `DRY_RUN` / `POLYMARKET_DRY_RUN` in `.env`.
 5. `python scripts/shared/check_odds_keys.py` — cached Odds API quota (`--live` probes each key and costs N requests).
+   A cached **zero** expires after 24h (`_ZERO_TTL_HOURS`) and reads as `unknown` until re-probed — a zero is only ever a fact
+   about the past, and an un-expiring one hid a whole reset and hoarded a single key. `WeeklyOddsKeyProbe` (Sun 6 PM) refreshes
+   the pool. **Reopens S20**, whose "keys came back on the 1st" closure rests on evidence this bug confounds.
+   *CHANGELOG 2026-09-09.*
 6. Pull fresh market data before any analysis.
 
 ---

@@ -12,11 +12,25 @@ their retry budget rediscovering exhausted keys. `get_current_key()`
 auto-advances past cached-exhausted keys (remaining == 0). If every
 key is cached as exhausted the original slot is still returned so a
 monthly quota reset can be re-discovered naturally.
+
+**A cached zero expires after `_ZERO_TTL_HOURS`.** The Odds API resets
+each key's quota on its own signup anniversary, not the 1st of the month,
+so a zero is only ever a fact about the past. Without an expiry the cache
+was self-perpetuating: `get_current_key()` returns the first key not
+cached at zero, so as long as ONE key had quota left the walk stopped
+there and every drained key was never contacted again -- their resets
+came and went unobserved. The "if every key is exhausted, try anyway"
+fallback below only fires when *all* keys read zero, which never happened.
+Observed 2026-09-09: 12 of 14 keys cached at 0, one key carrying the
+entire workload, while a live probe found 5154 requests actually
+available (9 keys sitting at a full 500). Re-probing an expired zero
+costs one request that either 401s or discovers the reset.
 """
 
 import json
 import logging
 import re
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -40,6 +54,13 @@ def redact_secrets(text: object) -> str:
 _keys: list[str] = []
 _current_index: int = 0
 _remaining: dict[str, int] = {}  # key -> requests remaining
+_checked_at: dict[str, str] = {}  # key -> ISO-8601 UTC of that reading
+
+# How long a cached ZERO is believed. Quota resets land on each key's own
+# monthly anniversary, so the worst case is one wasted request per drained
+# key per day -- cheap against never noticing a reset at all. Non-zero
+# readings do not expire: they are refreshed on every use anyway.
+_ZERO_TTL_HOURS = 24
 
 # Persist _remaining across processes so we don't re-hit exhausted keys.
 # Gitignored path (data/cache/…) so it stays out of the repo.
@@ -47,22 +68,60 @@ _QUOTA_CACHE_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "ca
 
 
 def _load_quota_cache() -> None:
-    """Populate `_remaining` from disk. Silent on any error."""
+    """Populate `_remaining` from disk, dropping expired zeros. Silent on any error.
+
+    Accepts both the current ``{key: {"remaining": N, "checked_at": iso}}``
+    shape and the legacy bare ``{key: N}`` one. A legacy entry carries no
+    timestamp, so a legacy zero is treated as expired -- that is the whole
+    point of the migration.
+    """
     if not _QUOTA_CACHE_PATH.exists():
         return
     try:
         raw = json.loads(_QUOTA_CACHE_PATH.read_text(encoding="utf-8"))
-        if isinstance(raw, dict):
-            _remaining.update({k: int(v) for k, v in raw.items() if isinstance(v, (int, float))})
     except (OSError, json.JSONDecodeError, ValueError):
-        pass
+        return
+    if not isinstance(raw, dict):
+        return
+    for key, val in raw.items():
+        if isinstance(val, dict):
+            rem, stamp = val.get("remaining"), val.get("checked_at")
+        elif isinstance(val, (int, float)):
+            rem, stamp = val, None
+        else:
+            continue
+        if not isinstance(rem, (int, float)):
+            continue
+        rem = int(rem)
+        if rem == 0 and _zero_expired(stamp):
+            continue  # read as unknown so this key gets probed again
+        _remaining[key] = rem
+        if stamp:
+            _checked_at[key] = stamp
+
+
+def _zero_expired(stamp: str | None) -> bool:
+    """True when a cached zero is older than `_ZERO_TTL_HOURS` (or undateable)."""
+    if not stamp:
+        return True
+    try:
+        when = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return True
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return when < datetime.now(timezone.utc) - timedelta(hours=_ZERO_TTL_HOURS)
 
 
 def _save_quota_cache() -> None:
     """Persist `_remaining` to disk. Silent on any error."""
     try:
         _QUOTA_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _QUOTA_CACHE_PATH.write_text(json.dumps(_remaining, indent=2), encoding="utf-8")
+        payload = {
+            k: {"remaining": v, "checked_at": _checked_at.get(k)}
+            for k, v in _remaining.items()
+        }
+        _QUOTA_CACHE_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     except OSError:
         pass
 
@@ -144,6 +203,7 @@ def report_remaining(key: str, remaining: int) -> None:
     `get_current_key()` time instead of burning retry attempts on them.
     """
     _remaining[key] = remaining
+    _checked_at[key] = datetime.now(timezone.utc).isoformat()
     _save_quota_cache()
     if remaining <= 10:
         log.warning("Odds API key ...%s: only %d requests remaining", key[-6:], remaining)
@@ -158,6 +218,7 @@ def mark_exhausted(key: str) -> None:
     process skips this key at `get_current_key()` time.
     """
     _remaining[key] = 0
+    _checked_at[key] = datetime.now(timezone.utc).isoformat()
     _save_quota_cache()
 
 

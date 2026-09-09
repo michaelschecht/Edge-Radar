@@ -61,6 +61,7 @@
 | 14 | `Email-Weekly-Analysis` | **Sun** 11:55 PM | Emails the weekly performance analysis report |
 | ~~15~~ | ~~`MonthlyCalibration`~~ | — | **REMOVED 2026-07-31.** Redundant duplicate of #11 that had **never once run** (Last Run `11/30/1999`). #11 does the same job weekly. Unregistered with `schtasks /Delete`; the recreate command is in [section 15](#15-monthlycalibration--removed-2026-07-31). |
 | 18 | `WeeklyAccountGraph` | **Sun** 9:00 AM | Refreshes the private Kalshi account-growth graph (live snapshot → HTML/PNG), written to a gitignored local folder only (`refresh_account_graph.py`) |
+| 24 | `WeeklyOddsKeyProbe` | **Sun** 6:00 PM | Probes every Odds API key live (`check_odds_keys.py --live`) and refreshes `data/cache/odds_api_quota.json`. 14 requests/week against a 500/key/month allowance. **Added 2026-09-09** — a cached zero used to be believed forever, so a drained key was never contacted again and any reset went unobserved; 12 of 14 keys read 0 while 5154 requests were actually available. The root-cause fix is the `_ZERO_TTL_HOURS` expiry in `scripts/shared/odds_api.py`; this task catches a key going bad **before** a scan needs it. Runs the gitignored `scripts/schedulers/maintenance/odds_keys.bat`, so it appears in no diff. |
 | 19 | `Weekly-Futures-Execution` ⚠️ **RE-ENABLED 2026-08-24** | **Sat** 9:00 AM | ⚠️ **PLACES REAL ORDERS.** Scans + executes championship/outright **futures** (NFL Super Bowl, NBA/NHL/MLB titles, NCAAB MOP, golf majors) via `scan.py futures --execute` (budget 10%, max 3, unit $1, `--exclude-open`). Offseason series with no Odds API outright data are skipped; golf only prices the 4 majors during their weeks. First futures automation (added 2026-06-20) |
 | 20 | `Email-Weekly-Futures` | **Sat** 9:20 AM | Emails the weekly futures execution report (20-min buffer after task #19). Sends even on 0-order weeks as proof-of-life. Subject `Edge-Radar \| Weekly Futures Execution Report` |
 | 21 | `Daily-Polymarket-Execution` | Daily 9:40 AM | ⚠️ **PLACES REAL ORDERS since 2026-07-23** (renamed from `Daily-Polymarket-DryRun` same day). Polymarket scan — championship futures **+ per-game ML/spread/total (PM1d)** — `scan.py polymarket --filter all --min-edge 0.01 --top 40 --max-bets 2 --budget 10% --save --execute`. Still appends the full funnel to `data/polymarket/dryrun_log.jsonl` + markdown to `reports/Polymarket/`. **Only futures are orderable** — Gamma-sourced games carry no US `market_slug` and are auto-excluded from execution. Full risk-gate chain applies; batch capped at 2 bets / 10% of bankroll. Halt this venue with `POLYMARKET_DRY_RUN=true` |
@@ -99,6 +100,7 @@
  2:20 PM  Daily    ─ Email-SameDay-Late
  8:30 PM  Sun-Thu  ─ All-Sports-NextDay-Execution
  8:50 PM  Sun-Thu  ─ Email-NextDay
+ 6:00 PM  Sun      ─ WeeklyOddsKeyProbe   (live Odds API quota refresh)
  7:00 PM  Sun      ─ Calibration
  7:30 PM  Sun      ─ Backtest
 11:00 PM  Daily    ─ NightlySettle

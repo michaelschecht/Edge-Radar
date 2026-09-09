@@ -2,6 +2,130 @@
 
 ---
 
+## 2026-09-09 (later) -- S27: Gate 2b's resting-order call ran on a venue that has no orders endpoint
+
+`kalshi_executor.log` carried a WARNING every single day at 09:40:
+
+```
+Resting-order exposure unavailable (GET /v1/orders -> 501: {"code":12,
+"message":"The server was unable to process your request."}); Gate 2b will
+under-count by any open resting order
+```
+
+Read as a Kalshi problem, it looks alarming -- Gate 2b is the only gate that
+measures a standing total, and this says it is blind. It is not a Kalshi problem.
+`/v1/orders` is the **Polymarket US** path (`polymarket_exec_client.py:280`);
+`/portfolio/orders` is Kalshi's. 09:40 is `Daily-Polymarket-Execution` (task #21).
+Kalshi's own listing works -- verified live the same day, `risk_check.py` returned
+one resting order from the funded account.
+
+`execute_pipeline` is venue-agnostic and takes whatever client it is handed. The
+R4 janitor two lines above the exposure call was already gated `venue == "kalshi"`
+("it parses Kalshi order shapes"); **S21's `resting_exposure()` was not**, so every
+Polymarket run since it shipped on 2026-08-31 asked a venue that answers 501 with
+gRPC code **12 UNIMPLEMENTED** -- deterministic, not transient, and it will never
+succeed. The call could only ever fail open and warn.
+
+**The under-count is $0.** Polymarket has never filled an order -- `kalshi_trades.json`
+holds 0 PM rows, every candidate to date stops at Gate 3 -- so there are no resting
+PM orders to miss. Nothing is lost by not asking.
+
+**The cost was the warning, and that is the real defect.** A line that fires
+unconditionally on every run is the S25 failure mode exactly: a suite with standing
+failures stops being read, and so does a log. This one had been training the reader
+to skip the string `Resting-order exposure unavailable` since 08-31 -- the same
+string Kalshi would use if its listing ever *did* break, which is the case Gate 2b
+actually needs someone to notice.
+
+- **`scripts/kalshi/kalshi_executor.py`** -- the exposure call now sits behind
+  `if venue == "kalshi"`, matching the janitor's guard directly above it. Other
+  venues take `(0.0, {})` and log one INFO line naming the limitation, so the blind
+  spot stays on the record without crying wolf. Drop the check if Polymarket ever
+  ships an order listing; `resting_exposure()` itself is already generic.
+- **Verified:** `polymarket_futures_edge.py:531` passes `venue="polymarket"`;
+  `prediction_scanner.py` passes no venue and correctly defaults to Kalshi, which
+  is right -- it trades Kalshi prediction markets. Runtime confirmation lands on the
+  next 09:40 run.
+- **Tests:** `tests/test_resting_exposure_venue.py` pins S21's fail-open contract
+  (a venue error, and a client with no `get_orders` at all, both return `(0.0, {})`
+  rather than raising) -- the behaviour that makes failing open safe. The guard
+  itself is deliberately untested: reaching it needs a full authenticated venue
+  round-trip, the janitor's identical guard has no test either, and a harness built
+  only to prove an `if` is scaffolding. 1041 pass.
+
+## 2026-09-09 -- A cached Odds API zero was believed forever, hoarding one key
+
+The operator questioned a report that 12 of 14 Odds API keys were exhausted. They
+were right to: a live probe found **5154 requests actually available**, with nine
+keys sitting at a full 500. The cache was wrong, and had been for weeks.
+
+`data/cache/odds_api_quota.json` stored a bare `{key: remaining}` map with **no
+timestamps and no expiry**, while `get_current_key()` returns the first key not
+cached at zero. So as long as *one* key had quota left, the walk stopped there and
+every drained key was never contacted again -- their monthly resets came and went
+unobserved, and the zero persisted indefinitely. The
+`if every key is exhausted, return the current slot anyway` fallback exists for
+exactly this, but only fires when **all** keys read zero, which never happened.
+The pool silently collapsed from 14 usable keys to one: key `...deb642` was
+carrying the entire workload at 416 remaining while `futures_edge` logged
+`1 requests remaining` on the morning of 09-09. Whenever a reset lands, a zero is
+only ever a fact about the past -- it can never be safely cached without a date.
+
+**This reopens S20** (*CHANGELOG 2026-09-03*), which closed the August quota
+problem as "the monthly reset" on the strength of **zero** `All N Odds API keys
+returned 401/429` errors in the 09-01..09-03 logs. That evidence is confounded by
+this bug: with `...deb642` holding quota, the walk never reached a cached-zero key,
+so no 401 could be logged **whether or not any key had reset**. Silence was the
+bug's signature, not proof of recovery. S20's own *Verify* line called for exactly
+the `--live` probe that was never run ("to separate a stale cache from real
+exhaustion"); running it on 09-09 is what surfaced this. S20 was right that the
+keys were not permanently dead, and right to stand down the alarm -- but its stated
+mechanism does not follow from what it looked at.
+
+**The reset model is now an open question, and this fix does not depend on it.**
+S20 states the quota resets on the 1st. The 09-09 probe found *heterogeneous*
+`x-requests-used` on the same day -- 0 (nine keys), 84, 263, 499, 500 -- which a
+synchronized 1st-of-month reset does not obviously explain, since the keys reading
+263 and ~500 used were cached at zero and should have been skipped all month.
+`rotate_key()` was the obvious candidate for a bypass path and is **ruled out** --
+all three call sites discard its return and re-enter via `get_current_key()`. What
+remains is benign: `_remaining` is per-process state seeded from the cache, a key
+*absent* from it reads as usable, and once every key reads zero in-process the
+documented fallback returns the current slot anyway -- so a reset is re-discovered
+one key at a time, for whichever slot `_current_index` holds. That fits the spread
+under **either** model, so the used counts do not discriminate between them.
+**Not resolved here, and deliberately not asserted either way** -- logged as
+**S26b**. The TTL is correct under both models.
+
+- **`scripts/shared/odds_api.py`** — cache entries are now
+  `{key: {"remaining": N, "checked_at": <iso>}}`. `_load_quota_cache()` drops a
+  zero older than `_ZERO_TTL_HOURS` (24) so it reads as *unknown* and the key is
+  probed again; `report_remaining()` and `mark_exhausted()` stamp every write.
+  Non-zero readings do not expire — they are refreshed on every use anyway. The
+  loader still accepts the legacy bare-int shape; a legacy zero carries no date,
+  so it expires by definition, which is what migrates the live cache on first read.
+  Worst case is one wasted request per drained key per day.
+- **`scripts/schedulers/maintenance/odds_keys.bat`** (gitignored) + **`odds-keys`
+  profile** in `install_windows_task.py` — new `WeeklyOddsKeyProbe` task, Sun 6 PM,
+  runs `check_odds_keys.py --live`. 14 requests/week against a 500/key/month
+  allowance. The TTL re-probes stale zeros on its own; this task is what catches a
+  key going bad **before** a scan needs it, and keeps the whole pool's numbers
+  honest rather than only the keys in active use. Installed and triggered live.
+- **Rejected: selecting the key with the most remaining.** Proposed first, then
+  dropped — it does not fix this bug (a key cached at 0 still ranks last and is
+  still never picked while any non-zero key exists) and it fights the `tried:` set
+  in `edge_detector.py`'s retry loop, where snapping back to the best key after a
+  429 rotation would end the loop early.
+- **Also found:** key `...44681c` returns **401**. It is the only key in the set
+  with an uppercase character in an otherwise all-lowercase-hex list — likely a
+  transcription error in `ODDS_API_KEYS` rather than a revocation. Not fixed here;
+  needs checking against the source. Keys `...a630b6` / `...8e4b0a` are genuinely
+  drained (500/499 used).
+
+Tests: `tests/test_odds_quota_ttl.py` (new, 6 cases incl. the end-to-end
+"a drained key comes back into rotation"); `tests/test_odds_api.py` updated —
+three cases asserted the old bare-int format directly.
+
 ## 2026-09-07 -- College football never scanned: wrong Kalshi series ticker
 
 The operator noticed zero college-football bets in the trade log and asked why.
