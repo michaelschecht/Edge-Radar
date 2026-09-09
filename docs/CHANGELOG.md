@@ -17,9 +17,34 @@ unobserved, and the zero persisted indefinitely. The
 exactly this, but only fires when **all** keys read zero, which never happened.
 The pool silently collapsed from 14 usable keys to one: key `...deb642` was
 carrying the entire workload at 416 remaining while `futures_edge` logged
-`1 requests remaining` on the morning of 09-09. Quota resets land on each key's
-own signup anniversary, not the 1st of the month, so a zero is only ever a fact
-about the past -- it can never be safely cached without a date.
+`1 requests remaining` on the morning of 09-09. Whenever a reset lands, a zero is
+only ever a fact about the past -- it can never be safely cached without a date.
+
+**This reopens S20** (*CHANGELOG 2026-09-03*), which closed the August quota
+problem as "the monthly reset" on the strength of **zero** `All N Odds API keys
+returned 401/429` errors in the 09-01..09-03 logs. That evidence is confounded by
+this bug: with `...deb642` holding quota, the walk never reached a cached-zero key,
+so no 401 could be logged **whether or not any key had reset**. Silence was the
+bug's signature, not proof of recovery. S20's own *Verify* line called for exactly
+the `--live` probe that was never run ("to separate a stale cache from real
+exhaustion"); running it on 09-09 is what surfaced this. S20 was right that the
+keys were not permanently dead, and right to stand down the alarm -- but its stated
+mechanism does not follow from what it looked at.
+
+**The reset model is now an open question, and this fix does not depend on it.**
+S20 states the quota resets on the 1st. The 09-09 probe found *heterogeneous*
+`x-requests-used` on the same day -- 0 (nine keys), 84, 263, 499, 500 -- which a
+synchronized 1st-of-month reset does not obviously explain, since the keys reading
+263 and ~500 used were cached at zero and should have been skipped all month.
+`rotate_key()` was the obvious candidate for a bypass path and is **ruled out** --
+all three call sites discard its return and re-enter via `get_current_key()`. What
+remains is benign: `_remaining` is per-process state seeded from the cache, a key
+*absent* from it reads as usable, and once every key reads zero in-process the
+documented fallback returns the current slot anyway -- so a reset is re-discovered
+one key at a time, for whichever slot `_current_index` holds. That fits the spread
+under **either** model, so the used counts do not discriminate between them.
+**Not resolved here, and deliberately not asserted either way** -- logged as
+**S26b**. The TTL is correct under both models.
 
 - **`scripts/shared/odds_api.py`** — cache entries are now
   `{key: {"remaining": N, "checked_at": <iso>}}`. `_load_quota_cache()` drops a
