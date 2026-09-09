@@ -1963,7 +1963,22 @@ def execute_pipeline(
     #   this both terms of the ratio are short and Gate 2b reads looser than it
     #   was configured to be. Runs AFTER the janitor above, so orders it just
     #   cancelled are already gone from the venue's list.
-    _resting_total, _resting_by_seg = resting_exposure(client, load_trade_log())
+    #
+    #   Kalshi-only, for the same reason the janitor above is (R4): Polymarket
+    #   US does not implement `GET /v1/orders` -- it answers 501 with gRPC code
+    #   12 UNIMPLEMENTED, deterministically, so the call could never do anything
+    #   but fail open. Ungated, it logged a WARNING on every single PM run since
+    #   S21 shipped (2026-08-31), which is the S25 failure mode: a line that
+    #   fires unconditionally stops being read, and takes the real signal with
+    #   it. The exposure it would have measured is $0 -- PM has never filled an
+    #   order -- so nothing is lost by not asking. If PM ever ships an order
+    #   listing, drop the venue check; `resting_exposure` is already generic.
+    if venue == "kalshi":
+        _resting_total, _resting_by_seg = resting_exposure(client, load_trade_log())
+    else:
+        _resting_total, _resting_by_seg = 0.0, {}
+        log.info("Resting-order exposure not measured on %s: the venue exposes no "
+                 "order listing. Gate 2b counts positions only.", venue)
     if _resting_total > 0:
         equity += _resting_total
         open_exposure += _resting_total

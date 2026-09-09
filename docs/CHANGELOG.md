@@ -2,6 +2,57 @@
 
 ---
 
+## 2026-09-09 (later) -- S27: Gate 2b's resting-order call ran on a venue that has no orders endpoint
+
+`kalshi_executor.log` carried a WARNING every single day at 09:40:
+
+```
+Resting-order exposure unavailable (GET /v1/orders -> 501: {"code":12,
+"message":"The server was unable to process your request."}); Gate 2b will
+under-count by any open resting order
+```
+
+Read as a Kalshi problem, it looks alarming -- Gate 2b is the only gate that
+measures a standing total, and this says it is blind. It is not a Kalshi problem.
+`/v1/orders` is the **Polymarket US** path (`polymarket_exec_client.py:280`);
+`/portfolio/orders` is Kalshi's. 09:40 is `Daily-Polymarket-Execution` (task #21).
+Kalshi's own listing works -- verified live the same day, `risk_check.py` returned
+one resting order from the funded account.
+
+`execute_pipeline` is venue-agnostic and takes whatever client it is handed. The
+R4 janitor two lines above the exposure call was already gated `venue == "kalshi"`
+("it parses Kalshi order shapes"); **S21's `resting_exposure()` was not**, so every
+Polymarket run since it shipped on 2026-08-31 asked a venue that answers 501 with
+gRPC code **12 UNIMPLEMENTED** -- deterministic, not transient, and it will never
+succeed. The call could only ever fail open and warn.
+
+**The under-count is $0.** Polymarket has never filled an order -- `kalshi_trades.json`
+holds 0 PM rows, every candidate to date stops at Gate 3 -- so there are no resting
+PM orders to miss. Nothing is lost by not asking.
+
+**The cost was the warning, and that is the real defect.** A line that fires
+unconditionally on every run is the S25 failure mode exactly: a suite with standing
+failures stops being read, and so does a log. This one had been training the reader
+to skip the string `Resting-order exposure unavailable` since 08-31 -- the same
+string Kalshi would use if its listing ever *did* break, which is the case Gate 2b
+actually needs someone to notice.
+
+- **`scripts/kalshi/kalshi_executor.py`** -- the exposure call now sits behind
+  `if venue == "kalshi"`, matching the janitor's guard directly above it. Other
+  venues take `(0.0, {})` and log one INFO line naming the limitation, so the blind
+  spot stays on the record without crying wolf. Drop the check if Polymarket ever
+  ships an order listing; `resting_exposure()` itself is already generic.
+- **Verified:** `polymarket_futures_edge.py:531` passes `venue="polymarket"`;
+  `prediction_scanner.py` passes no venue and correctly defaults to Kalshi, which
+  is right -- it trades Kalshi prediction markets. Runtime confirmation lands on the
+  next 09:40 run.
+- **Tests:** `tests/test_resting_exposure_venue.py` pins S21's fail-open contract
+  (a venue error, and a client with no `get_orders` at all, both return `(0.0, {})`
+  rather than raising) -- the behaviour that makes failing open safe. The guard
+  itself is deliberately untested: reaching it needs a full authenticated venue
+  round-trip, the janitor's identical guard has no test either, and a harness built
+  only to prove an `if` is scaffolding. 1041 pass.
+
 ## 2026-09-09 -- A cached Odds API zero was believed forever, hoarding one key
 
 The operator questioned a report that 12 of 14 Odds API keys were exhausted. They
