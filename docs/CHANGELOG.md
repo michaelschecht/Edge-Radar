@@ -2,6 +2,83 @@
 
 ---
 
+## 2026-09-10 (later) -- P1b: how the two books are differentiated, written down, and a pre-declared go-live criterion
+
+Documentation only; no code changed.
+
+### The four layers
+
+`docs/longshot/README.md` now records how `main` and `longshot` stay apart, as
+four independent layers: **selection** (`--profile` / `EDGE_RADAR_PROFILE`),
+**settings** (`.env.longshot` overlaid on the base `.env`), **money**
+(`KALSHI_SUBACCOUNT`), and **data** (the `"profile"` tag on every trade row).
+
+**Only the money layer isolates anything.** The other three keep the two books
+from confusing *each other*; the exchange is what stops them spending each
+other's cash. Layer 2 is where the strategy actually lives, and it is four keys
+-- everything else is inherited, which is the point of the merge.
+
+Two things verified rather than assumed while writing it:
+
+- **Reporting is pooled, not split.** `daily_summary.py`, `risk_check.py` and
+  `betting_analysis.py` read the whole trade log. This is currently harmless,
+  but not for the reason it looks: a dry run returns `dry_run_blocked` with no
+  fill, so longshot's rows are zero-fill, dropped by both the `fill_status ==
+  "resting"` and `get_filled_cost() <= 0` tests in `load_open_positions`, and
+  never settle. **It stops being harmless the moment `DRY_RUN=false`.**
+- **Settle and reconcile only ever see subaccount 0.** `KalshiClient()` takes
+  its subaccount from the *active* profile, and every settle/reconcile task runs
+  unprofiled. `CLV-Capture` needs nothing -- it reads the unfiltered log and
+  calls `get_market()`, which is public market data, not portfolio-scoped.
+
+Also recorded: **`balance_breakdown` on `get_balance()` ignores `subaccount`**
+and is account-wide; only `balance` / `balance_dollars` are scoped. And scan
+reports separate by *convention* only -- every `main` scheduled task pins an
+explicit `--report-dir`, `longshot_scan.bat` pins none, and filenames carry
+date/filter/type but **not** the profile.
+
+### P1b -- the go-live criterion, deliberately not dated
+
+Seven days of longshot scans (09-04 -> 09-10) have produced **one** trade row,
+`dry_run_blocked`, zero fill. The 09-10 run approved **0 of 7** candidates, and
+every rejection was on *edge*, not price: `4.0% < 8.9%`, `7.8% < 9.1%`,
+`6.6% < 9.1%` -- R28's `NO_SIDE_MIN_EDGE_GLOBAL=0.08` plus fee.
+
+So **`MIN_MARKET_PRICE=0.08`, the knob that defines this strategy, is barely
+binding**, and flipping `DRY_RUN=false` today would change nothing except
+downside. That is the actual argument against enabling it, and it is a better
+one than caution.
+
+The criterion (ROADMAP P1b) requires all three, in order: **(1)** resolve the
+price floor -- 0.08 is contradicted by our own backtest (8-12c went 0W-36L,
+-103.3%, across all six settled months) so decide 0.12 or 0.06; **(2)** read
+**CLV, not ROI** -- at ~1 candidate/week this profile will never resolve ROI,
+402 settles could not, and S8 is what makes CLV readable at n~20-30; **(3)**
+then **pilot**, on S1b's branch-(A) shape -- max 2 open, <=5% of bankroll,
+`UNIT_SIZE=1`, spread <=3c, held to ~40 settles.
+
+Written now, while nothing is at stake, for the same reason S1b was: so the
+call is not made on the first winning week. S10 retires it, the same way it
+retires the S1 NFL freeze.
+
+### Scheduled tasks
+
+`Longshot-Scan` / `Email-Longshot-Scan` were deleted by the operator and
+rebuilt as **`Longshot` (08:00)** and **`Email-Longshot` (08:20)** in
+`\AI-Projects\Edge-Radar-MikesAILab\`, alongside every other job rather than in
+a folder of their own. `InteractiveToken` as `mikes`, which the email task
+requires -- `RESEND_API_KEY` is a user env var and a SYSTEM-run task cannot see
+it. Verified by triggering `Email-Longshot` (`LastTaskResult 0`); the scan task
+was not triggered, since its `.bat` was unchanged and already green at 10:37
+and a full 15-sport scan costs Odds API credits for no new information.
+
+- **`docs/longshot/README.md`** -- new "How the two strategies stay separate"
+  and "When to enable live" sections.
+- **`docs/ROADMAP.md`** -- P1b, in Priority 0a Phase 1 beside S1b.
+- **`CLAUDE.md`**, **`docs/README.md`** -- pointers to the above.
+
+---
+
 ## 2026-09-10 -- S8: CLV capture ships. It had never once been computed.
 
 `kalshi_settler.py` derived `closing_price` from the **settlement-time** market
