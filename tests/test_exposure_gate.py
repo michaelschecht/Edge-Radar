@@ -237,3 +237,34 @@ class TestWiring:
         finally:
             monkeypatch.delenv("MAX_OPEN_EXPOSURE_PCT", raising=False)
             reset_config()
+
+
+class TestPerEventCapFutures:
+    """P1: futures get their own, wider Gate 6 cap
+    (`MAX_PER_EVENT_FUTURES`) so a diversified multi-outcome futures book
+    isn't held to the same limit as holding >2 sides of one game."""
+
+    def test_futures_uses_the_futures_cap(self):
+        opp = _opp(ticker="KXSB-26-KC", category="futures")
+        r = size_order(opp, bankroll=100.0, open_positions=2, daily_pnl=0.0,
+                        event_counts={"KXSB-26": 2},
+                        max_per_event=2, max_per_event_futures=3)
+        assert r.risk_approval.startswith("APPROVED")
+
+    def test_futures_still_rejects_past_its_own_cap(self):
+        opp = _opp(ticker="KXSB-26-KC", category="futures")
+        r = size_order(opp, bankroll=100.0, open_positions=3, daily_pnl=0.0,
+                        event_counts={"KXSB-26": 3},
+                        max_per_event=2, max_per_event_futures=3)
+        assert r.risk_approval.startswith("REJECTED")
+        assert "per_event_cap (3/3" in r.risk_approval
+
+    def test_game_rows_are_unaffected_by_the_futures_cap(self):
+        """A game held at the (lower) game cap must not slip through just
+        because the futures cap is wider."""
+        opp = _opp(ticker="KXMLBGAME-99AUG271900NYYBOS-NYY", category="game")
+        r = size_order(opp, bankroll=100.0, open_positions=2, daily_pnl=0.0,
+                        event_counts={"KXMLBGAME-99AUG271900NYYBOS": 2},
+                        max_per_event=2, max_per_event_futures=3)
+        assert r.risk_approval.startswith("REJECTED")
+        assert "per_event_cap (2/2" in r.risk_approval

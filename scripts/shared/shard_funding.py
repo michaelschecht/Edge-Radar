@@ -36,22 +36,35 @@ log = logging.getLogger("shard_funding")
 __all__ = ["shard_balances", "ensure_shard_funded"]
 
 
-def shard_balances(client) -> dict[int, float]:
-    """Map shard index -> available dollars, from `balance_breakdown`.
+def shard_balances(client, shards) -> dict[int, float]:
+    """Map shard index -> available dollars for THIS subaccount, for `shards`.
 
     The top-level `balance` is the SUM across shards and is what sizing uses;
     this is the per-shard view that determines what an order can actually spend.
+
+    **Not `balance_breakdown`.** That field is account-wide and ignores the
+    `subaccount` param (verified 2026-09-08: as subaccount 1, holding $40 all on
+    shard 0, it reported `{0: 109.79, 3: 13.76}` — the primary's cash folded in).
+    Reading it here made the guard fail OPEN in exactly the case it exists for:
+    a fork wallet with $0 on shard 3 saw the primary's $13.76, found no
+    shortfall, and let the order through to a `404 user_not_found`. One scoped
+    `get_shard_balance()` call per shard is the only correct read, so ask for
+    just the shards the decision needs rather than all four.
+
+    Returns {} if the client cannot answer -- callers fail open on that, which is
+    pre-sharding behaviour. Returning nothing is safe; returning another wallet's
+    balance is not.
     """
-    raw = client.get_balance() or {}
+    read = getattr(client, "get_shard_balance", None)
+    if read is None:
+        return {}
     out: dict[int, float] = {}
-    for row in raw.get("balance_breakdown") or []:
-        idx = row.get("exchange_index")
-        if idx is None:
-            continue
+    for shard in shards:
         try:
-            out[int(idx)] = float(row.get("balance") or 0.0)
-        except (TypeError, ValueError):
-            continue
+            out[int(shard)] = float(read(shard))
+        except Exception as e:                                  # noqa: BLE001
+            log.warning("Per-shard balance read failed for shard %s: %s", shard, e)
+            return {}
     return out
 
 
@@ -72,10 +85,10 @@ def ensure_shard_funded(client, shard: int | None, cost: float, *,
     if shard is None or shard == source_shard:
         return True, None
 
-    balances = shard_balances(client)
+    balances = shard_balances(client, (shard, source_shard))
     if not balances:
-        # No breakdown (older API shape, or a stubbed client) -- nothing to
-        # reason about. Let the venue arbitrate, as it did before sharding.
+        # Client cannot answer per-shard (older API shape, or a stubbed client)
+        # -- nothing to reason about. Let the venue arbitrate, as before sharding.
         return True, None
 
     available = balances.get(shard, 0.0)
@@ -83,10 +96,6 @@ def ensure_shard_funded(client, shard: int | None, cost: float, *,
         return True, None
 
     shortfall = round(cost - available, 4)
-
-    if not enabled:
-        return False, (f"shard {shard} holds ${available:,.2f}, needs ${cost:,.2f} "
-                       f"— short ${shortfall:,.2f}. AUTO_SHARD_TRANSFER is off.")
 
     if shortfall > max_transfer:
         return False, (f"shard {shard} short ${shortfall:,.2f}, over the "
@@ -97,9 +106,28 @@ def ensure_shard_funded(client, shard: int | None, cost: float, *,
         return False, (f"shard {shard} short ${shortfall:,.2f} but shard "
                        f"{source_shard} only holds ${source_available:,.2f}.")
 
+    # `enabled` is checked AFTER the cap/source tests and skipped entirely in a
+    # dry run (2026-09-08). A dry run moves no money, so the flag that governs
+    # *whether we are allowed to move money* has nothing to say about it -- and
+    # checking it first silently gutted the evidence window: every shard-3
+    # candidate (all MLB games, the in-season sport) was refused before it could
+    # be simulated, logging a `status: error` row that can never settle instead
+    # of a dry-run bet that can. The cap and source-funds tests DO still run in
+    # dry runs: those would block a live order for reasons unrelated to the
+    # flag, so simulating past them would overstate what could fill.
+    #
+    # Tradeoff, deliberate: with AUTO_SHARD_TRANSFER=false a dry run now
+    # simulates a bet that a live run would skip. That is right for measuring
+    # the STRATEGY (does the edge model work at the tails?) and wrong for
+    # measuring the PLUMBING -- hence the note says so out loud.
     if dry_run:
+        off = "" if enabled else " (AUTO_SHARD_TRANSFER off — ignored in dry run)"
         return True, (f"[dry-run] would move ${shortfall:,.2f} "
-                      f"shard {source_shard} -> {shard}")
+                      f"shard {source_shard} -> {shard}{off}")
+
+    if not enabled:
+        return False, (f"shard {shard} holds ${available:,.2f}, needs ${cost:,.2f} "
+                       f"— short ${shortfall:,.2f}. AUTO_SHARD_TRANSFER is off.")
 
     log.info("Auto-funding shard %s: $%.4f from shard %s (need $%.2f, have $%.2f)",
              shard, shortfall, source_shard, cost, available)
@@ -112,7 +140,7 @@ def ensure_shard_funded(client, shard: int | None, cost: float, *,
         return False, f"shard transfer failed: {e}"
 
     # Non-atomic: confirm it actually landed rather than trusting the 200.
-    settled = shard_balances(client).get(shard, 0.0)
+    settled = shard_balances(client, (shard,)).get(shard, 0.0)
     if settled < cost:
         log.error("Transfer to shard %s reported success but balance is $%.4f, "
                   "need $%.2f — order skipped, funds may be mid-flight.",
@@ -134,9 +162,14 @@ def _demo() -> None:
             self._raises = raises
             self.transfers: list[tuple[float, int, int]] = []
 
+        def get_shard_balance(self, exchange_index):
+            return self._b.get(int(exchange_index), 0.0)
+
         def get_balance(self):
-            return {"balance_breakdown": [{"exchange_index": k, "balance": f"{v:.4f}"}
-                                          for k, v in self._b.items()]}
+            # Deliberately account-wide and WRONG per-subaccount, mirroring the
+            # real API. Nothing here may read it; the bug was that we did.
+            return {"balance_breakdown": [{"exchange_index": k, "balance": "999.0000"}
+                                          for k in (0, 1, 2, 3)]}
 
         def intra_exchange_transfer(self, amount, source_shard, destination_shard):
             if self._raises:
@@ -159,6 +192,22 @@ def _demo() -> None:
 
     # unknown shard fails OPEN (pre-sharding behaviour)
     assert ensure_shard_funded(c, None, 10.0, **kw) == (True, None)
+
+    # REGRESSION (2026-09-08): the decision must come from the per-shard read,
+    # never from `balance_breakdown` -- which the fake reports as a uniform $999,
+    # standing in for the real API folding another subaccount's cash in. If this
+    # wallet is empty on shard 3, that must be a shortfall no matter what the
+    # breakdown claims.
+    c = FakeClient({0: 70.0, 3: 0.0})
+    ok, note = ensure_shard_funded(c, 3, 10.0, **{**kw, "enabled": False})
+    assert not ok and "holds $0.00" in note, note
+
+    # a client that cannot answer per-shard fails OPEN, as before sharding
+    class NoShardRead:
+        def get_balance(self):
+            return {"balance_breakdown": [{"exchange_index": 3, "balance": "999.0000"}]}
+
+    assert ensure_shard_funded(NoShardRead(), 3, 10.0, **kw) == (True, None)
 
     # shortfall moved exactly, not rounded up
     c = FakeClient({0: 70.0, 3: 2.0})
@@ -185,6 +234,24 @@ def _demo() -> None:
     c = FakeClient({0: 70.0, 3: 0.0})
     ok, note = ensure_shard_funded(c, 3, 10.0, **{**kw, "dry_run": True})
     assert ok and "[dry-run]" in note and c.transfers == []
+
+    # dry run IGNORES the disabled flag (2026-09-08) -- otherwise every shard-3
+    # candidate logs an un-settleable error row instead of simulated evidence.
+    c = FakeClient({0: 70.0, 3: 0.0})
+    ok, note = ensure_shard_funded(
+        c, 3, 10.0, **{**kw, "dry_run": True, "enabled": False})
+    assert ok and "ignored in dry run" in note and c.transfers == [], note
+
+    # ...but a dry run still honours the cap and the source-funds test, which
+    # would block a live order for reasons the flag has nothing to do with.
+    c = FakeClient({0: 70.0, 3: 0.0})
+    ok, note = ensure_shard_funded(
+        c, 3, 40.0, **{**kw, "dry_run": True, "max_transfer": 25.0})
+    assert not ok and "cap" in note, note
+
+    c = FakeClient({0: 3.0, 3: 0.0})
+    ok, note = ensure_shard_funded(c, 3, 10.0, **{**kw, "dry_run": True})
+    assert not ok and "only holds" in note, note
 
     # transfer raises -> refused
     c = FakeClient({0: 70.0, 3: 0.0}, raises=RuntimeError("boom"))

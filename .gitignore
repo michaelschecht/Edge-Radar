@@ -3,6 +3,9 @@
 .env_sreamlitio
 *.env
 .env.*
+# ...but the templates are the documentation for what an overlay may set.
+!.env.example
+!.env.*.example
 keys/
 *.key
 *.pem

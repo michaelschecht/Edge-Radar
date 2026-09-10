@@ -166,6 +166,35 @@ def save_settlement_log(settlements: list[dict]) -> None:
     _atomic_write_json(SETTLEMENT_LOG_PATH, settlements)
 
 
+def for_profile(trades: list[dict], profile: str | None = None) -> list[dict]:
+    """Rows belonging to one strategy profile (P1).
+
+    The trade log is shared across profiles, so any gate that reads *history*
+    rather than the venue has to be scoped or it measures the wrong book. Two
+    gates do: **Gate 1** (daily loss limit, via `get_today_pnl`) and **Gate 7**
+    (series dedup, via `recent_matchups_from_log`). Gates 5 and 6 read live
+    venue positions, which Kalshi already scopes by subaccount, so they need
+    nothing.
+
+    Getting this wrong is not cosmetic: unscoped, a bad day on `main` halts
+    `longshot` and vice versa, and a matchup one profile bet blocks the other
+    from betting it -- across two genuinely separate wallets. The forked repo
+    this replaced had the mirror-image bug, and its own ROADMAP named it: with
+    a trade log each, "each repo's own MAX_DAILY_LOSS/exposure gates only see
+    their own activity, not the combined draw-down." One log plus this filter
+    is what makes each profile see exactly its own.
+
+    Rows written before P1 have no `profile` key and are all `main`'s.
+
+    Settlement and reporting deliberately do NOT call this -- they want the
+    whole book, split by profile where it matters.
+    """
+    if profile is None:
+        from app.config import get_config
+        profile = get_config().system.profile
+    return [t for t in trades if t.get("profile", "main") == profile]
+
+
 def get_today_pnl(trades: list[dict] | None = None) -> float:
     """Calculate today's realized P&L from the trade log."""
     if trades is None:

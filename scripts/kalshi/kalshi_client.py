@@ -49,10 +49,15 @@ class KalshiClient:
         private_key_path: str | None = None,
         private_key_content: str | None = None,
         base_url: str | None = None,
+        subaccount: int | None = None,
     ):
         cfg = get_config()
         self.api_key = api_key or cfg.kalshi.api_key
         self.base_url = (base_url or cfg.kalshi.base_url).rstrip("/")
+        # P1: 0 = primary account. Every balance/position/order/fill call below
+        # is scoped to this subaccount, so one client instance == one isolated
+        # wallet under the same login.
+        self.subaccount = cfg.kalshi.subaccount if subaccount is None else subaccount
 
         # Load private key — inline content takes priority over file path.
         # This allows the KALSHI_PRIVATE_KEY env var to provide the PEM content
@@ -237,8 +242,31 @@ class KalshiClient:
         """
         Get account balance.
         Returns: { balance, portfolio_value, updated_ts } — all in cents.
+
+        **`balance_breakdown` on this response is ACCOUNT-WIDE and ignores
+        `subaccount`.** Only `balance`/`balance_dollars` are scoped. Verified
+        2026-09-08: queried as subaccount 1 (which held $40, all on shard 0) it
+        returned ``{0: 109.79, 3: 13.76}`` — that subaccount's money summed with
+        the primary's — while `balance_dollars` correctly read `40.0000`.
+        Use ``get_shard_balance()`` for anything per-shard; reading the breakdown
+        on a non-zero subaccount silently reports another wallet's cash, and
+        X1's funding guard then fails **open** in exactly its own case.
         """
-        return self._get("/portfolio/balance")
+        return self._get("/portfolio/balance", params={"subaccount": self.subaccount})
+
+    def get_shard_balance(self, exchange_index: int) -> float:
+        """Available dollars for THIS subaccount on one exchange shard.
+
+        The only per-(subaccount, shard) read the v2 API offers: passing
+        `exchange_index` alongside `subaccount` scopes `balance_dollars` to
+        both axes. Confirmed against the web UI's own Sub-accounts panel
+        (2026-09-08) — sub 0 `{0: 69.79, 3: 13.76}`, sub 1 `{0: 40.00, 3: 0.00}`,
+        matching row for row, where `balance_breakdown` matched neither.
+        """
+        raw = self._get("/portfolio/balance",
+                        params={"subaccount": self.subaccount,
+                                "exchange_index": exchange_index})
+        return float(raw.get("balance_dollars") or 0.0)
 
     def get_positions(
         self,
@@ -260,6 +288,7 @@ class KalshiClient:
             "ticker": ticker,
             "event_ticker": event_ticker,
             "count_filter": count_filter,
+            "subaccount": self.subaccount,
         })
 
     def get_fills(
@@ -273,6 +302,7 @@ class KalshiClient:
             "limit": limit,
             "cursor": cursor,
             "ticker": ticker,
+            "subaccount": self.subaccount,
         })
 
     def get_settlements(
@@ -297,6 +327,7 @@ class KalshiClient:
             "event_ticker": event_ticker,
             "min_ts": min_ts,
             "max_ts": max_ts,
+            "subaccount": self.subaccount,
         })
 
     # ── Order Management ──────────────────────────────────────────────────────
@@ -342,6 +373,7 @@ class KalshiClient:
             time_in_force=time_in_force,
             client_order_id=client_order_id,
             expiration_ts=expiration_ts,
+            subaccount=self.subaccount,
         )
         log.info(
             "Placing order: %s %s %s -> v2 side=%s @ $%s — count %s",
@@ -360,6 +392,7 @@ class KalshiClient:
         time_in_force: str,
         client_order_id: str | None = None,
         expiration_ts: int | None = None,
+        subaccount: int = 0,
     ) -> dict:
         """Translate the legacy (side, action, yes/no price) order into a v2 body.
 
@@ -392,6 +425,7 @@ class KalshiClient:
             "price": f"{yes_price_cents_eff / 100:.4f}",
             "time_in_force": time_in_force,
             "self_trade_prevention_type": "taker_at_cross",
+            "subaccount": subaccount,
         }
         if client_order_id:
             body["client_order_id"] = client_order_id
@@ -434,7 +468,7 @@ class KalshiClient:
         up to three non-atomic steps. If a later step fails, completed steps are
         not undone, so funds may remain in the primary account on the source or
         destination exchange index." Always re-read
-        ``get_balance()["balance_breakdown"]`` afterwards rather than assuming
+        ``get_shard_balance(shard)`` afterwards rather than assuming
         the requested amount arrived, and check
         ``get_intra_exchange_transfers()`` -- it is the only record of a
         half-completed move.
@@ -487,7 +521,9 @@ class KalshiClient:
         exactly how the R4 janitor would swallow it. Pass the ``exchange_index``
         that ``GET /portfolio/orders`` reports on the order.
         """
-        params = {"exchange_index": exchange_index} if exchange_index is not None else None
+        params = {"subaccount": self.subaccount}
+        if exchange_index is not None:
+            params["exchange_index"] = exchange_index
         return self._request("DELETE", f"{V2_ORDERS_PATH}/{order_id}", params=params)
 
     def get_order(self, order_id: str) -> dict:
@@ -512,7 +548,37 @@ class KalshiClient:
             "cursor": cursor,
             "ticker": ticker,
             "status": status,
+            "subaccount": self.subaccount,
         })
+
+    # ── Account / Subaccounts ────────────────────────────────────────────────
+
+    def get_account_limits(self) -> dict:
+        """Current API usage tier + rate-limit grants (``GET /account/limits``)."""
+        return self._get("/account/limits")
+
+    def upgrade_to_advanced_tier(self) -> dict:
+        """Self-serve Basic -> Advanced tier upgrade. Required before a
+        subaccount can be created. No-op if already Advanced or above.
+
+        The grant can lag: on 2026-09-07 this call succeeded and reported a
+        grant while the account's effective tier still read `basic` and
+        `create_subaccount` still 403'd on the same requirement. It propagated
+        a few hours later. Re-check `get_account_limits()` rather than
+        assuming the upgrade took effect synchronously.
+        """
+        return self._post("/account/api_usage_level/upgrade")
+
+    def create_subaccount(self, exchange_index: int | None = None) -> dict:
+        """Create a new subaccount (``POST /portfolio/subaccounts``).
+
+        Requires Advanced API tier. Returns ``{subaccount_number}`` (1-63).
+        Real account mutation -- not gated by ``DRY_RUN`` since it moves no
+        money and isn't part of the trading pipeline, but call it once and
+        keep the returned number.
+        """
+        body = {"exchange_index": exchange_index} if exchange_index is not None else None
+        return self._post("/portfolio/subaccounts", body=body)
 
     # ── Convenience / Analysis ────────────────────────────────────────────────
 

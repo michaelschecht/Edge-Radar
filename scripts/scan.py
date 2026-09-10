@@ -11,6 +11,7 @@ All flags are forwarded directly to the underlying scanner.
 Run any subcommand with --help to see its full flag list.
 """
 
+import os
 import sys
 import subprocess
 from pathlib import Path
@@ -47,15 +48,55 @@ def main():
         sys.exit(1)
 
     script = SCANNERS[market_type]
-    remaining = sys.argv[2:]
+    remaining, profile = _extract_profile(sys.argv[2:])
 
     # Insert 'scan' subcommand if not already provided
     if not remaining or remaining[0].startswith("-"):
         remaining = ["scan"] + remaining
 
+    # P1: the profile travels to the scanner as an env var, not a flag — the
+    # scanners take no `--profile` of their own, and `app.config` applies the
+    # `.env.<name>` overlay on first `get_config()` in the child. A fresh
+    # process is exactly the right boundary: nothing is memoized across it, and
+    # `load_dotenv()` in the child will not override what we set here.
+    env = dict(os.environ)  # config-bootstrap: building a CHILD env, not reading a setting
+    if profile:
+        env["EDGE_RADAR_PROFILE"] = profile
+
     cmd = [str(PYTHON), str(script)] + remaining
-    result = subprocess.run(cmd, cwd=str(PROJECT_ROOT))
+    result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), env=env)
     sys.exit(result.returncode)
+
+
+def _extract_profile(args: list[str]) -> tuple[list[str], str | None]:
+    """Pull `--profile <name>` / `--profile=<name>` out of the forwarded flags.
+
+    Consumed here rather than forwarded: every scanner would otherwise need its
+    own identical argparse entry, and one that forgot would run the base `.env`
+    against whatever wallet the operator thought they had selected.
+    """
+    out: list[str] = []
+    profile: str | None = None
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--profile":
+            if i + 1 >= len(args) or args[i + 1].startswith("-"):
+                print("--profile needs a name, e.g. --profile longshot")
+                sys.exit(2)
+            profile = args[i + 1]
+            i += 2
+            continue
+        if arg.startswith("--profile="):
+            profile = arg.split("=", 1)[1]
+            if not profile:
+                print("--profile needs a name, e.g. --profile longshot")
+                sys.exit(2)
+            i += 1
+            continue
+        out.append(arg)
+        i += 1
+    return out, profile
 
 
 def print_help():

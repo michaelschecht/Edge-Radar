@@ -25,6 +25,10 @@ Only `README.md` and `CHANGELOG.md` live at the root of `docs/`. Everything else
 ### ⏰ Automation Schedule — [`task-schedules/`](./task-schedules/)
 *   **[task-schedules/README.md](./task-schedules/README.md) — the full ~20-task automation pipeline the repo owner actually runs** (scan → execute → email → settle → reconcile → calibrate → review). Documented as a recommended starting point, with sanitized `.bat`/`.sh` templates and `schtasks` registration so you can build the equivalent on your own machine. Start with [AUTOMATION_GUIDE.md](./setup/AUTOMATION_GUIDE.md) for the minimal installer-driven core.
 
+### 🎲 Longshot profile — [`longshot/`](./longshot/)
+*   [README.md](./longshot/README.md) — The longshot/futures strategy, run as a `--profile longshot` overlay on Kalshi subaccount 1 (P1). Replaced the separate `Edge-Radar-Longshot` fork on 2026-09-10.
+*   [FORK-ROADMAP-ARCHIVE.md](./longshot/FORK-ROADMAP-ARCHIVE.md) — The retired fork's own ROADMAP, kept verbatim for its subaccount, `balance_breakdown` and price-band evidence.
+
 ### 🎯 Betting Guides & Coverage — [`kalshi/`](./kalshi/)
 *   **[kalshi/README.md](./kalshi/README.md) — start here: the sports/markets coverage matrix (what's configured, what bet types) and links to every betting guide.**
 *   [SPORTS_GUIDE.md](./kalshi/kalshi-sports-betting/SPORTS_GUIDE.md) — Sports edge model: weighted de-vig consensus, CDF spreads/totals, sportsbook weighting tiers.
