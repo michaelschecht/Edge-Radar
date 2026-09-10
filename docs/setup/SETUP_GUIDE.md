@@ -46,7 +46,7 @@ Complete guide from clone → first scan → operating Edge-Radar in production.
 
 ```bash
 # Clone the repository
-git clone https://github.com/michaelschecht/Edge-Radar.git
+git clone https://github.com/ai-automation-tools/Edge-Radar.git
 cd Edge-Radar
 
 # Create a virtual environment
