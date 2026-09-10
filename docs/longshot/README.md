@@ -33,9 +33,22 @@ days it had already drifted into a live defect in each direction: it scanned
 zero college football all September on a stale `KXNCAAFBGAME` prefix and was
 missing S26/S27, while this side was missing its `dry_run` trade-row fix.
 
-**[FORK-ROADMAP-ARCHIVE.md](FORK-ROADMAP-ARCHIVE.md)** is the fork's own
-ROADMAP, kept verbatim for the evidence in it — the subaccount/Advanced-tier
-sequence, the `balance_breakdown` discovery, and the price-band backtest.
+The fork was fully retired on 2026-09-10: the local checkout is deleted and the
+GitHub remote (`michaelschecht/Edge-Radar-Longshot`, private, 22 commits) is
+**archived, not deleted** — read-only and unarchivable at any time.
+
+Two things were carried across because they existed nowhere else:
+
+- **[FORK-ROADMAP-ARCHIVE.md](FORK-ROADMAP-ARCHIVE.md)** — the fork's own
+  ROADMAP, verbatim, for the evidence in it: the subaccount/Advanced-tier
+  sequence, the `balance_breakdown` discovery, and the price-band backtest.
+- **[fork-evidence-window/](fork-evidence-window/)** — the ten scan reports it
+  produced between 09-04 and 09-10, plus a note on the one trade row that was
+  deliberately *not* migrated (a synthetic test artifact that would have
+  injected a fake NFL row into the sample `nfl_week1_review.py` reads on 09-15).
+
+Nothing else was lost: the code is in the archived remote, the `.env` knobs
+became `.env.longshot`, and its private key was byte-identical to this repo's.
 
 ---
 
