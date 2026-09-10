@@ -88,6 +88,10 @@ EDGE_RADAR_PROFILE=longshot python scripts/doctor.py    # non-scan entry points
   `KXNCAAFBGAME` prefix and was missing S26/S27, while this side was missing
   its `dry_run` trade-row fix. Add a profile instead.
   *CHANGELOG 2026-09-10 (P1).*
+- **How the two books stay separate, end to end** — selection, settings, money
+  and data as four independent layers, plus what is deliberately *shared* and
+  the surfaces that are still pooled:
+  **[docs/longshot/README.md](docs/longshot/README.md)**.
 
 ---
 
