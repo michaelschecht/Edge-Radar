@@ -196,6 +196,10 @@ def build_settlement_record(
         "closing_price": closing_price,
         "clv": clv,
         "confidence": trade.get("confidence"),
+        # S20b: carried through so book-width can be joined to OUTCOMES, which
+        # is the only place the question is answerable. Absent on pre-2026-09-10
+        # rows -- readers must treat missing as unknown, not as zero books.
+        "n_books": trade.get("n_books"),
         "composite_score": trade.get("composite_score"),
         "risk_approval": trade.get("risk_approval"),
         "bankroll_pct": trade.get("bankroll_pct"),

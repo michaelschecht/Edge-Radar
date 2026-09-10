@@ -1449,6 +1449,16 @@ def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
         "confidence": opp.confidence,
         "composite_score": opp.composite_score,
         "edge_source": opp.edge_source,
+        # S20b: how wide the book consensus actually was when this edge was
+        # priced. Computed at scan time since launch -- it sets `confidence`
+        # and feeds the composite -- but never persisted, so the one question
+        # S20 asked ("log n_books on every MLB edge and check whether the
+        # thin-book days coincide with the losing trades") could not be
+        # answered from stored data at all. The 2026-09-10 attempt had to
+        # proxy it with Odds-API exhaustion days recovered from log lines,
+        # which dates the *scan*, not the book. None on a venue or path that
+        # does not compute it; absent on every row written before 2026-09-10.
+        "n_books": (opp.details or {}).get("n_books"),
         "unit_size": UNIT_SIZE,
         "bankroll_pct": sized.bankroll_pct,
         "risk_approval": sized.risk_approval,

@@ -2,6 +2,92 @@
 
 ---
 
+## 2026-09-10 (later still) -- S20b: MLB's underperformance is not quota starvation, and `n_books` was never recorded
+
+S20's surviving question, after the 09-09 retraction, was whether MLB's **-6.4%
+ROI and 0.2917 Brier** -- the only sport flagged worse than a coin flip -- were
+caused by a book consensus thinned by Odds-API quota exhaustion, rather than by
+the model. Its own *Verify* line specified the check: *"log `n_books` on every
+MLB edge and check whether the failure days coincide with the losing trades."*
+
+**That check was never possible.** `n_books` is computed at scan time -- it sets
+`confidence` and feeds the composite in all three edge paths -- and then
+discarded. It appears in **no** trade row and **no** settlement row, and never
+has. The instruction to "log `n_books`" read like a small addition to existing
+telemetry; there was no telemetry.
+
+### What the logs did allow
+
+Odds-API key-exhaustion lines are timestamped, so exhaustion **days** are
+recoverable even though book width is not. Splitting MLB's settled bets by
+whether their game day carried an exhaustion event is a proxy -- and a weak one,
+since an exhaustion line dates the **scan**, not the book behind any one edge.
+
+First, the exhaustion record itself is larger than S20 described. S20 counted
+**166 events in August**. Across the full log history it is **577 events on 37
+distinct days, 2026-04-18 → 2026-09-10**, and **every single one is
+`baseball_mlb`** -- no other sport appears, ever, in six months. The pool size
+at the moment of failure was **4 keys or 1 key**, never 12 or 14: by the time
+MLB was refused, the pool had already collapsed, which is the S26 mechanism.
+
+### The answer: no evidence, and the sign does not hold
+
+| MLB settled, n=153 | n | W-L | ROI | model-market Brier |
+|:--|--:|:--|--:|--:|
+| Exhaustion day (±1d) | 50 | 30-20 | **-11.2%** | +0.0437 |
+| Clean day | 103 | 47-56 | **-2.0%** | +0.0276 |
+
+The pooled gap looks like the hypothesis -- until it is tested:
+
+- **ROI difference -9.2%, 95% CI [-47.2%, +30.4%] -- straddles zero.**
+- **Brier-gap difference +0.0161, CI [-0.0278, +0.0614] -- straddles zero.**
+- Per month, exhaustion days are **worse in 3 of 6 months and better in 3 of 6**.
+
+A pooled difference whose sign flips stratum to stratum is not a finding. This
+repo has been here before: `correlation_check.py` produced a pooled rho of
++0.181 that was Simpson's paradox and inverted per stratum, and the rule taken
+from it was to judge against strata rather than the pool. **The quota-starvation
+explanation for MLB does not survive that test.**
+
+**A first pass got the opposite answer and was wrong.** Dating entries through
+`trade_id` against the trade log gave exhaustion days **+12.7%** and clean days
+**-25.0%** -- an apparent refutation. The trade log holds **193 rows against 426
+settlements**: it has been pruned, so only recent rows resolve, and two thirds
+of settled MLB rows silently dropped out of the comparison. Dating from the game
+date embedded in the ticker recovers **all 153** and reverses the result. A join
+that quietly drops most of its rows is worse than no join.
+
+**What this does not say.** It does not clear the MLB model -- the model is worse
+than the market in *both* arms (+0.0437 and +0.0276, both positive), consistent
+with F3. It says the *quota* explanation is unsupported, so the MLB Brier
+problem should be treated as a model question rather than a data-supply one.
+n=50 on the suspect arm is small, and the proxy is coarse; the direct test is
+now possible for the first time and should replace this.
+
+- **`scripts/kalshi/kalshi_executor.py`** -- trade rows carry `n_books`.
+- **`scripts/kalshi/kalshi_settler.py`** -- carried into the settlement row, so
+  book width can be joined to **outcomes**, the only place the question resolves.
+  Absent on pre-2026-09-10 rows: **readers must treat missing as unknown, never
+  as zero books**, or the whole back-catalogue reads as thin.
+- **`scripts/backtest/book_width_check.py`** -- new. `--proxy` runs the
+  exhaustion-day analysis above; the default splits on recorded `n_books` and
+  becomes the real answer once rows accumulate. Both report ROI and the
+  model-minus-market Brier pair (S18) with bootstrap CIs, and both print the
+  per-month sign check, because the pooled number is exactly where this goes
+  wrong. Dates from the log **line**, never the filename -- filenames are UTC
+  and timestamps are local, so an evening PDT run lands in tomorrow's file.
+- **`tests/test_book_width_check.py`** -- 30 tests: the UTC-filename trap, that
+  a missing `n_books` is unknown rather than zero, that undatable rows are
+  excluded rather than padding the control arm, and that a $0 stake yields
+  `None` rather than a clean 0.0%. **1122 pass.**
+
+**Still open:** re-run the default (non-proxy) mode once settled rows carry
+`n_books`. And MLB has no `MIN_CONSENSUS_BOOKS_MLB` -- R29 built that floor for
+NBA only -- so there is still no limit on how thin MLB consensus may get before
+it emits an edge. That gap is real regardless of this result.
+
+---
+
 ## 2026-09-10 (later) -- S28: the NFL Week 1 review's ROI has always been $0.00, and its S4 claim was two weeks stale
 
 `nfl_week1_review.py` fires **once, unattended, on 2026-09-15, with `--apply`**,
