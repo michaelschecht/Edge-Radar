@@ -257,6 +257,37 @@ schtasks /Create /TN "\Edge-Radar\Email-SameDay" `
   /SC DAILY /ST 05:25 /F
 ```
 
+> [!IMPORTANT]
+> **`schtasks /Create` cannot set `StartWhenAvailable`, and every task needs it.**
+> Without it, a trigger whose time passes while the machine is off or asleep is
+> **dropped and never retried** — and it is silent: the task still reads `Ready`,
+> and `LastTaskResult` stays `267011` ("has not yet run"), which is identical to
+> a task legitimately waiting for a date that has not arrived. **Nothing
+> distinguishes "waiting" from "missed forever."**
+>
+> Two dated one-shot reviews here were lost exactly this way and went unnoticed
+> for ~4 months (`U2-Review` 2026-05-14, `R8-Review` 2026-05-29). One-shot tasks
+> are where it is fatal; for a weekly it costs a full cycle, which for
+> `Calibration` can push the stdev cache past `CALIBRATION_STDEVS_TTL_DAYS`.
+>
+> Set it after every create:
+>
+> ```powershell
+> $t = Get-ScheduledTask -TaskName "All-Sports-SameDay-Execution" -TaskPath "\Edge-Radar\"
+> $t.Settings.StartWhenAvailable = $true
+> Set-ScheduledTask -TaskName "All-Sports-SameDay-Execution" -TaskPath "\Edge-Radar\" -Settings $t.Settings
+> ```
+>
+> `install_windows_task.py` now does this itself after each `/Create`, and warns
+> if it cannot.
+>
+> **On execution tasks this is a real behaviour change**, not just reliability: a
+> missed run fires when the machine wakes, against whatever slate is live *then*
+> rather than the one intended for its scheduled time. Bounded by Gate 4.8
+> (`ALLOW_LIVE_BETS=false`), Gate 3.7, and each task's own `--budget` /
+> `--max-bets`. Enabled on the owner's six execution tasks 2026-09-10 by
+> operator decision.
+
 **Schedule shapes you'll need:**
 
 | Cadence | `schtasks` flags |

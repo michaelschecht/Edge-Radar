@@ -58,6 +58,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 SCHEDULERS = PROJECT_ROOT / "scripts" / "schedulers"
+_AUTOMATION_DIR = SCHEDULERS / "automation"
 
 # Task Scheduler folder these profiles install into, overridable per-run with
 # --task-folder. See the module docstring: this is a template, so it
@@ -137,7 +138,7 @@ TASK_PROFILES = {
         "schedule": "WEEKLY",
         "day": "SUN",
         "script": PROJECT_ROOT / ".venv" / "Scripts" / "python.exe",
-        "args": f'"{PROJECT_ROOT / "scripts" / "schedulers" / "automation" / "refresh_account_graph.py"}"',
+        "args": f'"{_AUTOMATION_DIR / "refresh_account_graph.py"}"',
         "description": "Weekly account-graph refresh + publish to GitHub Pages (Sun 9 AM)",
     },
 }
@@ -146,6 +147,56 @@ TASK_PROFILES = {
 def _run_schtasks(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
     """Run a schtasks command and return the result."""
     return subprocess.run(["schtasks"] + args, capture_output=True, text=True, check=check)
+
+
+def _enable_catch_up(tn: str) -> bool:
+    """Set `StartWhenAvailable` on a task `schtasks /Create` just made.
+
+    `schtasks` cannot set it, and without it a trigger whose time passes while
+    the machine is off or asleep is **dropped and never retried** — silently.
+    The task still reads `Ready`, and `LastTaskResult` stays `267011`
+    ("has not yet run"), which is byte-identical to a task legitimately waiting
+    for a date that has not arrived. There is no state that distinguishes
+    "waiting" from "missed forever", which is why it hides.
+
+    Two dated one-shot reviews on the owner's machine (`R8-Review` 2026-05-29,
+    `U2-Review` 2026-05-14) were lost exactly this way and went unnoticed for
+    ~4 months. One-shot tasks are where it is fatal; for a weekly it costs a
+    full cycle, which for `Calibration` can push the stdev cache past
+    `CALIBRATION_STDEVS_TTL_DAYS`.
+
+    **Non-fatal on failure.** A task without the flag still runs on schedule
+    whenever the machine is up, so a PowerShell that is missing or restricted
+    is a reason to warn, not to fail an otherwise-good install.
+
+    Note this changes *execution* tasks too: a missed run fires when the
+    machine wakes, against whatever slate is live then rather than the one
+    intended for its scheduled time. That is bounded by Gate 4.8
+    (`ALLOW_LIVE_BETS=false`), Gate 3.7, and each task's own `--budget` /
+    `--max-bets` — but it is a real behaviour change, so it is stated here
+    rather than left to be discovered.
+    """
+    folder, _, leaf = tn.rpartition("\\")
+    path = f"{folder}\\" if folder else "\\"
+    ps = (
+        f"$t = Get-ScheduledTask -TaskName '{leaf}' -TaskPath '{path}' "
+        f"-ErrorAction Stop; "
+        f"$t.Settings.StartWhenAvailable = $true; "
+        f"Set-ScheduledTask -TaskName '{leaf}' -TaskPath '{path}' "
+        f"-Settings $t.Settings | Out-Null"
+    )
+    for exe in ("pwsh", "powershell"):
+        try:
+            result = subprocess.run(
+                [exe, "-NoProfile", "-NonInteractive", "-Command", ps],
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, FileNotFoundError):
+            continue
+        if result.returncode == 0:
+            return True
+    return False
 
 
 def task_name(profile_name: str) -> str:
@@ -181,12 +232,14 @@ def _conflicts(profile_name: str) -> list[str]:
     leaf = TASK_PROFILES[profile_name]["leaf"].lower()
     mine = task_name(profile_name).lower()
     return [
-        path for path in _all_task_paths()
+        path
+        for path in _all_task_paths()
         if path.rsplit("\\", 1)[-1].lower() == leaf and path.lstrip("\\").lower() != mine
     ]
 
 
 # ── Commands ─────────────────────────────────────────────────────────────────
+
 
 def install(profile_name: str, force: bool = False):
     """Create a scheduled task for the given profile."""
@@ -204,9 +257,9 @@ def install(profile_name: str, force: bool = False):
         for path in clashes:
             print(f"         existing: {path}")
         print(f"         would create: \\{tn}")
-        print( "         Installing anyway would leave BOTH registered and both")
-        print( "         would fire. Re-run with --task-folder set to the folder")
-        print( "         you actually manage, or --force to truly want a second.")
+        print("         Installing anyway would leave BOTH registered and both")
+        print("         would fire. Re-run with --task-folder set to the folder")
+        print("         you actually manage, or --force to truly want a second.")
         return False
 
     # Build the command to run
@@ -228,13 +281,18 @@ def install(profile_name: str, force: bool = False):
     # Remove existing task if present (update)
     _run_schtasks(["/Delete", "/TN", tn, "/F"], check=False)
 
-    result = _run_schtasks([
-        "/Create",
-        "/TN", tn,
-        "/TR", tr,
-        *sc_args,
-        "/F",
-    ], check=False)
+    result = _run_schtasks(
+        [
+            "/Create",
+            "/TN",
+            tn,
+            "/TR",
+            tr,
+            *sc_args,
+            "/F",
+        ],
+        check=False,
+    )
 
     if result.returncode == 0:
         if schedule == "DAILY":
@@ -247,6 +305,11 @@ def install(profile_name: str, force: bool = False):
         print(f"       Task:   {tn}")
         print(f"       Time:   {cadence}")
         print(f"       Script: {script}")
+        if not _enable_catch_up(tn):
+            print(
+                "       [WARN] could not set StartWhenAvailable — a run missed "
+                "while this machine is off will be skipped, not retried"
+            )
     else:
         print(f"  [FAIL] {profile_name}: {result.stderr.strip()}")
         return False
@@ -300,6 +363,7 @@ def run_now(profile_name: str):
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
+
 def main():
     # Rebound from --task-folder below; declared up front because the argparse
     # setup reads TASK_FOLDER for the flag's default and help text.
@@ -310,23 +374,28 @@ def main():
         epilog="See docs/setup/AUTOMATION_GUIDE.md for the full walkthrough.",
     )
     parser.add_argument(
-        "command", choices=["install", "remove", "status", "run"],
+        "command",
+        choices=["install", "remove", "status", "run"],
         help="install | remove | status | run",
     )
     parser.add_argument(
-        "profile", nargs="?", default="all",
+        "profile",
+        nargs="?",
+        default="all",
         choices=list(TASK_PROFILES.keys()) + ["all"],
         help="Task profile (default: all)",
     )
     parser.add_argument(
-        "--task-folder", default=TASK_FOLDER,
+        "--task-folder",
+        default=TASK_FOLDER,
         help=f"Task Scheduler folder to manage (default: {TASK_FOLDER}). Point "
-             "this at the folder your real tasks live in to update them in place.",
+        "this at the folder your real tasks live in to update them in place.",
     )
     parser.add_argument(
-        "--force", action="store_true",
+        "--force",
+        action="store_true",
         help="Install even when a task of the same name exists in another "
-             "folder (leaves BOTH registered and both will fire).",
+        "folder (leaves BOTH registered and both will fire).",
     )
 
     args = parser.parse_args()
@@ -340,9 +409,9 @@ def main():
         print(f"Installing Edge-Radar scheduled tasks into \\{TASK_FOLDER}\\ ...\n")
         for p in profiles:
             install(p, force=args.force)
-        print(f"\nManage via: taskschd.msc (Task Scheduler GUI)")
+        print("\nManage via: taskschd.msc (Task Scheduler GUI)")
     elif args.command == "remove":
-        print(f"Removing Edge-Radar scheduled tasks...\n")
+        print("Removing Edge-Radar scheduled tasks...\n")
         for p in profiles:
             remove(p)
     elif args.command == "run":

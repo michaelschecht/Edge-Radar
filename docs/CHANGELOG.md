@@ -2,6 +2,107 @@
 
 ---
 
+## 2026-09-10 (final) -- Two dated reviews never ran, and nothing said so
+
+Routine health check, not a reported bug. `doctor.py` was all-pass, quota
+healthy (4929 across 14 keys), no task reporting a failure.
+
+**`U2-Review` (armed 2026-05-14) and `R8-Review` (armed 2026-05-29) had never
+run.** Four and three-and-a-half months. Both are pre-declared one-shot reviews
+of the kind this project relies on -- the same mechanism as S1b's
+`NFL-Week1-Review`, which fires unattended on 09-15 and is the only thing
+permitted to touch the S1 NFL freeze.
+
+### Why it hid
+
+Neither had `StartWhenAvailable`. A one-shot trigger whose time passes while
+the machine is off or asleep is **dropped and never retried** -- and Task
+Scheduler records nothing. The task still reads `Ready`. `LastTaskResult` stays
+**`267011`** ("has not yet run"), which is **byte-identical to a task correctly
+waiting for a date that has not arrived** -- `NFL-Week1-Review` reads exactly
+the same right now, and is fine. There is no state anywhere that separates
+"waiting" from "missed forever"; the only way to see it is to notice a trigger
+date already in the past.
+
+`schtasks /Create` cannot set the flag at all, which is why it was missing:
+`install_windows_task.py` creates tasks that way, and its own docstring already
+conceded the live tasks were "built by other means with richer settings
+(run-as principal, wake/retry policy) than `schtasks /Create` sets here."
+
+**25 of 29 tasks lacked it.** The four that had it were the recently-registered
+ones -- `CLV-Capture`, `NFL-Week1-Review` -- where the lesson had been learned
+and then not applied backwards.
+
+### The signature has now appeared three times
+
+``Last Run Time`` `11/30/1999` with `Last Result 267011` is exactly what
+**`MonthlyCalibration`** showed on 2026-07-31, when it was diagnosed as a dead
+duplicate and deleted. The diagnosis was right on the merits -- the weekly
+`Calibration` task was doing all the work -- but **the flag was never checked**,
+so the mechanism that could also explain a monthly task never once firing went
+unexamined for another six weeks. Reading this signature as "dead task" rather
+than "missed run" is the trap; they look the same.
+
+### Fixed
+
+- **All 27 live tasks now set it.** For dailies a miss was cheap; for the
+  weeklies it costs a full cycle, and for `Calibration` enough misses push the
+  stdev cache past `CALIBRATION_STDEVS_TTL_DAYS` (30).
+- **Execution tasks included, by operator decision.** This is a behaviour
+  change, not just reliability: a missed run now fires when the machine wakes,
+  against whatever slate is live *then*. Bounded by Gate 4.8
+  (`ALLOW_LIVE_BETS=false`), Gate 3.7 and each task's `--budget` / `--max-bets`.
+- **`install_windows_task.py` now sets it after every `/Create`**, so the
+  generator stops reproducing the defect, and **warns** rather than failing if
+  no PowerShell is available -- a task without the flag still runs whenever the
+  machine is up, so a restricted shell is not a reason to reject a good install.
+  Prefers `pwsh`, falls back to Windows PowerShell. `tests/test_install_windows_task.py`,
+  7 tests, pinning the `Folder\Leaf` -> `-TaskPath`/`-TaskName` split (a wrong
+  split silently targets the wrong task). **1174 pass.**
+
+
+### The hooks themselves had never run, and had rotted
+
+Installing pre-commit surfaced two config bugs that would have failed every
+commit for anyone who did:
+
+- **flake8 got `W503` as a FILENAME.** `args: [--max-line-length=100,
+  --extend-ignore=E203,W503]` is an unquoted YAML flow sequence, so it splits on
+  the comma and `W503` became its own list item -> `E902 FileNotFoundError:
+  'W503'`. Now quoted.
+- **`.secrets.baseline` did not exist**, so detect-secrets aborted with
+  `argument --baseline: Invalid path`. Generated; six flagged lines, all
+  verified false positives before being baselined -- FRED's public
+  `DEMO_KEY`, the `k1,k2,k3` / `abcd1234deadbeef` test fixtures, a
+  `securePassword123` doc template, and a Windows task path. The baseline
+  stores hashes, not values (checked).
+
+Three pre-existing flake8 violations in `install_windows_task.py` (one E501,
+two `f`-strings with no placeholders) were fixed in passing, since they now
+block any commit touching that file.
+
+### R8 was run before its task was retired: no action
+
+`CROSS_CATEGORY_DEDUP` stays `false`. **0 flip-on, 0 flip-off, 8 need more
+data** -- every sport is under the 10-cohort bar. Report at
+`reports/Performance/R8_cross_category_review_2026-09-10.md`.
+
+Worth noting from it: **MLB has 145 settled games and 0 cross-category
+cohorts.** `MAX_PER_EVENT` and Gate 7 are already preventing the ML+Total+Spread
+stacking R8 exists to catch, so the question R8 was armed to answer is
+substantially moot on the sport that dominates the book.
+
+`U2-Review` was not run -- its premise was a two-week post-ship reliability
+check on the daily summary, and four months of the task working answers it.
+Both tasks were deleted, definitions exported to
+`scripts/schedulers/retired-task-xml/` (gitignored) first.
+
+**Also:** pre-commit hooks were not installed on this machine at all. Given the
+standing rule that `.env` is never committed, `detect-secrets` not running was
+a live gap; installed, and the config repaired so it actually runs.
+
+---
+
 ## 2026-09-10 (later) -- P1b: how the two books are differentiated, written down, and a pre-declared go-live criterion
 
 Documentation only; no code changed.
