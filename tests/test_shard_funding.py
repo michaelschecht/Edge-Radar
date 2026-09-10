@@ -6,6 +6,8 @@ decision logic. These cover the part that matters operationally: that
 never lets a refusal take down the rest of the batch.
 """
 
+import dataclasses
+
 import pytest
 
 import kalshi_executor as ke
@@ -39,9 +41,13 @@ class _Client:
         return {"market": {"ticker": ticker,
                            "exchange_index": self._shards.get(ticker)}}
 
+    def get_shard_balance(self, exchange_index):
+        return self._b.get(int(exchange_index), 0.0)
+
     def get_balance(self):
-        return {"balance_breakdown": [{"exchange_index": k, "balance": f"{v:.4f}"}
-                                      for k, v in self._b.items()]}
+        # Account-wide and wrong per-subaccount, like the real API (2026-09-08).
+        return {"balance_breakdown": [{"exchange_index": k, "balance": "999.0000"}
+                                      for k in (0, 1, 2, 3)]}
 
     def intra_exchange_transfer(self, amount, source_shard, destination_shard):
         self.transfers.append((amount, source_shard, destination_shard))
@@ -60,6 +66,14 @@ def _enable(monkeypatch):
     monkeypatch.setattr(ke, "AUTO_SHARD_TRANSFER", True)
     monkeypatch.setattr(ke, "SHARD_FUNDING_SOURCE", 0)
     monkeypatch.setattr(ke, "MAX_AUTO_SHARD_TRANSFER", 25.0)
+    # The call site reads dry_run from the LIVE config, not a module global, so
+    # these tests silently took the "[dry-run] would move" branch and asserted
+    # nothing about transfers on any clone whose `.env` has DRY_RUN=true (this
+    # fork's does). Pin it so the transfer path is actually exercised.
+    live = ke.get_config()
+    pinned = dataclasses.replace(
+        live, system=dataclasses.replace(live.system, dry_run=False))
+    monkeypatch.setattr(ke, "get_config", lambda: pinned)
 
 
 def test_tops_up_the_shard_then_places(monkeypatch):

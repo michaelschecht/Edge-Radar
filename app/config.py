@@ -99,6 +99,12 @@ class KalshiCredentials:
     private_key_path: str = ""
     private_key_inline: str = ""  # KALSHI_PRIVATE_KEY (PEM content for cloud)
     base_url: str = "https://api.elections.kalshi.com/trade-api/v2"
+    # P1: 0 = primary account. 1-63 routes every balance/order/position/fill
+    # call at the exchange level to a real, exchange-enforced separate wallet
+    # under the same login — gated behind Kalshi's Advanced API tier. This is
+    # the ONLY thing that isolates a bankroll: a second API key, or a second
+    # checkout of this repo, both still draw on one balance.
+    subaccount: int = 0
 
     @classmethod
     def from_env(cls) -> "KalshiCredentials":
@@ -107,6 +113,7 @@ class KalshiCredentials:
             private_key_path=_str("KALSHI_PRIVATE_KEY_PATH", ""),
             private_key_inline=_str("KALSHI_PRIVATE_KEY", ""),
             base_url=_str("KALSHI_BASE_URL", "https://api.elections.kalshi.com/trade-api/v2").rstrip("/"),
+            subaccount=_int("KALSHI_SUBACCOUNT", 0),
         )
 
 
@@ -211,6 +218,13 @@ class RiskLimits:
     max_daily_loss: float = 250.0
     max_open_positions: int = 50
     max_per_event: int = 2
+    # P1: futures get their own Gate 6 cap. A diversified multi-outcome futures
+    # book (3 underdogs in one championship) is a different shape of bet than
+    # holding 3 sides of one game -- the outcomes are mutually exclusive, so
+    # the stake is spread across a partition rather than doubled down on one
+    # event. Defaults to `max_per_event`, so a config that never sets it is
+    # unchanged.
+    max_per_event_futures: int = 2
     max_bet_ratio: float = 3.0
     # S4 (2026-08-26): Gate 2b -- cumulative open exposure, as a fraction of
     # total equity (cash + position value). The first gates that measure a
@@ -235,6 +249,7 @@ class RiskLimits:
             max_daily_loss=_float("MAX_DAILY_LOSS", 250.0),
             max_open_positions=_int("MAX_OPEN_POSITIONS", 50),
             max_per_event=_int("MAX_PER_EVENT", 2),
+            max_per_event_futures=_int("MAX_PER_EVENT_FUTURES", _int("MAX_PER_EVENT", 2)),
             max_bet_ratio=_float("MAX_BET_RATIO", 3.0),
             max_open_exposure_pct=_float("MAX_OPEN_EXPOSURE_PCT", 0.0),
             max_segment_exposure_pct=_float("MAX_SEGMENT_EXPOSURE_PCT", 0.0),
@@ -408,11 +423,18 @@ class System:
     # shortfall should bounce off this rather than drain the account -- the
     # cap is what makes unattended transfers safe to leave on.
     max_auto_shard_transfer: float = 25.0
+    # P1: which strategy profile is active. "main" is the unprofiled default
+    # and always means "the base `.env`, subaccount 0". Anything else was set
+    # by `--profile <name>` / `EDGE_RADAR_PROFILE` and had `.env.<name>`
+    # overlaid on top of the base `.env` before this Config was built.
+    # Carried on every trade row so one trade log can hold both books.
+    profile: str = "main"
 
     @classmethod
     def from_env(cls) -> "System":
         return cls(
             dry_run=_bool("DRY_RUN", True),
+            profile=_str("EDGE_RADAR_PROFILE", "main").strip() or "main",
             log_level=_str("LOG_LEVEL", "INFO").strip().upper(),
             project_root=_str("PROJECT_ROOT", ""),
             test_calibration_stdevs=_bool("TEST_CALIBRATION_STDEVS", False),
@@ -517,6 +539,10 @@ class Config:
         the pipeline, not values that are merely unusual. A user setting
         MIN_EDGE_THRESHOLD=0.30 is surprising but legal.
         """
+        if not 0 <= self.kalshi.subaccount <= 63:
+            raise ValueError(
+                f"KALSHI_SUBACCOUNT must be 0-63, got {self.kalshi.subaccount}"
+            )
         if self.risk.max_bet_size < self.risk.unit_size:
             raise ValueError(
                 f"MAX_BET_SIZE ({self.risk.max_bet_size}) must be >= "
@@ -535,6 +561,11 @@ class Config:
         if self.risk.max_per_event < 0:
             raise ValueError(
                 f"MAX_PER_EVENT must be >= 0, got {self.risk.max_per_event}"
+            )
+        if self.risk.max_per_event_futures < 0:
+            raise ValueError(
+                "MAX_PER_EVENT_FUTURES must be >= 0, got "
+                f"{self.risk.max_per_event_futures}"
             )
         if not 0.0 <= self.risk.max_open_exposure_pct <= 1.0:
             raise ValueError(
@@ -663,6 +694,75 @@ class Config:
         )
 
 
+# ── Strategy profiles ───────────────────────────────────────────────────────
+#
+# P1 (2026-09-10). A profile is a named overlay file, `.env.<name>`, applied on
+# top of the base `.env`. It exists so two strategies can share ONE codebase
+# while keeping separate knobs and — via `KALSHI_SUBACCOUNT` — separate money.
+#
+# This replaced a second checkout of the whole repo. That fork's real code delta
+# was ~74 lines, its strategy delta was two env vars, and in six days it had
+# already drifted into a live defect (a stale NCAAF ticker prefix scanning zero
+# college football all season) while missing two fixes made on this side. The
+# thing it was actually buying — an isolated bankroll — is a Kalshi *subaccount*,
+# which is an account-level fact that one codebase can address perfectly well.
+#
+# Applied here, in config, rather than at each of the ~18 `load_dotenv()` call
+# sites: this is the single place every entry point already routes through, and
+# it runs before any value is read. `load_dotenv()` does not override variables
+# already present in `os.environ`, so a child process launched with an overlaid
+# environment keeps the overlay when it loads the base `.env` itself.
+
+_PROFILE_ENV_VAR = "EDGE_RADAR_PROFILE"
+
+
+def _profile_overlay_path(name: str) -> "os.PathLike[str] | str":
+    """Where `.env.<name>` lives — repo root, beside the base `.env`."""
+    root = os.getenv("PROJECT_ROOT") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(root, f".env.{name}")
+
+
+def apply_profile_overlay() -> str:
+    """Overlay `.env.<profile>` onto `os.environ`. Returns the active profile.
+
+    **Fails closed on a missing overlay file.** A typo'd `--profile longshto`
+    that quietly fell back to the base `.env` would run one strategy's intent
+    against the other strategy's wallet and bet real money doing it — the exact
+    class of silent-wrong-target failure that the venue-eligibility check (S3)
+    and the shard-funding guard (X1) are both built to refuse. An unreadable
+    profile is a stop, not a default.
+
+    Idempotent and a no-op for the unprofiled "main" case, so importing config
+    in a plain run costs nothing.
+    """
+    name = (os.getenv(_PROFILE_ENV_VAR) or "main").strip()
+    if not name or name == "main":
+        return "main"
+
+    if not name.replace("-", "").replace("_", "").isalnum():
+        raise ValueError(
+            f"{_PROFILE_ENV_VAR}={name!r} is not a valid profile name "
+            "(letters, digits, '-' and '_' only)"
+        )
+
+    path = _profile_overlay_path(name)
+    if not os.path.isfile(path):
+        raise FileNotFoundError(
+            f"Profile {name!r} selected but no overlay file at {path}. "
+            "Refusing to fall back to the base .env — a profile that silently "
+            "runs as 'main' bets the main bankroll with another strategy's "
+            "settings. Create the file, or drop --profile."
+        )
+
+    from dotenv import dotenv_values
+
+    for key, value in dotenv_values(path).items():
+        if value is not None:
+            os.environ[key] = value
+    os.environ[_PROFILE_ENV_VAR] = name
+    return name
+
+
 # ── Memoization ─────────────────────────────────────────────────────────────
 
 _cached: Config | None = None
@@ -677,6 +777,7 @@ def get_config() -> Config:
     """
     global _cached
     if _cached is None:
+        apply_profile_overlay()
         _cached = Config.from_env()
     return _cached
 

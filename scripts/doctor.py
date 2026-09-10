@@ -92,6 +92,18 @@ def main():
 
     # ── System settings
     console.print("\n[bold]Configuration[/bold]")
+    # P1: which strategy profile -- and therefore which Kalshi wallet -- this
+    # whole report describes. Printed first: every number below (balance,
+    # shards, positions, exposure) is scoped to the subaccount, so reading the
+    # report without knowing the profile is reading the wrong account's
+    # figures with no way to tell them apart.
+    if cfg.system.profile != "main":
+        check(f"PROFILE = {cfg.system.profile} "
+              f"(overlay .env.{cfg.system.profile}, "
+              f"Kalshi subaccount {cfg.kalshi.subaccount})", True)
+    elif cfg.kalshi.subaccount:
+        check(f"PROFILE = main, but KALSHI_SUBACCOUNT={cfg.kalshi.subaccount} "
+              "-- the base .env points at a non-primary wallet", True)
     if cfg.system.dry_run:
         check("DRY_RUN = true (safe mode)", True)
     else:
@@ -262,7 +274,10 @@ def main():
             import shard_funding
             _names = {0: "Default", 1: "Combos", 2: "Crypto",
                       3: "Tennis & Baseball"}
-            _shards = shard_funding.shard_balances(client)
+            # Ask for all four known shards explicitly: the per-shard read is
+            # scoped to this subaccount, unlike `balance_breakdown` (see
+            # `shard_balances`), so there is no listing to enumerate from.
+            _shards = shard_funding.shard_balances(client, tuple(_names))
             if _shards:
                 _cfg_sys = get_config().system
                 _parts = ", ".join(

@@ -40,6 +40,57 @@ Detail: **[docs/polymarket/README.md](docs/polymarket/README.md)** · **[docs/se
 
 ---
 
+## Strategy Profiles (P1)
+
+Two strategies, **one codebase**, two Kalshi wallets. A profile is a named
+overlay file, `.env.<name>`, applied on top of the base `.env`:
+
+```bash
+python scripts/scan.py sports  --profile longshot --filter mlb --date today
+python scripts/scan.py futures --profile longshot --filter nba-futures
+EDGE_RADAR_PROFILE=longshot python scripts/doctor.py    # non-scan entry points
+```
+
+| Profile | Wallet | `DRY_RUN` | Overrides |
+|:--|:--|:--|:--|
+| `main` (default) | subaccount 0 | `false` — **live** | none; the base `.env` |
+| `longshot` | subaccount 1 (~$40) | `true` | `MIN_MARKET_PRICE=0.08`, `MAX_PER_EVENT_FUTURES=3` |
+
+- **`KALSHI_SUBACCOUNT` is the only thing that isolates money.** Not a second
+  API key, and not a second checkout of this repo — both still draw on one
+  balance, and each copy's `MAX_DAILY_LOSS` and exposure gates would see only
+  their own activity, never the combined draw-down. A subaccount is an
+  exchange-enforced separate wallet under one login (Advanced API tier).
+  Bankroll isolation is an **account**-level fact, so it never justified a fork.
+- **Only what the overlay names differs; everything else is inherited** —
+  risk gates, fee model, calibration, per-sport floors, the NFL freeze, and
+  every future fix, in lockstep across both books. This is the point. The
+  forked repo it replaced ran `MAX_OPEN_EXPOSURE_PCT=0`,
+  `MAX_SEGMENT_EXPOSURE_PCT=0`, `MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS=0`,
+  `MAX_BET_SIZE=100` and `MAX_DAILY_LOSS=250` — not by decision, but because
+  nobody re-tightened the shipped defaults after cloning.
+- **It fails CLOSED.** A missing `.env.<name>` raises rather than falling back
+  to the base `.env`, because the base `.env` is the live-money wallet: a
+  typo'd `--profile longshto` that silently resolved to `main` would run one
+  strategy's intent against the other's bankroll, live. Same reasoning as S3's
+  venue-eligibility check.
+- **Every trade row carries `"profile"`**, mirroring PM2c's `"venue"` one level
+  up. Absent on pre-P1 rows, so **readers must default to `"main"`**. One trade
+  log holds both books — and this is *better* evidence than two repos gave,
+  because both now run identical code, odds cache, fees and calibration, so a
+  comparison measures the strategies rather than the codebase versions.
+- **`--profile` is consumed by `scan.py`**, not forwarded to the scanners, and
+  reaches the child as `EDGE_RADAR_PROFILE`. `load_dotenv()` does not override
+  variables already set, so the overlay survives the child's own `.env` load.
+- **Do not fork this repo to try a strategy.** The Edge-Radar-Longshot fork
+  lasted six days and, on a delta of two env vars, drifted into a live defect
+  in each direction: it scanned zero college football all September on a stale
+  `KXNCAAFBGAME` prefix and was missing S26/S27, while this side was missing
+  its `dry_run` trade-row fix. Add a profile instead.
+  *CHANGELOG 2026-09-10 (P1).*
+
+---
+
 ## Project Structure
 
 ```
@@ -128,7 +179,7 @@ Every gate runs before any trade executes:
 | 4.7 | Prediction categories (crypto/weather/spx/mentions/companies/politics) off unless `ALLOW_PREDICTION_BETS=true` (R25) | Reject |
 | 4.8 | In-progress games (`is_game_started`) off unless `ALLOW_LIVE_BETS=true` (L1) | Reject |
 | 5 | Not already holding this market | Reject |
-| 6 | Per-event cap not exceeded | Reject |
+| 6 | Per-event cap not exceeded (`MAX_PER_EVENT`; futures use `MAX_PER_EVENT_FUTURES`, P1) | Reject |
 | 7 | Matchup not bet within `SERIES_DEDUP_HOURS` (per-sport overrides apply) | Reject |
 | 8 | Bet size <= `MAX_BET_SIZE` | Cap |
 | 9 | Single bet <= `MAX_BET_RATIO` x batch median cost | Cap |
@@ -298,6 +349,11 @@ MAX_BET_SIZE=100                # Hard cap per bet (USD)
 MAX_DAILY_LOSS=250              # Daily hard stop (USD)
 MAX_OPEN_POSITIONS=50           # Concurrent open positions
 MAX_PER_EVENT=2                 # Max positions per game/event
+MAX_PER_EVENT_FUTURES=2         # P1: Gate 6 cap for `category == "futures"` only; games keep
+                                #   MAX_PER_EVENT. Defaults to MAX_PER_EVENT, so a config that
+                                #   never sets it is unchanged. Futures outcomes PARTITION one
+                                #   event (3 underdogs in a championship) rather than doubling
+                                #   down on it. The `longshot` profile sets 3.
 MAX_BET_RATIO=3.0               # Max bet as a multiple of the batch median
 MAX_OPEN_EXPOSURE_PCT=0         # S4: Gate 2b, total open at-risk / EQUITY (cash + positions).
                                 #   Ships 0 (off); live `.env` sets 0.50. The only gate that
@@ -346,6 +402,12 @@ AUTO_SHARD_TRANSFER=false       # X1: move cash between Kalshi exchange shards o
                                 #   fails `404 user_not_found`. Off => order is SKIPPED and
                                 #   logged `shard_underfunded`, never placed to fail.
 SHARD_FUNDING_SOURCE=0          # X1: reserve shard the top-ups come from ("Default")
+KALSHI_SUBACCOUNT=0             # P1: 0 = primary account; 1-63 = an exchange-enforced separate
+                                #   wallet under the same login (Advanced API tier). The ONLY
+                                #   thing that isolates a bankroll — a second API key or a second
+                                #   checkout of this repo both still draw on one balance. Scopes
+                                #   every balance/position/order/fill call. Live `.env` leaves it
+                                #   0; `.env.longshot` sets 1.
 MAX_AUTO_SHARD_TRANSFER=25.00   # X1: ceiling on ONE automatic move. A miscomputed shortfall
                                 #   bounces off this instead of draining the reserve.
 MIN_COMPOSITE_SCORE=6.0         # Minimum score (0-10)
@@ -396,6 +458,10 @@ python scripts/scan.py sports --filter mlb,nhl --date today --save
 python scripts/scan.py futures --filter nba-futures
 python scripts/scan.py prediction --filter crypto
 python scripts/scan.py polymarket
+
+# Strategy profile (P1) -- overlays `.env.<name>`, routes to its Kalshi subaccount
+python scripts/scan.py sports --profile longshot --filter mlb --date today
+EDGE_RADAR_PROFILE=longshot python scripts/doctor.py
 
 # Execute (budget-capped)
 python scripts/scan.py sports --unit-size 1 --max-bets 5 --budget 10% --date today --exclude-open --execute

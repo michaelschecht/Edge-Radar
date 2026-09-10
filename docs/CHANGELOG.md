@@ -2,6 +2,134 @@
 
 ---
 
+## 2026-09-10 -- P1: strategy profiles replace the forked Longshot repo
+
+`Repos/Other_Apps/Edge-Radar-Longshot` was a second checkout of this repo,
+created 2026-09-04 to run a longshot/futures strategy whose results could be
+compared against this one over time. It is retired. The strategy lives here now,
+as a **profile**: `--profile longshot` overlays `.env.longshot` on the base
+`.env` and routes every Kalshi call to **subaccount 1**.
+
+**The fork was buying one thing that a fork cannot actually provide.** The
+bankroll is not in the repo -- it is in the Kalshi account. Two checkouts
+pointing at one API key draw on one balance, and each repo's `MAX_DAILY_LOSS`
+and exposure gates see only their own activity, never the combined draw-down.
+What isolates money is a **subaccount** (exchange-enforced separate wallet under
+one login, Advanced API tier), which the fork itself discovered and shipped on
+2026-09-07. That is an account-level fact. One codebase addresses it fine.
+
+**Measured before deciding.** The fork's real code delta was ~74 lines across
+three concerns, none of them strategy: subaccount routing, a futures-specific
+Gate 6 cap, and a `dry_run` logging fix. Its *strategy* delta was two env vars
+(`MIN_MARKET_PRICE` 0.08 vs 0.10, `MAX_PER_EVENT_FUTURES` 3 vs 2) -- and its own
+ROADMAP header already recorded that the backtest **contradicts** the 0.08 floor
+(the 8-12c band it admits went 0W-36L, -103.3% ROI over six months).
+
+**Six days of drift had already produced a live defect in each direction:**
+
+- The fork still mapped `KXNCAAFBGAME` and had no NCAAF spread/total wiring --
+  the bug fixed here on 2026-09-03 and verified against 3,999 open markets. It
+  was scanning **zero college football**, silently, in September.
+- It was missing S26 (odds-quota TTL) and S27 (the Polymarket resting-order
+  call), plus their tests.
+- This repo was missing the fork's `dry_run` fix: `kalshi_executor.py` hardcoded
+  `"dry_run": False` on **every** trade row, so a dry-run row read
+  `"status": "dry_run_blocked", "dry_run": false` and nothing downstream could
+  separate simulated rows from real ones.
+
+That is the fork tax, on a delta of two env vars, in under a week.
+
+**The overlay is also strictly safer than the fork was.** The fork ran
+`MAX_OPEN_EXPOSURE_PCT=0`, `MAX_SEGMENT_EXPOSURE_PCT=0`,
+`MAX_DAYS_TO_EVENT_FOR_GAME_MARKETS=0`, `MAX_BET_SIZE=100`,
+`MAX_DAILY_LOSS=250` and no NFL freeze -- not by decision, but because nobody
+re-tightened the shipped defaults after cloning, while its ROADMAP recorded the
+posture as "conservative, matches main repo, no change needed". Under a profile
+those five come from the base `.env` automatically, along with every future fix.
+Verified after the merge: both profiles resolve `max_bet_size=8`,
+`max_daily_loss=30`, `exposure=0.50/0.33`, `max_days=14`, `nfl_floor=1.0`.
+
+**And it is better evidence than two repos gave.** Comparing the books now
+compares strategies, not codebase versions -- identical fee model, odds cache,
+calibration and gates on both sides.
+
+### Profiles
+
+- **`app/config.py`** -- `apply_profile_overlay()`, called from `get_config()`
+  before the Config is built. Reads `EDGE_RADAR_PROFILE`, applies
+  `.env.<name>` over `os.environ`. Applied here rather than at the ~18
+  `load_dotenv()` call sites: it is the one place every entry point already
+  routes through, and `load_dotenv()` does not override variables already set,
+  so a child process inherits the overlay intact. `System.profile` carries the
+  active name. **Fails closed** -- a missing overlay file raises rather than
+  falling back to the base `.env`, because the base `.env` is the live-money
+  wallet and a typo'd `--profile longshto` would otherwise run one strategy's
+  intent against the other's bankroll, live. Same reasoning as S3's venue check.
+- **`scripts/scan.py`** -- `--profile <name>` / `--profile=<name>`, consumed by
+  the dispatcher and passed to the scanner as an env var. Not forwarded as a
+  flag: every scanner would need an identical argparse entry, and one that
+  forgot would silently run the base `.env`.
+- **`scripts/doctor.py`** -- prints the active profile and subaccount first.
+  Every figure below it (balance, shards, positions, exposure) is
+  subaccount-scoped, so the report is unreadable without knowing which wallet.
+- **`.env.longshot.example`** -- tracked template; `.env.longshot` is gitignored
+  like `.env`. `.gitignore` now un-ignores `.env.*.example`.
+
+### Ported from the fork
+
+- **`KALSHI_SUBACCOUNT`** (0-63, default 0 = primary, validated) threaded
+  through every balance / position / order / fill / settlement / cancel call in
+  `kalshi_client.py`, plus `get_account_limits()`, `upgrade_to_advanced_tier()`
+  and `create_subaccount()`.
+- **`get_shard_balance(exchange_index)`** -- and this fixes an X1 bug here too.
+  `balance_breakdown` is **account-wide and ignores `subaccount`** (verified
+  2026-09-08: as subaccount 1 holding $40 on shard 0, it reported
+  `{0: 109.79, 3: 13.76}`). `shard_balances()` read that field, so on any
+  non-zero subaccount the funding guard saw the *primary's* cash, found no
+  shortfall, and would approve an order the venue rejects `404 user_not_found`
+  -- failing **open** in exactly its own case. It now takes the shards the
+  decision needs and reads each scoped; it returns `{}` and fails open only
+  when the client cannot answer at all.
+- **`AUTO_SHARD_TRANSFER` is checked after the cap/source tests and skipped in
+  dry runs.** A dry run moves no money, so the flag governing whether we may
+  move money has nothing to say about it; checking it first refused every
+  shard-3 candidate before it could be simulated, logging un-settleable `error`
+  rows instead of dry-run bets. Live behaviour is unchanged -- with
+  `dry_run=False` the verdict is identical either way.
+- **`MAX_PER_EVENT_FUTURES`** -- Gate 6 cap for `category == "futures"`,
+  defaulting to `MAX_PER_EVENT`. Futures outcomes partition one event rather
+  than doubling down on it. +3 tests.
+- **`"dry_run"` on the trade row** is now `api_status == "dry_run_blocked"`.
+- **`tests/test_shard_funding.py`** -- pins `dry_run=False` via the live config.
+  These tests read `dry_run` from the config, not a module global, so on any
+  clone with `DRY_RUN=true` they silently took the `[dry-run]` branch and
+  asserted nothing about transfers.
+
+### Trade-log tagging
+
+- **`kalshi_executor.py`** -- every row carries `"profile"`, mirroring the PM2c
+  `"venue"` tag one level up. Absent on pre-P1 rows, so **readers must default
+  to `"main"`**. This is what lets one trade log hold both books.
+
+### Verified
+
+- 1069 tests pass (1044 existing + 25 new profile tests).
+- `doctor.py` on both profiles against the live exchange: main = subaccount 0,
+  $81.70, shards `0=$68.89 / 3=$12.82`, `DRY_RUN=false`; longshot = subaccount
+  1, $40.00, shard `0=$40.00`, `DRY_RUN=true`. Two wallets, one codebase.
+- `--profile longshto` refuses to run and names the missing file.
+- Futures scan under `--profile longshot`: 30 markets, 0 above the floor.
+
+### Still open (carried from the fork's ROADMAP, not decided here)
+
+- **The 0.08 floor is contradicted by our own backtest.** The recommendation on
+  record is 0.12 or 0.06, not 0.08, and `spread`-as-category (23% win, +31.7%
+  ROI, n=111) as the better-evidenced route to a longshot profile. Carried over
+  as-is so the merge changed no strategy; resolve before this profile goes live.
+- Longshot remains `DRY_RUN=true`. Nothing here turns it on.
+
+---
+
 ## 2026-09-09 (later) -- S27: Gate 2b's resting-order call ran on a venue that has no orders endpoint
 
 `kalshi_executor.log` carried a WARNING every single day at 09:40:

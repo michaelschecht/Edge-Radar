@@ -33,7 +33,7 @@ from dataclasses import dataclass, asdict
 # Shared imports
 import paths  # noqa: F401 -- path constants -- configures sys.path
 from opportunity import Opportunity
-from trade_log import load_trade_log, append_trades, get_today_pnl
+from trade_log import load_trade_log, append_trades, get_today_pnl, for_profile
 
 from dotenv import load_dotenv
 from rich.console import Console
@@ -77,6 +77,7 @@ MAX_OPEN_POSITIONS = _cfg.risk.max_open_positions
 MIN_EDGE_THRESHOLD = _cfg.gates.min_edge_threshold
 KELLY_FRACTION = _cfg.kelly.kelly_fraction
 MAX_PER_EVENT = _cfg.risk.max_per_event
+MAX_PER_EVENT_FUTURES = _cfg.risk.max_per_event_futures
 MAX_BET_RATIO = _cfg.risk.max_bet_ratio
 
 # S4 (2026-08-26): Gate 2b -- cumulative open exposure ceilings, as a fraction
@@ -505,7 +506,7 @@ def reload_risk_config() -> None:
     the import-time block above.
     """
     global MAX_BET_SIZE, UNIT_SIZE, MAX_DAILY_LOSS, MAX_OPEN_POSITIONS
-    global MIN_EDGE_THRESHOLD, KELLY_FRACTION, MAX_PER_EVENT, MAX_BET_RATIO
+    global MIN_EDGE_THRESHOLD, KELLY_FRACTION, MAX_PER_EVENT, MAX_PER_EVENT_FUTURES, MAX_BET_RATIO
     global MAX_OPEN_EXPOSURE_PCT, MAX_SEGMENT_EXPOSURE_PCT
     global MIN_COMPOSITE_SCORE, KELLY_EDGE_CAP, KELLY_EDGE_DECAY, SERIES_DEDUP_HOURS
     global MIN_MARKET_PRICE, MAX_MARKET_PRICE, RESTING_ORDER_MAX_HOURS, MIN_CONFIDENCE
@@ -528,6 +529,7 @@ def reload_risk_config() -> None:
     MIN_EDGE_THRESHOLD = cfg.gates.min_edge_threshold
     KELLY_FRACTION = cfg.kelly.kelly_fraction
     MAX_PER_EVENT = cfg.risk.max_per_event
+    MAX_PER_EVENT_FUTURES = cfg.risk.max_per_event_futures
     MAX_BET_RATIO = cfg.risk.max_bet_ratio
     MAX_OPEN_EXPOSURE_PCT = cfg.risk.max_open_exposure_pct
     MAX_SEGMENT_EXPOSURE_PCT = cfg.risk.max_segment_exposure_pct
@@ -997,6 +999,7 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
                open_tickers: set[str] | None = None,
                event_counts: dict[str, int] | None = None,
                max_per_event: int = MAX_PER_EVENT,
+               max_per_event_futures: int = MAX_PER_EVENT_FUTURES,
                batch_size: int = 1,
                recent_matchups: set[tuple[str, str]] | None = None,
                open_exposure: float = 0.0,
@@ -1165,11 +1168,15 @@ def size_order(opp: Opportunity, bankroll: float, open_positions: int,
     elif open_tickers and opp.ticker in open_tickers:
         rejection = f"duplicate_ticker (already holding {opp.ticker})"
 
-    # ── Risk Gate 6: Per-event cap
+    # ── Risk Gate 6: Per-event cap (futures get their own, wider cap -- a
+    # diversified multi-outcome futures book is a different shape of bet than
+    # holding >2 sides of one game: the outcomes partition one event rather
+    # than doubling down on it)
     elif event_counts:
         evt = _event_key(opp.ticker)
-        if event_counts.get(evt, 0) >= max_per_event:
-            rejection = f"per_event_cap ({event_counts[evt]}/{max_per_event} on {evt[:30]})"
+        cap = max_per_event_futures if opp.category == "futures" else max_per_event
+        if event_counts.get(evt, 0) >= cap:
+            rejection = f"per_event_cap ({event_counts[evt]}/{cap} on {evt[:30]})"
 
     # ── Risk Gate 7: Series dedup (C5 + R9) -- same matchup bet in last
     # SERIES_DEDUP_HOURS, with per-sport overrides (R9: MLB/NHL series cycles
@@ -1408,6 +1415,13 @@ def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
         # PM2c: venue tag so settlement/reporting can split by venue (PM3).
         # Absent on pre-PM2c records — readers must default to "kalshi".
         "venue": (opp.details or {}).get("venue", "kalshi"),
+        # P1: strategy profile, same idea one level up — which set of knobs (and
+        # which Kalshi subaccount) placed this. Absent on pre-P1 records, so
+        # readers must default to "main". This is what lets one trade log hold
+        # two strategies' books and still answer "how is longshot doing" —
+        # and it is strictly better evidence than two repos gave, because both
+        # books now run identical code, odds cache, fees and calibration.
+        "profile": _cfg.system.profile,
         "ticker": opp.ticker,
         "title": opp.title,
         "category": opp.category,
@@ -1440,7 +1454,10 @@ def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
         "risk_approval": sized.risk_approval,
         "net_pnl": 0,  # updated on settlement
         "closed_at": None,
-        "dry_run": False,
+        # Was hardcoded False on EVERY row, dry runs included (fixed 2026-09-08),
+        # so a dry-run row read `"status": "dry_run_blocked", "dry_run": false`
+        # and nothing downstream could filter simulated rows out of real ones.
+        "dry_run": api_status == "dry_run_blocked",
     }
 
     # Persist through the fresh-read-under-lock path so a concurrent writer
@@ -2010,14 +2027,20 @@ def execute_pipeline(
         evt = _event_key(t)
         event_counts[evt] = event_counts.get(evt, 0) + 1
 
-    trade_log = load_trade_log()
+    # P1: the trade log is shared across profiles, so the two gates that read
+    # HISTORY rather than the venue have to be scoped -- Gate 1 (daily loss)
+    # and Gate 7 (series dedup). Unscoped, a bad day on `main` would halt
+    # `longshot`, and a matchup one profile bet would block the other, across
+    # two genuinely separate wallets. Gates 5/6 read live venue positions,
+    # which Kalshi already scopes by subaccount.
+    trade_log = for_profile(load_trade_log())
     daily_pnl = get_today_pnl(trade_log)
     recent_matchups = recent_matchups_from_log(
         trade_log, per_sport_hours=_PER_SPORT_SERIES_DEDUP
     )
     rprint(f"  Today P&L:  ${daily_pnl:,.2f} (limit: -${MAX_DAILY_LOSS:,.2f})")
     rprint(f"  Unit size:  ${unit_size:.2f}")
-    rprint(f"  Per-game:   {MAX_PER_EVENT} max")
+    rprint(f"  Per-game:   {MAX_PER_EVENT} max  (futures: {MAX_PER_EVENT_FUTURES} max)")
     if SERIES_DEDUP_HOURS > 0:
         rprint(f"  Series dedup: blocking matchups bet within last {SERIES_DEDUP_HOURS}h ({len(recent_matchups)} active)")
 
@@ -2051,9 +2074,10 @@ def execute_pipeline(
             if tkr in open_tickers:
                 replay_dropped.append((tkr, "already holding this market (gate 5)"))
                 continue
-            if event_counts.get(evt, 0) >= MAX_PER_EVENT:
+            cap = MAX_PER_EVENT_FUTURES if s.opportunity.category == "futures" else MAX_PER_EVENT
+            if event_counts.get(evt, 0) >= cap:
                 replay_dropped.append(
-                    (tkr, f"per-event cap {MAX_PER_EVENT} reached (gate 6)")
+                    (tkr, f"per-event cap {cap} reached (gate 6)")
                 )
                 continue
             if mkey and mkey in recent_matchups:
@@ -2120,6 +2144,7 @@ def execute_pipeline(
             sized = size_order(
                 opp, bankroll, open_count + len([s for s in sized_orders if s.risk_approval.startswith("APPROVED")]),
                 daily_pnl, unit_size, open_tickers, event_counts, MAX_PER_EVENT,
+                MAX_PER_EVENT_FUTURES,
                 batch_size=batch_sz,
                 recent_matchups=recent_matchups,
                 open_exposure=open_exposure,
@@ -2414,8 +2439,8 @@ def show_status(client: KalshiClient, save: bool = False):
             )
         console.print(table)
 
-    # Today's trades
-    trade_log = load_trade_log()
+    # Today's trades (this profile's -- see `for_profile`)
+    trade_log = for_profile(load_trade_log())
     today = now.strftime("%Y-%m-%d")
     today_trades = [t for t in trade_log if t.get("timestamp", "").startswith(today)]
     daily_pnl = get_today_pnl(trade_log)
