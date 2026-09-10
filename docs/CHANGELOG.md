@@ -2,6 +2,67 @@
 
 ---
 
+## 2026-09-10 (later) -- S28: the NFL Week 1 review's ROI has always been $0.00, and its S4 claim was two weeks stale
+
+`nfl_week1_review.py` fires **once, unattended, on 2026-09-15, with `--apply`**,
+and may rewrite `MIN_EDGE_THRESHOLD_NFL` in the live `.env` (S1b, pre-declared
+2026-08-26). Three defects, all found by *running* it rather than reading it.
+
+**1. `staked` was always exactly $0.00, so ROI was always `+0.0%`.**
+`roi_context()` summed `cost_dollars` from the settlement log. That field does
+not exist there -- the settler writes **`cost`**; `cost_dollars` is the *trade
+log's* name for it. **426 of 426 settlement rows lack it**, so the sum was $0.00
+for every possible input, and `roi` then fell through its own
+`if staked else 0.0` guard to a clean, plausible **`+0.0%`**. On 09-10 it printed
+`staked $0.00   net $-2.24   ROI +0.0%` without complaint. This has never once
+produced a real number since the script was written. Now reads `cost` (falling
+back to `cost_dollars` so either row shape works), and **`roi` is `None` when the
+stake is unreadable** -- the report prints `ROI n/a` and names how many rows
+lacked a stake. A zero indistinguishable from a real result is worse than a gap
+in a report that gates a live-money decision. Correct output: `staked $2.12
+net $-2.24   ROI -105.5%`.
+
+**2. It asserted `MAX_SEGMENT_EXPOSURE_PCT` "does not exist".** A string literal
+written before **S4 shipped on 2026-08-26**. The cap has been live at **0.33**
+ever since, so for two weeks the report was set to tell the operator that
+*nothing mechanically stops NFL exposure re-accumulating* -- inside the document
+deciding whether to unfreeze NFL. Now `_segment_cap()` reads the live value and
+`_segment_cap_paragraph()` states it three ways: the real cap when one is set,
+the original warning **restored** when it is 0/OFF, and an explicit "could not be
+read -- check `.env`" otherwise. A number that comes from `.env` cannot drift
+away from `.env`.
+
+- **`_segment_cap()` loads `.env` itself.** Nothing else in the script reads
+  config -- it rewrites `.env` as text -- so no entry-point dotenv load existed
+  here. Without one `get_config()` returns the **code default (0)**, which reads
+  as "no cap configured" while the live file says 0.33: the same false statement,
+  reached a different way. Caught because the first fix printed `0 -- OFF`
+  against a `.env` that plainly said `0.33`.
+
+**3. Branch C conflated "not enough bets" with "not enough readable bets".**
+`decide()` reported `len(rows)`, which counts only settlements carrying a model
+probability, as "only N settled NFL bets" -- so rows dropped for a missing
+`fair_value` read as bets that were never placed. It now reports both counts and
+the dropped total. This matters on the 15th: **23 of 31 NFL rows project as
+usable**, clearing the >= 20 bar by 3, with 8 dropping out. Which of those two
+numbers is short changes what the operator should do.
+
+**The pre-declared branch logic is untouched** -- thresholds, branches, the
+capped 0.08 pilot floor and the report-only default are all unchanged and now
+covered by tests. Only the reporting around the decision was wrong.
+
+- **`scripts/backtest/nfl_week1_review.py`** -- `roi_context()` reads `cost` and
+  returns `roi: None` + `missing_cost`; new `_segment_cap()`,
+  `_segment_cap_paragraph()`, `_settled_nfl_count()`; module docstring corrected.
+- **`tests/test_nfl_week1_review.py`** -- new, 18 tests. Covers the exact
+  `cost_dollars` row shape that produced the silent zero, that an off cap still
+  warns, that the report never claims a cap it does not have, and that
+  `--apply`-less runs never write `.env`. **1092 pass.**
+- **Verified:** report-only run reproduces `ROI -105.5%` and `33% of equity`;
+  `.env` still reads `MIN_EDGE_THRESHOLD_NFL=1.0`; verdict remains BRANCH C.
+
+---
+
 ## 2026-09-10 -- P1: strategy profiles replace the forked Longshot repo
 
 `Repos/Other_Apps/Edge-Radar-Longshot` was a second checkout of this repo,
