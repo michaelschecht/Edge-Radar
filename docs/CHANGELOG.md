@@ -2,6 +2,103 @@
 
 ---
 
+## 2026-09-10 (last) -- S20c: MLB's loss is expensive NO bets on totals, already gated -- and the "MLB has no book floor" claim was wrong
+
+Investigating S20b's own closing item -- add `MIN_CONSENSUS_BOOKS_MLB`, since
+"R29 built that floor for NBA only" -- turned up two facts that cancel the item
+and diagnose MLB properly. **No code changed.** This is the reason not to write
+the gate.
+
+### 1. MLB is not unfloored. The claim came from S20 and S20b repeated it.
+
+Every edge path already drops thin-consensus rows to `low`, which Gate 4.5
+(`MIN_CONFIDENCE=medium`) rejects. What the paths do **not** share is where:
+
+| path | `medium` requires |
+|:--|:--|
+| moneyline | `n_books >= 5` |
+| spread | `n_books >= 3` **and** book range <= 4.0 |
+| total | **`n_books >= 3`** |
+
+R29 did not create MLB's floor problem by omission; it **raised NBA's** from 5
+to 8 because F46 named NBA (-23.3% ROI over 32 bets). MLB was never considered
+either way. Its floor is 5 on moneyline and **3 on totals** -- and a "consensus"
+of 3 books is two books plus one.
+
+**A floor of 8 was never portable to MLB anyway.** Only **9 books** ever arrive:
+`fetch_odds_api` requests `regions=us`, and Pinnacle/Circa are `eu` (B7, still
+blocked on a quota decision). In-season MLB game markets run **median 7 books
+(min 1, max 9)**, so NBA's 8 demands 8 of a possible 9, and copying it to MLB
+would reject **over half of all MLB games** -- not a floor, a shutdown.
+
+### 2. MLB's loss is entirely totals, and it is a price problem, not a book problem
+
+| MLB settled, by category | n | W-L | ROI | book floor |
+|:--|--:|:--|--:|--:|
+| moneyline | 109 | 47-62 | **+1.2%** | 5 |
+| spread | 2 | 0-2 | -100.0% | 3 |
+| **total** | **42** | **30-12** | **-12.8%** | **3** |
+
+Moneyline -- two thirds of the block -- is **positive**. The whole of MLB's
+-6.4% headline sits in totals, and totals wins **71% of the time while losing
+12.8%**. That combination cannot be a consensus problem: you do not lose money
+winning 71% of your bets unless you are paying too much for them.
+
+You are. **33 of 42 MLB totals are NO bets, median entry price 0.80, and 35 of
+42 were bought at >= 0.75c.** That is the F4/R28 NO-side drag landing in the
+exact band where NO bleeds worst (F4: NO at/above 50c is -11.3% over 68 bets).
+
+### 3. It is already gated -- verified, not assumed
+
+`MAX_MARKET_PRICE=0.75` (Gate 3.55) shipped 2026-09-03. Checked for leaks: of
+the four MLB totals with a game date on/after 09-03, the two at **0.81 and
+0.79 were entered on 09-03 itself**, before the value was set, and the only
+ones since are **0.74 and 0.75 -- both legal** (the gate rejects above 0.75).
+No leak; the gate does what it says. F4's `NO_SIDE_KELLY_PRICE_CEILING=0.50`
+damps the same population from the sizing side.
+
+MLB by era, though the post-gate samples are far too small to confirm anything:
+
+```
+before F4 (pre 08-25)      n=143  W-L 69-74  net  $-10.35  ROI  -6.4%
+F4 .. Gate 3.55            n=  6  W-L  5-1   net  $ +1.60  ROI +25.5%
+since Gate 3.55 (09-03+)   n=  4  W-L  3-1   net  $ -0.55  ROI -10.1%
+```
+
+### Why no gate was written
+
+`MIN_CONSENSUS_BOOKS_MLB` would gate a cause that could not be found, stacked on
+a cause already gated, using a threshold that cannot be justified -- `n_books`
+was never recorded, so there is still no evidence linking book width to MLB
+outcomes in either direction. The instrument shipped this morning (S20b); a few
+weeks of rows answer it properly. **Adding a live gate on a disproved premise is
+the more expensive mistake**, and the same reasoning that keeps a cold-start
+segment in pilot rather than under a hardcoded floor (S1).
+
+**The real value here is that MLB is now diagnosed.** It has been carried since
+2026-08-31 as the sport with a Brier "worse than a coin flip" and an unexplained
+-6.4%, first blamed on quota starvation (S20, unsupported per S20b) and then on
+the model. It is neither: it is one market type, bought on the wrong side at the
+wrong price, by gates that have since been tightened. MLB moneyline was never
+broken.
+
+**Corrected above:** S20b's closing line ("MLB has no `MIN_CONSENSUS_BOOKS_MLB`
+... so there is still no limit on how thin MLB consensus may get") repeated
+S20's claim and is wrong. MLB's limit is 5 on moneyline and 3 on totals.
+
+### Open, and now correctly scoped
+
+- **Totals floors at 3 books while moneyline floors at 5, with no recorded
+  reason** -- and totals is where the money went. Raising it to 5 is a
+  consistency fix, not an evidenced one; it should wait on recorded `n_books`
+  like everything else here.
+- **Re-check MLB after ~20 more settled totals** to see whether Gate 3.55
+  actually fixed it. n=4 proves nothing yet.
+- **B7 remains blocked on an operator quota decision** and gates all of this:
+  adding `eu` books changes what any book count means.
+
+---
+
 ## 2026-09-10 (later still) -- S20b: MLB's underperformance is not quota starvation, and `n_books` was never recorded
 
 S20's surviving question, after the 09-09 retraction, was whether MLB's **-6.4%
@@ -82,9 +179,15 @@ now possible for the first time and should replace this.
   `None` rather than a clean 0.0%. **1122 pass.**
 
 **Still open:** re-run the default (non-proxy) mode once settled rows carry
-`n_books`. And MLB has no `MIN_CONSENSUS_BOOKS_MLB` -- R29 built that floor for
-NBA only -- so there is still no limit on how thin MLB consensus may get before
-it emits an edge. That gap is real regardless of this result.
+`n_books`.
+
+> **Corrected same day by S20c.** This entry originally closed by repeating
+> S20's claim that "MLB has no `MIN_CONSENSUS_BOOKS_MLB` ... so there is still
+> no limit on how thin MLB consensus may get". **That is wrong.** Every path
+> already drops thin rows to `low`, which Gate 4.5 rejects: MLB's limit is
+> `n_books >= 5` on moneyline and `>= 3` on totals. R29 did not leave MLB
+> unfloored -- it *raised NBA's* from 5 to 8. See S20c, which also finds MLB's
+> loss is entirely expensive NO bets on totals, already gated by Gate 3.55.
 
 ---
 
