@@ -2,6 +2,118 @@
 
 ---
 
+## 2026-09-10 -- S8: CLV capture ships. It had never once been computed.
+
+`kalshi_settler.py` derived `closing_price` from the **settlement-time** market
+snapshot. A settled Kalshi market returns nothing meaningful for `last_price`,
+so it evaluated to `0.0`; `0.0` is falsy; and the guard
+`if closing_price and entry_price` short-circuited `clv` to `None`. Silently, on
+every settle, since March: **426 settlements, 0 CLV**, with `closing_price`
+split `{None: 259, 0.0: 167}`.
+
+**The bug was never the arithmetic.** By settlement the closing book *no longer
+exists* -- so no amount of care at that line could have recovered it. Reading a
+settled market for a closing line is a category error, and the fix had to move
+the measurement, not repair it. This matters because Priority 0a's whole thesis
+is that **"CLV and Brier are the only readable signals at this sample size"**,
+and one of the two has been returning nothing the entire time.
+
+### Capture, not derivation
+
+`scripts/kalshi/clv_capture.py` samples the book shortly **before** each open
+position's event starts, and is scheduled every 5 minutes (`CLV-Capture`). Each
+pass loads open, filled, real (non-dry-run) trades that have an
+`event_start_time` and no capture yet, keeps those inside the window, reads each
+ticker once, and writes the result. **A pass with nothing due makes zero API
+calls**, which is what makes a 5-minute cadence affordable -- and cadence is
+what buys coverage, which is what makes a mean CLV trustworthy.
+
+`close_capture_reason` is one of `t_minus_5`, `t_zero_fallback` (a 10-minute
+grace, because a job on a 5-minute tick cannot guarantee landing inside a
+5-minute slot) or `missed`. Past that grace the book is in-play and is no longer
+a *closing* line; capturing it anyway would quietly redefine CLV for exactly the
+rows that were late.
+
+### The three things it would have been easy to get wrong
+
+- **A missing price is NULL, never 0.0.** A falsy sentinel absorbed by a
+  truthiness guard is precisely how D1 hid for five months, and a zero close
+  would additionally drag every mean CLV toward a fictitious `-entry_price`.
+  `compute_clv` tests `is None` rather than truthiness, so a genuine 0.0 close
+  on a collapsed market is computed rather than discarded -- the same bug shape,
+  one level down. **Absent, `missed`, and captured are three different facts**
+  and stay distinguishable: absent means capture never ran, `missed` means it
+  ran and got nothing.
+- **CLV is computed in bet-side probability space.** For a NO bet the close is
+  the **NO** price, so a rising NO price reads as favourable movement exactly as
+  a rising YES price does for a YES bet. Reading the close as a YES probability
+  would invert the sign on the third of the book that is NO -- the S18 mistake,
+  which has already been made once here. Verified live: a NO entered at 0.40
+  against a book closing 0.50/0.62 gives **+0.16**, not -0.16.
+- **The whole book is persisted**, not one scalar: `close_yes_bid`,
+  `close_yes_ask`, `close_no_bid`, `close_no_ask`, `close_mid_bet_side`,
+  `close_capture_at`, `close_capture_reason`. A lone midpoint makes the S14
+  maker/taker A/B unreadable -- maker CLV genuinely improving is
+  indistinguishable from the close being sampled on the other side of a wide
+  book.
+
+### `event_start_time` had to be captured at execution
+
+The obvious source -- the ticker -- covers **35% of the book, and all of it is
+MLB**: `ticker_scheduled_utc` needs an embedded `HHMM`, which only MLB tickers
+carry. Every other sport is date-only (NHL 0/60, MLS 0/74, NCAAMB 0/56, NBA
+0/32, WC 0/43). Keying capture off the ticker would have silently restricted CLV
+to one sport, and the resulting mean would have been reported as the book's.
+
+So the scheduled start comes from the matched **Odds API event's
+`commence_time`**, stored in `details` by all three edge paths and persisted on
+the trade row at execution. Futures carry none -- a season has no start -- and
+are skipped rather than guessed.
+
+### Concurrency: caught in review, not in production
+
+`save_trade_log` overwrites the whole file, so a bare load -> mutate -> save
+would eventually clobber a row appended by one of the ~10 scheduled execute
+tasks -- and what it would lose is a **live position record** (M2's exact
+failure mode). The venue reads run **outside** the cross-process lock, since
+holding it across N network calls would block execution writes for as long as
+Kalshi takes to answer; the captures are then re-applied **by `trade_id`**
+against a fresh read taken **inside** the lock. A concurrent update to any other
+field on the same row survives.
+
+### There is nothing to backfill
+
+CLV accrues from today. The 426 settled rows cannot be recovered, because the
+books they would need stopped existing months ago. `--report` prints
+`n_captured / n_settled` and currently reads **0/143**.
+
+- **`scripts/kalshi/clv_capture.py`** -- new. `--dry-run`, `--window`, `--report`.
+- **`scripts/kalshi/edge_detector.py`** -- `details["event_start_time"]` in all
+  three edge paths.
+- **`scripts/kalshi/kalshi_executor.py`** -- trade rows carry
+  `entry_price_bet_side`, `event_start_time`, `close_capture_reason: None`.
+- **`scripts/kalshi/kalshi_settler.py`** -- stops deriving `closing_price`;
+  reads the captured close, and carries the whole closing book into the
+  settlement row.
+- **`scripts/schedulers/maintenance/clv_capture.bat`** + Windows task
+  `CLV-Capture`, every 5 min. **Read-only at the venue** -- `get_market()` only,
+  never an order. Verified `LastTaskResult 0`.
+- **`tests/test_clv_capture.py`** -- 45 tests, including the D1 zero-vs-null
+  trap, the S18 NO-side sign, and three concurrency tests. **1167 pass.**
+- **Verified live** against `KXMLBGAME-26SEP131420PITCHC-PIT` in an isolated
+  trade log: YES entry 0.40 -> close 0.44 -> **+0.04**; NO entry 0.40 -> close
+  0.56 -> **+0.16**; the two closes sum to exactly 1.0000; a futures row was
+  skipped with `reason=None` rather than given a fabricated close. The live
+  trade log was not touched.
+
+**Next:** S9 -- the reporting slice (mean CLV with bootstrap CI by sport /
+category / side / price band / fee role), which is what turns this into a
+decision signal. It should not be read until coverage is high: misses will not
+be random, they concentrate in thin markets, and thin markets are where the bad
+bets live, so low coverage biases the mean **optimistic**.
+
+---
+
 ## 2026-09-10 (last) -- S20c: MLB's loss is expensive NO bets on totals, already gated -- and the "MLB has no book floor" claim was wrong
 
 Investigating S20b's own closing item -- add `MIN_CONSENSUS_BOOKS_MLB`, since

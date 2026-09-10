@@ -1459,6 +1459,25 @@ def log_trade(order_response: dict, sized: SizedOrder, trade_log: list) -> dict:
         # which dates the *scan*, not the book. None on a venue or path that
         # does not compute it; absent on every row written before 2026-09-10.
         "n_books": (opp.details or {}).get("n_books"),
+        # ── S8: CLV inputs, captured at execution ────────────────────────────
+        # `market_price_at_entry` is ALREADY bet-side-relative (S18: a NO bought
+        # at 73c stores 0.73), so it is the entry leg of CLV as-is. It is
+        # duplicated here under an unambiguous name because CLV is the one
+        # place where reading it as a YES probability silently inverts the
+        # sign for a third of the book, and S18 is the record of that exact
+        # mistake being made once already.
+        "entry_price_bet_side": opp.market_price,
+        # Scheduled event start, from the matched Odds API event. The reference
+        # point the closing book is sampled against. None for futures (a
+        # season has no start) and for any row whose event carried no
+        # commence_time -- `clv_capture.py` skips those rather than guessing.
+        "event_start_time": (opp.details or {}).get("event_start_time"),
+        # Written later by clv_capture.py, never here. Absent means "not yet
+        # captured"; `close_capture_reason: missed` with NULL prices means
+        # "capture ran and could not get a book". Those are different facts and
+        # must stay distinguishable -- D1 happened because a 0.0 stood in for
+        # a missing price and a truthiness guard then swallowed it.
+        "close_capture_reason": None,
         "unit_size": UNIT_SIZE,
         "bankroll_pct": sized.bankroll_pct,
         "risk_approval": sized.risk_approval,
