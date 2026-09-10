@@ -11,7 +11,7 @@
 
 ## 📖 Overview
 
-Model Context Protocol (MCP) enables LLM environments (like Claude Desktop or Antigravity) to securely interact with the local filesystem, query APIs, perform web research, and execute trades on the **Edge-Radar** platform. 
+Model Context Protocol (MCP) enables LLM environments (like Claude Desktop or Antigravity) to securely interact with the local filesystem, query APIs, perform web research, and execute trades on the **Edge-Radar** platform.
 
 This guide details all configured MCP servers, their setup, and the unified configuration for `claude_desktop_config.json` on Windows.
 
@@ -163,5 +163,5 @@ MCP servers run in isolated sub-processes. They do not automatically inherit you
 ---
 
 <p align="center">
-  Built for <a href="https://github.com/michaelschecht/Edge-Radar">Edge-Radar</a> · <a href="ARCHITECTURE.md">Architecture</a> · <a href="SETUP_GUIDE.md">Setup Guide</a>
+  Built for <a href="https://github.com/ai-automation-tools/Edge-Radar">Edge-Radar</a> · <a href="ARCHITECTURE.md">Architecture</a> · <a href="SETUP_GUIDE.md">Setup Guide</a>
 </p>
