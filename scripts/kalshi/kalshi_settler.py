@@ -195,7 +195,25 @@ def build_settlement_record(
         "market_price_at_entry": trade.get("market_price_at_entry"),
         "closing_price": closing_price,
         "clv": clv,
+        # S8: the whole closing book, not just the midpoint. A single scalar
+        # makes the S14 maker/taker A/B unreadable -- you cannot distinguish
+        # maker CLV genuinely improving from the close having been sampled on
+        # the other side of a wide book. `close_capture_reason` separates
+        # "never captured" (None) from "capture ran and got nothing"
+        # ("missed"), which are different facts.
+        "entry_price_bet_side": trade.get("entry_price_bet_side"),
+        "close_yes_bid": trade.get("close_yes_bid"),
+        "close_yes_ask": trade.get("close_yes_ask"),
+        "close_no_bid": trade.get("close_no_bid"),
+        "close_no_ask": trade.get("close_no_ask"),
+        "close_mid_bet_side": trade.get("close_mid_bet_side"),
+        "close_capture_at": trade.get("close_capture_at"),
+        "close_capture_reason": trade.get("close_capture_reason"),
         "confidence": trade.get("confidence"),
+        # S20b: carried through so book-width can be joined to OUTCOMES, which
+        # is the only place the question is answerable. Absent on pre-2026-09-10
+        # rows -- readers must treat missing as unknown, not as zero books.
+        "n_books": trade.get("n_books"),
         "composite_score": trade.get("composite_score"),
         "risk_approval": trade.get("risk_approval"),
         "bankroll_pct": trade.get("bankroll_pct"),
@@ -318,20 +336,28 @@ def settle_trades(client: KalshiClient) -> dict:
             # Calculate P&L
             pnl = calculate_pnl(trade, settlement)
 
-            # Capture closing price for CLV tracking (from the Phase-1 market snapshot)
-            market_data = market_by_ticker.get(ticker, {})
-            closing_price = None
-            try:
-                if trade.get("side") == "yes":
-                    closing_price = float(market_data.get("last_price", 0)) / 100
-                else:
-                    last = float(market_data.get("last_price", 0)) / 100
-                    closing_price = 1.0 - last if last > 0 else None
-            except (TypeError, ValueError):
-                log.debug("Could not derive closing price for %s", ticker)
-
-            entry_price = trade.get("market_price_at_entry", 0)
-            clv = round(closing_price - entry_price, 4) if closing_price and entry_price else None
+            # S8: CLV comes from `clv_capture.py`, which samples the book
+            # BEFORE the event starts. It is deliberately not derived here.
+            #
+            # This block used to read `last_price` off the settlement-time
+            # snapshot. A settled Kalshi market returns nothing meaningful
+            # there, so it evaluated to `0.0`, `0.0` is falsy, and the guard
+            # `if closing_price and entry_price` short-circuited `clv` to
+            # `None` -- silently, on every settle, for five months. 426
+            # settlements, 0 CLV, `closing_price` split {None: 259, 0.0: 167}.
+            #
+            # The deeper point is that the bug was not the arithmetic: by
+            # settlement the closing book **no longer exists**, so no amount of
+            # care here could have recovered it. Reading a settled market for a
+            # closing line is a category error, not an off-by-one.
+            closing_price = trade.get("close_mid_bet_side")
+            clv = trade.get("clv")
+            if clv is None and trade.get("close_capture_reason") is None:
+                # Never captured -- pre-S8 rows, futures, and anything whose
+                # event carried no start time. Left as None, which is the
+                # honest value; S9 reports `n_captured / n_settled` so the gap
+                # stays visible instead of averaging as zero.
+                log.debug("No closing-book capture for %s; CLV stays None", ticker)
 
             # Update trade record
             trade["net_pnl"] = pnl["net_pnl"]

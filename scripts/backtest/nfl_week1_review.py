@@ -40,10 +40,12 @@ response to the uncertainty.
                over-claiming, or any exception at all.
 
 **A pilot floor, not an unfreeze.** `MIN_EDGE_THRESHOLD_NFL=0.08` is roughly 2.7x the
-global floor, so only strong NFL rows clear Gate 3. That high floor is the *only*
-per-sport volume cap expressible in `.env` today -- S4's `MAX_SEGMENT_EXPOSURE_PCT`
-does not exist yet, so nothing mechanically stops NFL exposure re-accumulating. The
-report says so in both branches; watch it manually until S4 lands.
+global floor, so only strong NFL rows clear Gate 3. It caps how many NFL rows
+qualify, not how much money is staked -- but since S4 shipped (2026-08-26) that
+second cap does exist: Gate 2b's `MAX_SEGMENT_EXPOSURE_PCT` binds NFL exposure
+against equity, live at 0.33. The report states both, in either branch. What
+remains true is that Gate 2b runs only at *entry*, so a book already over the
+ceiling is not re-checked (S12).
 
 Usage:
     python scripts/backtest/nfl_week1_review.py              # report only, never writes
@@ -84,27 +86,118 @@ def nfl_rows() -> list[dict]:
     return [r for r in load_rows() if r["sport"] == "nfl"]
 
 
+def _settled_nfl_count() -> int:
+    """Settled NFL rows in the settlement log, readable or not."""
+    return sum(1 for r in load_settlement_log()
+               if str(r.get("ticker", "")).startswith("KXNFL"))
+
+
+def _segment_cap() -> float | None:
+    """The LIVE `MAX_SEGMENT_EXPOSURE_PCT`. None if it cannot be read.
+
+    Read rather than hardcoded on purpose. This report's previous claim about
+    S4 was a string literal written before S4 shipped, and it went on asserting
+    that no per-sport cap existed for two weeks after one was running at 0.33 --
+    inside a report that gates a live-money decision. A number that comes from
+    `.env` cannot drift away from `.env`.
+
+    **Loads `.env` first.** Nothing else in this script reads config -- it
+    rewrites `.env` as text -- so the dotenv load that every other entry point
+    does at import had no reason to exist here. Without it `get_config()` sees
+    only the ambient process environment and returns the *code default* (0),
+    which reads as "no cap configured" when the live file says 0.33: the same
+    false statement this fix exists to remove, arrived at a different way.
+    """
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(ENV_PATH)
+        from app.config import get_config, reset_config
+        reset_config()
+        return get_config().risk.max_segment_exposure_pct
+    except Exception:                                        # noqa: BLE001
+        return None
+
+
+def _segment_cap_paragraph() -> str:
+    """The S4 note, told truthfully for whatever the cap actually is."""
+    pct = _segment_cap()
+    tail = ("Two caveats hold either way: the pilot floor limits how many rows "
+            "qualify, not how much is staked, and **Gate 2b runs only at entry** "
+            "-- nothing re-checks a position already held, so a book that drifts "
+            "over the ceiling stays there until it runs off (S12).")
+
+    if pct is None:
+        return ("`MAX_SEGMENT_EXPOSURE_PCT` could not be read, so this report "
+                "cannot say whether a per-sport ceiling is enforcing. **Check "
+                "`.env` before acting on this verdict.** " + tail)
+    if not pct:
+        return ("S4 shipped 2026-08-26, but `MAX_SEGMENT_EXPOSURE_PCT` is **0 "
+                "(OFF)** right now -- so **nothing mechanically stops NFL "
+                "exposure re-accumulating** the way it did to 31% of bankroll. "
+                "Set it before unfreezing, or watch NFL exposure manually. "
+                + tail)
+    return (f"S4 shipped 2026-08-26, so the per-sport ceiling this script once "
+            f"said did not exist is now live: Gate 2b binds NFL exposure at "
+            f"**{pct:.0%} of equity**, rejecting when NFL is already at the "
+            f"ceiling and trimming an order to the remaining headroom "
+            f"otherwise. The 31%-of-bankroll pileup could not repeat silently. "
+            + tail)
+
+
 def roi_context() -> dict:
-    """Realised P&L on settled NFL bets. Reported for the operator, votes on nothing."""
+    """Realised P&L on settled NFL bets. Reported for the operator, votes on nothing.
+
+    **The settlement log's stake field is `cost`, not `cost_dollars`** (fixed
+    2026-09-10). Nothing in the log has ever carried `cost_dollars` -- 426 of
+    426 rows lack it -- so `staked` summed to exactly $0.00 and `roi` fell
+    through its own `if staked else 0.0` guard to a clean-looking **+0.0%**,
+    for every possible input, since this script was written. It printed
+    `staked $0.00 ROI +0.0%` beside `net $-2.24` on 2026-09-10 without
+    complaint. A zero that is indistinguishable from a real result is worse
+    than a crash in a report that gates a live-money decision, which is why
+    `roi` is now `None` when the stake is unreadable and the caller prints
+    `n/a` rather than a number.
+    """
     staked = net = 0.0
-    wins = n = 0
+    wins = n = missing_cost = 0
     for s in load_settlement_log():
         if not str(s.get("ticker", "")).startswith("KXNFL"):
             continue
         n += 1
-        staked += float(s.get("cost_dollars") or 0.0)
+        # `cost` is the settler's field; `cost_dollars` is the *trade log's*.
+        # Both are checked so a row from either shape reads correctly.
+        cost = s.get("cost")
+        if cost is None:
+            cost = s.get("cost_dollars")
+        if cost is None:
+            missing_cost += 1
+        staked += float(cost or 0.0)
         net += float(s.get("net_pnl") or 0.0)
         wins += 1 if s.get("won") else 0
     return {"n": n, "staked": staked, "net": net, "wins": wins,
-            "roi": (net / staked) if staked else 0.0}
+            "missing_cost": missing_cost,
+            "roi": (net / staked) if staked > 0 else None}
 
 
 def decide(rows: list[dict]) -> dict:
     """Apply the pre-declared branches. Pure function of the settled rows."""
     n = len(rows)
     if n < MIN_SETTLEMENTS:
+        # Say how many settled vs how many were USABLE. `rows` counts only
+        # settlements carrying a model probability, so a row missing
+        # `fair_value` is dropped here silently -- and "too few settlements"
+        # then reads as "NFL barely traded" when the real cause may be that
+        # the rows exist and are unreadable. On 2026-09-10 the projection for
+        # the 09-15 run was 23 usable out of 31 settled: branch A clears its
+        # bar by 3, and 8 rows drop out. Which of those two numbers is short
+        # changes what the operator should do about it.
+        settled = _settled_nfl_count()
+        detail = f"only {n} usable settled NFL bets, need {MIN_SETTLEMENTS}"
+        if settled > n:
+            detail += (f" ({settled} settled, {settled - n} dropped for a "
+                       "missing model probability or entry price)")
         return {"branch": "C", "action": "stay_frozen", "n": n,
-                "reason": f"only {n} settled NFL bets, need {MIN_SETTLEMENTS}"}
+                "reason": detail}
 
     ys = [r["y"] for r in rows]
     pm = [r["p_model"] for r in rows]
@@ -204,12 +297,24 @@ def render(d: dict, roi: dict, applied: str | None) -> str:
         "",
         "```",
         f"settled  {roi['n']}   record {roi['wins']}-{roi['n'] - roi['wins']}   "
-        f"staked ${roi['staked']:.2f}   net ${roi['net']:+.2f}   ROI {roi['roi']:+.1%}",
+        f"staked ${roi['staked']:.2f}   net ${roi['net']:+.2f}   "
+        + (f"ROI {roi['roi']:+.1%}" if roi["roi"] is not None else "ROI n/a"),
         "```",
         "",
         "These are legacy pre-L2 entries (wide spreads, dead books), so their entry "
         "prices contaminate ROI in both directions, and n is far too small regardless "
         "-- 402 settled bets could not resolve ROI. This number votes on nothing.",
+    ]
+    if roi["missing_cost"]:
+        out += [
+            "",
+            f"> **{roi['missing_cost']} of {roi['n']} settled NFL rows carry no stake "
+            "field**, so `staked` is understated and ROI is computed on only the rows "
+            "that do. Until 2026-09-10 this script read `cost_dollars`, which the "
+            "settlement log has never written, so the stake read $0.00 and ROI "
+            "printed a clean `+0.0%` on every input.",
+        ]
+    out += [
         "",
         "## Action taken",
         "",
@@ -217,10 +322,7 @@ def render(d: dict, roi: dict, applied: str | None) -> str:
         "",
         "## Still missing either way",
         "",
-        "S4 (`MAX_SEGMENT_EXPOSURE_PCT`) does not exist, so **nothing mechanically "
-        "stops NFL exposure re-accumulating** the way it did to 31% of bankroll. The "
-        "pilot floor limits how many rows qualify; it does not cap total money at "
-        "risk. Watch it manually until S4 ships.",
+        _segment_cap_paragraph(),
     ]
     return "\n".join(out) + "\n"
 

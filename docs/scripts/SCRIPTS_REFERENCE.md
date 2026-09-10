@@ -226,6 +226,8 @@ Each script has a dedicated doc with full flag tables, examples, methodology, an
 | :--- | :--- | :--- |
 | `backtest/backtester.py` | Strategy backtesting — equity curve, Sharpe, drawdown, signal breakdowns, strategy simulation | [backtester.md](per-script/backtester.md) |
 | `backtest/correlation_check.py` | Intra-cluster outcome correlation, pooled vs stratified (C11b) | |
+| `kalshi/clv_capture.py` | S8: samples the closing book ~5 min before each open position's event starts, and computes CLV in bet-side space. Read-only at the venue. `--dry-run`, `--window`, `--report` (prints `n_captured / n_settled`) | |
+| `backtest/book_width_check.py` | Does thin book consensus explain a sport's losses? ROI + model-market Brier by book width, with bootstrap CIs and a per-month sign check (S20b) | |
 | `model_calibration.py` | Brier score, calibration curve, dimension breakdowns, recommendations | |
 
 **Backtester usage:**
@@ -256,6 +258,12 @@ python scripts/backtest/backtester.py --after 2026-04-01      # Recent trades on
 Answers "do same-night / same-league / same-direction bets resolve together?" — i.e. whether a slate needs sizing damped beyond what the `batch_size` divisor already does. A cluster is `(series, market type, date, side)`.
 
 ```bash
+python scripts/kalshi/clv_capture.py --report              # CLV coverage so far
+python scripts/kalshi/clv_capture.py --dry-run             # show what would be captured
+
+python scripts/backtest/book_width_check.py --proxy --sport mlb  # exhaustion-day proxy
+python scripts/backtest/book_width_check.py --sport mlb         # direct, needs recorded n_books
+
 python scripts/backtest/correlation_check.py                    # all settled trades
 python scripts/backtest/correlation_check.py --since 2026-06-01 # recent window
 python scripts/backtest/correlation_check.py --category total   # one category

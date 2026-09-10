@@ -2,6 +2,368 @@
 
 ---
 
+## 2026-09-10 -- S8: CLV capture ships. It had never once been computed.
+
+`kalshi_settler.py` derived `closing_price` from the **settlement-time** market
+snapshot. A settled Kalshi market returns nothing meaningful for `last_price`,
+so it evaluated to `0.0`; `0.0` is falsy; and the guard
+`if closing_price and entry_price` short-circuited `clv` to `None`. Silently, on
+every settle, since March: **426 settlements, 0 CLV**, with `closing_price`
+split `{None: 259, 0.0: 167}`.
+
+**The bug was never the arithmetic.** By settlement the closing book *no longer
+exists* -- so no amount of care at that line could have recovered it. Reading a
+settled market for a closing line is a category error, and the fix had to move
+the measurement, not repair it. This matters because Priority 0a's whole thesis
+is that **"CLV and Brier are the only readable signals at this sample size"**,
+and one of the two has been returning nothing the entire time.
+
+### Capture, not derivation
+
+`scripts/kalshi/clv_capture.py` samples the book shortly **before** each open
+position's event starts, and is scheduled every 5 minutes (`CLV-Capture`). Each
+pass loads open, filled, real (non-dry-run) trades that have an
+`event_start_time` and no capture yet, keeps those inside the window, reads each
+ticker once, and writes the result. **A pass with nothing due makes zero API
+calls**, which is what makes a 5-minute cadence affordable -- and cadence is
+what buys coverage, which is what makes a mean CLV trustworthy.
+
+`close_capture_reason` is one of `t_minus_5`, `t_zero_fallback` (a 10-minute
+grace, because a job on a 5-minute tick cannot guarantee landing inside a
+5-minute slot) or `missed`. Past that grace the book is in-play and is no longer
+a *closing* line; capturing it anyway would quietly redefine CLV for exactly the
+rows that were late.
+
+### The three things it would have been easy to get wrong
+
+- **A missing price is NULL, never 0.0.** A falsy sentinel absorbed by a
+  truthiness guard is precisely how D1 hid for five months, and a zero close
+  would additionally drag every mean CLV toward a fictitious `-entry_price`.
+  `compute_clv` tests `is None` rather than truthiness, so a genuine 0.0 close
+  on a collapsed market is computed rather than discarded -- the same bug shape,
+  one level down. **Absent, `missed`, and captured are three different facts**
+  and stay distinguishable: absent means capture never ran, `missed` means it
+  ran and got nothing.
+- **CLV is computed in bet-side probability space.** For a NO bet the close is
+  the **NO** price, so a rising NO price reads as favourable movement exactly as
+  a rising YES price does for a YES bet. Reading the close as a YES probability
+  would invert the sign on the third of the book that is NO -- the S18 mistake,
+  which has already been made once here. Verified live: a NO entered at 0.40
+  against a book closing 0.50/0.62 gives **+0.16**, not -0.16.
+- **The whole book is persisted**, not one scalar: `close_yes_bid`,
+  `close_yes_ask`, `close_no_bid`, `close_no_ask`, `close_mid_bet_side`,
+  `close_capture_at`, `close_capture_reason`. A lone midpoint makes the S14
+  maker/taker A/B unreadable -- maker CLV genuinely improving is
+  indistinguishable from the close being sampled on the other side of a wide
+  book.
+
+### `event_start_time` had to be captured at execution
+
+The obvious source -- the ticker -- covers **35% of the book, and all of it is
+MLB**: `ticker_scheduled_utc` needs an embedded `HHMM`, which only MLB tickers
+carry. Every other sport is date-only (NHL 0/60, MLS 0/74, NCAAMB 0/56, NBA
+0/32, WC 0/43). Keying capture off the ticker would have silently restricted CLV
+to one sport, and the resulting mean would have been reported as the book's.
+
+So the scheduled start comes from the matched **Odds API event's
+`commence_time`**, stored in `details` by all three edge paths and persisted on
+the trade row at execution. Futures carry none -- a season has no start -- and
+are skipped rather than guessed.
+
+### Concurrency: caught in review, not in production
+
+`save_trade_log` overwrites the whole file, so a bare load -> mutate -> save
+would eventually clobber a row appended by one of the ~10 scheduled execute
+tasks -- and what it would lose is a **live position record** (M2's exact
+failure mode). The venue reads run **outside** the cross-process lock, since
+holding it across N network calls would block execution writes for as long as
+Kalshi takes to answer; the captures are then re-applied **by `trade_id`**
+against a fresh read taken **inside** the lock. A concurrent update to any other
+field on the same row survives.
+
+### There is nothing to backfill
+
+CLV accrues from today. The 426 settled rows cannot be recovered, because the
+books they would need stopped existing months ago. `--report` prints
+`n_captured / n_settled` and currently reads **0/143**.
+
+- **`scripts/kalshi/clv_capture.py`** -- new. `--dry-run`, `--window`, `--report`.
+- **`scripts/kalshi/edge_detector.py`** -- `details["event_start_time"]` in all
+  three edge paths.
+- **`scripts/kalshi/kalshi_executor.py`** -- trade rows carry
+  `entry_price_bet_side`, `event_start_time`, `close_capture_reason: None`.
+- **`scripts/kalshi/kalshi_settler.py`** -- stops deriving `closing_price`;
+  reads the captured close, and carries the whole closing book into the
+  settlement row.
+- **`scripts/schedulers/maintenance/clv_capture.bat`** + Windows task
+  `CLV-Capture`, every 5 min. **Read-only at the venue** -- `get_market()` only,
+  never an order. Verified `LastTaskResult 0`.
+- **`tests/test_clv_capture.py`** -- 45 tests, including the D1 zero-vs-null
+  trap, the S18 NO-side sign, and three concurrency tests. **1167 pass.**
+- **Verified live** against `KXMLBGAME-26SEP131420PITCHC-PIT` in an isolated
+  trade log: YES entry 0.40 -> close 0.44 -> **+0.04**; NO entry 0.40 -> close
+  0.56 -> **+0.16**; the two closes sum to exactly 1.0000; a futures row was
+  skipped with `reason=None` rather than given a fabricated close. The live
+  trade log was not touched.
+
+**Next:** S9 -- the reporting slice (mean CLV with bootstrap CI by sport /
+category / side / price band / fee role), which is what turns this into a
+decision signal. It should not be read until coverage is high: misses will not
+be random, they concentrate in thin markets, and thin markets are where the bad
+bets live, so low coverage biases the mean **optimistic**.
+
+---
+
+## 2026-09-10 (last) -- S20c: MLB's loss is expensive NO bets on totals, already gated -- and the "MLB has no book floor" claim was wrong
+
+Investigating S20b's own closing item -- add `MIN_CONSENSUS_BOOKS_MLB`, since
+"R29 built that floor for NBA only" -- turned up two facts that cancel the item
+and diagnose MLB properly. **No code changed.** This is the reason not to write
+the gate.
+
+### 1. MLB is not unfloored. The claim came from S20 and S20b repeated it.
+
+Every edge path already drops thin-consensus rows to `low`, which Gate 4.5
+(`MIN_CONFIDENCE=medium`) rejects. What the paths do **not** share is where:
+
+| path | `medium` requires |
+|:--|:--|
+| moneyline | `n_books >= 5` |
+| spread | `n_books >= 3` **and** book range <= 4.0 |
+| total | **`n_books >= 3`** |
+
+R29 did not create MLB's floor problem by omission; it **raised NBA's** from 5
+to 8 because F46 named NBA (-23.3% ROI over 32 bets). MLB was never considered
+either way. Its floor is 5 on moneyline and **3 on totals** -- and a "consensus"
+of 3 books is two books plus one.
+
+**A floor of 8 was never portable to MLB anyway.** Only **9 books** ever arrive:
+`fetch_odds_api` requests `regions=us`, and Pinnacle/Circa are `eu` (B7, still
+blocked on a quota decision). In-season MLB game markets run **median 7 books
+(min 1, max 9)**, so NBA's 8 demands 8 of a possible 9, and copying it to MLB
+would reject **over half of all MLB games** -- not a floor, a shutdown.
+
+### 2. MLB's loss is entirely totals, and it is a price problem, not a book problem
+
+| MLB settled, by category | n | W-L | ROI | book floor |
+|:--|--:|:--|--:|--:|
+| moneyline | 109 | 47-62 | **+1.2%** | 5 |
+| spread | 2 | 0-2 | -100.0% | 3 |
+| **total** | **42** | **30-12** | **-12.8%** | **3** |
+
+Moneyline -- two thirds of the block -- is **positive**. The whole of MLB's
+-6.4% headline sits in totals, and totals wins **71% of the time while losing
+12.8%**. That combination cannot be a consensus problem: you do not lose money
+winning 71% of your bets unless you are paying too much for them.
+
+You are. **33 of 42 MLB totals are NO bets, median entry price 0.80, and 35 of
+42 were bought at >= 0.75c.** That is the F4/R28 NO-side drag landing in the
+exact band where NO bleeds worst (F4: NO at/above 50c is -11.3% over 68 bets).
+
+### 3. It is already gated -- verified, not assumed
+
+`MAX_MARKET_PRICE=0.75` (Gate 3.55) shipped 2026-09-03. Checked for leaks: of
+the four MLB totals with a game date on/after 09-03, the two at **0.81 and
+0.79 were entered on 09-03 itself**, before the value was set, and the only
+ones since are **0.74 and 0.75 -- both legal** (the gate rejects above 0.75).
+No leak; the gate does what it says. F4's `NO_SIDE_KELLY_PRICE_CEILING=0.50`
+damps the same population from the sizing side.
+
+MLB by era, though the post-gate samples are far too small to confirm anything:
+
+```
+before F4 (pre 08-25)      n=143  W-L 69-74  net  $-10.35  ROI  -6.4%
+F4 .. Gate 3.55            n=  6  W-L  5-1   net  $ +1.60  ROI +25.5%
+since Gate 3.55 (09-03+)   n=  4  W-L  3-1   net  $ -0.55  ROI -10.1%
+```
+
+### Why no gate was written
+
+`MIN_CONSENSUS_BOOKS_MLB` would gate a cause that could not be found, stacked on
+a cause already gated, using a threshold that cannot be justified -- `n_books`
+was never recorded, so there is still no evidence linking book width to MLB
+outcomes in either direction. The instrument shipped this morning (S20b); a few
+weeks of rows answer it properly. **Adding a live gate on a disproved premise is
+the more expensive mistake**, and the same reasoning that keeps a cold-start
+segment in pilot rather than under a hardcoded floor (S1).
+
+**The real value here is that MLB is now diagnosed.** It has been carried since
+2026-08-31 as the sport with a Brier "worse than a coin flip" and an unexplained
+-6.4%, first blamed on quota starvation (S20, unsupported per S20b) and then on
+the model. It is neither: it is one market type, bought on the wrong side at the
+wrong price, by gates that have since been tightened. MLB moneyline was never
+broken.
+
+**Corrected above:** S20b's closing line ("MLB has no `MIN_CONSENSUS_BOOKS_MLB`
+... so there is still no limit on how thin MLB consensus may get") repeated
+S20's claim and is wrong. MLB's limit is 5 on moneyline and 3 on totals.
+
+### Open, and now correctly scoped
+
+- **Totals floors at 3 books while moneyline floors at 5, with no recorded
+  reason** -- and totals is where the money went. Raising it to 5 is a
+  consistency fix, not an evidenced one; it should wait on recorded `n_books`
+  like everything else here.
+- **Re-check MLB after ~20 more settled totals** to see whether Gate 3.55
+  actually fixed it. n=4 proves nothing yet.
+- **B7 remains blocked on an operator quota decision** and gates all of this:
+  adding `eu` books changes what any book count means.
+
+---
+
+## 2026-09-10 (later still) -- S20b: MLB's underperformance is not quota starvation, and `n_books` was never recorded
+
+S20's surviving question, after the 09-09 retraction, was whether MLB's **-6.4%
+ROI and 0.2917 Brier** -- the only sport flagged worse than a coin flip -- were
+caused by a book consensus thinned by Odds-API quota exhaustion, rather than by
+the model. Its own *Verify* line specified the check: *"log `n_books` on every
+MLB edge and check whether the failure days coincide with the losing trades."*
+
+**That check was never possible.** `n_books` is computed at scan time -- it sets
+`confidence` and feeds the composite in all three edge paths -- and then
+discarded. It appears in **no** trade row and **no** settlement row, and never
+has. The instruction to "log `n_books`" read like a small addition to existing
+telemetry; there was no telemetry.
+
+### What the logs did allow
+
+Odds-API key-exhaustion lines are timestamped, so exhaustion **days** are
+recoverable even though book width is not. Splitting MLB's settled bets by
+whether their game day carried an exhaustion event is a proxy -- and a weak one,
+since an exhaustion line dates the **scan**, not the book behind any one edge.
+
+First, the exhaustion record itself is larger than S20 described. S20 counted
+**166 events in August**. Across the full log history it is **577 events on 37
+distinct days, 2026-04-18 → 2026-09-10**, and **every single one is
+`baseball_mlb`** -- no other sport appears, ever, in six months. The pool size
+at the moment of failure was **4 keys or 1 key**, never 12 or 14: by the time
+MLB was refused, the pool had already collapsed, which is the S26 mechanism.
+
+### The answer: no evidence, and the sign does not hold
+
+| MLB settled, n=153 | n | W-L | ROI | model-market Brier |
+|:--|--:|:--|--:|--:|
+| Exhaustion day (±1d) | 50 | 30-20 | **-11.2%** | +0.0437 |
+| Clean day | 103 | 47-56 | **-2.0%** | +0.0276 |
+
+The pooled gap looks like the hypothesis -- until it is tested:
+
+- **ROI difference -9.2%, 95% CI [-47.2%, +30.4%] -- straddles zero.**
+- **Brier-gap difference +0.0161, CI [-0.0278, +0.0614] -- straddles zero.**
+- Per month, exhaustion days are **worse in 3 of 6 months and better in 3 of 6**.
+
+A pooled difference whose sign flips stratum to stratum is not a finding. This
+repo has been here before: `correlation_check.py` produced a pooled rho of
++0.181 that was Simpson's paradox and inverted per stratum, and the rule taken
+from it was to judge against strata rather than the pool. **The quota-starvation
+explanation for MLB does not survive that test.**
+
+**A first pass got the opposite answer and was wrong.** Dating entries through
+`trade_id` against the trade log gave exhaustion days **+12.7%** and clean days
+**-25.0%** -- an apparent refutation. The trade log holds **193 rows against 426
+settlements**: it has been pruned, so only recent rows resolve, and two thirds
+of settled MLB rows silently dropped out of the comparison. Dating from the game
+date embedded in the ticker recovers **all 153** and reverses the result. A join
+that quietly drops most of its rows is worse than no join.
+
+**What this does not say.** It does not clear the MLB model -- the model is worse
+than the market in *both* arms (+0.0437 and +0.0276, both positive), consistent
+with F3. It says the *quota* explanation is unsupported, so the MLB Brier
+problem should be treated as a model question rather than a data-supply one.
+n=50 on the suspect arm is small, and the proxy is coarse; the direct test is
+now possible for the first time and should replace this.
+
+- **`scripts/kalshi/kalshi_executor.py`** -- trade rows carry `n_books`.
+- **`scripts/kalshi/kalshi_settler.py`** -- carried into the settlement row, so
+  book width can be joined to **outcomes**, the only place the question resolves.
+  Absent on pre-2026-09-10 rows: **readers must treat missing as unknown, never
+  as zero books**, or the whole back-catalogue reads as thin.
+- **`scripts/backtest/book_width_check.py`** -- new. `--proxy` runs the
+  exhaustion-day analysis above; the default splits on recorded `n_books` and
+  becomes the real answer once rows accumulate. Both report ROI and the
+  model-minus-market Brier pair (S18) with bootstrap CIs, and both print the
+  per-month sign check, because the pooled number is exactly where this goes
+  wrong. Dates from the log **line**, never the filename -- filenames are UTC
+  and timestamps are local, so an evening PDT run lands in tomorrow's file.
+- **`tests/test_book_width_check.py`** -- 30 tests: the UTC-filename trap, that
+  a missing `n_books` is unknown rather than zero, that undatable rows are
+  excluded rather than padding the control arm, and that a $0 stake yields
+  `None` rather than a clean 0.0%. **1122 pass.**
+
+**Still open:** re-run the default (non-proxy) mode once settled rows carry
+`n_books`.
+
+> **Corrected same day by S20c.** This entry originally closed by repeating
+> S20's claim that "MLB has no `MIN_CONSENSUS_BOOKS_MLB` ... so there is still
+> no limit on how thin MLB consensus may get". **That is wrong.** Every path
+> already drops thin rows to `low`, which Gate 4.5 rejects: MLB's limit is
+> `n_books >= 5` on moneyline and `>= 3` on totals. R29 did not leave MLB
+> unfloored -- it *raised NBA's* from 5 to 8. See S20c, which also finds MLB's
+> loss is entirely expensive NO bets on totals, already gated by Gate 3.55.
+
+---
+
+## 2026-09-10 (later) -- S28: the NFL Week 1 review's ROI has always been $0.00, and its S4 claim was two weeks stale
+
+`nfl_week1_review.py` fires **once, unattended, on 2026-09-15, with `--apply`**,
+and may rewrite `MIN_EDGE_THRESHOLD_NFL` in the live `.env` (S1b, pre-declared
+2026-08-26). Three defects, all found by *running* it rather than reading it.
+
+**1. `staked` was always exactly $0.00, so ROI was always `+0.0%`.**
+`roi_context()` summed `cost_dollars` from the settlement log. That field does
+not exist there -- the settler writes **`cost`**; `cost_dollars` is the *trade
+log's* name for it. **426 of 426 settlement rows lack it**, so the sum was $0.00
+for every possible input, and `roi` then fell through its own
+`if staked else 0.0` guard to a clean, plausible **`+0.0%`**. On 09-10 it printed
+`staked $0.00   net $-2.24   ROI +0.0%` without complaint. This has never once
+produced a real number since the script was written. Now reads `cost` (falling
+back to `cost_dollars` so either row shape works), and **`roi` is `None` when the
+stake is unreadable** -- the report prints `ROI n/a` and names how many rows
+lacked a stake. A zero indistinguishable from a real result is worse than a gap
+in a report that gates a live-money decision. Correct output: `staked $2.12
+net $-2.24   ROI -105.5%`.
+
+**2. It asserted `MAX_SEGMENT_EXPOSURE_PCT` "does not exist".** A string literal
+written before **S4 shipped on 2026-08-26**. The cap has been live at **0.33**
+ever since, so for two weeks the report was set to tell the operator that
+*nothing mechanically stops NFL exposure re-accumulating* -- inside the document
+deciding whether to unfreeze NFL. Now `_segment_cap()` reads the live value and
+`_segment_cap_paragraph()` states it three ways: the real cap when one is set,
+the original warning **restored** when it is 0/OFF, and an explicit "could not be
+read -- check `.env`" otherwise. A number that comes from `.env` cannot drift
+away from `.env`.
+
+- **`_segment_cap()` loads `.env` itself.** Nothing else in the script reads
+  config -- it rewrites `.env` as text -- so no entry-point dotenv load existed
+  here. Without one `get_config()` returns the **code default (0)**, which reads
+  as "no cap configured" while the live file says 0.33: the same false statement,
+  reached a different way. Caught because the first fix printed `0 -- OFF`
+  against a `.env` that plainly said `0.33`.
+
+**3. Branch C conflated "not enough bets" with "not enough readable bets".**
+`decide()` reported `len(rows)`, which counts only settlements carrying a model
+probability, as "only N settled NFL bets" -- so rows dropped for a missing
+`fair_value` read as bets that were never placed. It now reports both counts and
+the dropped total. This matters on the 15th: **23 of 31 NFL rows project as
+usable**, clearing the >= 20 bar by 3, with 8 dropping out. Which of those two
+numbers is short changes what the operator should do.
+
+**The pre-declared branch logic is untouched** -- thresholds, branches, the
+capped 0.08 pilot floor and the report-only default are all unchanged and now
+covered by tests. Only the reporting around the decision was wrong.
+
+- **`scripts/backtest/nfl_week1_review.py`** -- `roi_context()` reads `cost` and
+  returns `roi: None` + `missing_cost`; new `_segment_cap()`,
+  `_segment_cap_paragraph()`, `_settled_nfl_count()`; module docstring corrected.
+- **`tests/test_nfl_week1_review.py`** -- new, 18 tests. Covers the exact
+  `cost_dollars` row shape that produced the silent zero, that an off cap still
+  warns, that the report never claims a cap it does not have, and that
+  `--apply`-less runs never write `.env`. **1092 pass.**
+- **Verified:** report-only run reproduces `ROI -105.5%` and `33% of equity`;
+  `.env` still reads `MIN_EDGE_THRESHOLD_NFL=1.0`; verdict remains BRANCH C.
+
+---
+
 ## 2026-09-10 -- P1: strategy profiles replace the forked Longshot repo
 
 `Repos/Other_Apps/Edge-Radar-Longshot` was a second checkout of this repo,

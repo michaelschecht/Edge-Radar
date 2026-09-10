@@ -1522,6 +1522,13 @@ def detect_edge_game(market: dict, odds_events: list,
     spread = yes_ask - yes_bid
     liquidity = max(0, 10 - (spread * 20))  # tighter spread = higher score
     details.update(liquidity_details(market, spread))
+    # S8: the event's scheduled start, from the matched Odds API event. This is
+    # the reference point CLV is measured at, and it must be captured HERE --
+    # the ticker only carries a start time for 35% of the book (all of it MLB;
+    # every other sport is date-only), so deriving it later would silently
+    # restrict CLV to one sport. None when the event carries no commence_time;
+    # callers must treat that as "not capturable", never as now.
+    details["event_start_time"] = matched_event.get("commence_time")
 
     confidence = "low"
     if details["n_books"] >= 5:
@@ -1664,6 +1671,13 @@ def detect_edge_spread(market: dict, odds_events: list,
     spread = yes_ask - yes_bid
     liquidity = max(0, 10 - (spread * 20))
     details.update(liquidity_details(market, spread))
+    # S8: the event's scheduled start, from the matched Odds API event. This is
+    # the reference point CLV is measured at, and it must be captured HERE --
+    # the ticker only carries a start time for 35% of the book (all of it MLB;
+    # every other sport is date-only), so deriving it later would silently
+    # restrict CLV to one sport. None when the event carries no commence_time;
+    # callers must treat that as "not capturable", never as now.
+    details["event_start_time"] = matched_event.get("commence_time")
 
     # Confidence: based on book count AND book agreement
     book_range = details.get("book_spread_range", 0)
@@ -2001,6 +2015,13 @@ def detect_edge_total(market: dict, odds_events: list,
     spread = yes_ask - yes_bid
     liquidity = max(0, 10 - (spread * 20))
     details.update(liquidity_details(market, spread))
+    # S8: the event's scheduled start, from the matched Odds API event. This is
+    # the reference point CLV is measured at, and it must be captured HERE --
+    # the ticker only carries a start time for 35% of the book (all of it MLB;
+    # every other sport is date-only), so deriving it later would silently
+    # restrict CLV to one sport. None when the event carries no commence_time;
+    # callers must treat that as "not capturable", never as now.
+    details["event_start_time"] = matched_event.get("commence_time")
 
     confidence = "low" if details["n_books"] < 3 else "medium"
 
